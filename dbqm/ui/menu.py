@@ -17,6 +17,7 @@ from dbqm.ui.display import (
     show_query_result, show_group_result,
 )
 from dbqm.core.config_portability import export_configs, import_configs
+from dbqm.core.ddl_extractor import extract_ddl, save_extraction
 from dbqm.ui.prompts import select, text, secret, checkbox, is_esc
 from dbqm.ui.config_wizard import connection_wizard
 from dbqm.ui.query_wizard import query_wizard
@@ -42,6 +43,7 @@ def main_menu():
             choices=[
                 {"name": "Executar consulta", "value": "exec_query"},
                 {"name": "Executar grupo de consultas", "value": "exec_group"},
+                {"name": "Extrair DDL de objeto", "value": "extract_ddl"},
                 {"name": "Configuracoes", "value": "config"},
                 {"name": "Sair", "value": "exit"},
             ],
@@ -52,6 +54,8 @@ def main_menu():
             break
         elif action == "config":
             _config_menu()
+        elif action == "extract_ddl":
+            _extract_ddl_flow()
         elif action == "exec_query":
             _execute_query_flow()
         elif action == "exec_group":
@@ -332,6 +336,72 @@ def _show_individual_results(group_result: GroupResult):
 
     result = group_result.query_results[selected]
     show_query_result(result)
+
+
+def _extract_ddl_flow():
+    """Flow to extract DDL from an Oracle object."""
+    connections = load_connections()
+    oracle_conns = [c for c in connections if c.db_type == "oracle"]
+    if not oracle_conns:
+        show_warning("Nenhuma conexao Oracle configurada.")
+        return
+
+    choices = [
+        {"name": f"{c.name} ({c.display_target()})", "value": c.name}
+        for c in oracle_conns
+    ]
+    selected = select(message="Selecione a conexao:", choices=choices)
+    if is_esc(selected):
+        return
+
+    conn = find_connection(selected)
+    if not conn:
+        show_error("Conexao nao encontrada.")
+        return
+
+    object_name = text(message="Nome do objeto (tabela, package, procedure, etc):")
+    if is_esc(object_name) or not object_name.strip():
+        return
+
+    with console.status(f"Extraindo DDL de {object_name.strip().upper()}..."):
+        result = extract_ddl(conn, object_name)
+
+    if result.errors and not result.objects:
+        for err in result.errors:
+            show_error(err)
+        return
+
+    filepath = save_extraction(result)
+
+    # Summary
+    console.print()
+    console.rule("[bold cyan]EXTRACAO DDL[/bold cyan]", style="cyan")
+    console.print(f"  [bold]Objeto:[/bold] {result.owner}.{result.object_name}")
+    console.print(f"  [bold]Tipo:[/bold] {result.object_type}")
+    console.print(f"  [bold]Conexao:[/bold] {result.connection_name}")
+    console.print()
+
+    type_counts: dict[str, int] = {}
+    for obj in result.objects:
+        base_type = obj.obj_type.split("(")[0].strip()
+        type_counts[base_type] = type_counts.get(base_type, 0) + 1
+
+    for obj_type, count in type_counts.items():
+        console.print(f"  [green]v[/green] {obj_type}: {count}")
+
+    if result.dependencies:
+        console.print(f"\n  [bold]Dependencias:[/bold]")
+        for dep in result.dependencies:
+            console.print(f"    [dim]-[/dim] {dep}")
+
+    if result.errors:
+        console.print()
+        for err in result.errors:
+            show_warning(err)
+
+    console.print()
+    show_success(f"Arquivo salvo: {filepath}")
+    console.print()
 
 
 def _portability_flow():
