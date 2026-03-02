@@ -16,7 +16,8 @@ from dbqm.ui.display import (
     show_banner, show_success, show_error, show_warning, show_info,
     show_query_result, show_group_result,
 )
-from dbqm.ui.prompts import select, text, is_esc
+from dbqm.core.config_portability import export_configs, import_configs
+from dbqm.ui.prompts import select, text, secret, checkbox, is_esc
 from dbqm.ui.config_wizard import connection_wizard
 from dbqm.ui.query_wizard import query_wizard
 from dbqm.ui.group_wizard import group_wizard
@@ -41,9 +42,7 @@ def main_menu():
             choices=[
                 {"name": "Executar consulta", "value": "exec_query"},
                 {"name": "Executar grupo de consultas", "value": "exec_group"},
-                {"name": "Configurar conexoes", "value": "config_conn"},
-                {"name": "Configurar consultas", "value": "config_query"},
-                {"name": "Configurar grupos", "value": "config_group"},
+                {"name": "Configuracoes", "value": "config"},
                 {"name": "Sair", "value": "exit"},
             ],
         )
@@ -51,16 +50,38 @@ def main_menu():
         if is_esc(action) or action == "exit":
             console.print("\n[dim]Ate logo![/dim]\n")
             break
+        elif action == "config":
+            _config_menu()
+        elif action == "exec_query":
+            _execute_query_flow()
+        elif action == "exec_group":
+            _execute_group_flow()
+
+
+def _config_menu():
+    """Configuration sub-menu."""
+    while True:
+        action = select(
+            message="Configuracoes:",
+            choices=[
+                {"name": "Conexoes", "value": "config_conn"},
+                {"name": "Consultas", "value": "config_query"},
+                {"name": "Grupos", "value": "config_group"},
+                {"name": "Exportar/Importar", "value": "portability"},
+                {"name": "Voltar", "value": "back"},
+            ],
+        )
+
+        if is_esc(action) or action == "back":
+            break
         elif action == "config_conn":
             connection_wizard()
         elif action == "config_query":
             query_wizard()
         elif action == "config_group":
             group_wizard()
-        elif action == "exec_query":
-            _execute_query_flow()
-        elif action == "exec_group":
-            _execute_group_flow()
+        elif action == "portability":
+            _portability_flow()
 
 
 def _execute_query_flow():
@@ -311,3 +332,99 @@ def _show_individual_results(group_result: GroupResult):
 
     result = group_result.query_results[selected]
     show_query_result(result)
+
+
+def _portability_flow():
+    """Export/Import configurations menu."""
+    action = select(
+        message="Exportar ou Importar?",
+        choices=[
+            {"name": "Exportar configuracoes", "value": "export"},
+            {"name": "Importar configuracoes", "value": "import"},
+        ],
+    )
+
+    if is_esc(action):
+        return
+
+    if action == "export":
+        _export_configs_flow()
+    else:
+        _import_configs_flow()
+
+
+def _export_configs_flow():
+    """Export configurations to a .dbqm file."""
+    items = checkbox(
+        message="O que exportar?",
+        choices=[
+            {"name": "Conexoes", "value": "connections", "enabled": True},
+            {"name": "Consultas", "value": "queries", "enabled": True},
+            {"name": "Grupos", "value": "groups", "enabled": True},
+        ],
+    )
+
+    if is_esc(items) or not items:
+        return
+
+    password = secret(message="Senha para proteger o arquivo:")
+    if is_esc(password) or not password:
+        show_warning("Senha obrigatoria para exportar.")
+        return
+
+    password_confirm = secret(message="Confirme a senha:")
+    if is_esc(password_confirm):
+        return
+
+    if password != password_confirm:
+        show_error("Senhas nao conferem.")
+        return
+
+    try:
+        path = export_configs(
+            password=password,
+            include_connections="connections" in items,
+            include_queries="queries" in items,
+            include_groups="groups" in items,
+        )
+        show_success(f"Configuracoes exportadas: {path}")
+    except Exception as e:
+        show_error(f"Erro ao exportar: {e}")
+
+
+def _import_configs_flow():
+    """Import configurations from a .dbqm file."""
+    filepath = text(message="Caminho do arquivo .dbqm:")
+    if is_esc(filepath) or not filepath:
+        return
+
+    filepath = filepath.strip().strip('"').strip("'")
+
+    from pathlib import Path
+    if not Path(filepath).exists():
+        show_error("Arquivo nao encontrado.")
+        return
+
+    password = secret(message="Senha do arquivo:")
+    if is_esc(password) or not password:
+        return
+
+    try:
+        summary = import_configs(filepath, password)
+        total = summary["connections"] + summary["queries"] + summary["groups"]
+        parts = []
+        if summary["connections"]:
+            parts.append(f'{summary["connections"]} conexoes')
+        if summary["queries"]:
+            parts.append(f'{summary["queries"]} consultas')
+        if summary["groups"]:
+            parts.append(f'{summary["groups"]} grupos')
+        if summary["skipped"]:
+            parts.append(f'{summary["skipped"]} ignorados (duplicados)')
+
+        if total > 0:
+            show_success(f"Importado: {', '.join(parts)}")
+        else:
+            show_warning(f"Nenhuma configuracao nova importada. {summary['skipped']} duplicados ignorados.")
+    except Exception as e:
+        show_error(f"Erro ao importar: {e}")

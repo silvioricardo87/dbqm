@@ -63,8 +63,9 @@ def show_query_result(result: QueryResult):
 
 
 def show_group_result(group_result: GroupResult, params: dict | None = None):
-    """Display full group comparison result."""
+    """Display full group comparison result with pivoted tables (one per key)."""
     query_names = list(group_result.query_results.keys())
+    compare_columns = [c.column for c in group_result.comparisons]
 
     # Header
     console.print()
@@ -75,7 +76,7 @@ def show_group_result(group_result: GroupResult, params: dict | None = None):
             console.print(f"  [bold]{k}:[/bold] {v}")
     console.print()
 
-    # Per-query status
+    # Per-query execution status
     for qname, qresult in group_result.query_results.items():
         if qresult.success:
             console.print(f"  [green]v[/green] {qname}: {qresult.row_count} registros ({qresult.elapsed:.2f}s)")
@@ -83,58 +84,100 @@ def show_group_result(group_result: GroupResult, params: dict | None = None):
             console.print(f"  [red]x[/red] {qname}: ERRO - {qresult.error}")
     console.print()
 
-    # Comparison tables
+    # Build lookup: {(key_value, column): ComparisonRow}
+    lookup: dict[tuple, ComparisonRow] = {}
+    all_keys: list = []
     for comp in group_result.comparisons:
-        _show_comparison_table(comp, query_names)
+        for row in comp.rows:
+            lookup[(row.key_value, comp.column)] = row
+            if row.key_value not in all_keys:
+                all_keys.append(row.key_value)
+
+    # One table per key
+    for key in all_keys:
+        _show_pivoted_key_table(key, query_names, compare_columns, lookup)
 
     # Summary
     console.rule("[bold cyan]RESUMO[/bold cyan]", style="cyan")
     for comp in group_result.comparisons:
-        _show_comparison_summary(comp, query_names, group_result)
+        _show_comparison_summary(comp)
 
     status_text = "[green]CONSISTENTE[/green]" if group_result.all_match else "[red]DIVERGENTE[/red]"
     console.print(f"\n  Resultado final: {status_text}")
     console.print()
 
 
-def _show_comparison_table(comp: ComparisonResult, query_names: list[str]):
-    """Display a single comparison column table."""
+def _status_cell(status: str) -> str:
+    """Format a status value with color."""
+    if status == "OK":
+        return "[green]v OK[/green]"
+    elif status == "OK*":
+        return "[green]v OK*[/green]"
+    elif status == "DIFF":
+        return "[yellow]! DIFF[/yellow]"
+    elif status == "ABSENT":
+        return "[red]x AUSENTE[/red]"
+    return status
+
+
+def _worst_status(statuses: list[str]) -> str:
+    """Return the worst status from a list (ABSENT > DIFF > OK* > OK)."""
+    priority = {"ABSENT": 3, "DIFF": 2, "OK*": 1, "OK": 0}
+    worst = max(statuses, key=lambda s: priority.get(s, 0))
+    return worst
+
+
+def _show_pivoted_key_table(
+    key_value,
+    query_names: list[str],
+    compare_columns: list[str],
+    lookup: dict,
+):
+    """Display a pivoted table for a single join key value."""
     table = Table(
-        title=f"Comparacao: {comp.column}",
+        title=f"chave: {key_value}",
         show_lines=True,
         border_style="dim",
     )
-    table.add_column("chave", style="bold")
-    for qn in query_names:
-        table.add_column(qn, style="white")
+    table.add_column("Consulta", style="bold")
+    for col in compare_columns:
+        table.add_column(col, style="white")
     table.add_column("status", justify="center")
 
-    for row in comp.rows:
-        vals = []
-        vals.append(str(row.key_value))
-        for qn in query_names:
-            v = row.values.get(qn)
-            vals.append(str(v) if v is not None else "[dim]-[/dim]")
+    # One row per query
+    for qname in query_names:
+        cells = [qname]
+        for col in compare_columns:
+            comp_row = lookup.get((key_value, col))
+            if comp_row:
+                v = comp_row.values.get(qname)
+                cells.append(str(v) if v is not None else "[dim]-[/dim]")
+            else:
+                cells.append("[dim]-[/dim]")
+        cells.append("")  # no per-row status
+        table.add_row(*cells)
 
-        if row.status == "OK":
-            status_cell = "[green]v OK[/green]"
-        elif row.status == "OK*":
-            status_cell = "[green]v OK*[/green]"
-        elif row.status == "DIFF":
-            status_cell = "[yellow]! DIFF[/yellow]"
-        elif row.status == "ABSENT":
-            status_cell = "[red]x AUSENTE[/red]"
-        else:
-            status_cell = row.status
-        vals.append(status_cell)
+    # Result row
+    col_statuses = []
+    for col in compare_columns:
+        comp_row = lookup.get((key_value, col))
+        status = comp_row.status if comp_row else "ABSENT"
+        col_statuses.append(status)
 
-        table.add_row(*vals)
+    overall = _worst_status(col_statuses)
+    result_cells = ["[bold]Resultado[/bold]"]
+    for s in col_statuses:
+        result_cells.append(_status_cell(s))
+    result_cells.append(_status_cell(overall))
+
+    table.add_section()
+    table.add_row(*result_cells)
 
     console.print(table)
     console.print()
 
 
-def _show_comparison_summary(comp: ComparisonResult, query_names: list[str], group_result: GroupResult):
+def _show_comparison_summary(comp: ComparisonResult):
     """Display summary stats for a comparison."""
     total = comp.total_keys
     console.print(f"  [bold]Coluna: {comp.column}[/bold]")
@@ -144,9 +187,7 @@ def _show_comparison_summary(comp: ComparisonResult, query_names: list[str], gro
     console.print(f"    [yellow]! Diferentes:[/yellow]  {comp.diff_count}/{total}")
     console.print(f"    [red]x Ausentes:[/red]    {comp.absent_count}/{total}")
 
-    # Detail absent keys
     if comp.absent_count > 0:
-        absent_keys = [str(r.key_value) for r in comp.rows if r.status == "ABSENT"]
         for r in comp.rows:
             if r.status == "ABSENT":
                 missing_in = [qn for qn, v in r.values.items() if v is None]
