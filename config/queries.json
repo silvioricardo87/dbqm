@@ -1,0 +1,121 @@
+{
+  "queries": [
+    {
+      "name": "Consultar Parcela (ASD)",
+      "connection": "ASDADM",
+      "sql": "SELECT\n    NO_APOLICE AS apolice,\n    NO_PARCELA AS parcela,\n    DT_VENCIMENTO AS vencimento,\n    CD_SITUACAO_PARCELA AS status_pgto\nFROM ASD_PARCELA\nWHERE NO_APOLICE = :apolice\nORDER BY NO_PARCELA ASC",
+      "table": "ASD_PARCELA",
+      "description": "",
+      "params": [
+        {
+          "name": "apolice",
+          "description": "Número da apólice",
+          "default": ""
+        }
+      ],
+      "columns": [
+        "apolice",
+        "parcela",
+        "vencimento",
+        "status_pgto"
+      ],
+      "column_maps": {
+        "status_pgto": {
+          "1": "vencida/pendente",
+          "2": "paga",
+          "3": "vencida/pendente",
+          "4": "aguardando ret/pgto",
+          "5": "parcela cobrada"
+        }
+      },
+      "order_by": "NO_PARCELA ASC",
+      "created_at": "2026-03-02T10:21:12"
+    },
+    {
+      "name": "Consultar Parcela (ASC)",
+      "connection": "ASCADM",
+      "sql": "SELECT\n    NO_APOLICE as apolice,\n    NO_PARCELA as parcela,\n    DT_VENCIMENTO as vencimento,\n    CD_STATUS_PARCELA as status_pgto\nFROM ASC_PARCELA\nWHERE NO_APOLICE = :apolice\nORDER BY NO_PARCELA ASC",
+      "table": "ASC_PARCELA",
+      "description": "",
+      "params": [
+        {
+          "name": "apolice",
+          "description": "Número da apólice",
+          "default": ""
+        }
+      ],
+      "columns": [
+        "apolice",
+        "parcela",
+        "vencimento",
+        "status_pgto"
+      ],
+      "column_maps": {
+        "status_pgto": {
+          "PG": "paga",
+          "CO": "parcela cobrada",
+          "AG": "aguardando ret/pgto",
+          "PE": "vencida/pendente"
+        }
+      },
+      "order_by": "NO_PARCELA ASC",
+      "created_at": "2026-03-02T11:10:49"
+    },
+    {
+      "name": "Consultar Parcela (GOLDENGATE)",
+      "connection": "ASDADM",
+      "sql": "SELECT\n    NUM_POLIZA AS apolice,\n    NUM_CUOTA AS parcela,\n    FEC_EFEC_RECIBO AS data_venc,\n    TIP_SITUACION AS status_pgto\nFROM TWMFPRD.A2990700\nWHERE NUM_POLIZA = :apolice\nORDER BY NUM_CUOTA ASC",
+      "table": "TWMFPRD.A2990700",
+      "description": "",
+      "params": [
+        {
+          "name": "apolice",
+          "description": "Número da apólice",
+          "default": ""
+        }
+      ],
+      "columns": [
+        "apolice",
+        "parcela",
+        "data_venc",
+        "status_pgto"
+      ],
+      "column_maps": {
+        "status_pgto": {
+          "CT": "paga",
+          "RE": "outros"
+        }
+      },
+      "order_by": "NUM_CUOTA ASC",
+      "created_at": "2026-03-02T11:16:37"
+    },
+    {
+      "name": "Consultar Parcela (TRONWEB)",
+      "connection": "TRONWEB",
+      "sql": "SELECT\n    NUM_POLIZA AS apolice,\n    NUM_CUOTA AS parcela,\n    FEC_EFEC_RECIBO AS data_venc,\n    TIP_SITUACION AS status_pgto\nFROM A2990700\nWHERE NUM_POLIZA = :apolice\nORDER BY NUM_CUOTA ASC",
+      "table": "A2990700",
+      "description": "",
+      "params": [
+        {
+          "name": "apolice",
+          "description": "Número da apólice",
+          "default": ""
+        }
+      ],
+      "columns": [
+        "apolice",
+        "parcela",
+        "data_venc",
+        "status_pgto"
+      ],
+      "column_maps": {
+        "status_pgto": {
+          "CT": "paga",
+          "RE": "outros"
+        }
+      },
+      "order_by": "NUM_CUOTA ASC",
+      "created_at": "2026-03-02T11:19:06"
+    }
+  ]
+}

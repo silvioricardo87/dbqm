@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.dbqm_key
+config/connections.json
+exports/
+tns/
+.venv/
+*.egg-info/
+dist/
+build/
+clients/
