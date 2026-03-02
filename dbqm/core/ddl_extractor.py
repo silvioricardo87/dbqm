@@ -29,6 +29,7 @@ class ExtractionResult:
     objects: list[ExtractedObject] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    saved_files: list[str] = field(default_factory=list)
 
 
 def _query_all(cursor, sql: str, params: dict | None = None) -> list[tuple]:
@@ -311,25 +312,6 @@ def _extract_type(cursor, owner: str, name: str, result: ExtractionResult):
 
 
 # ---------------------------------------------------------------------------
-# Dependencies
-# ---------------------------------------------------------------------------
-
-def _extract_dependencies(cursor, owner: str, name: str, obj_type: str, result: ExtractionResult):
-    """Extract referenced tables/views via ALL_DEPENDENCIES."""
-    rows = _query_all(cursor, """
-        SELECT DISTINCT referenced_owner, referenced_name, referenced_type
-        FROM all_dependencies
-        WHERE owner = :owner AND name = :name AND type = :obj_type
-          AND referenced_type IN ('TABLE', 'VIEW', 'SEQUENCE')
-          AND referenced_owner NOT IN ('SYS', 'SYSTEM', 'PUBLIC')
-        ORDER BY referenced_type, referenced_name
-    """, {"owner": owner, "name": name, "obj_type": obj_type})
-
-    for ref_owner, ref_name, ref_type in rows:
-        result.dependencies.append(f"{ref_type} {ref_owner}.{ref_name}")
-
-
-# ---------------------------------------------------------------------------
 # Synonym resolution
 # ---------------------------------------------------------------------------
 
@@ -346,6 +328,312 @@ def _resolve_synonym(cursor, owner: str, name: str) -> tuple[str, str, str] | No
         if real_objs:
             return real_objs[0]["owner"], real_objs[0]["name"], real_objs[0]["type"]
     return None
+
+
+# ---------------------------------------------------------------------------
+# PL/SQL source parser — extract individual routines from package source
+# ---------------------------------------------------------------------------
+
+def _parse_routines(source: str) -> dict[str, dict]:
+    """Parse package body/spec source into individual routines.
+
+    Returns {routine_name_upper: {"name": original, "type": PROCEDURE|FUNCTION, "source": full_text}}.
+    """
+    routines: dict[str, dict] = {}
+    # Match PROCEDURE/FUNCTION declarations at the top level of the package
+    # We look for PROCEDURE|FUNCTION name followed by params, then IS/AS or ;
+    pattern = re.compile(
+        r"^[ \t]*(PROCEDURE|FUNCTION)\s+(\w+)",
+        re.IGNORECASE | re.MULTILINE,
+    )
+
+    matches = list(pattern.finditer(source))
+    if not matches:
+        return routines
+
+    for i, m in enumerate(matches):
+        rtype = m.group(1).upper()
+        rname = m.group(2)
+        start = m.start()
+
+        # Find the end of this routine by tracking BEGIN/END nesting
+        # First check if this is a forward declaration (ends with ; before IS/AS)
+        after_sig = source[m.end():]
+        # Find what comes first: IS/AS (body) or ; (forward declaration)
+        sig_match = re.search(r"\b(IS|AS)\b|;", after_sig, re.IGNORECASE)
+        if sig_match and sig_match.group(0) == ";":
+            # Forward declaration / spec header — capture up to ;
+            end = m.end() + sig_match.end()
+            routines[rname.upper()] = {
+                "name": rname, "type": rtype,
+                "source": source[start:end].strip(),
+            }
+            continue
+
+        # Has a body — find matching END
+        body_start = m.end() + sig_match.start() if sig_match else m.end()
+        end = _find_routine_end(source, body_start, rname)
+        routines[rname.upper()] = {
+            "name": rname, "type": rtype,
+            "source": source[start:end].strip(),
+        }
+
+    return routines
+
+
+def _find_routine_end(source: str, offset: int, routine_name: str) -> int:
+    """Find the end position of a routine body by tracking BEGIN/END depth."""
+    depth = 0
+    pos = offset
+    src_upper = source.upper()
+    length = len(source)
+    # Tokenize keywords to track depth
+    token_pattern = re.compile(
+        r"""'[^']*'|"""            # skip string literals
+        r"""/\*.*?\*/|"""          # skip /* */ comments
+        r"""--[^\n]*|"""           # skip -- comments
+        r"""\b(BEGIN|CASE)\b|"""   # depth++
+        r"""\bEND\b""",           # depth--
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    for tok in token_pattern.finditer(source, pos):
+        g = tok.group(0).upper()
+        if g.startswith("'") or g.startswith("--") or g.startswith("/*"):
+            continue
+        if g in ("BEGIN", "CASE"):
+            depth += 1
+        elif g == "END":
+            depth -= 1
+            if depth <= 0:
+                # Find the ; after END [name]
+                after_end = source[tok.end():]
+                semi = after_end.find(";")
+                return tok.end() + semi + 1 if semi >= 0 else tok.end()
+
+    return length
+
+
+def _find_internal_calls(routine_source: str, all_routine_names: set[str], own_name: str) -> set[str]:
+    """Find calls to other routines within the same package from a routine's source."""
+    found: set[str] = set()
+    # Tokenize to skip strings and comments
+    clean = re.sub(r"'[^']*'", "''", routine_source)
+    clean = re.sub(r"/\*.*?\*/", "", clean, flags=re.DOTALL)
+    clean = re.sub(r"--[^\n]*", "", clean)
+    upper = clean.upper()
+
+    for name in all_routine_names:
+        if name == own_name:
+            continue
+        # Match standalone identifier (not qualified with a different package name)
+        if re.search(rf"\b{re.escape(name)}\b", upper):
+            found.add(name)
+    return found
+
+
+def _collect_routine_deps(
+    target: str,
+    routines: dict[str, dict],
+    collected: dict[str, dict] | None = None,
+) -> dict[str, dict]:
+    """Recursively collect a routine and all internal routines it calls."""
+    if collected is None:
+        collected = {}
+    target_upper = target.upper()
+    if target_upper in collected or target_upper not in routines:
+        return collected
+    collected[target_upper] = routines[target_upper]
+
+    all_names = set(routines.keys())
+    calls = _find_internal_calls(routines[target_upper]["source"], all_names, target_upper)
+    for call in calls:
+        _collect_routine_deps(call, routines, collected)
+    return collected
+
+
+# ---------------------------------------------------------------------------
+# Routine-specific extraction (PACKAGE.ROUTINE)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RoutineExtractionResult:
+    package_name: str
+    routine_name: str
+    owner: str
+    connection_name: str
+    spec_headers: list[ExtractedObject] = field(default_factory=list)
+    body_routines: list[ExtractedObject] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    saved_files: list[str] = field(default_factory=list)
+
+
+def extract_routine(conn: Connection, package_name: str, routine_name: str) -> RoutineExtractionResult:
+    """Extract a specific routine from a package with its internal dependencies."""
+    db = get_connection(conn)
+    cursor = db.cursor()
+    pkg = package_name.strip().upper()
+    routine = routine_name.strip().upper()
+
+    result = RoutineExtractionResult(
+        package_name=pkg, routine_name=routine,
+        owner="", connection_name=conn.name,
+    )
+
+    try:
+        # Detect package
+        matches = detect_object(cursor, pkg)
+        matches = [m for m in matches if m["type"] == "PACKAGE"]
+        if not matches:
+            resolved = _resolve_synonym(cursor, conn.user.upper(), pkg)
+            if resolved and resolved[2] == "PACKAGE":
+                matches = [{"owner": resolved[0], "name": resolved[1], "type": "PACKAGE"}]
+
+        if not matches:
+            result.errors.append(f"Package '{pkg}' nao encontrado.")
+            return result
+
+        owner = matches[0]["owner"]
+        pkg_name = matches[0]["name"]
+        result.owner = owner
+
+        # Get body source and parse routines
+        body_src = _get_source(cursor, owner, pkg_name, "PACKAGE BODY")
+        if not body_src:
+            result.errors.append(f"Package body '{pkg_name}' nao encontrado.")
+            return result
+
+        body_routines = _parse_routines(body_src)
+        if routine not in body_routines:
+            result.errors.append(
+                f"Rotina '{routine}' nao encontrada no body de '{pkg_name}'. "
+                f"Rotinas disponiveis: {', '.join(sorted(body_routines.keys()))}"
+            )
+            return result
+
+        # Collect target + internal dependencies recursively
+        collected = _collect_routine_deps(routine, body_routines)
+
+        # Get spec source and parse headers
+        spec_src = _get_source(cursor, owner, pkg_name, "PACKAGE")
+        spec_routines = _parse_routines(spec_src) if spec_src else {}
+
+        # Build spec headers for collected routines
+        for rname in collected:
+            if rname in spec_routines:
+                r = spec_routines[rname]
+                result.spec_headers.append(ExtractedObject(
+                    r["name"], f"SPEC {r['type']}", r["source"],
+                ))
+
+        # Build body routines — target last (dependencies first)
+        dep_names = [n for n in collected if n != routine]
+        for rname in sorted(dep_names):
+            r = collected[rname]
+            result.body_routines.append(ExtractedObject(
+                r["name"], f"BODY {r['type']}", r["source"],
+            ))
+        # Main target last
+        target_r = collected[routine]
+        result.body_routines.append(ExtractedObject(
+            target_r["name"], f"BODY {target_r['type']}", target_r["source"],
+        ))
+
+        # External dependencies
+        _extract_dependencies(cursor, owner, pkg_name, "PACKAGE BODY", result)
+
+        return result
+    finally:
+        cursor.close()
+        db.close()
+
+
+def _extract_dependencies(cursor, owner, name, obj_type, result):
+    """Extract referenced tables/views via ALL_DEPENDENCIES."""
+    rows = _query_all(cursor, """
+        SELECT DISTINCT referenced_owner, referenced_name, referenced_type
+        FROM all_dependencies
+        WHERE owner = :owner AND name = :name AND type = :obj_type
+          AND referenced_type IN ('TABLE', 'VIEW', 'SEQUENCE', 'PACKAGE')
+          AND referenced_owner NOT IN ('SYS', 'SYSTEM', 'PUBLIC')
+          AND referenced_name != :name
+        ORDER BY referenced_type, referenced_name
+    """, {"owner": owner, "name": name, "obj_type": obj_type})
+
+    for ref_owner, ref_name, ref_type in rows:
+        dep = f"{ref_type} {ref_owner}.{ref_name}"
+        if dep not in result.dependencies:
+            result.dependencies.append(dep)
+
+
+def save_routine_extraction(result: RoutineExtractionResult) -> str:
+    """Save routine extraction to separate numbered .sql files in a directory.
+
+    Returns the directory path.
+    """
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_pkg = re.sub(r"[^\w]", "_", result.package_name)
+    safe_routine = re.sub(r"[^\w]", "_", result.routine_name)
+    dir_name = f"{result.connection_name}_{safe_pkg}_{safe_routine}_{ts}"
+    out_dir = EXPORTS_DIR / dir_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    header = (
+        f"-- Package: {result.owner}.{result.package_name}\n"
+        f"-- Connection: {result.connection_name}\n"
+        f"-- Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    )
+
+    file_num = 1
+
+    # 1. Spec headers
+    if result.spec_headers:
+        lines = [header]
+        lines.append(f"-- Package spec headers for referenced routines")
+        lines.append(f"-- ============================================================\n")
+        for obj in result.spec_headers:
+            lines.append(f"-- {obj.obj_type}: {obj.name}")
+            lines.append(f"{obj.ddl}")
+            lines.append("")
+        fname = f"{file_num:02d}_{safe_pkg}_spec.sql"
+        (out_dir / fname).write_text("\n".join(lines), encoding="utf-8")
+        result.saved_files.append(fname)
+        file_num += 1
+
+    # 2. Body routines — dependencies first, target last
+    for obj in result.body_routines:
+        lines = [header]
+        lines.append(f"-- {obj.obj_type}: {obj.name}")
+        lines.append(f"-- ============================================================\n")
+        lines.append(obj.ddl)
+        lines.append("")
+        safe_rname = re.sub(r"[^\w]", "_", obj.name)
+        fname = f"{file_num:02d}_{safe_pkg}_{safe_rname}.sql"
+        (out_dir / fname).write_text("\n".join(lines), encoding="utf-8")
+        result.saved_files.append(fname)
+        file_num += 1
+
+    # 3. Dependencies list
+    if result.dependencies:
+        lines = [header]
+        lines.append(f"-- External dependencies referenced by {result.package_name}")
+        lines.append(f"-- ============================================================\n")
+        for dep in result.dependencies:
+            lines.append(f"-- {dep}")
+        lines.append("")
+        fname = f"{file_num:02d}_dependencies.sql"
+        (out_dir / fname).write_text("\n".join(lines), encoding="utf-8")
+        result.saved_files.append(fname)
+
+    # Errors
+    if result.errors:
+        lines = [header]
+        for err in result.errors:
+            lines.append(f"-- ERROR: {err}")
+        (out_dir / "errors.txt").write_text("\n".join(lines), encoding="utf-8")
+
+    return str(out_dir)
 
 
 # ---------------------------------------------------------------------------
