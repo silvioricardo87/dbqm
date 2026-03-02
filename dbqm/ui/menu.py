@@ -13,7 +13,7 @@ from dbqm.models.connection import load_connections, find_connection
 from dbqm.models.query import load_queries, find_query
 from dbqm.models.group import load_groups, find_group
 from dbqm.ui.display import (
-    show_banner, show_success, show_error, show_warning, show_info,
+    clear_screen, show_banner, show_success, show_error, show_warning, show_info,
     show_query_result, show_group_result,
 )
 from dbqm.core.config_portability import export_configs, import_configs
@@ -50,7 +50,8 @@ def main_menu():
         )
 
         if is_esc(action) or action == "exit":
-            console.print("\n[dim]Ate logo![/dim]\n")
+            clear_screen()
+            console.print("[dim]Ate logo![/dim]\n")
             break
         elif action == "config":
             _config_menu()

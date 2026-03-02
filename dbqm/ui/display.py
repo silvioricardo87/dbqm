@@ -1,6 +1,8 @@
 """Display utilities using rich for formatted output."""
 from __future__ import annotations
 
+import subprocess
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -12,9 +14,17 @@ from dbqm.core.group_engine import GroupResult, ComparisonResult
 console = Console()
 
 
+def clear_screen():
+    """Clear terminal screen."""
+    cmd = "cls" if __import__("os").name == "nt" else "clear"
+    subprocess.run([cmd], shell=True, check=False)
+
+
 def show_banner():
-    banner = Text("DB Query Manager (dbqm)", style="bold cyan")
-    console.print(Panel(banner, border_style="cyan", padding=(0, 2)))
+    clear_screen()
+    width = min(console.width, 80)
+    banner = Text("DB Query Manager (dbqm)", style="bold cyan", justify="center")
+    console.print(Panel(banner, border_style="cyan", padding=(0, 2), width=width))
     console.print()
 
 
@@ -48,6 +58,7 @@ def show_query_result(result: QueryResult):
         title=f"{result.query_name} ({result.connection_name})",
         show_lines=True,
         border_style="dim",
+        expand=True,
     )
     for col in result.columns:
         table.add_column(col, style="white")
@@ -138,6 +149,7 @@ def _show_pivoted_key_table(
         title=f"chave: {key_value}",
         show_lines=True,
         border_style="dim",
+        expand=True,
     )
     table.add_column("Consulta", style="bold")
     for col in compare_columns:

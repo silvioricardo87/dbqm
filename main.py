@@ -13,7 +13,9 @@ def main():
     try:
         main_menu()
     except KeyboardInterrupt:
-        print("\n\nSaindo...")
+        from dbqm.ui.display import clear_screen
+        clear_screen()
+        print("Ate logo!\n")
         sys.exit(0)
 
 
