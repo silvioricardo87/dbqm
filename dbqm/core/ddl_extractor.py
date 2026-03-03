@@ -789,6 +789,9 @@ def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_n
                 continue
             dep_owner, dep_name = owner_name.split(".", 1)
 
+            if dep_type not in ("TABLE", "VIEW"):
+                continue
+
             key = f"{dep_type}:{dep_owner}.{dep_name}"
             if key in seen:
                 continue
