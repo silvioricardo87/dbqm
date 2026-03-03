@@ -116,32 +116,46 @@ def _execute_query_flow():
         show_error(f'Conexao "{query.connection}" nao encontrada.')
         return
 
-    # Gather parameters
-    param_values = {}
-    for p in query.params:
-        prompt = f"{p.name}"
-        if p.description:
-            prompt += f" ({p.description})"
-        val = text(message=f"  {prompt}:", default=p.default)
-        if is_esc(val):
+    # Re-execution loop: gather params, execute, show result, repeat if requested
+    last_params = {p.name: p.default for p in query.params}
+    while True:
+        # Gather parameters (using last values as defaults for re-execution)
+        param_values = {}
+        cancelled = False
+        for p in query.params:
+            prompt = f"{p.name}"
+            if p.description:
+                prompt += f" ({p.description})"
+            val = text(message=f"  {prompt}:", default=last_params.get(p.name, p.default))
+            if is_esc(val):
+                cancelled = True
+                break
+            param_values[p.name] = val
+
+        if cancelled:
             return
-        param_values[p.name] = val
 
-    # Execute
-    with console.status(f"Executando {query.name} em {conn.name}..."):
-        result = execute_query(query, conn, param_values)
+        last_params = dict(param_values)
 
-    if result.success and result.rows:
-        query.apply_column_maps(result.rows, result.columns)
+        # Execute
+        with console.status(f"Executando {query.name} em {conn.name}..."):
+            result = execute_query(query, conn, param_values)
 
-    show_query_result(result)
+        if result.success and result.rows:
+            query.apply_column_maps(result.rows, result.columns)
 
-    if result.success and result.rows:
-        _post_result_actions(result, query.table)
+        show_query_result(result)
+
+        if not (result.success and result.rows):
+            break
+
+        # Post-result actions (returns "reexec" to loop, None to exit)
+        if not _post_result_actions(result, query.table):
+            break
 
 
-def _post_result_actions(result: QueryResult, table: str = ""):
-    """Actions after displaying a query result."""
+def _post_result_actions(result: QueryResult, table: str = "") -> bool:
+    """Actions after displaying a query result. Returns True to re-execute."""
     while True:
         action = select(
             message="Acao:",
@@ -153,9 +167,9 @@ def _post_result_actions(result: QueryResult, table: str = ""):
         )
 
         if is_esc(action) or action == "back":
-            break
+            return False
         elif action == "reexec":
-            return
+            return True
         elif action == "export":
             _export_result(result, table)
 
@@ -205,94 +219,104 @@ def _execute_group_flow():
         show_error("Grupo nao encontrado.")
         return
 
-    # Gather shared params
-    param_values = {}
-    for param_name, param_info in group.shared_params.items():
-        desc = param_info.get("description", "")
-        default = param_info.get("default", "")
-        prompt = f"{param_name}"
-        if desc:
-            prompt += f" ({desc})"
-        val = text(message=f"  {prompt}:", default=default)
-        if is_esc(val):
+    # Re-execution loop
+    last_params = {k: v.get("default", "") for k, v in group.shared_params.items()}
+    while True:
+        # Gather shared params (using last values as defaults for re-execution)
+        param_values = {}
+        cancelled = False
+        for param_name, param_info in group.shared_params.items():
+            desc = param_info.get("description", "")
+            prompt = f"{param_name}"
+            if desc:
+                prompt += f" ({desc})"
+            val = text(message=f"  {prompt}:", default=last_params.get(param_name, ""))
+            if is_esc(val):
+                cancelled = True
+                break
+            param_values[param_name] = val
+
+        if cancelled:
             return
-        param_values[param_name] = val
 
-    # Execute each query in sequence
-    console.print(f"\n[bold]Executando {len(group.queries)} consultas...[/bold]\n")
+        last_params = dict(param_values)
 
-    query_results = {}
-    all_ok = True
+        # Execute each query in sequence
+        console.print(f"\n[bold]Executando {len(group.queries)} consultas...[/bold]\n")
 
-    for i, qname in enumerate(group.queries, 1):
-        query = find_query(qname)
-        if not query:
-            show_error(f"[{i}/{len(group.queries)}] Consulta '{qname}' nao encontrada.")
-            all_ok = False
-            continue
+        query_results = {}
+        all_ok = True
 
-        conn = find_connection(query.connection)
-        if not conn:
-            show_error(f"[{i}/{len(group.queries)}] Conexao '{query.connection}' nao encontrada.")
-            all_ok = False
-            continue
+        for i, qname in enumerate(group.queries, 1):
+            query = find_query(qname)
+            if not query:
+                show_error(f"[{i}/{len(group.queries)}] Consulta '{qname}' nao encontrada.")
+                all_ok = False
+                continue
 
-        # Build params for this query (shared + query-specific defaults)
-        q_params = dict(param_values)
-        for p in query.params:
-            if p.name not in q_params:
-                q_params[p.name] = p.default
+            conn = find_connection(query.connection)
+            if not conn:
+                show_error(f"[{i}/{len(group.queries)}] Conexao '{query.connection}' nao encontrada.")
+                all_ok = False
+                continue
 
-        console.print(f"  [{i}/{len(group.queries)}] {qname} ({conn.name})")
-        with console.status(f"    Conectando e executando..."):
-            result = execute_query(query, conn, q_params)
+            # Build params for this query (shared + query-specific defaults)
+            q_params = dict(param_values)
+            for p in query.params:
+                if p.name not in q_params:
+                    q_params[p.name] = p.default
 
-        if result.success:
-            if result.rows:
-                query.apply_column_maps(result.rows, result.columns)
-            show_success(f"{result.row_count} registros ({result.elapsed:.2f}s)")
+            console.print(f"  [{i}/{len(group.queries)}] {qname} ({conn.name})")
+            with console.status(f"    Conectando e executando..."):
+                result = execute_query(query, conn, q_params)
+
+            if result.success:
+                if result.rows:
+                    query.apply_column_maps(result.rows, result.columns)
+                show_success(f"{result.row_count} registros ({result.elapsed:.2f}s)")
+            else:
+                show_error(f"ERRO - {result.error}")
+                all_ok = False
+
+            query_results[qname] = result
+
+        if not query_results:
+            show_error("Nenhuma consulta executada com sucesso.")
+            return
+
+        # Build comparison
+        group_result = build_group_result(
+            group_name=group.name,
+            query_results=query_results,
+            join_key=group.join_key,
+            compare_columns=group.compare_columns,
+            column_mapping=group.column_mapping or None,
+            normalize=group.normalize or None,
+        )
+
+        # Choose display mode
+        view_mode = select(
+            message="Modo de exibicao:",
+            choices=[
+                {"name": "📊  Comparativo direto (uma tabela por coluna)", "value": "flat"},
+                {"name": "🔑  Detalhado por chave (uma tabela por chave)", "value": "pivoted"},
+            ],
+        )
+        if is_esc(view_mode):
+            view_mode = "flat"
+
+        if view_mode == "flat":
+            show_group_result_flat(group_result, param_values)
         else:
-            show_error(f"ERRO - {result.error}")
-            all_ok = False
+            show_group_result(group_result, param_values)
 
-        query_results[qname] = result
-
-    if not query_results:
-        show_error("Nenhuma consulta executada com sucesso.")
-        return
-
-    # Build comparison
-    group_result = build_group_result(
-        group_name=group.name,
-        query_results=query_results,
-        join_key=group.join_key,
-        compare_columns=group.compare_columns,
-        column_mapping=group.column_mapping or None,
-        normalize=group.normalize or None,
-    )
-
-    # Choose display mode
-    view_mode = select(
-        message="Modo de exibicao:",
-        choices=[
-            {"name": "📊  Comparativo direto (uma tabela por coluna)", "value": "flat"},
-            {"name": "🔑  Detalhado por chave (uma tabela por chave)", "value": "pivoted"},
-        ],
-    )
-    if is_esc(view_mode):
-        view_mode = "flat"
-
-    if view_mode == "flat":
-        show_group_result_flat(group_result, param_values)
-    else:
-        show_group_result(group_result, param_values)
-
-    # Post-group actions
-    _post_group_actions(group_result, param_values, view_mode)
+        # Post-group actions (returns True to re-execute, False to exit)
+        if not _post_group_actions(group_result, param_values, view_mode):
+            break
 
 
-def _post_group_actions(group_result: GroupResult, params: dict, current_view: str = "flat"):
-    """Actions after displaying a group result."""
+def _post_group_actions(group_result: GroupResult, params: dict, current_view: str = "flat") -> bool:
+    """Actions after displaying a group result. Returns True to re-execute."""
     while True:
         switch_label = "🔑  Alternar para: Detalhado por chave" if current_view == "flat" \
             else "📊  Alternar para: Comparativo direto"
@@ -308,9 +332,9 @@ def _post_group_actions(group_result: GroupResult, params: dict, current_view: s
         )
 
         if is_esc(action) or action == "back":
-            break
+            return False
         elif action == "reexec":
-            return
+            return True
         elif action == "switch_view":
             if current_view == "flat":
                 show_group_result(group_result, params)
