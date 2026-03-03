@@ -777,8 +777,9 @@ def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_n
     )
 
     seen: set[str] = set()
+    deps_to_process = list(dependencies)
     try:
-        for dep in dependencies:
+        for dep in deps_to_process:
             parts = dep.split(" ", 1)
             if len(parts) != 2:
                 continue
