@@ -749,3 +749,95 @@ def save_extraction(result: ExtractionResult) -> str:
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
     return str(filepath)
+
+
+# ---------------------------------------------------------------------------
+# Dependency DDL extraction
+# ---------------------------------------------------------------------------
+
+def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_name: str) -> ExtractionResult:
+    """Extract DDL for all dependency objects (tables, views, sequences, etc.).
+
+    Args:
+        conn: Oracle connection config.
+        dependencies: List of strings like "TABLE OWNER.NAME".
+        parent_name: Name of the parent object (for labeling).
+
+    Returns:
+        ExtractionResult with DDL of all dependency objects.
+    """
+    db = get_connection(conn)
+    cursor = db.cursor()
+
+    result = ExtractionResult(
+        object_name=f"{parent_name}_dependencies",
+        object_type="DEPENDENCIES",
+        owner="",
+        connection_name=conn.name,
+    )
+
+    try:
+        for dep in dependencies:
+            parts = dep.split(" ", 1)
+            if len(parts) != 2:
+                continue
+            dep_type = parts[0]
+            owner_name = parts[1]
+            if "." not in owner_name:
+                continue
+            dep_owner, dep_name = owner_name.split(".", 1)
+
+            extractor = EXTRACT_MAP.get(dep_type)
+            if not extractor:
+                continue
+
+            try:
+                extractor(cursor, dep_owner, dep_name, result)
+            except Exception as e:
+                result.errors.append(f"Erro ao extrair {dep_type} {dep_owner}.{dep_name}: {e}")
+
+        return result
+    finally:
+        cursor.close()
+        db.close()
+
+
+def save_dependencies_extraction(result: ExtractionResult, parent_name: str) -> str:
+    """Save dependencies extraction to a separate .sql file. Returns file path."""
+    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_name = re.sub(r"[^\w]", "_", parent_name)
+    filename = f"{result.connection_name}_{safe_name}_dependencies_{ts}.sql"
+    filepath = EXPORTS_DIR / filename
+
+    lines: list[str] = []
+    lines.append("-- ============================================================")
+    lines.append(f"-- Dependencies DDL for: {parent_name}")
+    lines.append(f"-- Connection: {result.connection_name}")
+    lines.append(f"-- Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("-- ============================================================")
+    lines.append("")
+
+    for obj in result.objects:
+        lines.append("-- ------------------------------------------------------------")
+        lines.append(f"-- {obj.obj_type}: {obj.name}")
+        lines.append("-- ------------------------------------------------------------")
+        lines.append("")
+        ddl = obj.ddl.rstrip()
+        if not ddl.endswith(";"):
+            ddl += ";"
+        lines.append(ddl)
+        lines.append("")
+        lines.append("/")
+        lines.append("")
+
+    if result.errors:
+        lines.append("-- ------------------------------------------------------------")
+        lines.append("-- Errors during dependency extraction")
+        lines.append("-- ------------------------------------------------------------")
+        for err in result.errors:
+            lines.append(f"-- {err}")
+        lines.append("")
+
+    filepath.write_text("\n".join(lines), encoding="utf-8")
+    return str(filepath)
