@@ -755,13 +755,19 @@ def save_extraction(result: ExtractionResult) -> str:
 # Dependency DDL extraction
 # ---------------------------------------------------------------------------
 
-def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_name: str) -> ExtractionResult:
-    """Extract DDL for all dependency objects (tables, views, sequences, etc.).
+def extract_dependencies_ddl(
+    conn: Connection,
+    dependencies: list[str],
+    parent_name: str,
+    on_progress: Any = None,
+) -> ExtractionResult:
+    """Extract DDL for all dependency objects (tables, views, indexes).
 
     Args:
         conn: Oracle connection config.
         dependencies: List of strings like "TABLE OWNER.NAME".
         parent_name: Name of the parent object (for labeling).
+        on_progress: Optional callback(current, total, dep_type, dep_name).
 
     Returns:
         ExtractionResult with DDL of all dependency objects.
@@ -776,33 +782,35 @@ def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_n
         connection_name=conn.name,
     )
 
+    # Pre-filter eligible dependencies to know the total count
+    eligible: list[tuple[str, str, str]] = []
     seen: set[str] = set()
-    deps_to_process = list(dependencies)
+    for dep in dependencies:
+        parts = dep.split(" ", 1)
+        if len(parts) != 2:
+            continue
+        dep_type = parts[0]
+        owner_name = parts[1]
+        if "." not in owner_name:
+            continue
+        dep_owner, dep_name = owner_name.split(".", 1)
+        if dep_type not in ("TABLE", "VIEW"):
+            continue
+        key = f"{dep_type}:{dep_owner}.{dep_name}"
+        if key in seen:
+            continue
+        seen.add(key)
+        if EXTRACT_MAP.get(dep_type):
+            eligible.append((dep_type, dep_owner, dep_name))
+
+    total = len(eligible)
     try:
-        for dep in deps_to_process:
-            parts = dep.split(" ", 1)
-            if len(parts) != 2:
-                continue
-            dep_type = parts[0]
-            owner_name = parts[1]
-            if "." not in owner_name:
-                continue
-            dep_owner, dep_name = owner_name.split(".", 1)
-
-            if dep_type not in ("TABLE", "VIEW"):
-                continue
-
-            key = f"{dep_type}:{dep_owner}.{dep_name}"
-            if key in seen:
-                continue
-            seen.add(key)
-
-            extractor = EXTRACT_MAP.get(dep_type)
-            if not extractor:
-                continue
+        for idx, (dep_type, dep_owner, dep_name) in enumerate(eligible, 1):
+            if on_progress:
+                on_progress(idx, total, dep_type, dep_name)
 
             try:
-                extractor(cursor, dep_owner, dep_name, result)
+                EXTRACT_MAP[dep_type](cursor, dep_owner, dep_name, result)
             except Exception as e:
                 result.errors.append(f"Erro ao extrair {dep_type} {dep_owner}.{dep_name}: {e}")
 

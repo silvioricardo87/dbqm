@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TaskProgressColumn
 
 from dbqm.core.ddl_extractor import (
     extract_ddl, save_extraction,
@@ -28,8 +29,21 @@ def _prompt_and_export_deps(conn, dependencies: list[str], extract_label: str, s
     if is_esc(export_deps) or not export_deps:
         return
 
-    with console.status("Extraindo DDL das dependencias..."):
-        dep_result = extract_dependencies_ddl(conn, dependencies, extract_label)
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Iniciando...", total=None)
+
+        def _on_progress(current: int, total: int, dep_type: str, dep_name: str):
+            progress.update(task, total=total, completed=current - 1,
+                            description=f"[{current}/{total}] {dep_type} {dep_name}")
+
+        dep_result = extract_dependencies_ddl(conn, dependencies, extract_label, on_progress=_on_progress)
+        progress.update(task, completed=progress.tasks[0].total)
 
     if not dep_result.objects:
         show_warning("Nenhuma dependencia pôde ser extraida.")
