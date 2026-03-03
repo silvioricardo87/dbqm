@@ -83,7 +83,7 @@
       "column_maps": {
         "status_pgto": {
           "CT": "paga",
-          "RE": "outros"
+          "RE": "vencida/pendente"
         }
       },
       "order_by": "NUM_CUOTA ASC",
@@ -111,7 +111,7 @@
       "column_maps": {
         "status_pgto": {
           "CT": "paga",
-          "RE": "outros"
+          "RE": "vencida/pendente"
         }
       },
       "order_by": "NUM_CUOTA ASC",

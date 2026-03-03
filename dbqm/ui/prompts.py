@@ -11,10 +11,10 @@ from prompt_toolkit.keys import Keys
 ESC_BACK = "__ESC_BACK__"
 
 # Custom icons/markers
-ICON_POINTER = ">"
-ICON_SELECTOR = ">"
-ICON_SELECTED = "[x]"
-ICON_UNSELECTED = "[ ]"
+ICON_POINTER = "❯"
+ICON_SELECTOR = "❯"
+ICON_SELECTED = "◉"
+ICON_UNSELECTED = "○"
 
 
 def _apply_keybindings(prompt):
@@ -60,8 +60,8 @@ def text(message: str, **kwargs) -> Any:
     """inquirer.text wrapper with ESC support."""
     prompt = inquirer.text(
         message=message,
-        amark=">",
-        qmark=">",
+        amark="❯",
+        qmark="❯",
         **kwargs,
     )
     _apply_keybindings(prompt)
@@ -73,8 +73,8 @@ def secret(message: str, **kwargs) -> Any:
     """inquirer.secret wrapper with ESC support."""
     prompt = inquirer.secret(
         message=message,
-        amark=">",
-        qmark=">",
+        amark="❯",
+        qmark="❯",
         **kwargs,
     )
     _apply_keybindings(prompt)
@@ -86,8 +86,8 @@ def confirm(message: str, **kwargs) -> Any:
     """inquirer.confirm wrapper with ESC support."""
     prompt = inquirer.confirm(
         message=message,
-        amark=">",
-        qmark=">",
+        amark="❯",
+        qmark="❯",
         **kwargs,
     )
     _apply_keybindings(prompt)

@@ -16,7 +16,7 @@ def group_wizard():
     """Main group management menu."""
     while True:
         groups = load_groups()
-        console.print("\n[bold cyan]=== Grupos de Consultas ===[/bold cyan]\n")
+        console.print("\n[bold cyan]═══ 📁 Grupos de Consultas ═══[/bold cyan]\n")
 
         if groups:
             table = Table(show_lines=False, border_style="dim")
@@ -41,10 +41,10 @@ def group_wizard():
         action = select(
             message="Acao:",
             choices=[
-                {"name": "Novo grupo", "value": "new"},
-                {"name": "Editar grupo", "value": "edit"},
-                {"name": "Remover grupo", "value": "remove"},
-                {"name": "Voltar", "value": "back"},
+                {"name": "➕  Novo grupo", "value": "new"},
+                {"name": "✏️   Editar grupo", "value": "edit"},
+                {"name": "🗑️   Remover grupo", "value": "remove"},
+                {"name": "↩️   Voltar", "value": "back"},
             ],
         )
 
@@ -65,7 +65,7 @@ def _create_group():
         show_error("E necessario ter ao menos 2 consultas configuradas para criar um grupo.")
         return
 
-    console.print("\n[bold cyan]--- Novo Grupo ---[/bold cyan]\n")
+    console.print("\n[bold cyan]── ➕ Novo Grupo ──[/bold cyan]\n")
 
     name = text(message="Nome do grupo:")
     if is_esc(name) or not name:

@@ -21,7 +21,7 @@ def connection_wizard():
     """Main connection management menu."""
     while True:
         connections = load_connections()
-        console.print("\n[bold cyan]=== Conexoes Configuradas ===[/bold cyan]\n")
+        console.print("\n[bold cyan]═══ 🔌 Conexoes Configuradas ═══[/bold cyan]\n")
 
         if connections:
             from rich.table import Table
@@ -42,12 +42,12 @@ def connection_wizard():
         action = select(
             message="Acao:",
             choices=[
-                {"name": "Nova conexao", "value": "new"},
-                {"name": "Testar conexao", "value": "test"},
-                {"name": "Editar conexao", "value": "edit"},
-                {"name": "Renomear conexao", "value": "rename"},
-                {"name": "Remover conexao", "value": "remove"},
-                {"name": "Voltar", "value": "back"},
+                {"name": "➕  Nova conexao", "value": "new"},
+                {"name": "🧪  Testar conexao", "value": "test"},
+                {"name": "✏️   Editar conexao", "value": "edit"},
+                {"name": "🏷️   Renomear conexao", "value": "rename"},
+                {"name": "🗑️   Remover conexao", "value": "remove"},
+                {"name": "↩️   Voltar", "value": "back"},
             ],
         )
 
@@ -67,7 +67,7 @@ def connection_wizard():
 
 def _create_connection():
     """Wizard to create a new connection."""
-    console.print("\n[bold cyan]--- Nova Conexao ---[/bold cyan]\n")
+    console.print("\n[bold cyan]── ➕ Nova Conexao ──[/bold cyan]\n")
 
     name = text(message="Nome da conexao:")
     if is_esc(name) or not name:
@@ -337,7 +337,7 @@ def _rename_connection(connections: list[Connection]):
 
 
 def show_info_inline(msg: str):
-    console.print(f"  [cyan]>[/cyan] {msg}")
+    console.print(f"  [cyan]💡[/cyan] {msg}")
 
 
 def _remove_connection(connections: list[Connection]):

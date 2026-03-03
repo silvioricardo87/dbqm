@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from rich.columns import Columns
 
 from dbqm.core.query_engine import QueryResult
 from dbqm.core.group_engine import GroupResult, ComparisonResult
@@ -23,25 +24,35 @@ def clear_screen():
 def show_banner():
     clear_screen()
     width = min(console.width, 80)
-    banner = Text("DB Query Manager (dbqm)", style="bold cyan", justify="center")
-    console.print(Panel(banner, border_style="cyan", padding=(0, 2), width=width))
+    title = Text()
+    title.append("🗄️  ", style="bold cyan")
+    title.append("DB Query Manager", style="bold white")
+    title.append("  (dbqm)", style="dim")
+    console.print(Panel(
+        title,
+        border_style="cyan",
+        padding=(1, 3),
+        width=width,
+        subtitle="[dim]ESC = voltar  |  ↑↓ = navegar  |  Enter = selecionar[/dim]",
+        subtitle_align="center",
+    ))
     console.print()
 
 
 def show_success(msg: str):
-    console.print(f"  [green]v[/green] {msg}")
+    console.print(f"  [green]✅[/green] {msg}")
 
 
 def show_error(msg: str):
-    console.print(f"  [red]x[/red] {msg}")
+    console.print(f"  [red]❌[/red] {msg}")
 
 
 def show_warning(msg: str):
-    console.print(f"  [yellow]![/yellow] {msg}")
+    console.print(f"  [yellow]⚠️ [/yellow] {msg}")
 
 
 def show_info(msg: str):
-    console.print(f"  [cyan]>[/cyan] {msg}")
+    console.print(f"  [cyan]💡[/cyan] {msg}")
 
 
 def show_query_result(result: QueryResult):
@@ -55,9 +66,11 @@ def show_query_result(result: QueryResult):
         return
 
     table = Table(
-        title=f"{result.query_name} ({result.connection_name})",
+        title=f"📋 {result.query_name}",
         show_lines=True,
-        border_style="dim",
+        border_style="bright_black",
+        title_style="bold cyan",
+        header_style="bold bright_white",
         expand=True,
     )
     for col in result.columns:
@@ -69,7 +82,7 @@ def show_query_result(result: QueryResult):
     console.print()
     console.print(table)
     console.print(
-        f"\n  [dim]{result.row_count} registros | Tempo: {result.elapsed:.2f}s | Conexao: {result.connection_name}[/dim]\n"
+        f"\n  [dim]📊 {result.row_count} registros  |  ⏱️  {result.elapsed:.2f}s  |  🔌 {result.connection_name}[/dim]\n"
     )
 
 
@@ -80,19 +93,19 @@ def show_group_result(group_result: GroupResult, params: dict | None = None):
 
     # Header
     console.print()
-    console.rule("[bold cyan]RESULTADO COMPARATIVO[/bold cyan]", style="cyan")
-    console.print(f"  [bold]Grupo:[/bold] {group_result.group_name}")
+    console.rule("[bold cyan]📊 RESULTADO COMPARATIVO[/bold cyan]", style="cyan")
+    console.print(f"  [bold]📁 Grupo:[/bold] {group_result.group_name}")
     if params:
         for k, v in params.items():
-            console.print(f"  [bold]{k}:[/bold] {v}")
+            console.print(f"  [bold]🏷️  {k}:[/bold] {v}")
     console.print()
 
     # Per-query execution status
     for qname, qresult in group_result.query_results.items():
         if qresult.success:
-            console.print(f"  [green]v[/green] {qname}: {qresult.row_count} registros ({qresult.elapsed:.2f}s)")
+            console.print(f"  [green]✅[/green] {qname}: {qresult.row_count} registros ({qresult.elapsed:.2f}s)")
         else:
-            console.print(f"  [red]x[/red] {qname}: ERRO - {qresult.error}")
+            console.print(f"  [red]❌[/red] {qname}: ERRO - {qresult.error}")
     console.print()
 
     # Build lookup: {(key_value, column): ComparisonRow}
@@ -109,25 +122,28 @@ def show_group_result(group_result: GroupResult, params: dict | None = None):
         _show_pivoted_key_table(key, query_names, compare_columns, lookup)
 
     # Summary
-    console.rule("[bold cyan]RESUMO[/bold cyan]", style="cyan")
+    console.rule("[bold cyan]📋 RESUMO[/bold cyan]", style="cyan")
     for comp in group_result.comparisons:
         _show_comparison_summary(comp)
 
-    status_text = "[green]CONSISTENTE[/green]" if group_result.all_match else "[red]DIVERGENTE[/red]"
+    if group_result.all_match:
+        status_text = "[green]✅ CONSISTENTE[/green]"
+    else:
+        status_text = "[red]❌ DIVERGENTE[/red]"
     console.print(f"\n  Resultado final: {status_text}")
     console.print()
 
 
 def _status_cell(status: str) -> str:
-    """Format a status value with color."""
+    """Format a status value with color and icon."""
     if status == "OK":
-        return "[green]v OK[/green]"
+        return "[green]✅ OK[/green]"
     elif status == "OK*":
-        return "[green]v OK*[/green]"
+        return "[green]✅ OK*[/green]"
     elif status == "DIFF":
-        return "[yellow]! DIFF[/yellow]"
+        return "[yellow]⚠️  DIFF[/yellow]"
     elif status == "ABSENT":
-        return "[red]x AUSENTE[/red]"
+        return "[red]❌ AUSENTE[/red]"
     return status
 
 
@@ -146,12 +162,14 @@ def _show_pivoted_key_table(
 ):
     """Display a pivoted table for a single join key value."""
     table = Table(
-        title=f"chave: {key_value}",
+        title=f"🔑 chave: {key_value}",
         show_lines=True,
-        border_style="dim",
+        border_style="bright_black",
+        title_style="bold white",
+        header_style="bold bright_white",
         expand=True,
     )
-    table.add_column("Consulta", style="bold")
+    table.add_column("Consulta", style="bold cyan")
     for col in compare_columns:
         table.add_column(col, style="white")
     table.add_column("status", justify="center")
@@ -163,10 +181,10 @@ def _show_pivoted_key_table(
             comp_row = lookup.get((key_value, col))
             if comp_row:
                 v = comp_row.values.get(qname)
-                cells.append(str(v) if v is not None else "[dim]-[/dim]")
+                cells.append(str(v) if v is not None else "[dim]—[/dim]")
             else:
-                cells.append("[dim]-[/dim]")
-        cells.append("")  # no per-row status
+                cells.append("[dim]—[/dim]")
+        cells.append("")
         table.add_row(*cells)
 
     # Result row
@@ -177,7 +195,7 @@ def _show_pivoted_key_table(
         col_statuses.append(status)
 
     overall = _worst_status(col_statuses)
-    result_cells = ["[bold]Resultado[/bold]"]
+    result_cells = ["[bold white]Resultado[/bold white]"]
     for s in col_statuses:
         result_cells.append(_status_cell(s))
     result_cells.append(_status_cell(overall))
@@ -189,19 +207,135 @@ def _show_pivoted_key_table(
     console.print()
 
 
+def show_group_result_flat(group_result: GroupResult, params: dict | None = None):
+    """Display group comparison in flat mode — one table per compare column.
+
+    Layout: key | query1_value | query2_value | ... | Status
+    Differences are highlighted with color.
+    """
+    query_names = list(group_result.query_results.keys())
+
+    # Header
+    console.print()
+    console.rule("[bold cyan]📊 RESULTADO COMPARATIVO[/bold cyan]", style="cyan")
+    console.print(f"  [bold]📁 Grupo:[/bold] {group_result.group_name}")
+    if params:
+        for k, v in params.items():
+            console.print(f"  [bold]🏷️  {k}:[/bold] {v}")
+    console.print()
+
+    # Per-query execution status
+    for qname, qresult in group_result.query_results.items():
+        if qresult.success:
+            console.print(f"  [green]✅[/green] {qname}: {qresult.row_count} registros ({qresult.elapsed:.2f}s)")
+        else:
+            console.print(f"  [red]❌[/red] {qname}: ERRO - {qresult.error}")
+    console.print()
+
+    # One table per compare column
+    for comp in group_result.comparisons:
+        _show_flat_column_table(comp, query_names)
+
+    # Summary
+    console.rule("[bold cyan]📋 RESUMO[/bold cyan]", style="cyan")
+    for comp in group_result.comparisons:
+        _show_comparison_summary(comp)
+
+    if group_result.all_match:
+        status_text = "[green]✅ CONSISTENTE[/green]"
+    else:
+        status_text = "[red]❌ DIVERGENTE[/red]"
+    console.print(f"\n  Resultado final: {status_text}")
+    console.print()
+
+
+def _flat_status_label(status: str) -> str:
+    """User-friendly status label for flat mode."""
+    if status == "OK":
+        return "[green]Igual[/green]"
+    elif status == "OK*":
+        return "[green]Igual*[/green]"
+    elif status == "DIFF":
+        return "[bold yellow]Diferente[/bold yellow]"
+    elif status == "ABSENT":
+        return "[bold red]Ausente[/bold red]"
+    return status
+
+
+def _highlight_diff_values(values: dict[str, any], status: str) -> dict[str, str]:
+    """Return formatted cell strings, highlighting values that differ from majority."""
+    str_values = {qn: str(v) if v is not None else None for qn, v in values.items()}
+
+    if status not in ("DIFF", "ABSENT"):
+        # No highlighting needed
+        return {qn: (sv if sv is not None else "[dim]—[/dim]") for qn, sv in str_values.items()}
+
+    if status == "ABSENT":
+        return {
+            qn: (f"[red]{sv}[/red]" if sv is not None else "[red bold]—[/red bold]")
+            for qn, sv in str_values.items()
+        }
+
+    # DIFF: find majority value, highlight minority
+    present = {qn: sv for qn, sv in str_values.items() if sv is not None}
+    from collections import Counter
+    counts = Counter(present.values())
+    majority_val = counts.most_common(1)[0][0] if counts else None
+
+    result = {}
+    for qn, sv in str_values.items():
+        if sv is None:
+            result[qn] = "[dim]—[/dim]"
+        elif sv != majority_val:
+            result[qn] = f"[bold red]{sv}[/bold red]"
+        else:
+            result[qn] = sv
+    return result
+
+
+def _show_flat_column_table(comp: ComparisonResult, query_names: list[str]):
+    """Display a flat table for a single compare column."""
+    # Determine join key column name from the first row
+    table = Table(
+        title=f"📊 {comp.column}",
+        show_lines=True,
+        border_style="bright_black",
+        title_style="bold cyan",
+        header_style="bold bright_white",
+        expand=True,
+    )
+
+    # Build columns: key | query1 | query2 | ... | Status
+    table.add_column("chave", style="bold white", no_wrap=True)
+    for qn in query_names:
+        table.add_column(qn, style="white")
+    table.add_column("Status", justify="center", no_wrap=True)
+
+    for row in comp.rows:
+        highlighted = _highlight_diff_values(row.values, row.status)
+        cells = [str(row.key_value)]
+        for qn in query_names:
+            cells.append(highlighted.get(qn, "[dim]—[/dim]"))
+        cells.append(_flat_status_label(row.status))
+        table.add_row(*cells)
+
+    console.print(table)
+    console.print()
+
+
 def _show_comparison_summary(comp: ComparisonResult):
     """Display summary stats for a comparison."""
     total = comp.total_keys
-    console.print(f"  [bold]Coluna: {comp.column}[/bold]")
-    console.print(f"    [green]v Iguais:[/green]      {comp.equal_count}/{total}")
+    console.print(f"  [bold]📊 Coluna: {comp.column}[/bold]")
+    console.print(f"    [green]✅ Iguais:[/green]      {comp.equal_count}/{total}")
     if comp.normalized_count > 0:
-        console.print(f"    [green]v Normalizados:[/green] {comp.normalized_count}/{total}")
-    console.print(f"    [yellow]! Diferentes:[/yellow]  {comp.diff_count}/{total}")
-    console.print(f"    [red]x Ausentes:[/red]    {comp.absent_count}/{total}")
+        console.print(f"    [green]✅ Normalizados:[/green] {comp.normalized_count}/{total}")
+    console.print(f"    [yellow]⚠️  Diferentes:[/yellow]  {comp.diff_count}/{total}")
+    console.print(f"    [red]❌ Ausentes:[/red]    {comp.absent_count}/{total}")
 
     if comp.absent_count > 0:
         for r in comp.rows:
             if r.status == "ABSENT":
                 missing_in = [qn for qn, v in r.values.items() if v is None]
                 if missing_in:
-                    console.print(f"      chave {r.key_value}: ausente em {', '.join(missing_in)}")
+                    console.print(f"      🔍 chave {r.key_value}: ausente em {', '.join(missing_in)}")

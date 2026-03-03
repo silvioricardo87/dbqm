@@ -8,13 +8,14 @@ from dbqm.core.group_engine import build_group_result, GroupResult
 from dbqm.core.exporter import (
     export_query_csv, export_query_json, export_query_txt,
     export_group_csv, export_group_json, export_group_txt,
+    export_group_flat_csv, export_group_flat_json, export_group_flat_txt,
 )
 from dbqm.models.connection import load_connections, find_connection
 from dbqm.models.query import load_queries, find_query
 from dbqm.models.group import load_groups, find_group
 from dbqm.ui.display import (
     clear_screen, show_banner, show_success, show_error, show_warning, show_info,
-    show_query_result, show_group_result,
+    show_query_result, show_group_result, show_group_result_flat,
 )
 from dbqm.core.config_portability import export_configs, import_configs
 from dbqm.core.ddl_extractor import extract_ddl, save_extraction, extract_routine, save_routine_extraction
@@ -41,11 +42,11 @@ def main_menu():
         action = select(
             message="Menu principal:",
             choices=[
-                {"name": "Executar consulta", "value": "exec_query"},
-                {"name": "Executar grupo de consultas", "value": "exec_group"},
-                {"name": "Extrair DDL de objeto", "value": "extract_ddl"},
-                {"name": "Configuracoes", "value": "config"},
-                {"name": "Sair", "value": "exit"},
+                {"name": "🔍  Executar consulta", "value": "exec_query"},
+                {"name": "📊  Executar grupo de consultas", "value": "exec_group"},
+                {"name": "🏗️   Extrair DDL de objeto", "value": "extract_ddl"},
+                {"name": "⚙️   Configuracoes", "value": "config"},
+                {"name": "🚪  Sair", "value": "exit"},
             ],
         )
 
@@ -69,11 +70,11 @@ def _config_menu():
         action = select(
             message="Configuracoes:",
             choices=[
-                {"name": "Conexoes", "value": "config_conn"},
-                {"name": "Consultas", "value": "config_query"},
-                {"name": "Grupos", "value": "config_group"},
-                {"name": "Exportar/Importar", "value": "portability"},
-                {"name": "Voltar", "value": "back"},
+                {"name": "🔌  Conexoes", "value": "config_conn"},
+                {"name": "📝  Consultas", "value": "config_query"},
+                {"name": "📁  Grupos", "value": "config_group"},
+                {"name": "📦  Exportar/Importar", "value": "portability"},
+                {"name": "↩️   Voltar", "value": "back"},
             ],
         )
 
@@ -145,9 +146,9 @@ def _post_result_actions(result: QueryResult, table: str = ""):
         action = select(
             message="Acao:",
             choices=[
-                {"name": "Exportar resultado", "value": "export"},
-                {"name": "Reexecutar", "value": "reexec"},
-                {"name": "Voltar", "value": "back"},
+                {"name": "💾  Exportar resultado", "value": "export"},
+                {"name": "🔄  Reexecutar", "value": "reexec"},
+                {"name": "↩️   Voltar", "value": "back"},
             ],
         )
 
@@ -164,9 +165,9 @@ def _export_result(result: QueryResult, table: str = ""):
     fmt = select(
         message="Formato:",
         choices=[
-            {"name": "CSV", "value": "csv"},
-            {"name": "JSON", "value": "json"},
-            {"name": "TXT (tabela formatada)", "value": "txt"},
+            {"name": "📄  CSV", "value": "csv"},
+            {"name": "📋  JSON", "value": "json"},
+            {"name": "📃  TXT (tabela formatada)", "value": "txt"},
         ],
     )
 
@@ -270,22 +271,39 @@ def _execute_group_flow():
         normalize=group.normalize or None,
     )
 
-    show_group_result(group_result, param_values)
+    # Choose display mode
+    view_mode = select(
+        message="Modo de exibicao:",
+        choices=[
+            {"name": "📊  Comparativo direto (uma tabela por coluna)", "value": "flat"},
+            {"name": "🔑  Detalhado por chave (uma tabela por chave)", "value": "pivoted"},
+        ],
+    )
+    if is_esc(view_mode):
+        view_mode = "flat"
+
+    if view_mode == "flat":
+        show_group_result_flat(group_result, param_values)
+    else:
+        show_group_result(group_result, param_values)
 
     # Post-group actions
-    _post_group_actions(group_result, param_values)
+    _post_group_actions(group_result, param_values, view_mode)
 
 
-def _post_group_actions(group_result: GroupResult, params: dict):
+def _post_group_actions(group_result: GroupResult, params: dict, current_view: str = "flat"):
     """Actions after displaying a group result."""
     while True:
+        switch_label = "🔑  Alternar para: Detalhado por chave" if current_view == "flat" \
+            else "📊  Alternar para: Comparativo direto"
         action = select(
             message="Acao:",
             choices=[
-                {"name": "Exportar resultado completo", "value": "export"},
-                {"name": "Ver resultados individuais", "value": "detail"},
-                {"name": "Reexecutar", "value": "reexec"},
-                {"name": "Voltar", "value": "back"},
+                {"name": switch_label, "value": "switch_view"},
+                {"name": "💾  Exportar resultado completo", "value": "export"},
+                {"name": "🔎  Ver resultados individuais", "value": "detail"},
+                {"name": "🔄  Reexecutar", "value": "reexec"},
+                {"name": "↩️   Voltar", "value": "back"},
             ],
         )
 
@@ -293,6 +311,13 @@ def _post_group_actions(group_result: GroupResult, params: dict):
             break
         elif action == "reexec":
             return
+        elif action == "switch_view":
+            if current_view == "flat":
+                show_group_result(group_result, params)
+                current_view = "pivoted"
+            else:
+                show_group_result_flat(group_result, params)
+                current_view = "flat"
         elif action == "export":
             _export_group(group_result, params)
         elif action == "detail":
@@ -301,24 +326,42 @@ def _post_group_actions(group_result: GroupResult, params: dict):
 
 def _export_group(group_result: GroupResult, params: dict):
     """Export group result."""
+    layout = select(
+        message="Layout da exportacao:",
+        choices=[
+            {"name": "📊  Comparativo direto (flat)", "value": "flat"},
+            {"name": "🔑  Detalhado por chave (pivoted)", "value": "pivoted"},
+        ],
+    )
+    if is_esc(layout):
+        return
+
     fmt = select(
         message="Formato:",
         choices=[
-            {"name": "CSV", "value": "csv"},
-            {"name": "JSON", "value": "json"},
-            {"name": "TXT (tabela formatada)", "value": "txt"},
+            {"name": "📄  CSV", "value": "csv"},
+            {"name": "📋  JSON", "value": "json"},
+            {"name": "📃  TXT (tabela formatada)", "value": "txt"},
         ],
     )
 
     if is_esc(fmt):
         return
 
-    if fmt == "csv":
-        path = export_group_csv(group_result, params)
-    elif fmt == "json":
-        path = export_group_json(group_result, params)
+    if layout == "flat":
+        if fmt == "csv":
+            path = export_group_flat_csv(group_result, params)
+        elif fmt == "json":
+            path = export_group_flat_json(group_result, params)
+        else:
+            path = export_group_flat_txt(group_result, params)
     else:
-        path = export_group_txt(group_result, params)
+        if fmt == "csv":
+            path = export_group_csv(group_result, params)
+        elif fmt == "json":
+            path = export_group_json(group_result, params)
+        else:
+            path = export_group_txt(group_result, params)
 
     show_success(f"Exportado: {path}")
 
@@ -388,10 +431,10 @@ def _extract_full_ddl_flow(conn, object_name: str):
 
     # Summary
     console.print()
-    console.rule("[bold cyan]EXTRACAO DDL[/bold cyan]", style="cyan")
-    console.print(f"  [bold]Objeto:[/bold] {result.owner}.{result.object_name}")
-    console.print(f"  [bold]Tipo:[/bold] {result.object_type}")
-    console.print(f"  [bold]Conexao:[/bold] {result.connection_name}")
+    console.rule("[bold cyan]🏗️  EXTRACAO DDL[/bold cyan]", style="cyan")
+    console.print(f"  [bold]📦 Objeto:[/bold] {result.owner}.{result.object_name}")
+    console.print(f"  [bold]🏷️  Tipo:[/bold] {result.object_type}")
+    console.print(f"  [bold]🔌 Conexao:[/bold] {result.connection_name}")
     console.print()
 
     type_counts: dict[str, int] = {}
@@ -400,12 +443,12 @@ def _extract_full_ddl_flow(conn, object_name: str):
         type_counts[base_type] = type_counts.get(base_type, 0) + 1
 
     for obj_type, count in type_counts.items():
-        console.print(f"  [green]v[/green] {obj_type}: {count}")
+        console.print(f"  [green]✅[/green] {obj_type}: {count}")
 
     if result.dependencies:
-        console.print(f"\n  [bold]Dependencias:[/bold]")
+        console.print(f"\n  [bold]🔗 Dependencias:[/bold]")
         for dep in result.dependencies:
-            console.print(f"    [dim]-[/dim] {dep}")
+            console.print(f"    [dim]•[/dim] {dep}")
 
     if result.errors:
         console.print()
@@ -431,23 +474,23 @@ def _extract_routine_flow(conn, pkg_name: str, routine_name: str):
 
     # Summary
     console.print()
-    console.rule("[bold cyan]EXTRACAO DE ROTINA[/bold cyan]", style="cyan")
-    console.print(f"  [bold]Package:[/bold] {result.owner}.{result.package_name}")
-    console.print(f"  [bold]Rotina:[/bold] {result.routine_name}")
-    console.print(f"  [bold]Conexao:[/bold] {result.connection_name}")
+    console.rule("[bold cyan]🏗️  EXTRACAO DE ROTINA[/bold cyan]", style="cyan")
+    console.print(f"  [bold]📦 Package:[/bold] {result.owner}.{result.package_name}")
+    console.print(f"  [bold]🎯 Rotina:[/bold] {result.routine_name}")
+    console.print(f"  [bold]🔌 Conexao:[/bold] {result.connection_name}")
     console.print()
 
     if result.spec_headers:
-        console.print(f"  [green]v[/green] Spec headers: {len(result.spec_headers)}")
-    console.print(f"  [green]v[/green] Rotinas extraidas: {len(result.body_routines)}")
+        console.print(f"  [green]✅[/green] Spec headers: {len(result.spec_headers)}")
+    console.print(f"  [green]✅[/green] Rotinas extraidas: {len(result.body_routines)}")
     for obj in result.body_routines:
-        marker = "[bold cyan]*[/bold cyan]" if obj.name.upper() == routine_name else " "
+        marker = "[bold cyan]▸[/bold cyan]" if obj.name.upper() == routine_name else " "
         console.print(f"    {marker} {obj.obj_type}: {obj.name}")
 
     if result.dependencies:
-        console.print(f"\n  [bold]Dependencias externas:[/bold]")
+        console.print(f"\n  [bold]🔗 Dependencias externas:[/bold]")
         for dep in result.dependencies:
-            console.print(f"    [dim]-[/dim] {dep}")
+            console.print(f"    [dim]•[/dim] {dep}")
 
     if result.errors:
         console.print()
@@ -455,9 +498,9 @@ def _extract_routine_flow(conn, pkg_name: str, routine_name: str):
             show_warning(err)
 
     console.print()
-    console.print(f"  [bold]Arquivos gerados:[/bold]")
+    console.print(f"  [bold]📂 Arquivos gerados:[/bold]")
     for f in result.saved_files:
-        console.print(f"    [dim]-[/dim] {f}")
+        console.print(f"    [dim]•[/dim] {f}")
     console.print()
     show_success(f"Diretorio: {dir_path}")
     console.print()
@@ -468,8 +511,8 @@ def _portability_flow():
     action = select(
         message="Exportar ou Importar?",
         choices=[
-            {"name": "Exportar configuracoes", "value": "export"},
-            {"name": "Importar configuracoes", "value": "import"},
+            {"name": "📤  Exportar configuracoes", "value": "export"},
+            {"name": "📥  Importar configuracoes", "value": "import"},
         ],
     )
 
@@ -487,9 +530,9 @@ def _export_configs_flow():
     items = checkbox(
         message="O que exportar?",
         choices=[
-            {"name": "Conexoes", "value": "connections", "enabled": True},
-            {"name": "Consultas", "value": "queries", "enabled": True},
-            {"name": "Grupos", "value": "groups", "enabled": True},
+            {"name": "🔌  Conexoes", "value": "connections", "enabled": True},
+            {"name": "📝  Consultas", "value": "queries", "enabled": True},
+            {"name": "📁  Grupos", "value": "groups", "enabled": True},
         ],
     )
 

@@ -18,7 +18,7 @@ def query_wizard():
     """Main query management menu."""
     while True:
         queries = load_queries()
-        console.print("\n[bold cyan]=== Consultas Configuradas ===[/bold cyan]\n")
+        console.print("\n[bold cyan]═══ 📝 Consultas Configuradas ═══[/bold cyan]\n")
 
         if queries:
             table = Table(show_lines=False, border_style="dim")
@@ -38,13 +38,13 @@ def query_wizard():
         action = select(
             message="Acao:",
             choices=[
-                {"name": "Nova consulta", "value": "new"},
-                {"name": "Visualizar SQL", "value": "view"},
-                {"name": "Mapeamento de valores", "value": "maps"},
-                {"name": "Renomear consulta", "value": "rename"},
-                {"name": "Duplicar consulta", "value": "dup"},
-                {"name": "Remover consulta", "value": "remove"},
-                {"name": "Voltar", "value": "back"},
+                {"name": "➕  Nova consulta", "value": "new"},
+                {"name": "👁️   Visualizar SQL", "value": "view"},
+                {"name": "🔄  Mapeamento de valores", "value": "maps"},
+                {"name": "🏷️   Renomear consulta", "value": "rename"},
+                {"name": "📋  Duplicar consulta", "value": "dup"},
+                {"name": "🗑️   Remover consulta", "value": "remove"},
+                {"name": "↩️   Voltar", "value": "back"},
             ],
         )
 
@@ -82,8 +82,8 @@ def _create_query():
     mode = select(
         message="Como deseja configurar a consulta?",
         choices=[
-            {"name": "Colar SQL direto (sistema organiza)", "value": "paste"},
-            {"name": "Passo a passo (wizard guiado)", "value": "wizard"},
+            {"name": "📋  Colar SQL direto (sistema organiza)", "value": "paste"},
+            {"name": "🧙  Passo a passo (wizard guiado)", "value": "wizard"},
         ],
     )
 
@@ -98,7 +98,7 @@ def _create_query():
 
 def _create_query_paste():
     """Create query by pasting raw SQL."""
-    console.print("\n[bold cyan]--- Colar SQL ---[/bold cyan]")
+    console.print("\n[bold cyan]── 📋 Colar SQL ──[/bold cyan]")
     console.print("[dim]Cole sua consulta SQL e pressione Enter duas vezes para finalizar:[/dim]\n")
 
     lines = []
@@ -207,7 +207,7 @@ def _create_query_paste():
 
 def _create_query_wizard():
     """Create query step by step."""
-    console.print("\n[bold cyan]--- Nova Consulta (Wizard) ---[/bold cyan]\n")
+    console.print("\n[bold cyan]── 🧙 Nova Consulta (Wizard) ──[/bold cyan]\n")
 
     name = text(message="Nome da consulta:")
     if is_esc(name) or not name:
@@ -316,10 +316,10 @@ def _confirm_or_test(query: Query, existing: list[Query]) -> bool:
         action = select(
             message="O que deseja fazer?",
             choices=[
-                {"name": "Testar execucao antes de salvar", "value": "test"},
-                {"name": maps_label, "value": "maps"},
-                {"name": "Salvar consulta", "value": "save"},
-                {"name": "Descartar", "value": "discard"},
+                {"name": f"🧪  Testar execucao antes de salvar", "value": "test"},
+                {"name": f"🔄  {maps_label}", "value": "maps"},
+                {"name": "💾  Salvar consulta", "value": "save"},
+                {"name": "🗑️   Descartar", "value": "discard"},
             ],
         )
 
@@ -392,9 +392,9 @@ def _configure_column_maps(query: Query):
         action = select(
             message="Mapeamento:",
             choices=[
-                {"name": "Adicionar mapeamento", "value": "add"},
-                {"name": "Remover mapeamento de uma coluna", "value": "remove"},
-                {"name": "Voltar", "value": "back"},
+                {"name": "➕  Adicionar mapeamento", "value": "add"},
+                {"name": "🗑️   Remover mapeamento de uma coluna", "value": "remove"},
+                {"name": "↩️   Voltar", "value": "back"},
             ],
         )
 

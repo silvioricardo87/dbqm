@@ -278,3 +278,146 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
     return str(filepath)
+
+
+# --- Flat export (one section per compare column) ---
+
+def _flat_status_label(status: str) -> str:
+    return {"OK": "Igual", "OK*": "Igual*", "DIFF": "Diferente", "ABSENT": "Ausente"}.get(status, status)
+
+
+def export_group_flat_csv(group_result: GroupResult, params: dict | None = None) -> str:
+    """Export flat group comparison to CSV (one section per compare column)."""
+    d = _ensure_exports_dir()
+    filename = f"grupo_{_sanitize(group_result.group_name)}_flat_{_timestamp()}.csv"
+    filepath = d / filename
+
+    query_names = list(group_result.query_results.keys())
+
+    with open(filepath, "w", newline="", encoding="utf-8") as f:
+        if params:
+            for k, v in params.items():
+                f.write(f"# Parametro: {k} = {v}\n")
+        f.write(f"# Grupo: {group_result.group_name}\n")
+        f.write(f"# Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"# Resultado: {'CONSISTENTE' if group_result.all_match else 'DIVERGENTE'}\n\n")
+
+        writer = csv.writer(f)
+        for comp in group_result.comparisons:
+            f.write(f"# Coluna: {comp.column}\n")
+            header = ["chave"] + query_names + ["status"]
+            writer.writerow(header)
+            for row in comp.rows:
+                cells = [row.key_value]
+                for qn in query_names:
+                    val = row.values.get(qn)
+                    cells.append(val if val is not None else "")
+                cells.append(_flat_status_label(row.status))
+                writer.writerow(cells)
+            f.write("\n")
+
+    return str(filepath)
+
+
+def export_group_flat_json(group_result: GroupResult, params: dict | None = None) -> str:
+    """Export flat group comparison to JSON."""
+    d = _ensure_exports_dir()
+    filename = f"grupo_{_sanitize(group_result.group_name)}_flat_{_timestamp()}.json"
+    filepath = d / filename
+
+    query_names = list(group_result.query_results.keys())
+
+    data: dict[str, Any] = {
+        "group": group_result.group_name,
+        "params": params or {},
+        "all_match": group_result.all_match,
+        "columns": [],
+    }
+
+    for comp in group_result.comparisons:
+        col_data: dict[str, Any] = {
+            "column": comp.column,
+            "summary": {
+                "total": comp.total_keys,
+                "equal": comp.equal_count,
+                "diff": comp.diff_count,
+                "absent": comp.absent_count,
+                "normalized": comp.normalized_count,
+            },
+            "rows": [],
+        }
+        for row in comp.rows:
+            row_entry = {"key": row.key_value, "status": _flat_status_label(row.status)}
+            for qn in query_names:
+                row_entry[qn] = row.values.get(qn)
+            col_data["rows"].append(row_entry)
+        data["columns"].append(col_data)
+
+    filepath.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    return str(filepath)
+
+
+def export_group_flat_txt(group_result: GroupResult, params: dict | None = None) -> str:
+    """Export flat group comparison as formatted text."""
+    d = _ensure_exports_dir()
+    filename = f"grupo_{_sanitize(group_result.group_name)}_flat_{_timestamp()}.txt"
+    filepath = d / filename
+
+    query_names = list(group_result.query_results.keys())
+
+    lines = []
+    lines.append(f"Grupo: {group_result.group_name}")
+    lines.append(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    if params:
+        for k, v in params.items():
+            lines.append(f"Parametro: {k} = {v}")
+    lines.append(f"Resultado: {'CONSISTENTE' if group_result.all_match else 'DIVERGENTE'}")
+    lines.append("")
+
+    for comp in group_result.comparisons:
+        lines.append(f"Coluna: {comp.column}")
+
+        # Calculate column widths
+        col_w = {"chave": len("chave")}
+        for row in comp.rows:
+            col_w["chave"] = max(col_w["chave"], len(str(row.key_value)))
+        for qn in query_names:
+            col_w[qn] = len(qn)
+            for row in comp.rows:
+                val = row.values.get(qn)
+                col_w[qn] = max(col_w[qn], len(str(val) if val is not None else "-"))
+        col_w["status"] = max(len("status"), len("Diferente"))
+
+        # Header
+        hdr = " | ".join([
+            "chave".ljust(col_w["chave"]),
+            *[qn.ljust(col_w[qn]) for qn in query_names],
+            "status".ljust(col_w["status"]),
+        ])
+        sep = "-+-".join([
+            "-" * col_w["chave"],
+            *["-" * col_w[qn] for qn in query_names],
+            "-" * col_w["status"],
+        ])
+        lines.append(hdr)
+        lines.append(sep)
+
+        for row in comp.rows:
+            parts = [str(row.key_value).ljust(col_w["chave"])]
+            for qn in query_names:
+                val = row.values.get(qn)
+                parts.append(str(val if val is not None else "-").ljust(col_w[qn]))
+            parts.append(_flat_status_label(row.status).ljust(col_w["status"]))
+            lines.append(" | ".join(parts))
+        lines.append("")
+
+        # Summary
+        lines.append(f"  Iguais: {comp.equal_count}/{comp.total_keys}")
+        if comp.normalized_count > 0:
+            lines.append(f"  Normalizados: {comp.normalized_count}/{comp.total_keys}")
+        lines.append(f"  Diferentes: {comp.diff_count}/{comp.total_keys}")
+        lines.append(f"  Ausentes: {comp.absent_count}/{comp.total_keys}")
+        lines.append("")
+
+    filepath.write_text("\n".join(lines), encoding="utf-8")
+    return str(filepath)

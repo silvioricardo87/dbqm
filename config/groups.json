@@ -2,28 +2,27 @@
   "groups": [
     {
       "name": "Consultar Parcelas",
-      "description": "Efetua uma consulta com as datas e status das parcelas dado um número de apólice no no ASD, ASC, GOLDENGATE e TRONWEB",
+      "description": "",
       "queries": [
         "Consultar Parcela (ASD)",
         "Consultar Parcela (ASC)",
         "Consultar Parcela (GOLDENGATE)",
         "Consultar Parcela (TRONWEB)"
       ],
-      "join_key": "status_pgto",
+      "join_key": "parcela",
       "compare_columns": [
-        "parcela",
         "status_pgto"
       ],
       "shared_params": {
         "apolice": {
-          "description": "Número da apólice",
+          "description": "Número de apólice",
           "default": ""
         }
       },
       "column_mapping": {},
       "normalize": {},
-      "validation_rule": "all_equal",
-      "created_at": "2026-03-02T11:32:10"
+      "validation_rule": "none",
+      "created_at": "2026-03-03T00:29:10"
     }
   ]
 }
