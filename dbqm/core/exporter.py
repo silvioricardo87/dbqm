@@ -26,11 +26,22 @@ def _sanitize(name: str) -> str:
     return name.replace(" ", "_").replace("/", "_").replace("\\", "_")
 
 
-def export_query_csv(result: QueryResult, table: str = "") -> str:
+def _params_suffix(params: dict | None) -> str:
+    """Build a filename suffix from query parameters, e.g. '_apolice-123456'."""
+    if not params:
+        return ""
+    parts = []
+    for k, v in params.items():
+        safe_v = _sanitize(str(v)).replace(".", "_")
+        parts.append(f"{_sanitize(k)}-{safe_v}")
+    return "_" + "_".join(parts)
+
+
+def export_query_csv(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result to CSV. Returns the file path."""
     d = _ensure_exports_dir()
     table_part = _sanitize(table) if table else "query"
-    filename = f"{_sanitize(result.connection_name)}_{table_part}_{_timestamp()}.csv"
+    filename = f"{_sanitize(result.connection_name)}_{table_part}{_params_suffix(params)}_{_timestamp()}.csv"
     filepath = d / filename
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -39,11 +50,11 @@ def export_query_csv(result: QueryResult, table: str = "") -> str:
     return str(filepath)
 
 
-def export_query_json(result: QueryResult, table: str = "") -> str:
+def export_query_json(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result to JSON."""
     d = _ensure_exports_dir()
     table_part = _sanitize(table) if table else "query"
-    filename = f"{_sanitize(result.connection_name)}_{table_part}_{_timestamp()}.json"
+    filename = f"{_sanitize(result.connection_name)}_{table_part}{_params_suffix(params)}_{_timestamp()}.json"
     filepath = d / filename
     data = {
         "query": result.query_name,
@@ -57,11 +68,11 @@ def export_query_json(result: QueryResult, table: str = "") -> str:
     return str(filepath)
 
 
-def export_query_txt(result: QueryResult, table: str = "") -> str:
+def export_query_txt(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result as formatted text (same as display)."""
     d = _ensure_exports_dir()
     table_part = _sanitize(table) if table else "query"
-    filename = f"{_sanitize(result.connection_name)}_{table_part}_{_timestamp()}.txt"
+    filename = f"{_sanitize(result.connection_name)}_{table_part}{_params_suffix(params)}_{_timestamp()}.txt"
     filepath = d / filename
 
     lines = []
@@ -119,7 +130,7 @@ def _status_label(status: str) -> str:
 def export_group_csv(group_result: GroupResult, params: dict | None = None) -> str:
     """Export pivoted group comparison to CSV (one section per key)."""
     d = _ensure_exports_dir()
-    filename = f"grupo_{_sanitize(group_result.group_name)}_{_timestamp()}.csv"
+    filename = f"grupo_{_sanitize(group_result.group_name)}{_params_suffix(params)}_{_timestamp()}.csv"
     filepath = d / filename
 
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
@@ -158,7 +169,7 @@ def export_group_csv(group_result: GroupResult, params: dict | None = None) -> s
 def export_group_json(group_result: GroupResult, params: dict | None = None) -> str:
     """Export pivoted group comparison to JSON."""
     d = _ensure_exports_dir()
-    filename = f"grupo_{_sanitize(group_result.group_name)}_{_timestamp()}.json"
+    filename = f"grupo_{_sanitize(group_result.group_name)}{_params_suffix(params)}_{_timestamp()}.json"
     filepath = d / filename
 
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
@@ -198,7 +209,7 @@ def export_group_json(group_result: GroupResult, params: dict | None = None) -> 
 def export_group_txt(group_result: GroupResult, params: dict | None = None) -> str:
     """Export pivoted group comparison as formatted text."""
     d = _ensure_exports_dir()
-    filename = f"grupo_{_sanitize(group_result.group_name)}_{_timestamp()}.txt"
+    filename = f"grupo_{_sanitize(group_result.group_name)}{_params_suffix(params)}_{_timestamp()}.txt"
     filepath = d / filename
 
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
@@ -289,7 +300,7 @@ def _flat_status_label(status: str) -> str:
 def export_group_flat_csv(group_result: GroupResult, params: dict | None = None) -> str:
     """Export flat group comparison to CSV (one section per compare column)."""
     d = _ensure_exports_dir()
-    filename = f"grupo_{_sanitize(group_result.group_name)}_flat_{_timestamp()}.csv"
+    filename = f"grupo_{_sanitize(group_result.group_name)}{_params_suffix(params)}_flat_{_timestamp()}.csv"
     filepath = d / filename
 
     query_names = list(group_result.query_results.keys())
@@ -322,7 +333,7 @@ def export_group_flat_csv(group_result: GroupResult, params: dict | None = None)
 def export_group_flat_json(group_result: GroupResult, params: dict | None = None) -> str:
     """Export flat group comparison to JSON."""
     d = _ensure_exports_dir()
-    filename = f"grupo_{_sanitize(group_result.group_name)}_flat_{_timestamp()}.json"
+    filename = f"grupo_{_sanitize(group_result.group_name)}{_params_suffix(params)}_flat_{_timestamp()}.json"
     filepath = d / filename
 
     query_names = list(group_result.query_results.keys())
@@ -360,7 +371,7 @@ def export_group_flat_json(group_result: GroupResult, params: dict | None = None
 def export_group_flat_txt(group_result: GroupResult, params: dict | None = None) -> str:
     """Export flat group comparison as formatted text."""
     d = _ensure_exports_dir()
-    filename = f"grupo_{_sanitize(group_result.group_name)}_flat_{_timestamp()}.txt"
+    filename = f"grupo_{_sanitize(group_result.group_name)}{_params_suffix(params)}_flat_{_timestamp()}.txt"
     filepath = d / filename
 
     query_names = list(group_result.query_results.keys())

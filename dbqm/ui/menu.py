@@ -150,11 +150,11 @@ def _execute_query_flow():
             break
 
         # Post-result actions (returns "reexec" to loop, None to exit)
-        if not _post_result_actions(result, query.table):
+        if not _post_result_actions(result, query.table, param_values):
             break
 
 
-def _post_result_actions(result: QueryResult, table: str = "") -> bool:
+def _post_result_actions(result: QueryResult, table: str = "", params: dict | None = None) -> bool:
     """Actions after displaying a query result. Returns True to re-execute."""
     while True:
         action = select(
@@ -171,10 +171,10 @@ def _post_result_actions(result: QueryResult, table: str = "") -> bool:
         elif action == "reexec":
             return True
         elif action == "export":
-            _export_result(result, table)
+            _export_result(result, table, params)
 
 
-def _export_result(result: QueryResult, table: str = ""):
+def _export_result(result: QueryResult, table: str = "", params: dict | None = None):
     """Export a single query result."""
     fmt = select(
         message="Formato:",
@@ -189,11 +189,11 @@ def _export_result(result: QueryResult, table: str = ""):
         return
 
     if fmt == "csv":
-        path = export_query_csv(result, table)
+        path = export_query_csv(result, table, params)
     elif fmt == "json":
-        path = export_query_json(result, table)
+        path = export_query_json(result, table, params)
     else:
-        path = export_query_txt(result, table)
+        path = export_query_txt(result, table, params)
 
     show_success(f"Exportado: {path}")
 
