@@ -34,6 +34,20 @@ def _is_select_only(sql: str) -> bool:
     return stmt_type in ("SELECT", None)
 
 
+def classify_sql(sql: str) -> str:
+    """Classify SQL statement type. Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', or 'UNKNOWN'."""
+    parsed = sqlparse.parse(sql.strip())
+    if not parsed:
+        return "UNKNOWN"
+    stmt_type = parsed[0].get_type()
+    if stmt_type in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+        return stmt_type
+    first_word = sql.strip().split()[0].upper() if sql.strip() else ""
+    if first_word in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+        return first_word
+    return "UNKNOWN"
+
+
 def _bind_params_oracle(sql: str, params: dict) -> tuple[str, dict]:
     """Oracle uses :param syntax natively."""
     return sql, params
@@ -106,6 +120,100 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
         )
 
 
+@dataclass
+class AdhocResult:
+    """Result of an ad-hoc SQL execution (SELECT or DML)."""
+    sql_type: str
+    connection_name: str
+    columns: list[str] = field(default_factory=list)
+    rows: list[list[Any]] = field(default_factory=list)
+    row_count: int = 0
+    rows_affected: int = 0
+    elapsed: float = 0.0
+    success: bool = True
+    error: str = ""
+    committed: bool = False
+
+
+def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: bool = False) -> AdhocResult | tuple[AdhocResult, Any]:
+    """Execute an ad-hoc SQL (SELECT or DML) against a connection.
+
+    For SELECT: returns AdhocResult.
+    For DML without auto_commit: returns (AdhocResult, db_connection) for manual commit/rollback.
+    For DML with auto_commit: returns AdhocResult (committed).
+    For errors: returns AdhocResult with success=False.
+    """
+    sql = sql.strip().rstrip(";")
+    sql_type = classify_sql(sql)
+
+    if sql_type == "UNKNOWN":
+        return AdhocResult(
+            sql_type=sql_type,
+            connection_name=conn.name,
+            success=False,
+            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE ou DELETE.",
+        )
+
+    try:
+        start = time.time()
+        db = get_connection(conn)
+        cursor = db.cursor()
+
+        if conn.db_type == "sqlserver":
+            bound_sql, param_values = _bind_params_sqlserver(sql, param_values)
+        else:
+            bound_sql, param_values = _bind_params_oracle(sql, param_values)
+
+        if param_values:
+            cursor.execute(bound_sql, param_values)
+        else:
+            cursor.execute(bound_sql)
+
+        elapsed = time.time() - start
+
+        if sql_type == "SELECT":
+            columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description or [])]
+            rows = [list(row) for row in cursor.fetchall()]
+            cursor.close()
+            db.close()
+            return AdhocResult(
+                sql_type=sql_type,
+                connection_name=conn.name,
+                columns=columns,
+                rows=rows,
+                row_count=len(rows),
+                elapsed=elapsed,
+            )
+        else:
+            rows_affected = cursor.rowcount
+            if auto_commit:
+                db.commit()
+                cursor.close()
+                db.close()
+                return AdhocResult(
+                    sql_type=sql_type,
+                    connection_name=conn.name,
+                    rows_affected=rows_affected,
+                    elapsed=elapsed,
+                    committed=True,
+                )
+            else:
+                return AdhocResult(
+                    sql_type=sql_type,
+                    connection_name=conn.name,
+                    rows_affected=rows_affected,
+                    elapsed=elapsed,
+                ), db
+
+    except Exception as e:
+        return AdhocResult(
+            sql_type=sql_type,
+            connection_name=conn.name,
+            success=False,
+            error=str(e),
+        )
+
+
 def parse_sql(sql: str) -> dict:
     """Parse a raw SQL string and extract table, columns, where conditions, order by."""
     sql = sql.strip().rstrip(";")
@@ -164,6 +272,43 @@ def parse_sql(sql: str) -> dict:
     return result
 
 
+def parse_dml_literals(sql: str) -> dict[str, str]:
+    """Extract literal values from DML statements (INSERT/UPDATE/DELETE).
+
+    Returns dict of {column_name: literal_value}.
+    """
+    sql_type = classify_sql(sql)
+    literals = {}
+
+    if sql_type == "INSERT":
+        col_match = re.search(r"INSERT\s+INTO\s+\S+\s*\(([^)]+)\)", sql, re.IGNORECASE)
+        val_match = re.search(r"VALUES\s*\(([^)]+)\)", sql, re.IGNORECASE)
+        if col_match and val_match:
+            cols = [c.strip() for c in col_match.group(1).split(",")]
+            raw_vals = re.findall(r"'([^']*)'|(\d+(?:\.\d+)?)", val_match.group(1))
+            vals = [v[0] if v[0] else v[1] for v in raw_vals]
+            for col, val in zip(cols, vals):
+                literals[col.lower()] = val
+
+    elif sql_type == "UPDATE":
+        set_match = re.search(r"\bSET\s+(.*?)(?:\bWHERE\b|$)", sql, re.IGNORECASE | re.DOTALL)
+        if set_match:
+            for m in re.finditer(r"(\w+)\s*=\s*'([^']*)'", set_match.group(1)):
+                literals[m.group(1).lower()] = m.group(2)
+        where_match = re.search(r"\bWHERE\s+(.*?)$", sql, re.IGNORECASE | re.DOTALL)
+        if where_match:
+            for m in re.finditer(r"(\w+)\s*=\s*'([^']*)'", where_match.group(1)):
+                literals[m.group(1).lower()] = m.group(2)
+
+    elif sql_type == "DELETE":
+        where_match = re.search(r"\bWHERE\s+(.*?)$", sql, re.IGNORECASE | re.DOTALL)
+        if where_match:
+            for m in re.finditer(r"(\w+)\s*=\s*'([^']*)'", where_match.group(1)):
+                literals[m.group(1).lower()] = m.group(2)
+
+    return literals
+
+
 def _extract_alias(expr: str) -> str:
     """Extract alias from a SELECT expression like 'COL AS alias' or 'COL alias' or just 'COL'."""
     # Check for AS keyword
@@ -199,3 +344,16 @@ def replace_literals_with_params(sql: str, replacements: dict[str, str]) -> str:
         sql = sql.replace(f"'{literal_value}'", f":{param_name}")
         sql = sql.replace(literal_value, f":{param_name}")
     return sql
+
+
+def generate_sql_text(sql: str, param_values: dict) -> str:
+    """Replace :param bind variables with actual values in the SQL text."""
+    result = sql
+    for param, value in param_values.items():
+        try:
+            float(value)
+            replacement = str(value)
+        except (ValueError, TypeError):
+            replacement = f"'{value}'"
+        result = re.sub(rf":{re.escape(param)}\b", replacement, result)
+    return result
