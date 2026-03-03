@@ -591,7 +591,7 @@ def _adhoc_sql_flow():
         else:
             literals = parse_dml_literals(raw_sql)
             tbl_match = re.search(
-                r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(\S+)", raw_sql, re.IGNORECASE
+                r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\S+)", raw_sql, re.IGNORECASE
             )
             table_name = tbl_match.group(1) if tbl_match else ""
 
@@ -626,7 +626,7 @@ def _adhoc_sql_flow():
             table_name = parsed.get("table", "")
         else:
             tbl_match = re.search(
-                r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(\S+)", raw_sql, re.IGNORECASE
+                r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\S+)", raw_sql, re.IGNORECASE
             )
             table_name = tbl_match.group(1) if tbl_match else ""
 
