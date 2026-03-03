@@ -37,6 +37,15 @@ def _params_suffix(params: dict | None) -> str:
     return "_" + "_".join(parts)
 
 
+def export_sql_file(sql_text: str, label: str = "adhoc", params: dict | None = None) -> str:
+    """Export a generated SQL text to a .sql file. Returns the file path."""
+    d = _ensure_exports_dir()
+    filename = f"{_sanitize(label)}{_params_suffix(params)}_{_timestamp()}.sql"
+    filepath = d / filename
+    filepath.write_text(sql_text, encoding="utf-8")
+    return str(filepath)
+
+
 def export_query_csv(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result to CSV. Returns the file path."""
     d = _ensure_exports_dir()
