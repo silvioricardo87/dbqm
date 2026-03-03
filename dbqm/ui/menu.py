@@ -13,7 +13,7 @@ from dbqm.ui.flows.query_flow import execute_query_flow
 from dbqm.ui.flows.group_flow import execute_group_flow
 from dbqm.ui.flows.ddl_flow import extract_ddl_flow
 from dbqm.ui.flows.adhoc_flow import adhoc_sql_flow
-from dbqm.ui.flows.browse_flow import browse_tables_flow
+from dbqm.ui.flows.object_browser_flow import object_browser_flow
 from dbqm.ui.flows.config_flow import portability_flow
 
 console = Console()
@@ -37,7 +37,7 @@ def main_menu():
                 {"name": "📊  Executar grupo de consultas", "value": "exec_group"},
                 {"name": "⌨️   Executar SQL avulso", "value": "adhoc_sql"},
                 {"name": "🏗️   Extrair DDL de objeto", "value": "extract_ddl"},
-                {"name": "🗂️   Navegar tabelas", "value": "browse"},
+                {"name": "🗂️   Navegar objetos", "value": "browse"},
                 {"name": "⚙️   Configuracoes", "value": "config"},
                 {"name": "🚪  Sair", "value": "exit"},
             ],
@@ -58,7 +58,7 @@ def main_menu():
         elif action == "adhoc_sql":
             adhoc_sql_flow()
         elif action == "browse":
-            browse_tables_flow()
+            object_browser_flow()
 
 
 def _config_menu():
