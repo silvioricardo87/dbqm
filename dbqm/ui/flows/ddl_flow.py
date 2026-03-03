@@ -107,8 +107,22 @@ def extract_ddl_flow():
 
 def _extract_full_ddl_flow(conn, object_name: str):
     """Extract full DDL for an object."""
-    with console.status(f"Extraindo DDL de {object_name}..."):
-        result = extract_ddl(conn, object_name)
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Detectando {object_name}...", total=None)
+
+        def _on_progress(current: int, total: int, obj_type: str, obj_name: str):
+            progress.update(task, total=total, completed=current - 1,
+                            description=f"[{current}/{total}] {obj_type} {obj_name}")
+
+        result = extract_ddl(conn, object_name, on_progress=_on_progress)
+        if progress.tasks[0].total:
+            progress.update(task, completed=progress.tasks[0].total)
 
     if result.errors and not result.objects:
         for err in result.errors:

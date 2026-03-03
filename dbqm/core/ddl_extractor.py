@@ -98,27 +98,14 @@ def detect_object(cursor, name: str) -> list[dict]:
 # Table extraction
 # ---------------------------------------------------------------------------
 
-def _extract_table(cursor, owner: str, name: str, result: ExtractionResult):
-    # DDL
-    ddl = _try_dbms_metadata(cursor, "TABLE", name, owner)
-    if not ddl:
-        ddl = _build_table_ddl_fallback(cursor, owner, name)
-    result.objects.append(ExtractedObject(name, "TABLE", ddl))
-
-    # Indexes
-    rows = _query_all(cursor, """
+def _extract_table(cursor, owner: str, name: str, result: ExtractionResult, on_progress=None):
+    # Query indexes and constraints first to know total
+    idx_rows = _query_all(cursor, """
         SELECT index_name FROM all_indexes
         WHERE table_owner = :owner AND table_name = :name
         ORDER BY index_name
     """, {"owner": owner, "name": name})
-    for (idx_name,) in rows:
-        idx_ddl = _try_dbms_metadata(cursor, "INDEX", idx_name, owner)
-        if not idx_ddl:
-            idx_ddl = _build_index_ddl_fallback(cursor, owner, name, idx_name)
-        result.objects.append(ExtractedObject(idx_name, "INDEX", idx_ddl))
-
-    # Constraints
-    rows = _query_all(cursor, """
+    cons_rows = _query_all(cursor, """
         SELECT constraint_name, constraint_type, search_condition,
                r_owner, r_constraint_name
         FROM all_constraints
@@ -129,14 +116,41 @@ def _extract_table(cursor, owner: str, name: str, result: ExtractionResult):
                 WHEN 'R' THEN 3 WHEN 'C' THEN 4 ELSE 5
             END
     """, {"owner": owner, "name": name})
-    for row in rows:
+
+    total = 1 + len(idx_rows) + len(cons_rows)
+    step = 0
+
+    # Table DDL
+    step += 1
+    if on_progress:
+        on_progress(step, total, "TABLE", name)
+    ddl = _try_dbms_metadata(cursor, "TABLE", name, owner)
+    if not ddl:
+        ddl = _build_table_ddl_fallback(cursor, owner, name)
+    result.objects.append(ExtractedObject(name, "TABLE", ddl))
+
+    # Indexes
+    for (idx_name,) in idx_rows:
+        step += 1
+        if on_progress:
+            on_progress(step, total, "INDEX", idx_name)
+        idx_ddl = _try_dbms_metadata(cursor, "INDEX", idx_name, owner)
+        if not idx_ddl:
+            idx_ddl = _build_index_ddl_fallback(cursor, owner, name, idx_name)
+        result.objects.append(ExtractedObject(idx_name, "INDEX", idx_ddl))
+
+    # Constraints
+    for row in cons_rows:
         c_name, c_type, search_cond, r_owner, r_cname = row
+        step += 1
+        type_label = {"P": "PRIMARY KEY", "U": "UNIQUE", "R": "FOREIGN KEY", "C": "CHECK"}.get(c_type, c_type)
+        if on_progress:
+            on_progress(step, total, f"CONSTRAINT ({type_label})", c_name)
         cons_ddl = _try_dbms_metadata(cursor, "CONSTRAINT", c_name, owner)
         if not cons_ddl:
             cons_ddl = _build_constraint_ddl_fallback(
                 cursor, owner, name, c_name, c_type, search_cond, r_owner, r_cname
             )
-        type_label = {"P": "PRIMARY KEY", "U": "UNIQUE", "R": "FOREIGN KEY", "C": "CHECK"}.get(c_type, c_type)
         result.objects.append(ExtractedObject(c_name, f"CONSTRAINT ({type_label})", cons_ddl))
 
 
@@ -227,8 +241,12 @@ def _build_constraint_ddl_fallback(
 # Package extraction
 # ---------------------------------------------------------------------------
 
-def _extract_package(cursor, owner: str, name: str, result: ExtractionResult):
+def _extract_package(cursor, owner: str, name: str, result: ExtractionResult, on_progress=None):
+    total = 2
+
     # Spec
+    if on_progress:
+        on_progress(1, total, "PACKAGE SPEC", name)
     spec = _try_dbms_metadata(cursor, "PACKAGE_SPEC", name, owner)
     if not spec:
         src = _get_source(cursor, owner, name, "PACKAGE")
@@ -236,6 +254,8 @@ def _extract_package(cursor, owner: str, name: str, result: ExtractionResult):
     result.objects.append(ExtractedObject(name, "PACKAGE SPEC", spec))
 
     # Body
+    if on_progress:
+        on_progress(2, total, "PACKAGE BODY", name)
     body = _try_dbms_metadata(cursor, "PACKAGE_BODY", name, owner)
     if not body:
         src = _get_source(cursor, owner, name, "PACKAGE BODY")
@@ -651,8 +671,16 @@ EXTRACT_MAP = {
 }
 
 
-def extract_ddl(conn: Connection, object_name: str, owner_filter: str | None = None) -> ExtractionResult:
+def extract_ddl(
+    conn: Connection,
+    object_name: str,
+    owner_filter: str | None = None,
+    on_progress: Any = None,
+) -> ExtractionResult:
     """Extract DDL for a given object name. Auto-detects type.
+
+    Args:
+        on_progress: Optional callback(current, total, obj_type, obj_name).
 
     Returns ExtractionResult with objects and a saved .sql file path.
     """
@@ -686,14 +714,22 @@ def extract_ddl(conn: Connection, object_name: str, owner_filter: str | None = N
             owner=obj["owner"], connection_name=conn.name,
         )
 
-        extractor = EXTRACT_MAP.get(obj["type"])
-        if extractor:
-            try:
-                extractor(cursor, obj["owner"], obj["name"], result)
-            except Exception as e:
-                result.errors.append(f"Erro ao extrair {obj['type']}: {e}")
-        else:
-            result.errors.append(f"Tipo '{obj['type']}' nao suportado para extracao.")
+        obj_type = obj["type"]
+        try:
+            if obj_type == "TABLE":
+                _extract_table(cursor, obj["owner"], obj["name"], result, on_progress)
+            elif obj_type == "PACKAGE":
+                _extract_package(cursor, obj["owner"], obj["name"], result, on_progress)
+            else:
+                extractor = EXTRACT_MAP.get(obj_type)
+                if extractor:
+                    if on_progress:
+                        on_progress(1, 1, obj_type, obj["name"])
+                    extractor(cursor, obj["owner"], obj["name"], result)
+                else:
+                    result.errors.append(f"Tipo '{obj_type}' nao suportado para extracao.")
+        except Exception as e:
+            result.errors.append(f"Erro ao extrair {obj_type}: {e}")
 
         return result
     finally:
