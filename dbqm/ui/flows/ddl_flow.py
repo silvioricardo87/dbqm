@@ -17,8 +17,10 @@ from dbqm.ui.prompts import select, text, confirm, is_esc
 console = Console()
 
 
-def _prompt_and_export_deps(conn, dependencies: list[str], extract_label: str, save_label: str) -> None:
-    """Offer to export dependency DDL and handle the full interaction."""
+def _prompt_and_export_deps(
+    conn, dependencies: list[str], extract_label: str, output_dir: str, file_num: int,
+) -> None:
+    """Offer to export dependency DDL into the same output directory."""
     if not dependencies:
         return
     console.print()
@@ -49,7 +51,7 @@ def _prompt_and_export_deps(conn, dependencies: list[str], extract_label: str, s
         show_warning("Nenhuma dependencia pôde ser extraida.")
         return
 
-    dep_filepath = save_dependencies_extraction(dep_result, save_label)
+    dep_filepath = save_dependencies_extraction(dep_result, output_dir, file_num)
 
     dep_counts: dict[str, int] = {}
     for obj in dep_result.objects:
@@ -68,7 +70,6 @@ def _prompt_and_export_deps(conn, dependencies: list[str], extract_label: str, s
 
     console.print()
     show_success(f"Arquivo salvo: {dep_filepath}")
-    prompt_open_file(dep_filepath)
 
 
 def extract_ddl_flow():
@@ -129,7 +130,7 @@ def _extract_full_ddl_flow(conn, object_name: str):
             show_error(err)
         return
 
-    filepath = save_extraction(result)
+    dir_path, next_num = save_extraction(result)
 
     console.print()
     console.rule("[bold cyan]🏗️  EXTRACAO DDL[/bold cyan]", style="cyan")
@@ -157,9 +158,13 @@ def _extract_full_ddl_flow(conn, object_name: str):
             show_warning(err)
 
     console.print()
-    show_success(f"Arquivo salvo: {filepath}")
-    prompt_open_file(filepath)
-    _prompt_and_export_deps(conn, result.dependencies, result.object_name, result.object_name)
+    console.print(f"  [bold]📂 Arquivos gerados:[/bold]")
+    for f in result.saved_files:
+        console.print(f"    [dim]•[/dim] {f}")
+    console.print()
+    show_success(f"Diretorio: {dir_path}")
+    prompt_open_file(dir_path)
+    _prompt_and_export_deps(conn, result.dependencies, result.object_name, dir_path, next_num)
     console.print()
 
 
@@ -173,7 +178,7 @@ def _extract_routine_flow(conn, pkg_name: str, routine_name: str):
             show_error(err)
         return
 
-    dir_path = save_routine_extraction(result)
+    dir_path, next_num = save_routine_extraction(result)
 
     console.print()
     console.rule("[bold cyan]🏗️  EXTRACAO DE ROTINA[/bold cyan]", style="cyan")
@@ -209,6 +214,6 @@ def _extract_routine_flow(conn, pkg_name: str, routine_name: str):
     _prompt_and_export_deps(
         conn, result.dependencies,
         f"{pkg_name}.{routine_name}",
-        f"{pkg_name}_{routine_name}",
+        dir_path, next_num,
     )
     console.print()

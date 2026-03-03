@@ -11,6 +11,14 @@ from dbqm.core.db_manager import get_connection
 from dbqm.models.connection import Connection
 from dbqm.core.constants import EXPORTS_DIR
 
+MAX_COMPONENT_LEN = 60  # Max chars per name component in paths (safe for Windows)
+
+
+def _safe_name(name: str, max_len: int = MAX_COMPONENT_LEN) -> str:
+    """Sanitize and truncate a name for safe use in file/directory names."""
+    safe = re.sub(r"[^\w]", "_", name)
+    return safe[:max_len] if len(safe) > max_len else safe
+
 
 @dataclass
 class ExtractedObject:
@@ -586,15 +594,16 @@ def _extract_dependencies(cursor, owner, name, obj_type, result):
             result.dependencies.append(dep)
 
 
-def save_routine_extraction(result: RoutineExtractionResult) -> str:
+def save_routine_extraction(result: RoutineExtractionResult) -> tuple[str, int]:
     """Save routine extraction to separate numbered .sql files in a directory.
 
-    Returns the directory path.
+    Returns (dir_path, next_file_num).
     """
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_pkg = re.sub(r"[^\w]", "_", result.package_name)
-    safe_routine = re.sub(r"[^\w]", "_", result.routine_name)
-    dir_name = f"{result.connection_name}_{safe_pkg}_{safe_routine}_{ts}"
+    safe_conn = _safe_name(result.connection_name, 30)
+    safe_pkg = _safe_name(result.package_name)
+    safe_routine = _safe_name(result.routine_name)
+    dir_name = f"{safe_conn}_{safe_pkg}_{safe_routine}_{ts}"
     out_dir = EXPORTS_DIR / dir_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -633,7 +642,7 @@ def save_routine_extraction(result: RoutineExtractionResult) -> str:
         result.saved_files.append(fname)
         file_num += 1
 
-    # 3. Dependencies list
+    # 3. Dependencies list (informational — names only)
     if result.dependencies:
         lines = [header]
         lines.append(f"-- External dependencies referenced by {result.package_name}")
@@ -644,6 +653,7 @@ def save_routine_extraction(result: RoutineExtractionResult) -> str:
         fname = f"{file_num:02d}_dependencies.sql"
         (out_dir / fname).write_text("\n".join(lines), encoding="utf-8")
         result.saved_files.append(fname)
+        file_num += 1
 
     # Errors
     if result.errors:
@@ -652,7 +662,7 @@ def save_routine_extraction(result: RoutineExtractionResult) -> str:
             lines.append(f"-- ERROR: {err}")
         (out_dir / "errors.txt").write_text("\n".join(lines), encoding="utf-8")
 
-    return str(out_dir)
+    return str(out_dir), file_num
 
 
 # ---------------------------------------------------------------------------
@@ -737,27 +747,32 @@ def extract_ddl(
         db.close()
 
 
-def save_extraction(result: ExtractionResult) -> str:
-    """Save extraction result to a .sql file. Returns file path."""
+def save_extraction(result: ExtractionResult) -> tuple[str, int]:
+    """Save extraction result to a directory with numbered .sql file.
+
+    Returns (dir_path, next_file_num).
+    """
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_name = re.sub(r"[^\w]", "_", result.object_name)
-    filename = f"{result.connection_name}_{safe_name}_{ts}.sql"
-    filepath = EXPORTS_DIR / filename
+    safe_conn = _safe_name(result.connection_name, 30)
+    safe_obj = _safe_name(result.object_name)
+    dir_name = f"{safe_conn}_{safe_obj}_{ts}"
+    out_dir = EXPORTS_DIR / dir_name
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
-    lines.append(f"-- ============================================================")
+    lines.append("-- ============================================================")
     lines.append(f"-- DDL Extraction: {result.owner}.{result.object_name}")
     lines.append(f"-- Type: {result.object_type}")
     lines.append(f"-- Connection: {result.connection_name}")
     lines.append(f"-- Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    lines.append(f"-- ============================================================")
+    lines.append("-- ============================================================")
     lines.append("")
 
     for obj in result.objects:
-        lines.append(f"-- ------------------------------------------------------------")
+        lines.append("-- ------------------------------------------------------------")
         lines.append(f"-- {obj.obj_type}: {obj.name}")
-        lines.append(f"-- ------------------------------------------------------------")
+        lines.append("-- ------------------------------------------------------------")
         lines.append("")
         ddl = obj.ddl.rstrip()
         if not ddl.endswith(";"):
@@ -768,23 +783,25 @@ def save_extraction(result: ExtractionResult) -> str:
         lines.append("")
 
     if result.dependencies:
-        lines.append(f"-- ------------------------------------------------------------")
-        lines.append(f"-- Dependencies")
-        lines.append(f"-- ------------------------------------------------------------")
+        lines.append("-- ------------------------------------------------------------")
+        lines.append("-- Dependencies")
+        lines.append("-- ------------------------------------------------------------")
         for dep in result.dependencies:
             lines.append(f"-- {dep}")
         lines.append("")
 
     if result.errors:
-        lines.append(f"-- ------------------------------------------------------------")
-        lines.append(f"-- Errors during extraction")
-        lines.append(f"-- ------------------------------------------------------------")
+        lines.append("-- ------------------------------------------------------------")
+        lines.append("-- Errors during extraction")
+        lines.append("-- ------------------------------------------------------------")
         for err in result.errors:
             lines.append(f"-- {err}")
         lines.append("")
 
-    filepath.write_text("\n".join(lines), encoding="utf-8")
-    return str(filepath)
+    fname = f"01_{safe_obj}.sql"
+    (out_dir / fname).write_text("\n".join(lines), encoding="utf-8")
+    result.saved_files.append(fname)
+    return str(out_dir), 2
 
 
 # ---------------------------------------------------------------------------
@@ -857,17 +874,16 @@ def extract_dependencies_ddl(
         db.close()
 
 
-def save_dependencies_extraction(result: ExtractionResult, parent_name: str) -> str:
-    """Save dependencies extraction to a separate .sql file. Returns file path."""
-    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_name = re.sub(r"[^\w]", "_", parent_name)
-    filename = f"{result.connection_name}_{safe_name}_dependencies_{ts}.sql"
-    filepath = EXPORTS_DIR / filename
+def save_dependencies_extraction(result: ExtractionResult, output_dir: str, file_num: int) -> str:
+    """Save dependencies DDL into the given directory with sequential numbering.
+
+    Returns the file path of the saved file.
+    """
+    out_dir = Path(output_dir)
 
     lines: list[str] = []
     lines.append("-- ============================================================")
-    lines.append(f"-- Dependencies DDL for: {parent_name}")
+    lines.append(f"-- Dependencies DDL")
     lines.append(f"-- Connection: {result.connection_name}")
     lines.append(f"-- Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append("-- ============================================================")
@@ -894,5 +910,7 @@ def save_dependencies_extraction(result: ExtractionResult, parent_name: str) -> 
             lines.append(f"-- {err}")
         lines.append("")
 
+    fname = f"{file_num:02d}_dependencies_ddl.sql"
+    filepath = out_dir / fname
     filepath.write_text("\n".join(lines), encoding="utf-8")
     return str(filepath)
