@@ -362,24 +362,26 @@ def show_browse_result(result):
 
 
 def show_table_structure(structure):
-    """Display table structure (columns, indexes) as a rich table."""
+    """Display table structure (columns, indexes, FKs) as rich tables."""
 
-    table = Table(
-        title=f"🏗️  Estrutura: {structure.table}",
+    # -- Columns table --
+    col_table = Table(
+        title=f"📋 Colunas: {structure.table}",
         show_lines=True,
         border_style="bright_black",
         title_style="bold cyan",
         header_style="bold bright_white",
         expand=True,
     )
-    table.add_column("Coluna", style="bold white")
-    table.add_column("Tipo", style="yellow")
-    table.add_column("Tam.", style="white", justify="right")
-    table.add_column("Null?", justify="center")
-    table.add_column("Chave", style="white")
+    col_table.add_column("Coluna", style="bold white")
+    col_table.add_column("Tipo", style="yellow")
+    col_table.add_column("Tam.", style="white", justify="right")
+    col_table.add_column("Null?", justify="center", width=6)
+    col_table.add_column("PK", justify="center", width=4)
+    col_table.add_column("FK", style="white")
 
+    fk_rows = []
     for col in structure.columns:
-        # Format size: data_length for strings, precision,scale for numbers
         if col.data_precision is not None:
             size = f"{col.data_precision}"
             if col.data_scale is not None and col.data_scale > 0:
@@ -389,33 +391,65 @@ def show_table_structure(structure):
         else:
             size = ""
 
-        # Nullable as colored Y/N
         nullable = "[green]Y[/green]" if col.nullable else "[red]N[/red]"
+        pk = "[bold yellow]PK[/bold yellow]" if col.is_pk else ""
 
-        # Key info
-        key_parts = []
-        if col.is_pk:
-            key_parts.append("[yellow]PK[/yellow]")
+        fk_display = ""
         if col.fk_ref:
-            key_parts.append(f"[cyan]FK -> {col.fk_ref}[/cyan]")
-        key = " ".join(key_parts)
+            fk_display = f"[cyan]{col.fk_ref}[/cyan]"
+            ref_parts = col.fk_ref.split(".")
+            fk_rows.append((col.name, ref_parts[0] if ref_parts else col.fk_ref, ref_parts[1] if len(ref_parts) > 1 else ""))
 
-        table.add_row(col.name, col.data_type, size, nullable, key)
+        col_table.add_row(col.name, col.data_type, size, nullable, pk, fk_display)
 
     console.print()
-    console.print(table)
+    console.print(col_table)
 
-    # Show indexes
-    if structure.indexes:
+    # -- Foreign keys table --
+    if fk_rows:
+        fk_table = Table(
+            title="🔗 Foreign Keys",
+            show_lines=True,
+            border_style="bright_black",
+            title_style="bold cyan",
+            header_style="bold bright_white",
+            expand=True,
+        )
+        fk_table.add_column("Coluna", style="bold white")
+        fk_table.add_column("→", justify="center", width=3, style="dim")
+        fk_table.add_column("Tabela Ref.", style="cyan")
+        fk_table.add_column("Coluna Ref.", style="cyan")
+
+        for fk_col, ref_table, ref_col in fk_rows:
+            fk_table.add_row(fk_col, "→", ref_table, ref_col)
+
         console.print()
-        console.print("  [bold]Indexes:[/bold]")
+        console.print(fk_table)
+
+    # -- Indexes table --
+    if structure.indexes:
+        idx_table = Table(
+            title="📇 Indexes",
+            show_lines=True,
+            border_style="bright_black",
+            title_style="bold cyan",
+            header_style="bold bright_white",
+            expand=True,
+        )
+        idx_table.add_column("Index", style="bold white")
+        idx_table.add_column("Colunas", style="white")
+        idx_table.add_column("Tipo", justify="center", width=12)
+
         for idx in structure.indexes:
-            unique_tag = "[yellow]UNIQUE[/yellow] " if idx.is_unique else ""
             cols = ", ".join(idx.columns)
-            console.print(f"    {unique_tag}[white]{idx.name}[/white] ({cols})")
+            tipo = "[bold yellow]UNIQUE[/bold yellow]" if idx.is_unique else "[dim]NONUNIQUE[/dim]"
+            idx_table.add_row(idx.name, cols, tipo)
+
+        console.print()
+        console.print(idx_table)
 
     console.print(
-        f"\n  [dim]📊 {structure.total_count} registros  |  ⏱️  {structure.elapsed:.2f}s[/dim]\n"
+        f"\n  [dim]📊 {structure.total_count:,} registros  |  ⏱️  {structure.elapsed:.2f}s[/dim]\n"
     )
 
 
