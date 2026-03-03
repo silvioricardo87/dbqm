@@ -9,8 +9,7 @@ from typing import Any
 
 from dbqm.core.db_manager import get_connection
 from dbqm.models.connection import Connection
-
-EXPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "exports"
+from dbqm.core.constants import EXPORTS_DIR
 
 
 @dataclass

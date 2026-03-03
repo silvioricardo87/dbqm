@@ -7,6 +7,7 @@ from rich.table import Table
 from dbqm.models.query import load_queries
 from dbqm.models.group import Group, load_groups, save_groups
 from dbqm.ui.display import show_success, show_error, show_warning
+from dbqm.ui.helpers import pick_entity
 from dbqm.ui.prompts import select, checkbox, text, confirm, is_esc
 
 console = Console()
@@ -247,17 +248,14 @@ def _create_group():
 
 
 def _edit_group(groups: list[Group]):
-    if not groups:
-        show_warning("Nenhum grupo para editar.")
+    group = pick_entity(
+        groups,
+        formatter=lambda g: g.name,
+        message="Selecione:",
+        empty_msg="Nenhum grupo para editar.",
+    )
+    if group is None:
         return
-
-    choices = [{"name": g.name, "value": g.name} for g in groups]
-
-    selected = select(message="Selecione:", choices=choices)
-    if is_esc(selected):
-        return
-
-    group = next(g for g in groups if g.name == selected)
 
     console.print(f"\n[bold]Editando grupo: {group.name}[/bold]")
 
@@ -293,16 +291,16 @@ def _edit_group(groups: list[Group]):
 
 
 def _remove_group(groups: list[Group]):
-    if not groups:
-        show_warning("Nenhum grupo para remover.")
+    group = pick_entity(
+        groups,
+        formatter=lambda g: g.name,
+        message="Selecione:",
+        empty_msg="Nenhum grupo para remover.",
+    )
+    if group is None:
         return
 
-    choices = [{"name": g.name, "value": g.name} for g in groups]
-
-    selected = select(message="Selecione:", choices=choices)
-    if is_esc(selected):
-        return
-
+    selected = group.name
     do_confirm = confirm(message=f'Remover grupo "{selected}"?', default=False)
     if is_esc(do_confirm) or not do_confirm:
         return

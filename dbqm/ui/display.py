@@ -86,12 +86,8 @@ def show_query_result(result: QueryResult):
     )
 
 
-def show_group_result(group_result: GroupResult, params: dict | None = None):
-    """Display full group comparison result with pivoted tables (one per key)."""
-    query_names = list(group_result.query_results.keys())
-    compare_columns = [c.column for c in group_result.comparisons]
-
-    # Header
+def _render_group_header(group_result: GroupResult, params: dict | None = None):
+    """Render shared header for group result views."""
     console.print()
     console.rule("[bold cyan]📊 RESULTADO COMPARATIVO[/bold cyan]", style="cyan")
     console.print(f"  [bold]📁 Grupo:[/bold] {group_result.group_name}")
@@ -100,13 +96,34 @@ def show_group_result(group_result: GroupResult, params: dict | None = None):
             console.print(f"  [bold]🏷️  {k}:[/bold] {v}")
     console.print()
 
-    # Per-query execution status
     for qname, qresult in group_result.query_results.items():
         if qresult.success:
             console.print(f"  [green]✅[/green] {qname}: {qresult.row_count} registros ({qresult.elapsed:.2f}s)")
         else:
             console.print(f"  [red]❌[/red] {qname}: ERRO - {qresult.error}")
     console.print()
+
+
+def _render_group_footer(group_result: GroupResult):
+    """Render shared footer/summary for group result views."""
+    console.rule("[bold cyan]📋 RESUMO[/bold cyan]", style="cyan")
+    for comp in group_result.comparisons:
+        _show_comparison_summary(comp)
+
+    if group_result.all_match:
+        status_text = "[green]✅ CONSISTENTE[/green]"
+    else:
+        status_text = "[red]❌ DIVERGENTE[/red]"
+    console.print(f"\n  Resultado final: {status_text}")
+    console.print()
+
+
+def show_group_result(group_result: GroupResult, params: dict | None = None):
+    """Display full group comparison result with pivoted tables (one per key)."""
+    query_names = list(group_result.query_results.keys())
+    compare_columns = [c.column for c in group_result.comparisons]
+
+    _render_group_header(group_result, params)
 
     # Build lookup: {(key_value, column): ComparisonRow}
     lookup: dict[tuple, ComparisonRow] = {}
@@ -121,17 +138,7 @@ def show_group_result(group_result: GroupResult, params: dict | None = None):
     for key in all_keys:
         _show_pivoted_key_table(key, query_names, compare_columns, lookup)
 
-    # Summary
-    console.rule("[bold cyan]📋 RESUMO[/bold cyan]", style="cyan")
-    for comp in group_result.comparisons:
-        _show_comparison_summary(comp)
-
-    if group_result.all_match:
-        status_text = "[green]✅ CONSISTENTE[/green]"
-    else:
-        status_text = "[red]❌ DIVERGENTE[/red]"
-    console.print(f"\n  Resultado final: {status_text}")
-    console.print()
+    _render_group_footer(group_result)
 
 
 def _status_cell(status: str) -> str:
@@ -215,38 +222,13 @@ def show_group_result_flat(group_result: GroupResult, params: dict | None = None
     """
     query_names = list(group_result.query_results.keys())
 
-    # Header
-    console.print()
-    console.rule("[bold cyan]📊 RESULTADO COMPARATIVO[/bold cyan]", style="cyan")
-    console.print(f"  [bold]📁 Grupo:[/bold] {group_result.group_name}")
-    if params:
-        for k, v in params.items():
-            console.print(f"  [bold]🏷️  {k}:[/bold] {v}")
-    console.print()
-
-    # Per-query execution status
-    for qname, qresult in group_result.query_results.items():
-        if qresult.success:
-            console.print(f"  [green]✅[/green] {qname}: {qresult.row_count} registros ({qresult.elapsed:.2f}s)")
-        else:
-            console.print(f"  [red]❌[/red] {qname}: ERRO - {qresult.error}")
-    console.print()
+    _render_group_header(group_result, params)
 
     # One table per compare column
     for comp in group_result.comparisons:
         _show_flat_column_table(comp, query_names)
 
-    # Summary
-    console.rule("[bold cyan]📋 RESUMO[/bold cyan]", style="cyan")
-    for comp in group_result.comparisons:
-        _show_comparison_summary(comp)
-
-    if group_result.all_match:
-        status_text = "[green]✅ CONSISTENTE[/green]"
-    else:
-        status_text = "[red]❌ DIVERGENTE[/red]"
-    console.print(f"\n  Resultado final: {status_text}")
-    console.print()
+    _render_group_footer(group_result)
 
 
 def _flat_status_label(status: str) -> str:
@@ -339,3 +321,40 @@ def _show_comparison_summary(comp: ComparisonResult):
                 missing_in = [qn for qn, v in r.values.items() if v is None]
                 if missing_in:
                     console.print(f"      🔍 chave {r.key_value}: ausente em {', '.join(missing_in)}")
+
+
+def show_browse_result(result):
+    """Display a table browse result as a rich table."""
+    from dbqm.core.table_browser import BrowseResult
+
+    if not result.rows:
+        show_warning("Tabela vazia.")
+        return
+
+    table = Table(
+        title=f"📋 {result.table}",
+        show_lines=True,
+        border_style="bright_black",
+        title_style="bold cyan",
+        header_style="bold bright_white",
+        expand=True,
+    )
+
+    for col in result.columns:
+        style = "cyan" if col in result.fk_columns else "white"
+        table.add_column(col, style=style)
+
+    for row in result.rows:
+        table.add_row(*[str(v) if v is not None else "" for v in row])
+
+    console.print()
+    console.print(table)
+
+    page_start = result.offset + 1
+    page_end = result.offset + result.row_count
+    console.print(
+        f"\n  [dim]📊 {page_start}-{page_end} de {result.total_count} registros  "
+        f"|  ⏱️  {result.elapsed:.2f}s  "
+        f"|  🔌 {result.connection_name}  "
+        f"|  📏 Limite: {result.limit}[/dim]\n"
+    )

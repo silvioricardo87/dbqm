@@ -183,16 +183,24 @@ def get_connection(conn: Connection) -> Any:
 
 def test_connection(conn: Connection) -> tuple[bool, str]:
     """Test a connection and return (success, message)."""
+    db = None
     try:
         db = get_connection(conn)
         cursor = db.cursor()
-        if conn.db_type == "oracle":
-            cursor.execute("SELECT 1 FROM DUAL")
-        else:
-            cursor.execute("SELECT 1")
-        cursor.fetchone()
-        cursor.close()
-        db.close()
+        try:
+            if conn.db_type == "oracle":
+                cursor.execute("SELECT 1 FROM DUAL")
+            else:
+                cursor.execute("SELECT 1")
+            cursor.fetchone()
+        finally:
+            cursor.close()
         return True, f'Conexao "{conn.name}" estabelecida com sucesso!'
     except Exception as e:
         return False, f"Erro ao conectar: {e}"
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass

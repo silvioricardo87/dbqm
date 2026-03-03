@@ -9,6 +9,7 @@ from dbqm.models.connection import load_connections, find_connection
 from dbqm.models.query import Query, QueryParam, load_queries, save_queries
 from dbqm.models.group import load_groups, save_groups
 from dbqm.ui.display import show_success, show_error, show_warning, show_info, show_query_result
+from dbqm.ui.helpers import pick_entity, read_multiline_sql
 from dbqm.ui.prompts import select, text, confirm, is_esc
 
 console = Console()
@@ -101,17 +102,7 @@ def _create_query_paste():
     console.print("\n[bold cyan]── 📋 Colar SQL ──[/bold cyan]")
     console.print("[dim]Cole sua consulta SQL e pressione Enter duas vezes para finalizar:[/dim]\n")
 
-    lines = []
-    while True:
-        try:
-            line = input()
-        except EOFError:
-            break
-        if line.strip() == "" and lines and lines[-1].strip() == "":
-            break
-        lines.append(line)
-
-    raw_sql = "\n".join(lines).strip()
+    raw_sql = read_multiline_sql()
     if not raw_sql:
         show_error("Nenhum SQL informado.")
         return
@@ -442,34 +433,28 @@ def _configure_column_maps(query: Query):
 
 def _edit_column_maps(queries: list[Query]):
     """Edit column value mappings for an existing saved query."""
-    if not queries:
-        show_warning("Nenhuma consulta configurada.")
+    q = pick_entity(
+        queries,
+        formatter=lambda q: f"{q.name} ({q.connection})",
+        message="Selecione a consulta:",
+        empty_msg="Nenhuma consulta configurada.",
+    )
+    if q is None:
         return
-
-    choices = [{"name": f"{q.name} ({q.connection})", "value": q.name} for q in queries]
-
-    selected = select(message="Selecione a consulta:", choices=choices)
-    if is_esc(selected):
-        return
-
-    q = next(q for q in queries if q.name == selected)
     _configure_column_maps(q)
     save_queries(queries)
     show_success(f'Mapeamentos de "{q.name}" salvos!')
 
 
 def _view_query(queries: list[Query]):
-    if not queries:
-        show_warning("Nenhuma consulta para visualizar.")
+    q = pick_entity(
+        queries,
+        formatter=lambda q: f"{q.name} ({q.connection})",
+        message="Selecione:",
+        empty_msg="Nenhuma consulta para visualizar.",
+    )
+    if q is None:
         return
-
-    choices = [{"name": f"{q.name} ({q.connection})", "value": q.name} for q in queries]
-
-    selected = select(message="Selecione:", choices=choices)
-    if is_esc(selected):
-        return
-
-    q = next(q for q in queries if q.name == selected)
     console.print(f"\n[bold]{q.name}[/bold] ({q.connection} -> {q.table})")
     if q.params:
         console.print(f"Parametros: {', '.join(f':{p.name}' for p in q.params)}")
@@ -478,17 +463,14 @@ def _view_query(queries: list[Query]):
 
 def _rename_query(queries: list[Query]):
     """Rename an existing query."""
-    if not queries:
-        show_warning("Nenhuma consulta para renomear.")
+    q = pick_entity(
+        queries,
+        formatter=lambda q: f"{q.name} ({q.connection})",
+        message="Selecione:",
+        empty_msg="Nenhuma consulta para renomear.",
+    )
+    if q is None:
         return
-
-    choices = [{"name": f"{q.name} ({q.connection})", "value": q.name} for q in queries]
-
-    selected = select(message="Selecione:", choices=choices)
-    if is_esc(selected):
-        return
-
-    q = next(q for q in queries if q.name == selected)
     old_name = q.name
 
     new_name = text(message="Novo nome:", default=old_name)
@@ -521,17 +503,14 @@ def _rename_query(queries: list[Query]):
 
 
 def _duplicate_query(queries: list[Query]):
-    if not queries:
-        show_warning("Nenhuma consulta para duplicar.")
+    q = pick_entity(
+        queries,
+        formatter=lambda q: f"{q.name} ({q.connection})",
+        message="Selecione:",
+        empty_msg="Nenhuma consulta para duplicar.",
+    )
+    if q is None:
         return
-
-    choices = [{"name": f"{q.name} ({q.connection})", "value": q.name} for q in queries]
-
-    selected = select(message="Selecione:", choices=choices)
-    if is_esc(selected):
-        return
-
-    q = next(q for q in queries if q.name == selected)
     new_name = text(message="Nome da copia:", default=f"{q.name}_copy")
     if is_esc(new_name) or not new_name:
         return
@@ -565,16 +544,16 @@ def _duplicate_query(queries: list[Query]):
 
 
 def _remove_query(queries: list[Query]):
-    if not queries:
-        show_warning("Nenhuma consulta para remover.")
+    q = pick_entity(
+        queries,
+        formatter=lambda q: f"{q.name} ({q.connection})",
+        message="Selecione:",
+        empty_msg="Nenhuma consulta para remover.",
+    )
+    if q is None:
         return
 
-    choices = [{"name": f"{q.name} ({q.connection})", "value": q.name} for q in queries]
-
-    selected = select(message="Selecione:", choices=choices)
-    if is_esc(selected):
-        return
-
+    selected = q.name
     do_confirm = confirm(message=f'Remover consulta "{selected}"?', default=False)
     if is_esc(do_confirm) or not do_confirm:
         return

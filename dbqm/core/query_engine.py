@@ -77,36 +77,36 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
             error="Apenas comandos SELECT sao permitidos.",
         )
 
+    db = None
     try:
         start = time.time()
         db = get_connection(conn)
         cursor = db.cursor()
+        try:
+            if conn.db_type == "sqlserver":
+                sql, param_values = _bind_params_sqlserver(sql, param_values)
+            else:
+                sql, param_values = _bind_params_oracle(sql, param_values)
 
-        if conn.db_type == "sqlserver":
-            sql, param_values = _bind_params_sqlserver(sql, param_values)
-        else:
-            sql, param_values = _bind_params_oracle(sql, param_values)
+            if param_values:
+                cursor.execute(sql, param_values)
+            else:
+                cursor.execute(sql)
 
-        if param_values:
-            cursor.execute(sql, param_values)
-        else:
-            cursor.execute(sql)
+            columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description or [])]
+            rows = [list(row) for row in cursor.fetchall()]
+            elapsed = time.time() - start
 
-        columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description or [])]
-        rows = [list(row) for row in cursor.fetchall()]
-        elapsed = time.time() - start
-
-        cursor.close()
-        db.close()
-
-        return QueryResult(
-            query_name=query.name,
-            connection_name=conn.name,
-            columns=columns,
-            rows=rows,
-            row_count=len(rows),
-            elapsed=elapsed,
-        )
+            return QueryResult(
+                query_name=query.name,
+                connection_name=conn.name,
+                columns=columns,
+                rows=rows,
+                row_count=len(rows),
+                elapsed=elapsed,
+            )
+        finally:
+            cursor.close()
     except Exception as e:
         return QueryResult(
             query_name=query.name,
@@ -118,6 +118,12 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
             success=False,
             error=str(e),
         )
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
 
 
 @dataclass
@@ -154,6 +160,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE ou DELETE.",
         )
 
+    db = None
     try:
         start = time.time()
         db = get_connection(conn)
@@ -175,7 +182,6 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description or [])]
             rows = [list(row) for row in cursor.fetchall()]
             cursor.close()
-            db.close()
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
@@ -189,7 +195,6 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             if auto_commit:
                 db.commit()
                 cursor.close()
-                db.close()
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
@@ -198,12 +203,15 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                     committed=True,
                 )
             else:
+                # Caller owns the connection for commit/rollback
+                owned_db = db
+                db = None  # prevent finally from closing it
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
                     rows_affected=rows_affected,
                     elapsed=elapsed,
-                ), db
+                ), owned_db
 
     except Exception as e:
         return AdhocResult(
@@ -212,6 +220,12 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             success=False,
             error=str(e),
         )
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
 
 
 def parse_sql(sql: str) -> dict:

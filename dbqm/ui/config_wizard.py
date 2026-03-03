@@ -10,6 +10,7 @@ from dbqm.core.db_manager import test_connection
 from dbqm.models.connection import Connection, load_connections, save_connections
 from dbqm.models.query import load_queries, save_queries
 from dbqm.ui.display import show_success, show_error, show_warning
+from dbqm.ui.helpers import pick_entity
 from dbqm.ui.prompts import select, text, secret, confirm, is_esc
 
 console = Console()
@@ -211,17 +212,14 @@ def _create_sqlserver_connection(name: str) -> Connection | None:
 
 
 def _test_existing_connection(connections: list[Connection]):
-    if not connections:
-        show_warning("Nenhuma conexao para testar.")
+    conn = pick_entity(
+        connections,
+        formatter=lambda c: f"{c.name} ({c.db_type})",
+        message="Selecione a conexao:",
+        empty_msg="Nenhuma conexao para testar.",
+    )
+    if conn is None:
         return
-
-    choices = [{"name": f"{c.name} ({c.db_type})", "value": c.name} for c in connections]
-
-    selected = select(message="Selecione a conexao:", choices=choices)
-    if is_esc(selected):
-        return
-
-    conn = next(c for c in connections if c.name == selected)
     with console.status(f"Testando {conn.name}..."):
         success, msg = test_connection(conn)
     if success:
@@ -231,17 +229,14 @@ def _test_existing_connection(connections: list[Connection]):
 
 
 def _edit_connection(connections: list[Connection]):
-    if not connections:
-        show_warning("Nenhuma conexao para editar.")
+    conn = pick_entity(
+        connections,
+        formatter=lambda c: f"{c.name} ({c.db_type})",
+        message="Selecione a conexao:",
+        empty_msg="Nenhuma conexao para editar.",
+    )
+    if conn is None:
         return
-
-    choices = [{"name": f"{c.name} ({c.db_type})", "value": c.name} for c in connections]
-
-    selected = select(message="Selecione a conexao:", choices=choices)
-    if is_esc(selected):
-        return
-
-    conn = next(c for c in connections if c.name == selected)
     console.print(f"\n[bold]Editando conexao: {conn.name}[/bold]")
     console.print("[dim]Pressione Enter para manter o valor atual | ESC para cancelar[/dim]\n")
 
@@ -294,17 +289,14 @@ def _edit_connection(connections: list[Connection]):
 
 def _rename_connection(connections: list[Connection]):
     """Rename an existing connection."""
-    if not connections:
-        show_warning("Nenhuma conexao para renomear.")
+    conn = pick_entity(
+        connections,
+        formatter=lambda c: f"{c.name} ({c.db_type})",
+        message="Selecione a conexao:",
+        empty_msg="Nenhuma conexao para renomear.",
+    )
+    if conn is None:
         return
-
-    choices = [{"name": f"{c.name} ({c.db_type})", "value": c.name} for c in connections]
-
-    selected = select(message="Selecione a conexao:", choices=choices)
-    if is_esc(selected):
-        return
-
-    conn = next(c for c in connections if c.name == selected)
     old_name = conn.name
 
     new_name = text(message="Novo nome:", default=old_name)
@@ -341,16 +333,16 @@ def show_info_inline(msg: str):
 
 
 def _remove_connection(connections: list[Connection]):
-    if not connections:
-        show_warning("Nenhuma conexao para remover.")
+    conn = pick_entity(
+        connections,
+        formatter=lambda c: f"{c.name} ({c.db_type})",
+        message="Selecione a conexao:",
+        empty_msg="Nenhuma conexao para remover.",
+    )
+    if conn is None:
         return
 
-    choices = [{"name": f"{c.name} ({c.db_type})", "value": c.name} for c in connections]
-
-    selected = select(message="Selecione a conexao:", choices=choices)
-    if is_esc(selected):
-        return
-
+    selected = conn.name
     do_confirm = confirm(message=f'Remover conexao "{selected}"?', default=False)
     if is_esc(do_confirm) or not do_confirm:
         return
