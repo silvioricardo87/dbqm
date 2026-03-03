@@ -720,14 +720,20 @@ def execute_routine(
                 declare_lines.append(f"  {var_name} {p.data_type};")
                 out_vars[p.name] = var_name
 
-                # For IN OUT params, initialize with provided value
+                # For IN OUT params, initialize with provided value via bind variable
                 if p.direction == "IN OUT" and p.name in param_values:
+                    init_bind = f"init_{p.name.lower()}"
                     val = param_values[p.name]
                     if _is_numeric_type(p.data_type):
-                        declare_lines.append(f"  -- init {var_name}")
-                        begin_lines.append(f"  {var_name} := {val};")
+                        try:
+                            bind_vars[init_bind] = (
+                                int(val) if "." not in val else float(val)
+                            )
+                        except (ValueError, TypeError):
+                            bind_vars[init_bind] = val
                     else:
-                        begin_lines.append(f"  {var_name} := '{val}';")
+                        bind_vars[init_bind] = val
+                    begin_lines.append(f"  {var_name} := :{init_bind};")
 
         # Build the call
         call_args: list[str] = []
@@ -778,9 +784,8 @@ def execute_routine(
 
         block = "\n".join(block_parts)
 
-        # Execute
+        # Execute (caller handles commit/rollback)
         cursor.execute(block, bind_vars)
-        db.commit()
 
         # Read DBMS_OUTPUT lines
         output_lines: list[str] = []

@@ -363,7 +363,6 @@ def show_browse_result(result):
 
 def show_table_structure(structure):
     """Display table structure (columns, indexes) as a rich table."""
-    from dbqm.core.object_browser import TableStructure
 
     table = Table(
         title=f"🏗️  Estrutura: {structure.table}",
@@ -422,7 +421,6 @@ def show_table_structure(structure):
 
 def show_package_routines(info):
     """Display package routines (procedures and functions) as a rich table."""
-    from dbqm.core.object_browser import PackageInfo
 
     console.print()
     console.rule(f"[bold cyan]📦 {info.name}[/bold cyan]", style="cyan")
@@ -453,7 +451,6 @@ def show_package_routines(info):
 
 def show_view_definition(info):
     """Display view SQL definition with syntax highlighting."""
-    from dbqm.core.object_browser import ViewInfo
 
     console.print()
     console.rule(f"[bold cyan]👁️  {info.name}[/bold cyan]", style="cyan")
@@ -472,7 +469,6 @@ def show_view_definition(info):
 
 def show_routine_result(result):
     """Display routine execution result (success/error with DBMS_OUTPUT)."""
-    from dbqm.core.object_browser import RoutineExecutionResult
 
     console.print()
     if result.success:
