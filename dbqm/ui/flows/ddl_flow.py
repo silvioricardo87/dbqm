@@ -16,6 +16,47 @@ from dbqm.ui.prompts import select, text, confirm, is_esc
 console = Console()
 
 
+def _prompt_and_export_deps(conn, dependencies: list[str], extract_label: str, save_label: str) -> None:
+    """Offer to export dependency DDL and handle the full interaction."""
+    if not dependencies:
+        return
+    console.print()
+    export_deps = confirm(
+        message="Deseja exportar a estrutura (DDL) dos objetos dependentes? (tabelas, views, indices, etc.)",
+        default=False,
+    )
+    if is_esc(export_deps) or not export_deps:
+        return
+
+    with console.status("Extraindo DDL das dependencias..."):
+        dep_result = extract_dependencies_ddl(conn, dependencies, extract_label)
+
+    if not dep_result.objects:
+        show_warning("Nenhuma dependencia pôde ser extraida.")
+        return
+
+    dep_filepath = save_dependencies_extraction(dep_result, save_label)
+
+    dep_counts: dict[str, int] = {}
+    for obj in dep_result.objects:
+        base_type = obj.obj_type.split("(")[0].strip()
+        dep_counts[base_type] = dep_counts.get(base_type, 0) + 1
+
+    console.print()
+    console.rule("[bold cyan]📦  DEPENDENCIAS[/bold cyan]", style="cyan")
+    for obj_type, count in dep_counts.items():
+        console.print(f"  [green]✅[/green] {obj_type}: {count}")
+
+    if dep_result.errors:
+        console.print()
+        for err in dep_result.errors:
+            show_warning(err)
+
+    console.print()
+    show_success(f"Arquivo salvo: {dep_filepath}")
+    prompt_open_file(dep_filepath)
+
+
 def extract_ddl_flow():
     """Flow to extract DDL from an Oracle object."""
     connections = load_connections()
@@ -90,39 +131,7 @@ def _extract_full_ddl_flow(conn, object_name: str):
     console.print()
     show_success(f"Arquivo salvo: {filepath}")
     prompt_open_file(filepath)
-    if result.dependencies:
-        console.print()
-        export_deps = confirm(
-            message="Deseja exportar a estrutura (DDL) dos objetos dependentes? (tabelas, views, indices, etc.)",
-            default=False,
-        )
-        if not is_esc(export_deps) and export_deps:
-            with console.status("Extraindo DDL das dependencias..."):
-                dep_result = extract_dependencies_ddl(conn, result.dependencies, result.object_name)
-
-            if dep_result.objects:
-                dep_filepath = save_dependencies_extraction(dep_result, result.object_name)
-
-                dep_counts: dict[str, int] = {}
-                for obj in dep_result.objects:
-                    base_type = obj.obj_type.split("(")[0].strip()
-                    dep_counts[base_type] = dep_counts.get(base_type, 0) + 1
-
-                console.print()
-                console.rule("[bold cyan]📦  DEPENDENCIAS[/bold cyan]", style="cyan")
-                for obj_type, count in dep_counts.items():
-                    console.print(f"  [green]✅[/green] {obj_type}: {count}")
-
-                if dep_result.errors:
-                    console.print()
-                    for err in dep_result.errors:
-                        show_warning(err)
-
-                console.print()
-                show_success(f"Arquivo salvo: {dep_filepath}")
-                prompt_open_file(dep_filepath)
-            else:
-                show_warning("Nenhuma dependencia pode ser extraida.")
+    _prompt_and_export_deps(conn, result.dependencies, result.object_name, result.object_name)
     console.print()
 
 
@@ -169,37 +178,9 @@ def _extract_routine_flow(conn, pkg_name: str, routine_name: str):
     console.print()
     show_success(f"Diretorio: {dir_path}")
     prompt_open_file(dir_path)
-    if result.dependencies:
-        console.print()
-        export_deps = confirm(
-            message="Deseja exportar a estrutura (DDL) dos objetos dependentes? (tabelas, views, indices, etc.)",
-            default=False,
-        )
-        if not is_esc(export_deps) and export_deps:
-            with console.status("Extraindo DDL das dependencias..."):
-                dep_result = extract_dependencies_ddl(conn, result.dependencies, f"{pkg_name}.{routine_name}")
-
-            if dep_result.objects:
-                dep_filepath = save_dependencies_extraction(dep_result, f"{pkg_name}_{routine_name}")
-
-                dep_counts: dict[str, int] = {}
-                for obj in dep_result.objects:
-                    base_type = obj.obj_type.split("(")[0].strip()
-                    dep_counts[base_type] = dep_counts.get(base_type, 0) + 1
-
-                console.print()
-                console.rule("[bold cyan]📦  DEPENDENCIAS[/bold cyan]", style="cyan")
-                for obj_type, count in dep_counts.items():
-                    console.print(f"  [green]✅[/green] {obj_type}: {count}")
-
-                if dep_result.errors:
-                    console.print()
-                    for err in dep_result.errors:
-                        show_warning(err)
-
-                console.print()
-                show_success(f"Arquivo salvo: {dep_filepath}")
-                prompt_open_file(dep_filepath)
-            else:
-                show_warning("Nenhuma dependencia pode ser extraida.")
+    _prompt_and_export_deps(
+        conn, result.dependencies,
+        f"{pkg_name}.{routine_name}",
+        f"{pkg_name}_{routine_name}",
+    )
     console.print()
