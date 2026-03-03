@@ -1,11 +1,45 @@
+# Python
 __pycache__/
 *.pyc
-.dbqm_key
-config/connections.json
-exports/
-tns/
-.venv/
+*.pyo
+*.pyd
 *.egg-info/
 dist/
 build/
+.venv/
+venv/
+env/
+
+# Config (credenciais, queries salvas, grupos)
+config/
+
+# Chave de criptografia
+.dbqm_key
+
+# TNS / Oracle
+tns/
+*.ora
+
+# Oracle Instant Client
 clients/
+
+# Exports gerados
+exports/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
+
+# Ambiente
+.env
+.env.*
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
