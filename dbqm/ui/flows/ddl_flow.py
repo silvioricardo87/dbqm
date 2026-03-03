@@ -3,11 +3,15 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from dbqm.core.ddl_extractor import extract_ddl, save_extraction, extract_routine, save_routine_extraction
+from dbqm.core.ddl_extractor import (
+    extract_ddl, save_extraction,
+    extract_routine, save_routine_extraction,
+    extract_dependencies_ddl, save_dependencies_extraction,
+)
 from dbqm.models.connection import load_connections, find_connection
 from dbqm.ui.display import show_error, show_warning, show_success
 from dbqm.ui.helpers import prompt_open_file
-from dbqm.ui.prompts import select, text, is_esc
+from dbqm.ui.prompts import select, text, confirm, is_esc
 
 console = Console()
 
@@ -86,6 +90,39 @@ def _extract_full_ddl_flow(conn, object_name: str):
     console.print()
     show_success(f"Arquivo salvo: {filepath}")
     prompt_open_file(filepath)
+    if result.dependencies:
+        console.print()
+        export_deps = confirm(
+            message="Deseja exportar a estrutura (DDL) dos objetos dependentes? (tabelas, views, indices, etc.)",
+            default=False,
+        )
+        if not is_esc(export_deps) and export_deps:
+            with console.status("Extraindo DDL das dependencias..."):
+                dep_result = extract_dependencies_ddl(conn, result.dependencies, result.object_name)
+
+            if dep_result.objects:
+                dep_filepath = save_dependencies_extraction(dep_result, result.object_name)
+
+                dep_counts: dict[str, int] = {}
+                for obj in dep_result.objects:
+                    base_type = obj.obj_type.split("(")[0].strip()
+                    dep_counts[base_type] = dep_counts.get(base_type, 0) + 1
+
+                console.print()
+                console.rule("[bold cyan]📦  DEPENDENCIAS[/bold cyan]", style="cyan")
+                for obj_type, count in dep_counts.items():
+                    console.print(f"  [green]✅[/green] {obj_type}: {count}")
+
+                if dep_result.errors:
+                    console.print()
+                    for err in dep_result.errors:
+                        show_warning(err)
+
+                console.print()
+                show_success(f"Arquivo salvo: {dep_filepath}")
+                prompt_open_file(dep_filepath)
+            else:
+                show_warning("Nenhuma dependencia pode ser extraida.")
     console.print()
 
 
@@ -132,4 +169,37 @@ def _extract_routine_flow(conn, pkg_name: str, routine_name: str):
     console.print()
     show_success(f"Diretorio: {dir_path}")
     prompt_open_file(dir_path)
+    if result.dependencies:
+        console.print()
+        export_deps = confirm(
+            message="Deseja exportar a estrutura (DDL) dos objetos dependentes? (tabelas, views, indices, etc.)",
+            default=False,
+        )
+        if not is_esc(export_deps) and export_deps:
+            with console.status("Extraindo DDL das dependencias..."):
+                dep_result = extract_dependencies_ddl(conn, result.dependencies, f"{pkg_name}.{routine_name}")
+
+            if dep_result.objects:
+                dep_filepath = save_dependencies_extraction(dep_result, f"{pkg_name}_{routine_name}")
+
+                dep_counts: dict[str, int] = {}
+                for obj in dep_result.objects:
+                    base_type = obj.obj_type.split("(")[0].strip()
+                    dep_counts[base_type] = dep_counts.get(base_type, 0) + 1
+
+                console.print()
+                console.rule("[bold cyan]📦  DEPENDENCIAS[/bold cyan]", style="cyan")
+                for obj_type, count in dep_counts.items():
+                    console.print(f"  [green]✅[/green] {obj_type}: {count}")
+
+                if dep_result.errors:
+                    console.print()
+                    for err in dep_result.errors:
+                        show_warning(err)
+
+                console.print()
+                show_success(f"Arquivo salvo: {dep_filepath}")
+                prompt_open_file(dep_filepath)
+            else:
+                show_warning("Nenhuma dependencia pode ser extraida.")
     console.print()
