@@ -776,6 +776,7 @@ def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_n
         connection_name=conn.name,
     )
 
+    seen: set[str] = set()
     try:
         for dep in dependencies:
             parts = dep.split(" ", 1)
@@ -787,6 +788,11 @@ def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_n
                 continue
             dep_owner, dep_name = owner_name.split(".", 1)
 
+            key = f"{dep_type}:{dep_owner}.{dep_name}"
+            if key in seen:
+                continue
+            seen.add(key)
+
             extractor = EXTRACT_MAP.get(dep_type)
             if not extractor:
                 continue
@@ -796,6 +802,7 @@ def extract_dependencies_ddl(conn: Connection, dependencies: list[str], parent_n
             except Exception as e:
                 result.errors.append(f"Erro ao extrair {dep_type} {dep_owner}.{dep_name}: {e}")
 
+        result.dependencies.clear()
         return result
     finally:
         cursor.close()
