@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.columns import Columns
+from rich.syntax import Syntax
 
 from dbqm.core.query_engine import QueryResult
 from dbqm.core.group_engine import GroupResult, ComparisonResult
@@ -358,3 +359,145 @@ def show_browse_result(result):
         f"|  🔌 {result.connection_name}  "
         f"|  📏 Limite: {result.limit}[/dim]\n"
     )
+
+
+def show_table_structure(structure):
+    """Display table structure (columns, indexes) as a rich table."""
+    from dbqm.core.object_browser import TableStructure
+
+    table = Table(
+        title=f"🏗️  Estrutura: {structure.table}",
+        show_lines=True,
+        border_style="bright_black",
+        title_style="bold cyan",
+        header_style="bold bright_white",
+        expand=True,
+    )
+    table.add_column("Coluna", style="bold white")
+    table.add_column("Tipo", style="yellow")
+    table.add_column("Tam.", style="white", justify="right")
+    table.add_column("Null?", justify="center")
+    table.add_column("Chave", style="white")
+
+    for col in structure.columns:
+        # Format size: data_length for strings, precision,scale for numbers
+        if col.data_precision is not None:
+            size = f"{col.data_precision}"
+            if col.data_scale is not None and col.data_scale > 0:
+                size += f",{col.data_scale}"
+        elif col.data_length is not None:
+            size = str(col.data_length)
+        else:
+            size = ""
+
+        # Nullable as colored Y/N
+        nullable = "[green]Y[/green]" if col.nullable else "[red]N[/red]"
+
+        # Key info
+        key_parts = []
+        if col.is_pk:
+            key_parts.append("[yellow]PK[/yellow]")
+        if col.fk_ref:
+            key_parts.append(f"[cyan]FK -> {col.fk_ref}[/cyan]")
+        key = " ".join(key_parts)
+
+        table.add_row(col.name, col.data_type, size, nullable, key)
+
+    console.print()
+    console.print(table)
+
+    # Show indexes
+    if structure.indexes:
+        console.print()
+        console.print("  [bold]Indexes:[/bold]")
+        for idx in structure.indexes:
+            unique_tag = "[yellow]UNIQUE[/yellow] " if idx.is_unique else ""
+            cols = ", ".join(idx.columns)
+            console.print(f"    {unique_tag}[white]{idx.name}[/white] ({cols})")
+
+    console.print(
+        f"\n  [dim]📊 {structure.total_count} registros  |  ⏱️  {structure.elapsed:.2f}s[/dim]\n"
+    )
+
+
+def show_package_routines(info):
+    """Display package routines (procedures and functions) as a rich table."""
+    from dbqm.core.object_browser import PackageInfo
+
+    console.print()
+    console.rule(f"[bold cyan]📦 {info.name}[/bold cyan]", style="cyan")
+    console.print()
+
+    table = Table(
+        show_lines=True,
+        border_style="bright_black",
+        header_style="bold bright_white",
+        expand=True,
+    )
+    table.add_column("#", style="dim", justify="right", width=4)
+    table.add_column("Tipo", width=12)
+    table.add_column("Rotina", style="bold white")
+    table.add_column("Parametros", style="dim")
+
+    for i, routine in enumerate(info.routines, 1):
+        if routine.routine_type == "FUNCTION":
+            type_label = "[green]FUNCTION[/green]"
+        else:
+            type_label = "[blue]PROCEDURE[/blue]"
+
+        table.add_row(str(i), type_label, routine.name, routine.signature)
+
+    console.print(table)
+    console.print(f"\n  [dim]Owner: {info.owner}[/dim]\n")
+
+
+def show_view_definition(info):
+    """Display view SQL definition with syntax highlighting."""
+    from dbqm.core.object_browser import ViewInfo
+
+    console.print()
+    console.rule(f"[bold cyan]👁️  {info.name}[/bold cyan]", style="cyan")
+    console.print()
+
+    syntax = Syntax(
+        info.sql_definition,
+        "sql",
+        theme="monokai",
+        line_numbers=True,
+    )
+    console.print(syntax)
+
+    console.print(f"\n  [dim]Owner: {info.owner}[/dim]\n")
+
+
+def show_routine_result(result):
+    """Display routine execution result (success/error with DBMS_OUTPUT)."""
+    from dbqm.core.object_browser import RoutineExecutionResult
+
+    console.print()
+    if result.success:
+        show_success(f"Executado com sucesso  ({result.elapsed:.2f}s)")
+        if result.output_lines:
+            console.print()
+            console.print("  [bold]DBMS_OUTPUT:[/bold]")
+            for line in result.output_lines:
+                console.print(f"    {line}")
+    else:
+        show_error(f"{result.error}  ({result.elapsed:.2f}s)")
+    console.print()
+
+
+def show_source_code(title: str, source: str):
+    """Display generic source code with syntax highlighting."""
+    console.print()
+    console.rule(f"[bold cyan]{title}[/bold cyan]", style="cyan")
+    console.print()
+
+    syntax = Syntax(
+        source,
+        "sql",
+        theme="monokai",
+        line_numbers=True,
+    )
+    console.print(syntax)
+    console.print()
