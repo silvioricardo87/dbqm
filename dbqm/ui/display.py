@@ -501,6 +501,82 @@ def show_view_definition(info):
     console.print(f"\n  [dim]Owner: {info.owner}[/dim]\n")
 
 
+def show_individual_query_result(result: QueryResult, sql: str, params: dict | None = None):
+    """Display an individual query result with SQL and raw data (no DE-PARA)."""
+    if not result.success:
+        show_error(f"Erro: {result.error}")
+        return
+
+    console.print()
+
+    # SQL with syntax highlight
+    formatted_sql = sql.strip()
+    if params:
+        param_info = "  ".join(f"{k}={v}" for k, v in params.items())
+        console.print(f"  [dim]Parametros: {param_info}[/dim]\n")
+
+    syntax = Syntax(formatted_sql, "sql", theme="monokai", line_numbers=True)
+    console.print(Panel(syntax, title="[bold cyan]SQL[/bold cyan]", border_style="cyan", expand=True))
+
+    if not result.rows:
+        show_warning("Nenhum registro retornado.")
+        return
+
+    # Result table
+    table = Table(
+        title=f"📋 {result.query_name} (dados brutos)",
+        show_lines=True,
+        border_style="bright_black",
+        title_style="bold cyan",
+        header_style="bold bright_white",
+        expand=True,
+    )
+    for col in result.columns:
+        table.add_column(col, style="white")
+
+    for row in result.rows:
+        table.add_row(*[str(v) if v is not None else "" for v in row])
+
+    console.print(table)
+    console.print(
+        f"\n  [dim]📊 {result.row_count} registros  |  ⏱️  {result.elapsed:.2f}s  |  🔌 {result.connection_name}[/dim]\n"
+    )
+
+
+def build_individual_renderables(result: QueryResult, sql: str, params: dict | None = None) -> list:
+    """Build renderable objects for individual result (used by screenshot export)."""
+    renderables = []
+
+    formatted_sql = sql.strip()
+    if params:
+        param_info = "  ".join(f"{k}={v}" for k, v in params.items())
+        renderables.append(Text(f"  Parametros: {param_info}\n", style="dim"))
+
+    syntax = Syntax(formatted_sql, "sql", theme="monokai", line_numbers=True)
+    renderables.append(Panel(syntax, title="[bold cyan]SQL[/bold cyan]", border_style="cyan", expand=True))
+
+    if result.rows:
+        table = Table(
+            title=f"📋 {result.query_name} (dados brutos)",
+            show_lines=True,
+            border_style="bright_black",
+            title_style="bold cyan",
+            header_style="bold bright_white",
+            expand=True,
+        )
+        for col in result.columns:
+            table.add_column(col, style="white")
+        for row in result.rows:
+            table.add_row(*[str(v) if v is not None else "" for v in row])
+        renderables.append(table)
+
+    renderables.append(Text(
+        f"\n  📊 {result.row_count} registros  |  ⏱️  {result.elapsed:.2f}s  |  🔌 {result.connection_name}\n",
+        style="dim",
+    ))
+    return renderables
+
+
 def show_routine_result(result):
     """Display routine execution result (success/error with DBMS_OUTPUT)."""
 

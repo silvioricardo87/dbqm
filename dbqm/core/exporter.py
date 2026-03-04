@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import json
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -293,6 +294,29 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
         lines.append(f"  Ausentes:     {comp.absent_count}/{comp.total_keys}")
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
+    return str(filepath)
+
+
+def export_screenshot(renderables: list, label: str = "resultado", params: dict | None = None) -> str:
+    """Export renderables (SQL + table) as a PNG screenshot via SVG conversion.
+
+    Uses rich Console(record=True) to capture SVG, then cairosvg to convert to PNG.
+    Returns the file path.
+    """
+    from rich.console import Console as RichConsole
+
+    # Render to SVG using an offline console
+    offline = RichConsole(record=True, file=StringIO(), width=200)
+    for r in renderables:
+        offline.print(r)
+
+    svg_text = offline.export_svg(title=label)
+
+    # Convert SVG → PNG
+    import cairosvg
+    filepath = _build_filepath("screenshot", label, params, "png")
+    cairosvg.svg2png(bytestring=svg_text.encode("utf-8"), write_to=str(filepath), scale=2)
+
     return str(filepath)
 
 
