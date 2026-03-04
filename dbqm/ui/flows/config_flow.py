@@ -20,6 +20,7 @@ def portability_flow():
         choices=[
             {"name": "📤  Exportar configuracoes", "value": "export"},
             {"name": "📥  Importar configuracoes", "value": "import"},
+            {"name": "📦  Exportar/Importar tudo", "value": "all"},
         ],
     )
 
@@ -28,8 +29,57 @@ def portability_flow():
 
     if action == "export":
         _export_configs_flow()
+    elif action == "import":
+        _import_configs_flow()
+    else:
+        _all_portability_flow()
+
+
+def _all_portability_flow():
+    """Export or import all configurations at once."""
+    action = select(
+        message="Exportar ou Importar tudo?",
+        choices=[
+            {"name": "📤  Exportar tudo", "value": "export"},
+            {"name": "📥  Importar tudo", "value": "import"},
+        ],
+    )
+
+    if is_esc(action):
+        return
+
+    if action == "export":
+        _export_all_flow()
     else:
         _import_configs_flow()
+
+
+def _export_all_flow():
+    """Export all configurations to a .dbqm file."""
+    password = secret(message="Senha para proteger o arquivo:")
+    if is_esc(password) or not password:
+        show_warning("Senha obrigatoria para exportar.")
+        return
+
+    password_confirm = secret(message="Confirme a senha:")
+    if is_esc(password_confirm):
+        return
+
+    if password != password_confirm:
+        show_error("Senhas nao conferem.")
+        return
+
+    try:
+        path = export_configs(
+            password=password,
+            include_connections=True,
+            include_queries=True,
+            include_groups=True,
+        )
+        show_success(f"Todas as configuracoes exportadas: {path}")
+        prompt_open_file(path)
+    except Exception as e:
+        show_error(f"Erro ao exportar: {e}")
 
 
 def _export_configs_flow():
