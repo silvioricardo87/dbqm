@@ -35,6 +35,13 @@ exports/
 # Claude Code
 .claude/
 
+# Planos e documentos de IA (apenas configs/agents ficam)
+docs/plans/
+PRD.md
+
+# Logs
+*.log
+
 # Ambiente
 .env
 .env.*
