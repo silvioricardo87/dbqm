@@ -1,13 +1,13 @@
 # DB Query Manager (dbqm)
 
-Interactive command-line tool for managing and executing SQL queries across multiple Oracle and SQL Server databases. Built for database maintenance teams that need to compare data across environments, extract DDL, browse database objects, and export results.
+Interactive command-line tool for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, and **MySQL**. Built for database maintenance teams that need to compare data across environments, extract DDL, browse database objects, and export results.
 
 ## Features
 
-- **Multi-database query execution** — Run saved queries against Oracle (TNS or direct) and SQL Server connections
+- **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL connections
 - **Cross-database comparison** — Execute query groups across databases and compare results side-by-side with match/diff/absent status
-- **DDL extraction** — Extract CREATE statements (tables, views, indexes, sequences, packages) with automatic dependency detection
-- **Object browser** — Inspect table structure, view definitions, and execute stored procedures with parameter collection
+- **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE)
+- **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages with parameter collection
 - **Ad-hoc SQL** — Paste and execute SQL with automatic parameter detection and bind variable support
 - **Data export** — Export results as CSV, JSON, TXT (formatted tables), PNG (screenshots), HTML reports, and SQL files
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
@@ -24,8 +24,8 @@ Interactive command-line tool for managing and executing SQL queries across mult
 
 ## Requirements
 
-- Python 3.x
-- Oracle Instant Client (for Oracle connections)
+- Python 3.10+
+- Oracle Instant Client (optional, for Oracle connections only)
 
 ## Installation
 
@@ -57,8 +57,8 @@ On first launch, the tool prompts you to configure your first database connectio
 | Execute query | Run a saved query with pagination and export |
 | Execute group | Run multiple queries across databases and compare results |
 | Ad-hoc SQL | Paste and execute SQL directly |
-| Extract DDL | Extract DDL from Oracle database objects |
-| Object browser | Browse tables, views, and packages |
+| Extract DDL | Extract DDL from Oracle, PostgreSQL, or MySQL objects |
+| Object browser | Browse tables, views, packages (Oracle), and routines (PostgreSQL/MySQL) |
 | Execution history | Browse recent query and group executions |
 | Configurations | Manage connections, queries, groups, portability, and settings |
 
@@ -109,16 +109,18 @@ mapfre-sustentacao-py/
 │   │   ├── display.py         # Rich-based output formatting
 │   │   └── helpers.py         # UI utilities
 │   ├── core/                  # Business logic
-│   │   ├── db_manager.py      # Database connection handling
-│   │   ├── query_engine.py    # SQL execution
+│   │   ├── db_manager.py      # Database connection handling (Oracle, SQL Server, PostgreSQL, MySQL)
+│   │   ├── query_engine.py    # SQL execution with unified parameter binding
 │   │   ├── group_engine.py    # Multi-database comparison
 │   │   ├── exporter.py        # Export (CSV, JSON, TXT, PNG)
 │   │   ├── html_report.py     # Standalone HTML comparison reports
 │   │   ├── history.py         # Execution history persistence
 │   │   ├── audit.py           # Opt-in audit logging
-│   │   ├── ddl_extractor.py   # DDL extraction with dependencies
+│   │   ├── ddl_extractor.py   # Oracle DDL extraction with dependencies
+│   │   ├── ddl_pg.py          # PostgreSQL DDL extraction (pg_catalog)
+│   │   ├── ddl_mysql.py       # MySQL DDL extraction (SHOW CREATE)
 │   │   ├── object_browser.py  # Database object introspection
-│   │   ├── table_browser.py   # Table data browsing
+│   │   ├── table_browser.py   # Table data browsing with FK resolution
 │   │   ├── crypto.py          # Password encryption
 │   │   └── config_portability.py  # Config import/export
 │   └── models/                # Data models
@@ -139,6 +141,8 @@ mapfre-sustentacao-py/
 | `InquirerPy` | Interactive menus and prompts |
 | `oracledb` | Oracle database driver |
 | `pymssql` | SQL Server database driver |
+| `psycopg` | PostgreSQL database driver (v3) |
+| `PyMySQL` | MySQL database driver |
 | `cryptography` | Fernet encryption for credentials |
 | `sqlparse` | SQL analysis and classification |
 | `Pillow` | PNG screenshot export |
