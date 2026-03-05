@@ -38,7 +38,6 @@ class TableStructure:
     table: str
     columns: list[ColumnInfo] = field(default_factory=list)
     indexes: list[IndexInfo] = field(default_factory=list)
-    total_count: int = 0
     elapsed: float = 0.0
 
 
@@ -370,19 +369,11 @@ def get_table_structure(db, db_type: str, table: str) -> TableStructure:
         # Indexes
         indexes = _get_indexes(cursor, db_type, table)
 
-        # Total row count
-        if db_type == "oracle":
-            cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
-        else:
-            cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
-        total_count = cursor.fetchone()[0]
-
         elapsed = time.time() - start
         return TableStructure(
             table=table,
             columns=columns,
             indexes=indexes,
-            total_count=total_count,
             elapsed=elapsed,
         )
     finally:

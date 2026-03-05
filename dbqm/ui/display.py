@@ -449,7 +449,7 @@ def show_table_structure(structure):
         console.print(idx_table)
 
     console.print(
-        f"\n  [dim]📊 {structure.total_count:,} registros  |  ⏱️  {structure.elapsed:.2f}s[/dim]\n"
+        f"\n  [dim]⏱️  {structure.elapsed:.2f}s[/dim]\n"
     )
 
 
