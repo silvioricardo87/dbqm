@@ -11,7 +11,7 @@ from dbqm.models.connection import find_connection
 from dbqm.models.query import load_queries, find_query, save_queries
 from dbqm.core.audit import log_execution
 from dbqm.core.history import record_query_execution
-from dbqm.ui.display import show_query_result, show_error, show_warning
+from dbqm.ui.display import show_query_result, show_query_result_vertical, show_error, show_warning
 from dbqm.ui.helpers import gather_params, pick_format, prompt_open_file
 from dbqm.ui.prompts import select, is_esc
 from dbqm.ui.display import show_success
@@ -133,6 +133,7 @@ def execute_query_flow():
                 )
 
             action_choices = [
+                {"name": "📐  Visualizacao vertical", "value": "vertical"},
                 {"name": "💾  Exportar resultado completo", "value": "export"},
             ]
             if len(all_rows) > PAGE_SIZE and offset + PAGE_SIZE < len(all_rows):
@@ -148,6 +149,8 @@ def execute_query_flow():
                 return
             elif action == "reexec":
                 break
+            elif action == "vertical":
+                show_query_result_vertical(result)
             elif action == "next":
                 offset += PAGE_SIZE
             elif action == "prev":

@@ -57,6 +57,24 @@ def show_info(msg: str):
     console.print(f"  [cyan]💡[/cyan] {msg}")
 
 
+def _estimate_table_width(columns: list[str], rows: list[list], sample: int = 20) -> int:
+    """Estimate the total width a table would need (columns + data + borders)."""
+    widths = [len(c) for c in columns]
+    for row in rows[:sample]:
+        for i, val in enumerate(row):
+            widths[i] = max(widths[i], len(str(val) if val is not None else ""))
+    # Each column: width + 3 (padding + border)
+    return sum(w + 3 for w in widths) + 1
+
+
+def _truncate(val, max_len: int = 40) -> str:
+    """Truncate a value string if it exceeds max_len."""
+    s = str(val) if val is not None else ""
+    if len(s) > max_len:
+        return s[:max_len - 1] + "…"
+    return s
+
+
 def show_query_result(result: QueryResult):
     """Display a query result as a rich table."""
     if not result.success:
@@ -67,24 +85,68 @@ def show_query_result(result: QueryResult):
         show_warning("Nenhum registro retornado.")
         return
 
+    num_cols = len(result.columns)
+    term_width = console.width
+    est_width = _estimate_table_width(result.columns, result.rows)
+
+    # Adapt layout based on column count and estimated width
+    wide = est_width > term_width or num_cols > 8
+    max_col_width = max(8, term_width // max(num_cols, 1) - 4) if wide else None
+
     table = Table(
         title=f"📋 {result.query_name}",
         show_lines=True,
         border_style="bright_black",
         title_style="bold cyan",
         header_style="bold bright_white",
-        expand=True,
+        expand=not wide,
     )
     for col in result.columns:
-        table.add_column(col, style="white")
+        kwargs = {"style": "white", "overflow": "ellipsis"}
+        if max_col_width:
+            kwargs["max_width"] = max_col_width
+            kwargs["no_wrap"] = True
+        table.add_column(col, **kwargs)
 
     for row in result.rows:
-        table.add_row(*[str(v) if v is not None else "" for v in row])
+        if wide:
+            table.add_row(*[_truncate(v, max_col_width or 40) for v in row])
+        else:
+            table.add_row(*[str(v) if v is not None else "" for v in row])
 
     console.print()
     console.print(table)
+    hint = "  [dim italic]Dica: muitas colunas — use exportar ou visualizacao vertical para ver dados completos[/dim italic]" if wide else ""
     console.print(
-        f"\n  [dim]📊 {result.row_count} registros  |  ⏱️  {result.elapsed:.2f}s  |  🔌 {result.connection_name}[/dim]\n"
+        f"\n  [dim]📊 {result.row_count} registros  |  ⏱️  {result.elapsed:.2f}s  |  🔌 {result.connection_name}[/dim]"
+    )
+    if hint:
+        console.print(hint)
+    console.print()
+
+
+def show_query_result_vertical(result: QueryResult):
+    """Display query result in vertical format (one column per line, like MySQL \\G)."""
+    if not result.success:
+        show_error(f"Erro: {result.error}")
+        return
+
+    if not result.rows:
+        show_warning("Nenhum registro retornado.")
+        return
+
+    max_col_len = max(len(c) for c in result.columns)
+
+    console.print()
+    for i, row in enumerate(result.rows, 1):
+        console.print(f"[bold cyan]{'─' * 20} Registro {i} {'─' * 20}[/bold cyan]")
+        for col, val in zip(result.columns, row):
+            val_str = str(val) if val is not None else "[dim]NULL[/dim]"
+            console.print(f"  [bold]{col.rjust(max_col_len)}[/bold] : {val_str}")
+        console.print()
+
+    console.print(
+        f"  [dim]📊 {result.row_count} registros  |  ⏱️  {result.elapsed:.2f}s  |  🔌 {result.connection_name}[/dim]\n"
     )
 
 

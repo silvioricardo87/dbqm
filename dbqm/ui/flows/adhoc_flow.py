@@ -16,7 +16,7 @@ from dbqm.core.exporter import (
 )
 from dbqm.models.connection import load_connections, find_connection
 from dbqm.models.query import Query, QueryParam, load_queries, save_queries
-from dbqm.ui.display import show_query_result, show_error, show_warning, show_success
+from dbqm.ui.display import show_query_result, show_query_result_vertical, show_error, show_warning, show_success
 from dbqm.ui.helpers import gather_params, pick_format, prompt_open_file, read_multiline_sql
 from dbqm.ui.prompts import select, text, is_esc
 
@@ -202,24 +202,31 @@ def _adhoc_execute_select(sql: str, conn, param_values: dict, table_name: str):
         log_execution("adhoc_select", table_name or "adhoc", conn.name, param_values, result.row_count, result.success)
 
         if result.rows:
-            export_action = select(
-                message="Exportar resultado?",
-                choices=[
-                    {"name": "💾  Exportar", "value": "export"},
-                    {"name": "↩️   Continuar", "value": "skip"},
-                ],
-            )
-            if not is_esc(export_action) and export_action == "export":
-                fmt = pick_format()
-                if fmt is not None:
-                    if fmt == "csv":
-                        path = export_query_csv(qr, table_name, param_values)
-                    elif fmt == "json":
-                        path = export_query_json(qr, table_name, param_values)
-                    else:
-                        path = export_query_txt(qr, table_name, param_values)
-                    show_success(f"Exportado: {path}")
-                    prompt_open_file(path)
+            while True:
+                post_action = select(
+                    message="Resultado:",
+                    choices=[
+                        {"name": "📐  Visualizacao vertical (uma coluna por linha)", "value": "vertical"},
+                        {"name": "💾  Exportar", "value": "export"},
+                        {"name": "↩️   Continuar", "value": "skip"},
+                    ],
+                )
+                if is_esc(post_action) or post_action == "skip":
+                    break
+                elif post_action == "vertical":
+                    show_query_result_vertical(qr)
+                elif post_action == "export":
+                    fmt = pick_format()
+                    if fmt is not None:
+                        if fmt == "csv":
+                            path = export_query_csv(qr, table_name, param_values)
+                        elif fmt == "json":
+                            path = export_query_json(qr, table_name, param_values)
+                        else:
+                            path = export_query_txt(qr, table_name, param_values)
+                        show_success(f"Exportado: {path}")
+                        prompt_open_file(path)
+                    break
     else:
         show_error(f"Erro: {result.error}")
 
