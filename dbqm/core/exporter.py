@@ -87,12 +87,54 @@ def export_query_txt(result: QueryResult, table: str = "", params: dict | None =
     """Export a single query result as formatted text (same as display)."""
     filepath = _build_filepath(result.connection_name, table, params, "txt")
 
+    lines = _build_query_txt_lines(result)
+
+    filepath.write_text("\n".join(lines), encoding="utf-8")
+    return str(filepath)
+
+
+def export_individual_txt(
+    result: QueryResult, sql: str = "", params: dict | None = None,
+) -> str:
+    """Export individual query result with SQL and parameters (mirrors screen display)."""
+    filepath = _build_filepath(result.connection_name, result.query_name, params, "txt")
+
+    lines = []
+
+    # Parameters
+    if params:
+        lines.append("Parametros:")
+        max_key = max(len(k) for k in params)
+        for k, v in params.items():
+            lines.append(f"  {k.ljust(max_key)}  =  {v}")
+        lines.append("")
+
+    # SQL
+    if sql:
+        lines.append("SQL:")
+        lines.append("-" * 60)
+        lines.append(sql.strip())
+        lines.append("-" * 60)
+        lines.append("")
+
+    # Query result table + stats
+    lines.extend(_build_query_txt_lines(result))
+
+    filepath.write_text("\n".join(lines), encoding="utf-8")
+    return str(filepath)
+
+
+def _build_query_txt_lines(result: QueryResult) -> list[str]:
+    """Build formatted text lines for a query result table."""
     lines = []
     lines.append(f"Consulta: {result.query_name}")
     lines.append(f"Conexao: {result.connection_name}")
     lines.append(f"Registros: {result.row_count}")
     lines.append(f"Tempo: {result.elapsed:.2f}s")
     lines.append("")
+
+    if not result.rows:
+        return lines
 
     # Simple table formatting
     col_widths = [len(c) for c in result.columns]
@@ -108,8 +150,7 @@ def export_query_txt(result: QueryResult, table: str = "", params: dict | None =
         line = " | ".join(str(v if v is not None else "").ljust(col_widths[i]) for i, v in enumerate(row))
         lines.append(line)
 
-    filepath.write_text("\n".join(lines), encoding="utf-8")
-    return str(filepath)
+    return lines
 
 
 def _build_pivoted_data(group_result: GroupResult) -> tuple[list[str], list[str], list, dict]:
@@ -298,24 +339,51 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
 
 
 def export_screenshot(renderables: list, label: str = "resultado", params: dict | None = None) -> str:
-    """Export renderables (SQL + table) as a PNG screenshot via SVG conversion.
+    """Export renderables (SQL + table) as a PNG screenshot.
 
-    Uses rich Console(record=True) to capture SVG, then cairosvg to convert to PNG.
+    Uses rich Console to capture plain text, then Pillow to render as PNG.
     Returns the file path.
     """
+    from PIL import Image, ImageDraw, ImageFont
     from rich.console import Console as RichConsole
 
-    # Render to SVG using an offline console
-    offline = RichConsole(record=True, file=StringIO(), width=200)
+    # Capture plain text from rich renderables
+    offline = RichConsole(file=StringIO(), width=200, color_system=None)
     for r in renderables:
         offline.print(r)
+    text = offline.file.getvalue()
 
-    svg_text = offline.export_svg(title=label)
+    # Load a monospace font
+    font_size = 14
+    try:
+        font = ImageFont.truetype("consola.ttf", font_size)
+    except OSError:
+        try:
+            font = ImageFont.truetype("cour.ttf", font_size)
+        except OSError:
+            font = ImageFont.load_default()
 
-    # Convert SVG → PNG
-    import cairosvg
+    # Measure text to determine image size
+    lines = text.rstrip("\n").split("\n")
+    dummy = Image.new("RGB", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    line_height = draw.textbbox((0, 0), "Ag|", font=font)[3] + 4
+    max_width = max((draw.textbbox((0, 0), line, font=font)[2] for line in lines), default=0)
+
+    padding = 24
+    img_w = int(max_width + padding * 2)
+    img_h = int(line_height * len(lines) + padding * 2)
+
+    # Draw text on image
+    img = Image.new("RGB", (img_w, img_h), color=(30, 30, 30))
+    draw = ImageDraw.Draw(img)
+    y = padding
+    for line in lines:
+        draw.text((padding, y), line, font=font, fill=(220, 220, 220))
+        y += line_height
+
     filepath = _build_filepath("screenshot", label, params, "png")
-    cairosvg.svg2png(bytestring=svg_text.encode("utf-8"), write_to=str(filepath), scale=2)
+    img.save(str(filepath))
 
     return str(filepath)
 

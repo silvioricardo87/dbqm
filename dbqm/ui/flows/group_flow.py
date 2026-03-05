@@ -10,7 +10,7 @@ from dbqm.core.group_engine import build_group_result, GroupResult
 from dbqm.core.exporter import (
     export_group_csv, export_group_json, export_group_txt,
     export_group_flat_csv, export_group_flat_json, export_group_flat_txt,
-    export_query_csv, export_query_json, export_query_txt,
+    export_query_csv, export_query_json, export_individual_txt,
     export_screenshot,
 )
 from dbqm.models.connection import find_connection
@@ -260,7 +260,7 @@ def _show_individual_results(
             elif fmt == "json":
                 path = export_query_json(result, result.query_name, q_params)
             else:
-                path = export_query_txt(result, result.query_name, q_params)
+                path = export_individual_txt(result, sql, q_params)
             show_success(f"Exportado: {path}")
             prompt_open_file(path)
 

@@ -501,6 +501,23 @@ def show_view_definition(info):
     console.print(f"\n  [dim]Owner: {info.owner}[/dim]\n")
 
 
+def _build_params_table(params: dict) -> Table:
+    """Build a compact table displaying query parameters."""
+    tbl = Table(
+        show_header=False,
+        show_lines=False,
+        border_style="cyan",
+        box=None,
+        padding=(0, 2),
+    )
+    tbl.add_column("param", style="bold cyan", no_wrap=True)
+    tbl.add_column("sep", style="dim", width=1)
+    tbl.add_column("value", style="bold white")
+    for k, v in params.items():
+        tbl.add_row(k, "=", str(v))
+    return Panel(tbl, title="[bold cyan]Parametros[/bold cyan]", border_style="cyan", expand=True)
+
+
 def show_individual_query_result(result: QueryResult, sql: str, params: dict | None = None):
     """Display an individual query result with SQL and raw data (no DE-PARA)."""
     if not result.success:
@@ -512,8 +529,8 @@ def show_individual_query_result(result: QueryResult, sql: str, params: dict | N
     # SQL with syntax highlight
     formatted_sql = sql.strip()
     if params:
-        param_info = "  ".join(f"{k}={v}" for k, v in params.items())
-        console.print(f"  [dim]Parametros: {param_info}[/dim]\n")
+        console.print(_build_params_table(params))
+        console.print()
 
     syntax = Syntax(formatted_sql, "sql", theme="monokai", line_numbers=True)
     console.print(Panel(syntax, title="[bold cyan]SQL[/bold cyan]", border_style="cyan", expand=True))
@@ -549,8 +566,7 @@ def build_individual_renderables(result: QueryResult, sql: str, params: dict | N
 
     formatted_sql = sql.strip()
     if params:
-        param_info = "  ".join(f"{k}={v}" for k, v in params.items())
-        renderables.append(Text(f"  Parametros: {param_info}\n", style="dim"))
+        renderables.append(_build_params_table(params))
 
     syntax = Syntax(formatted_sql, "sql", theme="monokai", line_numbers=True)
     renderables.append(Panel(syntax, title="[bold cyan]SQL[/bold cyan]", border_style="cyan", expand=True))
