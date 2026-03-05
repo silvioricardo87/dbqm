@@ -21,6 +21,7 @@ class Group:
     column_mapping: dict = field(default_factory=dict)
     normalize: dict = field(default_factory=dict)
     validation_rule: str = "all_equal"
+    folder: str = ""
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
 
     def to_dict(self) -> dict:
@@ -38,6 +39,7 @@ class Group:
             column_mapping=data.get("column_mapping", {}),
             normalize=data.get("normalize", {}),
             validation_rule=data.get("validation_rule", "all_equal"),
+            folder=data.get("folder", ""),
             created_at=data.get("created_at", datetime.now().isoformat(timespec="seconds")),
         )
 

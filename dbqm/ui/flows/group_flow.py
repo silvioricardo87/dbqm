@@ -37,10 +37,31 @@ def execute_group_flow():
         show_warning("Nenhum grupo configurado.")
         return
 
-    choices = [
-        {"name": f"{g.name} ({', '.join(g.queries)})", "value": g.name}
-        for g in groups
-    ]
+    # If folders exist, let user pick a folder first
+    folders = sorted({g.folder for g in groups if g.folder})
+    filtered = groups
+    if folders:
+        folder_choices = [{"name": "📂  Todos os grupos", "value": "__all__"}]
+        for f in folders:
+            count = sum(1 for g in groups if g.folder == f)
+            folder_choices.append({"name": f"📁  {f} ({count})", "value": f})
+        no_folder = [g for g in groups if not g.folder]
+        if no_folder:
+            folder_choices.append({"name": f"📄  Sem pasta ({len(no_folder)})", "value": "__none__"})
+
+        chosen_folder = select(message="Pasta:", choices=folder_choices)
+        if is_esc(chosen_folder):
+            return
+        if chosen_folder == "__none__":
+            filtered = no_folder
+        elif chosen_folder != "__all__":
+            filtered = [g for g in groups if g.folder == chosen_folder]
+
+    filtered.sort(key=lambda g: g.name)
+
+    choices = []
+    for g in filtered:
+        choices.append({"name": f"{g.name} ({', '.join(g.queries)})", "value": g.name})
 
     selected = select(message="Selecione o grupo:", choices=choices)
     if is_esc(selected):

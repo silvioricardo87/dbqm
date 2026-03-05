@@ -10,7 +10,7 @@ from dbqm.models.query import Query, QueryParam, load_queries, save_queries
 from dbqm.models.group import load_groups, save_groups
 from dbqm.ui.display import show_success, show_error, show_warning, show_info, show_query_result
 from dbqm.ui.helpers import pick_entity, read_multiline_sql
-from dbqm.ui.prompts import select, text, confirm, is_esc
+from dbqm.ui.prompts import select, checkbox, text, confirm, is_esc
 
 console = Console()
 
@@ -24,13 +24,15 @@ def query_wizard():
         if queries:
             table = Table(show_lines=False, border_style="dim")
             table.add_column("#", style="bold", width=4)
+            table.add_column("Pasta", style="cyan", width=12)
             table.add_column("Nome", style="white")
             table.add_column("Conexao", style="white")
             table.add_column("Tabela", style="white")
             table.add_column("Params", style="dim")
-            for i, q in enumerate(queries, 1):
+            sorted_q = sorted(queries, key=lambda q: (q.folder or "\xff", q.name))
+            for i, q in enumerate(sorted_q, 1):
                 params_str = ", ".join(p.name for p in q.params) if q.params else "-"
-                table.add_row(str(i), q.name, q.connection, q.table, params_str)
+                table.add_row(str(i), q.folder or "-", q.name, q.connection, q.table, params_str)
             console.print(table)
         else:
             show_warning("Nenhuma consulta configurada.")
@@ -45,6 +47,7 @@ def query_wizard():
                 {"name": "🔄  Mapeamento de valores", "value": "maps"},
                 {"name": "🏷️   Renomear consulta", "value": "rename"},
                 {"name": "⭐  Favoritar/Desfavoritar", "value": "favorite"},
+                {"name": "📂  Mover para pasta", "value": "folder"},
                 {"name": "📋  Duplicar consulta", "value": "dup"},
                 {"name": "🗑️   Remover consulta", "value": "remove"},
                 {"name": "↩️   Voltar", "value": "back"},
@@ -65,6 +68,8 @@ def query_wizard():
             _rename_query(queries)
         elif action == "favorite":
             _toggle_favorite(queries)
+        elif action == "folder":
+            _move_to_folder(queries)
         elif action == "dup":
             _duplicate_query(queries)
         elif action == "remove":
@@ -84,6 +89,51 @@ def _toggle_favorite(queries: list[Query]):
     save_queries(queries)
     status = "adicionada aos" if q.is_favorite else "removida dos"
     show_success(f'"{q.name}" {status} favoritos!')
+
+
+def _move_to_folder(queries: list[Query]):
+    """Move one or more queries to a folder."""
+    if not queries:
+        show_warning("Nenhuma consulta.")
+        return
+
+    query_choices = [
+        {"name": f"[{q.folder or '-'}] {q.name} ({q.connection})", "value": q.name}
+        for q in queries
+    ]
+
+    console.print("\n[dim]Use Espaco para marcar as consultas que deseja mover:[/dim]")
+    selected_names = checkbox(message="Consultas:", choices=query_choices)
+    if is_esc(selected_names) or not selected_names:
+        return
+
+    selected_queries = [q for q in queries if q.name in selected_names]
+
+    existing_folders = sorted({q.folder for q in queries if q.folder})
+    folder_choices = [{"name": "(sem pasta)", "value": ""}]
+    for f in existing_folders:
+        folder_choices.append({"name": f, "value": f})
+    folder_choices.append({"name": "++ Nova pasta...", "value": "__new__"})
+
+    folder = select(message="Pasta destino:", choices=folder_choices)
+    if is_esc(folder):
+        return
+
+    if folder == "__new__":
+        folder_name = text(message="Nome da pasta:")
+        if is_esc(folder_name) or not folder_name:
+            return
+        folder = folder_name.strip()
+
+    for q in selected_queries:
+        q.folder = folder
+    save_queries(queries)
+
+    count = len(selected_queries)
+    if folder:
+        show_success(f'{count} consulta(s) movida(s) para pasta "{folder}"!')
+    else:
+        show_success(f'{count} consulta(s) removida(s) da pasta!')
 
 
 def _select_connection() -> str | None:

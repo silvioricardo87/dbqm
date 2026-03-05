@@ -22,13 +22,16 @@ def group_wizard():
         if groups:
             table = Table(show_lines=False, border_style="dim")
             table.add_column("#", style="bold", width=4)
+            table.add_column("Pasta", style="cyan", width=12)
             table.add_column("Nome", style="white")
             table.add_column("Consultas", style="white")
             table.add_column("Chave", style="white")
             table.add_column("Comparar", style="dim")
-            for i, g in enumerate(groups, 1):
+            sorted_g = sorted(groups, key=lambda g: (g.folder or "\xff", g.name))
+            for i, g in enumerate(sorted_g, 1):
                 table.add_row(
                     str(i),
+                    g.folder or "-",
                     g.name,
                     ", ".join(g.queries),
                     g.join_key,
@@ -44,6 +47,7 @@ def group_wizard():
             choices=[
                 {"name": "➕  Novo grupo", "value": "new"},
                 {"name": "✏️   Editar grupo", "value": "edit"},
+                {"name": "📂  Mover para pasta", "value": "folder"},
                 {"name": "🗑️   Remover grupo", "value": "remove"},
                 {"name": "↩️   Voltar", "value": "back"},
             ],
@@ -55,8 +59,55 @@ def group_wizard():
             _create_group()
         elif action == "edit":
             _edit_group(groups)
+        elif action == "folder":
+            _move_group_to_folder(groups)
         elif action == "remove":
             _remove_group(groups)
+
+
+def _move_group_to_folder(groups: list[Group]):
+    """Move one or more groups to a folder."""
+    if not groups:
+        show_warning("Nenhum grupo.")
+        return
+
+    group_choices = [
+        {"name": f"[{g.folder or '-'}] {g.name}", "value": g.name}
+        for g in groups
+    ]
+
+    console.print("\n[dim]Use Espaco para marcar os grupos que deseja mover:[/dim]")
+    selected_names = checkbox(message="Grupos:", choices=group_choices)
+    if is_esc(selected_names) or not selected_names:
+        return
+
+    selected_groups = [g for g in groups if g.name in selected_names]
+
+    existing_folders = sorted({g.folder for g in groups if g.folder})
+    folder_choices = [{"name": "(sem pasta)", "value": ""}]
+    for f in existing_folders:
+        folder_choices.append({"name": f, "value": f})
+    folder_choices.append({"name": "++ Nova pasta...", "value": "__new__"})
+
+    folder = select(message="Pasta destino:", choices=folder_choices)
+    if is_esc(folder):
+        return
+
+    if folder == "__new__":
+        folder_name = text(message="Nome da pasta:")
+        if is_esc(folder_name) or not folder_name:
+            return
+        folder = folder_name.strip()
+
+    for g in selected_groups:
+        g.folder = folder
+    save_groups(groups)
+
+    count = len(selected_groups)
+    if folder:
+        show_success(f'{count} grupo(s) movido(s) para pasta "{folder}"!')
+    else:
+        show_success(f'{count} grupo(s) removido(s) da pasta!')
 
 
 def _create_group():

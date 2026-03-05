@@ -28,15 +28,35 @@ def execute_query_flow():
         show_warning("Nenhuma consulta configurada.")
         return
 
-    queries.sort(key=lambda q: (q.is_favorite, q.last_executed or ""), reverse=True)
+    # If folders exist, let user pick a folder first
+    folders = sorted({q.folder for q in queries if q.folder})
+    filtered = queries
+    if folders:
+        folder_choices = [{"name": "📂  Todas as consultas", "value": "__all__"}]
+        for f in folders:
+            count = sum(1 for q in queries if q.folder == f)
+            folder_choices.append({"name": f"📁  {f} ({count})", "value": f})
+        no_folder = [q for q in queries if not q.folder]
+        if no_folder:
+            folder_choices.append({"name": f"📄  Sem pasta ({len(no_folder)})", "value": "__none__"})
 
-    choices = [
-        {
-            "name": f"{'*' if q.is_favorite else ' '} {q.name} ({q.connection} -> {q.table})",
+        chosen_folder = select(message="Pasta:", choices=folder_choices)
+        if is_esc(chosen_folder):
+            return
+        if chosen_folder == "__none__":
+            filtered = no_folder
+        elif chosen_folder != "__all__":
+            filtered = [q for q in queries if q.folder == chosen_folder]
+
+    filtered.sort(key=lambda q: (not q.is_favorite, q.name))
+
+    choices = []
+    for q in filtered:
+        fav = "*" if q.is_favorite else " "
+        choices.append({
+            "name": f"{fav} {q.name} ({q.connection} -> {q.table})",
             "value": q.name,
-        }
-        for q in queries
-    ]
+        })
 
     selected = select(message="Selecione a consulta:", choices=choices)
     if is_esc(selected):
