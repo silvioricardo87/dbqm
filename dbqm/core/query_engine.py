@@ -12,6 +12,8 @@ from dbqm.core.db_manager import get_connection
 from dbqm.models.connection import Connection
 from dbqm.models.query import Query, QueryParam
 
+MAX_ROWS = 10_000
+
 
 @dataclass
 class QueryResult:
@@ -94,7 +96,7 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
                 cursor.execute(sql)
 
             columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description or [])]
-            rows = [list(row) for row in cursor.fetchall()]
+            rows = [list(row) for row in cursor.fetchmany(MAX_ROWS)]
             elapsed = time.time() - start
 
             return QueryResult(
@@ -180,7 +182,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
 
         if sql_type == "SELECT":
             columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description or [])]
-            rows = [list(row) for row in cursor.fetchall()]
+            rows = [list(row) for row in cursor.fetchmany(MAX_ROWS)]
             cursor.close()
             return AdhocResult(
                 sql_type=sql_type,

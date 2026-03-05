@@ -1,9 +1,21 @@
 """Table browser with FK resolution."""
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+
+def _validate_identifier(name: str) -> str:
+    """Validate and return a safe SQL identifier.
+
+    Only allows alphanumeric, underscore, dot, hash, and dollar characters.
+    Raises ValueError if the name contains unexpected characters.
+    """
+    if not re.match(r'^[\w#$.]+$', name):
+        raise ValueError(f"Invalid identifier: {name!r}")
+    return name
 
 
 @dataclass
@@ -152,13 +164,16 @@ def build_fk_lookups(db, db_type: str, fk_list: list[FKInfo]) -> dict[str, dict]
 
             cursor = db.cursor()
             try:
+                ref_col = _validate_identifier(fk.ref_column)
+                lbl_col = _validate_identifier(label_col)
+                ref_tbl = _validate_identifier(fk.ref_table)
                 if db_type == "oracle":
                     cursor.execute(
-                        f'SELECT "{fk.ref_column}", "{label_col}" FROM "{fk.ref_table}"'
+                        f'SELECT "{ref_col}", "{lbl_col}" FROM "{ref_tbl}"'
                     )
                 else:
                     cursor.execute(
-                        f"SELECT [{fk.ref_column}], [{label_col}] FROM [{fk.ref_table}]"
+                        f"SELECT [{ref_col}], [{lbl_col}] FROM [{ref_tbl}]"
                     )
                 lookups[fk.column] = {
                     row[0]: row[1] for row in cursor.fetchall() if row[1] is not None
@@ -187,23 +202,25 @@ def browse_table(
     cursor = db.cursor()
 
     try:
+        safe_table = _validate_identifier(table)
+
         # Total count
         if db_type == "oracle":
-            cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
+            cursor.execute(f'SELECT COUNT(*) FROM "{safe_table}"')
         else:
-            cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
+            cursor.execute(f"SELECT COUNT(*) FROM [{safe_table}]")
         total_count = cursor.fetchone()[0]
 
         # Paginated SELECT
         if db_type == "oracle":
             cursor.execute(
-                f'SELECT * FROM "{table}" '
+                f'SELECT * FROM "{safe_table}" '
                 f"OFFSET :off ROWS FETCH NEXT :lim ROWS ONLY",
                 {"off": offset, "lim": limit},
             )
         else:
             cursor.execute(
-                f"SELECT * FROM [{table}] "
+                f"SELECT * FROM [{safe_table}] "
                 f"ORDER BY (SELECT NULL) OFFSET %(off)s ROWS FETCH NEXT %(lim)s ROWS ONLY",
                 {"off": offset, "lim": limit},
             )

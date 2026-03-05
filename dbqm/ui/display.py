@@ -18,8 +18,11 @@ console = Console()
 
 def clear_screen():
     """Clear terminal screen."""
-    cmd = "cls" if __import__("os").name == "nt" else "clear"
-    subprocess.run([cmd], shell=True, check=False)
+    import os
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "cls"], check=False)
+    else:
+        subprocess.run(["clear"], check=False)
 
 
 def show_banner():

@@ -197,7 +197,10 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
             cursor.close()
         return True, f'Conexao "{conn.name}" estabelecida com sucesso!'
     except Exception as e:
-        return False, f"Erro ao conectar: {e}"
+        err_msg = str(e)
+        # Strip potential hostnames, IPs, and internal details from error messages
+        sanitized = err_msg.split('\n')[0][:200]
+        return False, f"Erro ao conectar: {sanitized}"
     finally:
         if db is not None:
             try:

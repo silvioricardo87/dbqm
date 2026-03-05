@@ -4,6 +4,7 @@ from __future__ import annotations
 from rich.console import Console
 
 from dbqm.core.db_manager import get_connection
+from dbqm.core.table_browser import _validate_identifier
 from dbqm.core.object_browser import (
     list_objects, get_table_structure, list_package_routines,
     get_package_source, get_view_definition, execute_routine,
@@ -166,10 +167,11 @@ def _table_flow(db, conn):
 
 def _query_editor(db, conn, table_name: str):
     """Interactive query editor for a table with pagination."""
+    safe_name = _validate_identifier(table_name)
     if conn.db_type == "oracle":
-        default_sql = f'SELECT * FROM "{table_name}"'
+        default_sql = f'SELECT * FROM "{safe_name}"'
     else:
-        default_sql = f"SELECT * FROM [{table_name}]"
+        default_sql = f"SELECT * FROM [{safe_name}]"
 
     console.print(f"\n  [bold]SQL padrao:[/bold] [dim]{default_sql}[/dim]")
     console.print("  [dim]Edite abaixo (Enter duas vezes para manter o padrao):[/dim]\n")

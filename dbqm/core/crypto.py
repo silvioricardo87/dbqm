@@ -17,6 +17,11 @@ def _get_or_create_key() -> bytes:
         return KEY_FILE.read_bytes()
     key = Fernet.generate_key()
     KEY_FILE.write_bytes(key)
+    # Restrict file permissions to owner only (best-effort on Windows)
+    try:
+        KEY_FILE.chmod(0o600)
+    except OSError:
+        pass
     return key
 
 

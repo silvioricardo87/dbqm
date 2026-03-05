@@ -16,19 +16,25 @@ console = Console()
 def prompt_open_file(path: str):
     """Ask user if they want to open the exported file."""
     from dbqm.ui.prompts import confirm
+    from dbqm.core.constants import EXPORTS_DIR
 
     should_open = confirm(message="Abrir arquivo exportado?", default=False)
     if is_esc(should_open) or not should_open:
         return
 
-    path = os.path.abspath(path)
+    resolved = os.path.realpath(os.path.abspath(path))
+    exports_dir = os.path.realpath(str(EXPORTS_DIR))
+    if not resolved.startswith(exports_dir + os.sep) and resolved != exports_dir:
+        console.print("  [red]Caminho fora do diretorio de exports.[/red]")
+        return
+
     system = platform.system()
     if system == "Windows":
-        os.startfile(path)
+        os.startfile(resolved)
     elif system == "Darwin":
-        subprocess.run(["open", path], check=False)
+        subprocess.run(["open", resolved], check=False)
     else:
-        subprocess.run(["xdg-open", path], check=False)
+        subprocess.run(["xdg-open", resolved], check=False)
 
 
 def pick_format() -> str | None:

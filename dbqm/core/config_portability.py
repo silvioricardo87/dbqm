@@ -57,12 +57,18 @@ def export_configs(
     return str(filepath)
 
 
+MAX_BUNDLE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
 def import_configs(filepath: str, password: str) -> dict:
     """Import configs from a .dbqm bundle file. Returns summary dict.
 
     Duplicates (by name) are silently skipped.
     """
-    data = json.loads(Path(filepath).read_text(encoding="utf-8"))
+    bundle_path = Path(filepath).resolve()
+    if bundle_path.stat().st_size > MAX_BUNDLE_SIZE:
+        raise ValueError(f"Arquivo excede o tamanho maximo de {MAX_BUNDLE_SIZE // (1024*1024)} MB.")
+    data = json.loads(bundle_path.read_text(encoding="utf-8"))
     salt = base64.b64decode(data["salt"])
 
     summary = {"connections": 0, "queries": 0, "groups": 0, "skipped": 0}
