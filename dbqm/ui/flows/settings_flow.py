@@ -15,7 +15,7 @@ def settings_flow():
     settings = load_settings()
 
     while True:
-        audit_status = "[green]Ativado[/green]" if settings.audit_log_enabled else "[dim]Desativado[/dim]"
+        audit_status = "Ativado" if settings.audit_log_enabled else "Desativado"
         action = select(
             message="Configuracoes gerais:",
             choices=[
