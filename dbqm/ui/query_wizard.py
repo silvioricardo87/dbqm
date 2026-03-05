@@ -10,7 +10,7 @@ from dbqm.models.query import Query, QueryParam, load_queries, save_queries
 from dbqm.models.group import load_groups, save_groups
 from dbqm.ui.display import show_success, show_error, show_warning, show_info, show_query_result
 from dbqm.ui.helpers import pick_entity, read_multiline_sql
-from dbqm.ui.prompts import select, checkbox, text, confirm, is_esc
+from dbqm.ui.prompts import select, checkbox, text, confirm, is_esc, Separator
 
 console = Console()
 
@@ -39,16 +39,19 @@ def query_wizard():
 
         console.print()
         action = select(
-            message="Acao:",
+            message="Consultas:",
             choices=[
                 {"name": "➕  Nova consulta", "value": "new"},
+                Separator("─── Visualizar / Editar ────────"),
                 {"name": "👁️   Visualizar SQL", "value": "view"},
                 {"name": "✏️   Editar consulta", "value": "edit"},
                 {"name": "🔄  Mapeamento de valores", "value": "maps"},
-                {"name": "🏷️   Renomear consulta", "value": "rename"},
-                {"name": "⭐  Favoritar/Desfavoritar", "value": "favorite"},
+                Separator("─── Organizar ──────────────────"),
+                {"name": "🏷️   Renomear", "value": "rename"},
+                {"name": "⭐  Favoritar / Desfavoritar", "value": "favorite"},
                 {"name": "📂  Mover para pasta", "value": "folder"},
-                {"name": "📋  Duplicar consulta", "value": "dup"},
+                {"name": "📋  Duplicar", "value": "dup"},
+                Separator("────────────────────────────────"),
                 {"name": "🗑️   Remover consulta", "value": "remove"},
                 {"name": "↩️   Voltar", "value": "back"},
             ],

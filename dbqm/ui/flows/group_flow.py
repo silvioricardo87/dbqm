@@ -25,7 +25,7 @@ from dbqm.ui.display import (
     show_error, show_warning, show_success,
 )
 from dbqm.ui.helpers import gather_shared_params, pick_format, prompt_open_file
-from dbqm.ui.prompts import select, confirm, is_esc
+from dbqm.ui.prompts import select, confirm, is_esc, Separator
 
 console = Console()
 
@@ -213,13 +213,16 @@ def _post_group_actions(
         switch_label = "🔑  Alternar para: Detalhado por chave" if current_view == "flat" \
             else "📊  Alternar para: Comparativo direto"
         action = select(
-            message="Acao:",
+            message="Resultado:",
             choices=[
+                Separator("─── Visualizar ─────────────────"),
                 {"name": switch_label, "value": "switch_view"},
-                {"name": "💾  Exportar resultado completo", "value": "export"},
                 {"name": "🔎  Ver resultados individuais", "value": "detail"},
                 {"name": "🔍  Filtrar por status", "value": "filter"},
+                Separator("─── Exportar ───────────────────"),
+                {"name": "💾  Exportar resultado completo", "value": "export"},
                 {"name": "🌐  Exportar relatorio HTML", "value": "html"},
+                Separator("────────────────────────────────"),
                 {"name": "🔄  Reexecutar", "value": "reexec"},
                 {"name": "↩️   Voltar", "value": "back"},
             ],

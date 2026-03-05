@@ -5,6 +5,7 @@ from typing import Any
 
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
+from InquirerPy.separator import Separator
 from prompt_toolkit.keys import Keys
 
 # Sentinel value to indicate ESC was pressed (go back)

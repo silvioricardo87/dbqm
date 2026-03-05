@@ -11,7 +11,7 @@ from dbqm.models.connection import Connection, load_connections, save_connection
 from dbqm.models.query import load_queries, save_queries
 from dbqm.ui.display import show_success, show_error, show_warning
 from dbqm.ui.helpers import pick_entity
-from dbqm.ui.prompts import select, text, secret, confirm, is_esc
+from dbqm.ui.prompts import select, text, secret, confirm, is_esc, Separator
 
 console = Console()
 
@@ -41,12 +41,14 @@ def connection_wizard():
 
         console.print()
         action = select(
-            message="Acao:",
+            message="Conexoes:",
             choices=[
                 {"name": "➕  Nova conexao", "value": "new"},
                 {"name": "🧪  Testar conexao", "value": "test"},
+                Separator("─── Editar ─────────────────────"),
                 {"name": "✏️   Editar conexao", "value": "edit"},
                 {"name": "🏷️   Renomear conexao", "value": "rename"},
+                Separator("────────────────────────────────"),
                 {"name": "🗑️   Remover conexao", "value": "remove"},
                 {"name": "↩️   Voltar", "value": "back"},
             ],

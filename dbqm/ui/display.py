@@ -28,19 +28,17 @@ def clear_screen():
 def show_banner():
     clear_screen()
     width = min(console.width, 80)
-    title = Text()
-    title.append("🗄️  ", style="bold cyan")
-    title.append("DB Query Manager", style="bold white")
-    title.append("  (dbqm)", style="dim")
+    content = Text()
+    content.append("🗄️  DB Query Manager", style="bold white")
+    content.append("  v1.0", style="dim")
     console.print(Panel(
-        title,
+        content,
         border_style="cyan",
-        padding=(1, 3),
+        padding=(0, 2),
         width=width,
-        subtitle="[dim]ESC = voltar  |  ↑↓ = navegar  |  Enter = selecionar[/dim]",
+        subtitle="[dim]ESC voltar  ·  ↑↓ navegar  ·  Enter selecionar  ·  Espaco marcar[/dim]",
         subtitle_align="center",
     ))
-    console.print()
 
 
 def show_success(msg: str):

@@ -8,7 +8,7 @@ from dbqm.models.query import load_queries
 from dbqm.models.group import Group, load_groups, save_groups
 from dbqm.ui.display import show_success, show_error, show_warning
 from dbqm.ui.helpers import pick_entity
-from dbqm.ui.prompts import select, checkbox, text, confirm, is_esc
+from dbqm.ui.prompts import select, checkbox, text, confirm, is_esc, Separator
 
 console = Console()
 
@@ -43,11 +43,13 @@ def group_wizard():
 
         console.print()
         action = select(
-            message="Acao:",
+            message="Grupos:",
             choices=[
                 {"name": "➕  Novo grupo", "value": "new"},
+                Separator("─── Editar / Organizar ─────────"),
                 {"name": "✏️   Editar grupo", "value": "edit"},
                 {"name": "📂  Mover para pasta", "value": "folder"},
+                Separator("────────────────────────────────"),
                 {"name": "🗑️   Remover grupo", "value": "remove"},
                 {"name": "↩️   Voltar", "value": "back"},
             ],

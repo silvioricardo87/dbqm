@@ -5,7 +5,7 @@ from rich.console import Console
 
 from dbqm.models.connection import load_connections
 from dbqm.ui.display import clear_screen, show_banner, show_info
-from dbqm.ui.prompts import select, is_esc
+from dbqm.ui.prompts import select, is_esc, Separator
 from dbqm.ui.config_wizard import connection_wizard
 from dbqm.ui.query_wizard import query_wizard
 from dbqm.ui.group_wizard import group_wizard
@@ -33,14 +33,17 @@ def main_menu():
     while True:
         console.print()
         action = select(
-            message="Menu principal:",
+            message="O que deseja fazer?",
             choices=[
-                {"name": "🔍  Executar consulta", "value": "exec_query"},
-                {"name": "📊  Executar grupo de consultas", "value": "exec_group"},
+                Separator("─── Executar ───────────────────"),
+                {"name": "🔍  Executar consulta salva", "value": "exec_query"},
+                {"name": "📊  Executar grupo comparativo", "value": "exec_group"},
                 {"name": "⌨️   Executar SQL avulso", "value": "adhoc_sql"},
+                Separator("─── Ferramentas ────────────────"),
                 {"name": "🏗️   Extrair DDL de objeto", "value": "extract_ddl"},
-                {"name": "🗂️   Navegar objetos", "value": "browse"},
+                {"name": "🗂️   Navegar objetos do banco", "value": "browse"},
                 {"name": "📜  Historico de execucoes", "value": "history"},
+                Separator("─── Sistema ────────────────────"),
                 {"name": "⚙️   Configuracoes", "value": "config"},
                 {"name": "🚪  Sair", "value": "exit"},
             ],
@@ -69,14 +72,18 @@ def main_menu():
 def _config_menu():
     """Configuration sub-menu."""
     while True:
+        console.print()
         action = select(
             message="Configuracoes:",
             choices=[
+                Separator("─── Dados ──────────────────────"),
                 {"name": "🔌  Conexoes", "value": "config_conn"},
                 {"name": "📝  Consultas", "value": "config_query"},
                 {"name": "📁  Grupos", "value": "config_group"},
-                {"name": "📦  Exportar/Importar", "value": "portability"},
-                {"name": "🛠️   Configuracoes gerais", "value": "settings"},
+                Separator("─── Sistema ────────────────────"),
+                {"name": "📦  Exportar / Importar", "value": "portability"},
+                {"name": "🛠️   Preferencias", "value": "settings"},
+                Separator("────────────────────────────────"),
                 {"name": "↩️   Voltar", "value": "back"},
             ],
         )
