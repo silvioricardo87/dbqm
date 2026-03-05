@@ -1,4 +1,4 @@
-"""Database connection manager for Oracle and SQL Server."""
+"""Database connection manager for Oracle, SQL Server, PostgreSQL, and MySQL."""
 from __future__ import annotations
 
 import os
@@ -171,12 +171,44 @@ def get_sqlserver_connection(conn: Connection) -> Any:
     )
 
 
+def get_postgresql_connection(conn: Connection) -> Any:
+    """Establish PostgreSQL connection."""
+    import psycopg
+
+    password = decrypt(conn.password)
+    return psycopg.connect(
+        host=conn.host or "localhost",
+        port=conn.port or 5432,
+        dbname=conn.database or "",
+        user=conn.user,
+        password=password,
+    )
+
+
+def get_mysql_connection(conn: Connection) -> Any:
+    """Establish MySQL connection."""
+    import pymysql
+
+    password = decrypt(conn.password)
+    return pymysql.connect(
+        host=conn.host or "localhost",
+        port=conn.port or 3306,
+        database=conn.database or "",
+        user=conn.user,
+        password=password,
+    )
+
+
 def get_connection(conn: Connection) -> Any:
     """Get a database connection based on connection type."""
     if conn.db_type == "oracle":
         return get_oracle_connection(conn)
     elif conn.db_type == "sqlserver":
         return get_sqlserver_connection(conn)
+    elif conn.db_type == "postgresql":
+        return get_postgresql_connection(conn)
+    elif conn.db_type == "mysql":
+        return get_mysql_connection(conn)
     else:
         raise ValueError(f"Tipo de banco desconhecido: {conn.db_type}")
 
@@ -193,8 +225,10 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
             try:
                 if conn.db_type == "oracle":
                     cursor.execute("SELECT banner FROM v$version WHERE ROWNUM = 1")
-                else:
+                elif conn.db_type == "sqlserver":
                     cursor.execute("SELECT @@VERSION")
+                else:
+                    cursor.execute("SELECT version()")
                 version_row = cursor.fetchone()
                 version = version_row[0][:80] if version_row else "desconhecida"
             except Exception:

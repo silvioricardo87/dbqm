@@ -66,6 +66,8 @@ def object_browser_flow():
             ]
             if conn.db_type == "oracle":
                 type_choices.insert(1, {"name": "Packages", "value": "PACKAGE"})
+            if conn.db_type in ("postgresql", "mysql"):
+                type_choices.append({"name": "Rotinas", "value": "ROUTINE"})
             type_choices.append({"name": "Voltar", "value": "back"})
 
             obj_type = select(message="Tipo de objeto:", choices=type_choices)
@@ -78,6 +80,8 @@ def object_browser_flow():
                 _package_flow(db, conn)
             elif obj_type == "VIEW":
                 _view_flow(db, conn)
+            elif obj_type == "ROUTINE":
+                _routine_list_flow(db, conn)
 
     finally:
         if db is not None:
@@ -168,8 +172,10 @@ def _table_flow(db, conn):
 def _query_editor(db, conn, table_name: str):
     """Interactive query editor for a table with pagination."""
     safe_name = _validate_identifier(table_name)
-    if conn.db_type == "oracle":
+    if conn.db_type in ("oracle", "postgresql"):
         default_sql = f'SELECT * FROM "{safe_name}"'
+    elif conn.db_type == "mysql":
+        default_sql = f"SELECT * FROM `{safe_name}`"
     else:
         default_sql = f"SELECT * FROM [{safe_name}]"
 
@@ -187,6 +193,8 @@ def _query_editor(db, conn, table_name: str):
         paginated_sql = raw_sql.rstrip().rstrip(";")
         if conn.db_type == "oracle":
             paginated_sql += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
+        elif conn.db_type in ("postgresql", "mysql"):
+            paginated_sql += f" LIMIT {limit} OFFSET {offset}"
         else:
             if "ORDER BY" not in paginated_sql.upper():
                 paginated_sql += " ORDER BY (SELECT NULL)"
@@ -509,6 +517,56 @@ def _export_routine_output(result, pkg_name: str, routine_name: str, conn_name: 
     path = export_sql_file(content, label)
     show_success(f"Exportado: {path}")
     prompt_open_file(path)
+
+
+# ---------------------------------------------------------------------------
+# Routine sub-flow (PostgreSQL/MySQL)
+# ---------------------------------------------------------------------------
+
+def _routine_list_flow(db, conn):
+    """Sub-flow for browsing stored routines (PostgreSQL/MySQL)."""
+    with console.status("Listando rotinas..."):
+        routines = list_objects(db, conn.db_type, "ROUTINE")
+
+    if not routines:
+        show_warning("Nenhuma rotina encontrada.")
+        return
+
+    if len(routines) > 200:
+        show_info(f"{len(routines)} rotinas encontradas. Use o filtro para refinar.")
+
+    routine_name = _pick_object(routines, "rotina")
+    if routine_name is None:
+        return
+
+    cursor = db.cursor()
+    try:
+        if conn.db_type == "postgresql":
+            cursor.execute("""
+                SELECT routine_type, data_type, routine_definition
+                FROM information_schema.routines
+                WHERE routine_name = %(name)s AND routine_schema = 'public'
+            """, {"name": routine_name})
+        else:
+            cursor.execute("""
+                SELECT routine_type, data_type, routine_definition
+                FROM information_schema.routines
+                WHERE routine_name = %(name)s AND routine_schema = DATABASE()
+            """, {"name": routine_name})
+        row = cursor.fetchone()
+        if row:
+            rtype, rdata, rdef = row
+            console.print(f"\n  [bold]Tipo:[/bold] {rtype}")
+            if rdata:
+                console.print(f"  [bold]Retorno:[/bold] {rdata}")
+            if rdef:
+                show_source_code(f"{rtype}: {routine_name}", rdef)
+            else:
+                show_warning("Definicao nao disponivel (rotina compilada ou sem permissao).")
+        else:
+            show_warning("Rotina nao encontrada.")
+    finally:
+        cursor.close()
 
 
 # ---------------------------------------------------------------------------

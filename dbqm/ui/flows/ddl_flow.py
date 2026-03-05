@@ -73,16 +73,16 @@ def _prompt_and_export_deps(
 
 
 def extract_ddl_flow():
-    """Flow to extract DDL from an Oracle object."""
+    """Flow to extract DDL from a database object."""
     connections = load_connections()
-    oracle_conns = [c for c in connections if c.db_type == "oracle"]
-    if not oracle_conns:
-        show_warning("Nenhuma conexao Oracle configurada.")
+    supported_conns = [c for c in connections if c.db_type in ("oracle", "postgresql", "mysql")]
+    if not supported_conns:
+        show_warning("Nenhuma conexao Oracle, PostgreSQL ou MySQL configurada.")
         return
 
     choices = [
-        {"name": f"{c.name} ({c.display_target()})", "value": c.name}
-        for c in oracle_conns
+        {"name": f"{c.name} ({c.db_type} - {c.display_target()})", "value": c.name}
+        for c in supported_conns
     ]
     selected = select(message="Selecione a conexao:", choices=choices)
     if is_esc(selected):
@@ -93,17 +93,21 @@ def extract_ddl_flow():
         show_error("Conexao nao encontrada.")
         return
 
-    object_name = text(message="Nome do objeto (ex: TABELA, PKG, ou PKG.ROTINA):")
+    object_name = text(message="Nome do objeto (ex: tabela, view, rotina):")
     if is_esc(object_name) or not object_name.strip():
         return
 
-    obj_input = object_name.strip().upper()
+    obj_input = object_name.strip()
 
-    if "." in obj_input:
-        pkg_name, routine_name = obj_input.split(".", 1)
-        _extract_routine_flow(conn, pkg_name, routine_name)
-    else:
-        _extract_full_ddl_flow(conn, obj_input)
+    if conn.db_type == "oracle":
+        obj_input = obj_input.upper()
+        if "." in obj_input:
+            pkg_name, routine_name = obj_input.split(".", 1)
+            _extract_routine_flow(conn, pkg_name, routine_name)
+        else:
+            _extract_full_ddl_flow(conn, obj_input)
+    elif conn.db_type in ("postgresql", "mysql"):
+        _extract_generic_ddl_flow(conn, obj_input)
 
 
 def _extract_full_ddl_flow(conn, object_name: str):
@@ -217,3 +221,63 @@ def _extract_routine_flow(conn, pkg_name: str, routine_name: str):
         dir_path, next_num,
     )
     console.print()
+
+
+def _extract_generic_ddl_flow(conn, object_name: str):
+    """Extract DDL for PostgreSQL or MySQL objects."""
+    from dbqm.core.db_manager import get_connection
+    from dbqm.core.ddl_extractor import ExtractionResult, save_extraction
+
+    db = None
+    try:
+        with console.status(f"Conectando e extraindo {object_name}..."):
+            db = get_connection(conn)
+            result = ExtractionResult(
+                object_name=object_name, object_type="UNKNOWN",
+                owner="", connection_name=conn.name,
+            )
+
+            if conn.db_type == "postgresql":
+                from dbqm.core.ddl_pg import extract_pg_ddl
+                extract_pg_ddl(db, object_name, result)
+            else:
+                from dbqm.core.ddl_mysql import extract_mysql_ddl
+                extract_mysql_ddl(db, object_name, result)
+
+        if result.errors and not result.objects:
+            for err in result.errors:
+                show_error(err)
+            return
+
+        dir_path, _ = save_extraction(result)
+
+        console.print()
+        console.rule("[bold cyan]🏗️  EXTRACAO DDL[/bold cyan]", style="cyan")
+        console.print(f"  [bold]📦 Objeto:[/bold] {result.object_name}")
+        console.print(f"  [bold]🏷️  Tipo:[/bold] {result.object_type}")
+        console.print(f"  [bold]🔌 Conexao:[/bold] {result.connection_name}")
+        console.print()
+
+        for obj in result.objects:
+            console.print(f"  [green]✅[/green] {obj.obj_type}: {obj.name}")
+
+        if result.errors:
+            console.print()
+            for err in result.errors:
+                show_warning(err)
+
+        console.print()
+        console.print(f"  [bold]📂 Arquivos gerados:[/bold]")
+        for f in result.saved_files:
+            console.print(f"    [dim]•[/dim] {f}")
+        console.print()
+        show_success(f"Diretorio: {dir_path}")
+        prompt_open_file(dir_path)
+        console.print()
+
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass

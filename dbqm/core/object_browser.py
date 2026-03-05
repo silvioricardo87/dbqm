@@ -145,8 +145,7 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
                 )
             else:
                 return []
-        else:
-            # SQL Server
+        elif db_type == "sqlserver":
             if obj_upper == "TABLE":
                 cursor.execute(
                     "SELECT table_name FROM information_schema.tables "
@@ -158,10 +157,47 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
                     "ORDER BY table_name"
                 )
             elif obj_upper == "PACKAGE":
-                # Packages are Oracle-only
                 return []
             else:
                 return []
+        elif db_type == "postgresql":
+            if obj_upper == "TABLE":
+                cursor.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
+                )
+            elif obj_upper == "VIEW":
+                cursor.execute(
+                    "SELECT table_name FROM information_schema.views "
+                    "WHERE table_schema = 'public' ORDER BY table_name"
+                )
+            elif obj_upper == "ROUTINE":
+                cursor.execute(
+                    "SELECT routine_name FROM information_schema.routines "
+                    "WHERE routine_schema = 'public' ORDER BY routine_name"
+                )
+            else:
+                return []
+        elif db_type == "mysql":
+            if obj_upper == "TABLE":
+                cursor.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name"
+                )
+            elif obj_upper == "VIEW":
+                cursor.execute(
+                    "SELECT table_name FROM information_schema.views "
+                    "WHERE table_schema = DATABASE() ORDER BY table_name"
+                )
+            elif obj_upper == "ROUTINE":
+                cursor.execute(
+                    "SELECT routine_name FROM information_schema.routines "
+                    "WHERE routine_schema = DATABASE() ORDER BY routine_name"
+                )
+            else:
+                return []
+        else:
+            return []
 
         return [row[0] for row in cursor.fetchall()]
     finally:
@@ -183,6 +219,25 @@ def _get_pk_columns(cursor, db_type: str, table: str) -> set[str]:
             WHERE ac.constraint_type = 'P'
               AND ac.table_name = :table_name
         """, {"table_name": table.upper()})
+    elif db_type == "postgresql":
+        cursor.execute("""
+            SELECT kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+              AND tc.table_name = %(table_name)s
+              AND tc.table_schema = 'public'
+        """, {"table_name": table})
+    elif db_type == "mysql":
+        cursor.execute("""
+            SELECT column_name
+            FROM information_schema.key_column_usage
+            WHERE table_schema = DATABASE()
+              AND table_name = %(table_name)s
+              AND constraint_name = 'PRIMARY'
+        """, {"table_name": table})
     else:
         cursor.execute("""
             SELECT ccu.column_name
@@ -222,6 +277,24 @@ def _get_fk_map(cursor, db_type: str, table: str) -> dict[str, str]:
               AND ac.table_name = :table_name
             ORDER BY acc.column_name
         """, {"table_name": table.upper()})
+    elif db_type in ("postgresql", "mysql"):
+        schema_filter = "'public'" if db_type == "postgresql" else "DATABASE()"
+        cursor.execute(f"""
+            SELECT kcu.column_name,
+                   kcu2.table_name AS ref_table,
+                   kcu2.column_name AS ref_column
+            FROM information_schema.key_column_usage kcu
+            JOIN information_schema.referential_constraints rc
+                ON kcu.constraint_name = rc.constraint_name
+                AND kcu.constraint_schema = rc.constraint_schema
+            JOIN information_schema.key_column_usage kcu2
+                ON rc.unique_constraint_name = kcu2.constraint_name
+                AND rc.unique_constraint_schema = kcu2.constraint_schema
+                AND kcu.ordinal_position = kcu2.ordinal_position
+            WHERE kcu.table_name = %(table_name)s
+              AND kcu.table_schema = {schema_filter}
+            ORDER BY kcu.column_name
+        """, {"table_name": table})
     else:
         cursor.execute("""
             SELECT
@@ -272,6 +345,44 @@ def _get_indexes(cursor, db_type: str, table: str) -> list[IndexInfo]:
                 columns=cols,
                 is_unique=(uniqueness == "UNIQUE"),
             ))
+    elif db_type == "postgresql":
+        cursor.execute("""
+            SELECT i.relname AS index_name,
+                   ix.indisunique,
+                   a.attname AS column_name,
+                   array_position(ix.indkey, a.attnum) AS ordinal
+            FROM pg_class t
+            JOIN pg_index ix ON t.oid = ix.indrelid
+            JOIN pg_class i ON i.oid = ix.indexrelid
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+            WHERE t.relname = %(table_name)s
+              AND t.relkind = 'r'
+            ORDER BY i.relname, ordinal
+        """, {"table_name": table})
+        rows = cursor.fetchall()
+        idx_dict: dict[str, IndexInfo] = {}
+        for row in rows:
+            idx_name, is_unique, col_name, _ = row[0], row[1], row[2], row[3]
+            if idx_name not in idx_dict:
+                idx_dict[idx_name] = IndexInfo(name=idx_name, columns=[], is_unique=bool(is_unique))
+            idx_dict[idx_name].columns.append(col_name)
+        indexes = list(idx_dict.values())
+    elif db_type == "mysql":
+        cursor.execute("""
+            SELECT index_name, non_unique, column_name, seq_in_index
+            FROM information_schema.statistics
+            WHERE table_schema = DATABASE()
+              AND table_name = %(table_name)s
+            ORDER BY index_name, seq_in_index
+        """, {"table_name": table})
+        rows = cursor.fetchall()
+        idx_dict: dict[str, IndexInfo] = {}
+        for row in rows:
+            idx_name, non_unique, col_name, _ = row[0], row[1], row[2], row[3]
+            if idx_name not in idx_dict:
+                idx_dict[idx_name] = IndexInfo(name=idx_name, columns=[], is_unique=(non_unique == 0))
+            idx_dict[idx_name].columns.append(col_name)
+        indexes = list(idx_dict.values())
     else:
         cursor.execute("""
             SELECT i.name AS index_name,
@@ -325,6 +436,28 @@ def get_table_structure(db, db_type: str, table: str) -> TableStructure:
                 WHERE table_name = :table_name
                 ORDER BY column_id
             """, {"table_name": table.upper()})
+        elif db_type == "postgresql":
+            cursor.execute("""
+                SELECT column_name, data_type,
+                       character_maximum_length,
+                       numeric_precision, numeric_scale,
+                       is_nullable
+                FROM information_schema.columns
+                WHERE table_name = %(table_name)s
+                  AND table_schema = 'public'
+                ORDER BY ordinal_position
+            """, {"table_name": table})
+        elif db_type == "mysql":
+            cursor.execute("""
+                SELECT column_name, data_type,
+                       character_maximum_length,
+                       numeric_precision, numeric_scale,
+                       is_nullable
+                FROM information_schema.columns
+                WHERE table_name = %(table_name)s
+                  AND table_schema = DATABASE()
+                ORDER BY ordinal_position
+            """, {"table_name": table})
         else:
             cursor.execute("""
                 SELECT column_name, data_type,
@@ -648,6 +781,28 @@ def get_view_definition(db, db_type: str, view: str) -> ViewInfo:
             row = cursor.fetchone()
             if row:
                 owner = row[0]
+                sql_definition = row[1] or ""
+        elif db_type == "postgresql":
+            cursor.execute("""
+                SELECT table_schema, view_definition
+                FROM information_schema.views
+                WHERE table_name = %(view_name)s
+                  AND table_schema = 'public'
+            """, {"view_name": view})
+            row = cursor.fetchone()
+            if row:
+                owner = row[0] or ""
+                sql_definition = row[1] or ""
+        elif db_type == "mysql":
+            cursor.execute("""
+                SELECT table_schema, view_definition
+                FROM information_schema.views
+                WHERE table_name = %(view_name)s
+                  AND table_schema = DATABASE()
+            """, {"view_name": view})
+            row = cursor.fetchone()
+            if row:
+                owner = row[0] or ""
                 sql_definition = row[1] or ""
         else:
             cursor.execute("""

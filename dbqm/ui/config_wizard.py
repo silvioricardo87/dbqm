@@ -32,8 +32,10 @@ def connection_wizard():
             table.add_column("Tipo", style="white")
             table.add_column("Destino", style="white")
             for i, c in enumerate(connections, 1):
-                db_label = "Oracle/TNS" if c.db_type == "oracle" and c.mode == "tns" else \
-                           "Oracle" if c.db_type == "oracle" else "SQL Server"
+                db_label = {"oracle": "Oracle", "sqlserver": "SQL Server",
+                            "postgresql": "PostgreSQL", "mysql": "MySQL"}.get(c.db_type, c.db_type)
+                if c.db_type == "oracle" and c.mode == "tns":
+                    db_label = "Oracle/TNS"
                 table.add_row(str(i), c.name, db_label, c.display_target())
             console.print(table)
         else:
@@ -89,6 +91,8 @@ def _create_connection():
         choices=[
             {"name": "Oracle", "value": "oracle"},
             {"name": "SQL Server", "value": "sqlserver"},
+            {"name": "PostgreSQL", "value": "postgresql"},
+            {"name": "MySQL", "value": "mysql"},
         ],
     )
     if is_esc(db_type):
@@ -96,8 +100,14 @@ def _create_connection():
 
     if db_type == "oracle":
         conn = _create_oracle_connection(name)
-    else:
+    elif db_type == "sqlserver":
         conn = _create_sqlserver_connection(name)
+    elif db_type == "postgresql":
+        conn = _create_postgresql_connection(name)
+    elif db_type == "mysql":
+        conn = _create_mysql_connection(name)
+    else:
+        return
 
     if conn is None:
         return
@@ -213,6 +223,62 @@ def _create_sqlserver_connection(name: str) -> Connection | None:
     )
 
 
+def _create_postgresql_connection(name: str) -> Connection | None:
+    host = text(message="Host:", default="localhost")
+    if is_esc(host):
+        return None
+    port = text(message="Porta:", default="5432")
+    if is_esc(port):
+        return None
+    database = text(message="Database:")
+    if is_esc(database):
+        return None
+    user = text(message="Usuario:")
+    if is_esc(user):
+        return None
+    password = secret(message="Senha:")
+    if is_esc(password):
+        return None
+
+    return Connection(
+        name=name,
+        db_type="postgresql",
+        host=host,
+        port=int(port),
+        database=database,
+        user=user,
+        password=encrypt(password),
+    )
+
+
+def _create_mysql_connection(name: str) -> Connection | None:
+    host = text(message="Host:", default="localhost")
+    if is_esc(host):
+        return None
+    port = text(message="Porta:", default="3306")
+    if is_esc(port):
+        return None
+    database = text(message="Database:")
+    if is_esc(database):
+        return None
+    user = text(message="Usuario:")
+    if is_esc(user):
+        return None
+    password = secret(message="Senha:")
+    if is_esc(password):
+        return None
+
+    return Connection(
+        name=name,
+        db_type="mysql",
+        host=host,
+        port=int(port),
+        database=database,
+        user=user,
+        password=encrypt(password),
+    )
+
+
 def _test_existing_connection(connections: list[Connection]):
     conn = pick_entity(
         connections,
@@ -271,12 +337,13 @@ def _edit_connection(connections: list[Connection]):
         if is_esc(s):
             return
         conn.service_name = s
-    else:
+    elif conn.db_type in ("sqlserver", "postgresql", "mysql"):
+        default_port = {"sqlserver": 1433, "postgresql": 5432, "mysql": 3306}[conn.db_type]
         h = text(message="Host:", default=conn.host or "")
         if is_esc(h):
             return
         conn.host = h
-        p = text(message="Porta:", default=str(conn.port or 1433))
+        p = text(message="Porta:", default=str(conn.port or default_port))
         if is_esc(p):
             return
         conn.port = int(p)

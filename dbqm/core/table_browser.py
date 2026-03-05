@@ -53,6 +53,16 @@ def list_tables(db, db_type: str) -> list[str]:
             cursor.execute(
                 "SELECT table_name FROM user_tables ORDER BY table_name"
             )
+        elif db_type == "postgresql":
+            cursor.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
+            )
+        elif db_type == "mysql":
+            cursor.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name"
+            )
         else:
             cursor.execute(
                 "SELECT table_name FROM information_schema.tables "
@@ -88,6 +98,24 @@ def get_foreign_keys(db, db_type: str, table: str) -> list[FKInfo]:
                   AND ac.table_name = :table_name
                 ORDER BY acc.column_name
             """, {"table_name": table.upper()})
+        elif db_type in ("postgresql", "mysql"):
+            schema_filter = "'public'" if db_type == "postgresql" else "DATABASE()"
+            cursor.execute(f"""
+                SELECT kcu.column_name,
+                       kcu2.table_name AS ref_table,
+                       kcu2.column_name AS ref_column
+                FROM information_schema.key_column_usage kcu
+                JOIN information_schema.referential_constraints rc
+                    ON kcu.constraint_name = rc.constraint_name
+                    AND kcu.constraint_schema = rc.constraint_schema
+                JOIN information_schema.key_column_usage kcu2
+                    ON rc.unique_constraint_name = kcu2.constraint_name
+                    AND rc.unique_constraint_schema = kcu2.constraint_schema
+                    AND kcu.ordinal_position = kcu2.ordinal_position
+                WHERE kcu.table_name = %(table_name)s
+                  AND kcu.table_schema = {schema_filter}
+                ORDER BY kcu.column_name
+            """, {"table_name": table})
         else:
             cursor.execute("""
                 SELECT
@@ -131,6 +159,17 @@ def detect_label_column(db, db_type: str, ref_table: str, pk_col: str) -> str | 
                   AND column_name != :pk_col
                 ORDER BY column_id
             """, {"table_name": ref_table.upper(), "pk_col": pk_col.upper()})
+        elif db_type in ("postgresql", "mysql"):
+            schema_filter = "'public'" if db_type == "postgresql" else "DATABASE()"
+            cursor.execute(f"""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = %(table_name)s
+                  AND table_schema = {schema_filter}
+                  AND data_type IN ('character varying', 'varchar', 'text', 'char', 'character')
+                  AND column_name != %(pk_col)s
+                ORDER BY ordinal_position
+            """, {"table_name": ref_table, "pk_col": pk_col})
         else:
             cursor.execute("""
                 SELECT column_name
@@ -167,9 +206,13 @@ def build_fk_lookups(db, db_type: str, fk_list: list[FKInfo]) -> dict[str, dict]
                 ref_col = _validate_identifier(fk.ref_column)
                 lbl_col = _validate_identifier(label_col)
                 ref_tbl = _validate_identifier(fk.ref_table)
-                if db_type == "oracle":
+                if db_type in ("oracle", "postgresql"):
                     cursor.execute(
                         f'SELECT "{ref_col}", "{lbl_col}" FROM "{ref_tbl}"'
+                    )
+                elif db_type == "mysql":
+                    cursor.execute(
+                        f"SELECT `{ref_col}`, `{lbl_col}` FROM `{ref_tbl}`"
                     )
                 else:
                     cursor.execute(
@@ -205,8 +248,10 @@ def browse_table(
         safe_table = _validate_identifier(table)
 
         # Total count
-        if db_type == "oracle":
+        if db_type in ("oracle", "postgresql"):
             cursor.execute(f'SELECT COUNT(*) FROM "{safe_table}"')
+        elif db_type == "mysql":
+            cursor.execute(f"SELECT COUNT(*) FROM `{safe_table}`")
         else:
             cursor.execute(f"SELECT COUNT(*) FROM [{safe_table}]")
         total_count = cursor.fetchone()[0]
@@ -217,6 +262,16 @@ def browse_table(
                 f'SELECT * FROM "{safe_table}" '
                 f"OFFSET :off ROWS FETCH NEXT :lim ROWS ONLY",
                 {"off": offset, "lim": limit},
+            )
+        elif db_type == "postgresql":
+            cursor.execute(
+                f'SELECT * FROM "{safe_table}" LIMIT %(lim)s OFFSET %(off)s',
+                {"lim": limit, "off": offset},
+            )
+        elif db_type == "mysql":
+            cursor.execute(
+                f"SELECT * FROM `{safe_table}` LIMIT %(lim)s OFFSET %(off)s",
+                {"lim": limit, "off": offset},
             )
         else:
             cursor.execute(

@@ -55,8 +55,8 @@ def _bind_params_oracle(sql: str, params: dict) -> tuple[str, dict]:
     return sql, params
 
 
-def _bind_params_sqlserver(sql: str, params: dict) -> tuple[str, dict]:
-    """Convert :param to %(param)s for pymssql."""
+def _bind_params_pyformat(sql: str, params: dict) -> tuple[str, dict]:
+    """Convert :param to %(param)s for pyformat databases (SQL Server, PostgreSQL, MySQL)."""
     converted = sql
     for key in params:
         converted = re.sub(rf":({re.escape(key)})\b", rf"%(\1)s", converted)
@@ -85,10 +85,10 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
         db = get_connection(conn)
         cursor = db.cursor()
         try:
-            if conn.db_type == "sqlserver":
-                sql, param_values = _bind_params_sqlserver(sql, param_values)
-            else:
+            if conn.db_type == "oracle":
                 sql, param_values = _bind_params_oracle(sql, param_values)
+            else:
+                sql, param_values = _bind_params_pyformat(sql, param_values)
 
             if param_values:
                 cursor.execute(sql, param_values)
@@ -168,10 +168,10 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
         db = get_connection(conn)
         cursor = db.cursor()
 
-        if conn.db_type == "sqlserver":
-            bound_sql, param_values = _bind_params_sqlserver(sql, param_values)
-        else:
+        if conn.db_type == "oracle":
             bound_sql, param_values = _bind_params_oracle(sql, param_values)
+        else:
+            bound_sql, param_values = _bind_params_pyformat(sql, param_values)
 
         if param_values:
             cursor.execute(bound_sql, param_values)

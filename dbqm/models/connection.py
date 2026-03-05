@@ -13,7 +13,7 @@ CONNECTIONS_FILE = CONFIG_DIR / "connections.json"
 @dataclass
 class Connection:
     name: str
-    db_type: str  # "oracle" or "sqlserver"
+    db_type: str  # "oracle", "sqlserver", "postgresql", "mysql"
     user: str
     password: str  # encrypted
     # Oracle
@@ -43,6 +43,13 @@ class Connection:
             if self.mode == "tns":
                 return self.tns_name or ""
             return f"{self.host}:{self.port}/{self.service_name}"
+        if self.db_type in ("sqlserver", "postgresql", "mysql"):
+            target = self.host or ""
+            if self.port:
+                target += f":{self.port}"
+            if self.database:
+                target += f"/{self.database}"
+            return target
         return self.host or ""
 
 
