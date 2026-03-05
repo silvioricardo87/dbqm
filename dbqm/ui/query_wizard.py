@@ -41,8 +41,10 @@ def query_wizard():
             choices=[
                 {"name": "➕  Nova consulta", "value": "new"},
                 {"name": "👁️   Visualizar SQL", "value": "view"},
+                {"name": "✏️   Editar consulta", "value": "edit"},
                 {"name": "🔄  Mapeamento de valores", "value": "maps"},
                 {"name": "🏷️   Renomear consulta", "value": "rename"},
+                {"name": "⭐  Favoritar/Desfavoritar", "value": "favorite"},
                 {"name": "📋  Duplicar consulta", "value": "dup"},
                 {"name": "🗑️   Remover consulta", "value": "remove"},
                 {"name": "↩️   Voltar", "value": "back"},
@@ -55,14 +57,33 @@ def query_wizard():
             _create_query()
         elif action == "view":
             _view_query(queries)
+        elif action == "edit":
+            _edit_query_full(queries)
         elif action == "maps":
             _edit_column_maps(queries)
         elif action == "rename":
             _rename_query(queries)
+        elif action == "favorite":
+            _toggle_favorite(queries)
         elif action == "dup":
             _duplicate_query(queries)
         elif action == "remove":
             _remove_query(queries)
+
+
+def _toggle_favorite(queries: list[Query]):
+    q = pick_entity(
+        queries,
+        formatter=lambda q: f"{'*' if q.is_favorite else ' '} {q.name} ({q.connection})",
+        message="Selecione:",
+        empty_msg="Nenhuma consulta.",
+    )
+    if q is None:
+        return
+    q.is_favorite = not q.is_favorite
+    save_queries(queries)
+    status = "adicionada aos" if q.is_favorite else "removida dos"
+    show_success(f'"{q.name}" {status} favoritos!')
 
 
 def _select_connection() -> str | None:
@@ -429,6 +450,128 @@ def _configure_column_maps(query: Query):
             if not is_esc(do_confirm) and do_confirm:
                 del query.column_maps[col]
                 show_success(f'Mapeamentos de "{col}" removidos.')
+
+
+def _edit_query_full(queries: list[Query]):
+    """Edit an existing query (connection, SQL, params, table)."""
+    q = pick_entity(
+        queries,
+        formatter=lambda q: f"{q.name} ({q.connection})",
+        message="Selecione:",
+        empty_msg="Nenhuma consulta para editar.",
+    )
+    if q is None:
+        return
+
+    console.print(f"\n[bold]Editando: {q.name}[/bold]")
+
+    while True:
+        action = select(
+            message="O que editar?",
+            choices=[
+                {"name": f"🔌  Conexao (atual: {q.connection})", "value": "conn"},
+                {"name": "📋  SQL", "value": "sql"},
+                {"name": f"📊  Tabela (atual: {q.table})", "value": "table"},
+                {"name": f"🏷️  Parametros ({len(q.params)} configurados)", "value": "params"},
+                {"name": "💾  Salvar alteracoes", "value": "save"},
+                {"name": "↩️   Cancelar", "value": "cancel"},
+            ],
+        )
+        if is_esc(action) or action == "cancel":
+            return
+        elif action == "save":
+            save_queries(queries)
+            show_success(f'Consulta "{q.name}" atualizada!')
+            return
+        elif action == "conn":
+            new_conn = _select_connection()
+            if new_conn:
+                q.connection = new_conn
+                show_success(f"Conexao alterada para {new_conn}")
+        elif action == "table":
+            new_table = text(message="Nova tabela:", default=q.table)
+            if not is_esc(new_table) and new_table:
+                q.table = new_table
+                show_success(f"Tabela alterada para {new_table}")
+        elif action == "sql":
+            console.print(f"\n[bold]SQL atual:[/bold]")
+            console.print(f"[dim]{q.sql}[/dim]\n")
+            console.print("[dim]Cole o novo SQL (Enter duas vezes para manter o atual):[/dim]\n")
+            new_sql = read_multiline_sql()
+            if new_sql:
+                q.sql = new_sql.strip().rstrip(";")
+                parsed = parse_sql(q.sql)
+                q.columns = parsed.get("columns", q.columns)
+                q.table = parsed.get("table", q.table) or q.table
+                detected = detect_params(q.sql)
+                existing_names = {p.name for p in q.params}
+                for p_name in detected:
+                    if p_name not in existing_names:
+                        q.params.append(QueryParam(name=p_name))
+                show_success("SQL atualizado!")
+        elif action == "params":
+            _edit_query_params(q)
+
+
+def _edit_query_params(q: Query):
+    """Edit parameters of a query."""
+    while True:
+        if q.params:
+            console.print("\n[bold]Parametros atuais:[/bold]")
+            for p in q.params:
+                console.print(f"  :{p.name} - {p.description or '(sem descricao)'} [default: {p.default or '-'}]")
+        else:
+            console.print("\n[dim]Nenhum parametro configurado.[/dim]")
+
+        action = select(
+            message="Acao:",
+            choices=[
+                {"name": "✏️   Editar parametro", "value": "edit"},
+                {"name": "➕  Adicionar parametro", "value": "add"},
+                {"name": "🗑️   Remover parametro", "value": "remove"},
+                {"name": "↩️   Voltar", "value": "back"},
+            ],
+        )
+        if is_esc(action) or action == "back":
+            return
+        elif action == "edit":
+            if not q.params:
+                show_warning("Nenhum parametro para editar.")
+                continue
+            param_choices = [{"name": f":{p.name}", "value": p.name} for p in q.params]
+            selected = select(message="Parametro:", choices=param_choices)
+            if is_esc(selected):
+                continue
+            param = next(p for p in q.params if p.name == selected)
+            new_desc = text(message="Descricao:", default=param.description)
+            if not is_esc(new_desc):
+                param.description = new_desc or ""
+            new_default = text(message="Valor padrao:", default=param.default)
+            if not is_esc(new_default):
+                param.default = new_default or ""
+            show_success(f"Parametro :{param.name} atualizado!")
+        elif action == "add":
+            name = text(message="Nome do parametro:")
+            if is_esc(name) or not name:
+                continue
+            desc = text(message="Descricao:")
+            if is_esc(desc):
+                continue
+            default = text(message="Valor padrao:")
+            if is_esc(default):
+                continue
+            q.params.append(QueryParam(name=name, description=desc or "", default=default or ""))
+            show_success(f"Parametro :{name} adicionado!")
+        elif action == "remove":
+            if not q.params:
+                show_warning("Nenhum parametro para remover.")
+                continue
+            param_choices = [{"name": f":{p.name}", "value": p.name} for p in q.params]
+            selected = select(message="Remover:", choices=param_choices)
+            if is_esc(selected):
+                continue
+            q.params = [p for p in q.params if p.name != selected]
+            show_success(f"Parametro :{selected} removido!")
 
 
 def _edit_column_maps(queries: list[Query]):

@@ -1,12 +1,16 @@
 """Single query execution flow."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from rich.console import Console
 
 from dbqm.core.query_engine import execute_query, QueryResult
 from dbqm.core.exporter import export_query_csv, export_query_json, export_query_txt
 from dbqm.models.connection import find_connection
-from dbqm.models.query import load_queries, find_query
+from dbqm.models.query import load_queries, find_query, save_queries
+from dbqm.core.audit import log_execution
+from dbqm.core.history import record_query_execution
 from dbqm.ui.display import show_query_result, show_error, show_warning
 from dbqm.ui.helpers import gather_params, pick_format, prompt_open_file
 from dbqm.ui.prompts import select, is_esc
@@ -14,16 +18,23 @@ from dbqm.ui.display import show_success
 
 console = Console()
 
+PAGE_SIZE = 100
+
 
 def execute_query_flow():
-    """Flow to execute a single query."""
+    """Flow to execute a single query with paginated results."""
     queries = load_queries()
     if not queries:
         show_warning("Nenhuma consulta configurada.")
         return
 
+    queries.sort(key=lambda q: (q.is_favorite, q.last_executed or ""), reverse=True)
+
     choices = [
-        {"name": f"{q.name} ({q.connection} -> {q.table})", "value": q.name}
+        {
+            "name": f"{'*' if q.is_favorite else ' '} {q.name} ({q.connection} -> {q.table})",
+            "value": q.name,
+        }
         for q in queries
     ]
 
@@ -52,6 +63,26 @@ def execute_query_flow():
         with console.status(f"Executando {query.name} em {conn.name}..."):
             result = execute_query(query, conn, param_values)
 
+        if result.success:
+            query.last_executed = datetime.now().isoformat(timespec="seconds")
+            all_queries = load_queries()
+            for q in all_queries:
+                if q.name == query.name:
+                    q.last_executed = query.last_executed
+                    break
+            save_queries(all_queries)
+
+        record_query_execution(
+            query_name=query.name,
+            connection_name=conn.name,
+            params=param_values,
+            row_count=result.row_count,
+            elapsed=result.elapsed,
+            success=result.success,
+            error=result.error,
+        )
+        log_execution("query", query.name, conn.name, param_values, result.row_count, result.success, result.error)
+
         if result.success and result.rows:
             query.apply_column_maps(result.rows, result.columns)
 
@@ -60,8 +91,49 @@ def execute_query_flow():
         if not (result.success and result.rows):
             break
 
-        if not _post_result_actions(result, query.table, param_values):
-            break
+        all_rows = result.rows
+        offset = 0
+
+        while True:
+            if len(all_rows) > PAGE_SIZE:
+                page_rows = all_rows[offset:offset + PAGE_SIZE]
+                page_result = QueryResult(
+                    query_name=result.query_name,
+                    connection_name=result.connection_name,
+                    columns=result.columns,
+                    rows=page_rows,
+                    row_count=len(page_rows),
+                    elapsed=result.elapsed,
+                )
+                show_query_result(page_result)
+                total_pages = (len(all_rows) + PAGE_SIZE - 1) // PAGE_SIZE
+                console.print(
+                    f"  [dim]Pagina {offset // PAGE_SIZE + 1} de {total_pages} "
+                    f"({len(all_rows)} registros total)[/dim]\n"
+                )
+
+            action_choices = [
+                {"name": "💾  Exportar resultado completo", "value": "export"},
+            ]
+            if len(all_rows) > PAGE_SIZE and offset + PAGE_SIZE < len(all_rows):
+                action_choices.append({"name": "➡️   Proxima pagina", "value": "next"})
+            if offset > 0:
+                action_choices.append({"name": "⬅️   Pagina anterior", "value": "prev"})
+            action_choices.append({"name": "🔄  Reexecutar", "value": "reexec"})
+            action_choices.append({"name": "↩️   Voltar", "value": "back"})
+
+            action = select(message="Acao:", choices=action_choices)
+
+            if is_esc(action) or action == "back":
+                return
+            elif action == "reexec":
+                break
+            elif action == "next":
+                offset += PAGE_SIZE
+            elif action == "prev":
+                offset = max(0, offset - PAGE_SIZE)
+            elif action == "export":
+                _export_result(result, query.table, param_values)
 
 
 def _post_result_actions(result: QueryResult, table: str = "", params: dict | None = None) -> bool:

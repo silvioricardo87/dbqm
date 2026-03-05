@@ -5,6 +5,7 @@ import re
 
 from rich.console import Console
 
+from dbqm.core.audit import log_execution
 from dbqm.core.query_engine import (
     QueryResult, classify_sql, parse_sql,
     detect_params, replace_literals_with_params, parse_dml_literals,
@@ -198,6 +199,7 @@ def _adhoc_execute_select(sql: str, conn, param_values: dict, table_name: str):
             elapsed=result.elapsed,
         )
         show_query_result(qr)
+        log_execution("adhoc_select", table_name or "adhoc", conn.name, param_values, result.row_count, result.success)
 
         if result.rows:
             export_action = select(
@@ -237,6 +239,8 @@ def _adhoc_execute_dml(sql: str, sql_type: str, conn, param_values: dict):
         show_error(f"Erro: {result.error}")
         return
 
+    log_execution(f"adhoc_{sql_type.lower()}", "adhoc", conn.name, param_values, result.rows_affected, True)
+
     console.print(f"\n  [bold]{result.rows_affected}[/bold] linha(s) afetada(s) ({result.elapsed:.2f}s)")
 
     if db:
@@ -262,7 +266,11 @@ def _adhoc_execute_dml(sql: str, sql_type: str, conn, param_values: dict):
 
 def _adhoc_save_query(sql: str, sql_type: str, conn_name: str, table_name: str, params: list):
     """Save the ad-hoc SQL as a regular Query."""
-    name = text(message="Nome da consulta:")
+    suggested = ""
+    if table_name:
+        clean_table = table_name.strip('"').strip("[]").split(".")[-1]
+        suggested = f"{clean_table} ({conn_name})"
+    name = text(message="Nome da consulta:", default=suggested)
     if is_esc(name) or not name:
         show_warning("Nome obrigatorio. Consulta nao salva.")
         return

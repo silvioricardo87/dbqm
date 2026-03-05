@@ -184,8 +184,17 @@ def _create_group():
                 if col in q.columns:
                     mapping[q.name] = col
                 else:
+                    # Auto-suggest based on position
+                    suggested = ""
+                    ref_query = next((rq for rq in selected_query_objs if col in rq.columns), None)
+                    if ref_query and col in ref_query.columns:
+                        col_idx = ref_query.columns.index(col)
+                        if col_idx < len(q.columns):
+                            suggested = q.columns[col_idx]
+
                     mapped = text(
                         message=f"  Em {q.name}, qual coluna corresponde a '{col}'?",
+                        default=suggested,
                         completer={c: None for c in q.columns},
                     )
                     if is_esc(mapped):

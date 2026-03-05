@@ -182,23 +182,38 @@ def get_connection(conn: Connection) -> Any:
 
 
 def test_connection(conn: Connection) -> tuple[bool, str]:
-    """Test a connection and return (success, message)."""
+    """Test a connection and return (success, message) with version and timing."""
+    import time as _time
     db = None
     try:
+        start = _time.time()
         db = get_connection(conn)
         cursor = db.cursor()
         try:
-            if conn.db_type == "oracle":
-                cursor.execute("SELECT 1 FROM DUAL")
-            else:
-                cursor.execute("SELECT 1")
-            cursor.fetchone()
+            try:
+                if conn.db_type == "oracle":
+                    cursor.execute("SELECT banner FROM v$version WHERE ROWNUM = 1")
+                else:
+                    cursor.execute("SELECT @@VERSION")
+                version_row = cursor.fetchone()
+                version = version_row[0][:80] if version_row else "desconhecida"
+            except Exception:
+                version = "indisponivel"
+                if conn.db_type == "oracle":
+                    cursor.execute("SELECT 1 FROM DUAL")
+                else:
+                    cursor.execute("SELECT 1")
+                cursor.fetchone()
         finally:
             cursor.close()
-        return True, f'Conexao "{conn.name}" estabelecida com sucesso!'
+
+        elapsed = _time.time() - start
+        return True, (
+            f'Conexao "{conn.name}" OK! ({elapsed:.2f}s)\n'
+            f"  Versao: {version}"
+        )
     except Exception as e:
         err_msg = str(e)
-        # Strip potential hostnames, IPs, and internal details from error messages
         sanitized = err_msg.split('\n')[0][:200]
         return False, f"Erro ao conectar: {sanitized}"
     finally:

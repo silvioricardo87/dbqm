@@ -118,7 +118,7 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
             row_count=0,
             elapsed=0,
             success=False,
-            error=str(e),
+            error=str(e).split('\n')[0][:500],
         )
     finally:
         if db is not None:
@@ -220,7 +220,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             sql_type=sql_type,
             connection_name=conn.name,
             success=False,
-            error=str(e),
+            error=str(e).split('\n')[0][:500],
         )
     finally:
         if db is not None:

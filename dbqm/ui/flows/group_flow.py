@@ -5,6 +5,7 @@ import copy
 
 from rich.console import Console
 
+from dbqm.core.audit import log_execution
 from dbqm.core.query_engine import execute_query, QueryResult
 from dbqm.core.group_engine import build_group_result, GroupResult
 from dbqm.core.exporter import (
@@ -13,16 +14,18 @@ from dbqm.core.exporter import (
     export_query_csv, export_query_json, export_individual_txt,
     export_screenshot,
 )
+from dbqm.core.history import record_group_execution
 from dbqm.models.connection import find_connection
 from dbqm.models.query import find_query
 from dbqm.models.group import load_groups, find_group
 from dbqm.ui.display import (
     show_query_result, show_group_result, show_group_result_flat,
+    show_group_result_flat_filtered,
     show_individual_query_result, build_individual_renderables,
     show_error, show_warning, show_success,
 )
 from dbqm.ui.helpers import gather_shared_params, pick_format, prompt_open_file
-from dbqm.ui.prompts import select, is_esc
+from dbqm.ui.prompts import select, confirm, is_esc
 
 console = Console()
 
@@ -55,6 +58,30 @@ def execute_group_flow():
             return
 
         last_params = dict(param_values)
+
+        # Pre-validate queries, connections and params
+        validation_errors = []
+        for qname in group.queries:
+            q = find_query(qname)
+            if not q:
+                validation_errors.append(f"Consulta '{qname}' nao encontrada.")
+                continue
+            c = find_connection(q.connection)
+            if not c:
+                validation_errors.append(f"Conexao '{q.connection}' (de '{qname}') nao encontrada.")
+                continue
+            q_params = dict(param_values)
+            for p in q.params:
+                if p.name not in q_params and not p.default:
+                    validation_errors.append(f"Parametro ':{p.name}' de '{qname}' sem valor e sem default.")
+
+        if validation_errors:
+            show_error("Erros de validacao:")
+            for err in validation_errors:
+                console.print(f"  [red]- {err}[/red]")
+            proceed = confirm(message="Continuar mesmo assim?", default=False)
+            if is_esc(proceed) or not proceed:
+                return
 
         console.print(f"\n[bold]Executando {len(group.queries)} consultas...[/bold]\n")
 
@@ -120,6 +147,20 @@ def execute_group_flow():
             normalize=group.normalize or None,
         )
 
+        summary_parts = []
+        for comp in group_result.comparisons:
+            summary_parts.append(f"{comp.column}: {comp.equal_count}/{comp.total_keys} iguais")
+        summary_text = "; ".join(summary_parts)
+        total_elapsed = sum(r.elapsed for r in query_results.values() if r.success)
+        record_group_execution(
+            group_name=group.name,
+            params=param_values,
+            all_match=group_result.all_match,
+            summary=summary_text,
+            elapsed=total_elapsed,
+        )
+        log_execution("group", group.name, params=param_values, success=True)
+
         view_mode = select(
             message="Modo de exibicao:",
             choices=[
@@ -156,6 +197,8 @@ def _post_group_actions(
                 {"name": switch_label, "value": "switch_view"},
                 {"name": "💾  Exportar resultado completo", "value": "export"},
                 {"name": "🔎  Ver resultados individuais", "value": "detail"},
+                {"name": "🔍  Filtrar por status", "value": "filter"},
+                {"name": "🌐  Exportar relatorio HTML", "value": "html"},
                 {"name": "🔄  Reexecutar", "value": "reexec"},
                 {"name": "↩️   Voltar", "value": "back"},
             ],
@@ -174,8 +217,32 @@ def _post_group_actions(
                 current_view = "flat"
         elif action == "export":
             _export_group(group_result, params)
+        elif action == "filter":
+            _filter_group_results(group_result, params)
+        elif action == "html":
+            from dbqm.core.html_report import export_group_html
+            path = export_group_html(group_result, params)
+            show_success(f"Relatorio HTML: {path}")
+            prompt_open_file(path)
         elif action == "detail":
             _show_individual_results(group_result, raw_results or {}, query_sql_map or {})
+
+
+def _filter_group_results(group_result: GroupResult, params: dict):
+    """Filter and display only rows matching a specific status."""
+    status_choice = select(
+        message="Filtrar por:",
+        choices=[
+            {"name": "⚠️  Apenas divergentes (DIFF)", "value": "DIFF"},
+            {"name": "❌  Apenas ausentes (ABSENT)", "value": "ABSENT"},
+            {"name": "⚠️❌ Divergentes + Ausentes", "value": "DIFF+ABSENT"},
+        ],
+    )
+    if is_esc(status_choice):
+        return
+
+    target_statuses = set(status_choice.split("+"))
+    show_group_result_flat_filtered(group_result, params, target_statuses)
 
 
 def _export_group(group_result: GroupResult, params: dict):

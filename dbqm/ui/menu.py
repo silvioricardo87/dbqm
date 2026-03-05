@@ -15,6 +15,8 @@ from dbqm.ui.flows.ddl_flow import extract_ddl_flow
 from dbqm.ui.flows.adhoc_flow import adhoc_sql_flow
 from dbqm.ui.flows.object_browser_flow import object_browser_flow
 from dbqm.ui.flows.config_flow import portability_flow
+from dbqm.ui.flows.history_flow import history_flow
+from dbqm.ui.flows.settings_flow import settings_flow
 
 console = Console()
 
@@ -38,6 +40,7 @@ def main_menu():
                 {"name": "⌨️   Executar SQL avulso", "value": "adhoc_sql"},
                 {"name": "🏗️   Extrair DDL de objeto", "value": "extract_ddl"},
                 {"name": "🗂️   Navegar objetos", "value": "browse"},
+                {"name": "📜  Historico de execucoes", "value": "history"},
                 {"name": "⚙️   Configuracoes", "value": "config"},
                 {"name": "🚪  Sair", "value": "exit"},
             ],
@@ -59,6 +62,8 @@ def main_menu():
             adhoc_sql_flow()
         elif action == "browse":
             object_browser_flow()
+        elif action == "history":
+            history_flow()
 
 
 def _config_menu():
@@ -71,6 +76,7 @@ def _config_menu():
                 {"name": "📝  Consultas", "value": "config_query"},
                 {"name": "📁  Grupos", "value": "config_group"},
                 {"name": "📦  Exportar/Importar", "value": "portability"},
+                {"name": "🛠️   Configuracoes gerais", "value": "settings"},
                 {"name": "↩️   Voltar", "value": "back"},
             ],
         )
@@ -85,3 +91,5 @@ def _config_menu():
             group_wizard()
         elif action == "portability":
             portability_flow()
+        elif action == "settings":
+            settings_flow()

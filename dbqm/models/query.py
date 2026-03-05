@@ -40,6 +40,8 @@ class Query:
     column_maps: dict = field(default_factory=dict)  # {"col": {"raw": "label", ...}}
     order_by: str = ""
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    is_favorite: bool = False
+    last_executed: str = ""
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -77,6 +79,8 @@ class Query:
             column_maps=data.get("column_maps", {}),
             order_by=data.get("order_by", ""),
             created_at=data.get("created_at", datetime.now().isoformat(timespec="seconds")),
+            is_favorite=data.get("is_favorite", False),
+            last_executed=data.get("last_executed", ""),
         )
 
 

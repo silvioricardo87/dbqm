@@ -309,6 +309,36 @@ def _show_flat_column_table(comp: ComparisonResult, query_names: list[str]):
     console.print()
 
 
+def show_group_result_flat_filtered(
+    group_result: GroupResult,
+    params: dict | None = None,
+    statuses: set[str] | None = None,
+):
+    """Display group comparison filtered by status."""
+    query_names = list(group_result.query_results.keys())
+
+    _render_group_header(group_result, params)
+
+    from dbqm.core.group_engine import ComparisonResult
+    for comp in group_result.comparisons:
+        filtered_rows = [r for r in comp.rows if r.status in statuses]
+        if not filtered_rows:
+            continue
+        filtered_comp = ComparisonResult(
+            column=comp.column,
+            rows=filtered_rows,
+            total_keys=comp.total_keys,
+            equal_count=comp.equal_count,
+            diff_count=comp.diff_count,
+            absent_count=comp.absent_count,
+            normalized_count=comp.normalized_count,
+        )
+        _show_flat_column_table(filtered_comp, query_names)
+
+    console.print(f"  [dim]Filtro aplicado: {', '.join(statuses)}[/dim]")
+    _render_group_footer(group_result)
+
+
 def _show_comparison_summary(comp: ComparisonResult):
     """Display summary stats for a comparison."""
     total = comp.total_keys
