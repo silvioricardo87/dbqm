@@ -6,12 +6,12 @@ from datetime import datetime
 from rich.console import Console
 
 from dbqm.core.query_engine import execute_query, QueryResult
-from dbqm.core.exporter import export_query_csv, export_query_json, export_query_txt
+from dbqm.core.exporter import export_query_csv, export_query_json, export_query_txt, export_screenshot
 from dbqm.models.connection import find_connection
 from dbqm.models.query import load_queries, find_query, save_queries
 from dbqm.core.audit import log_execution
 from dbqm.core.history import record_query_execution
-from dbqm.ui.display import show_query_result, show_query_result_vertical, show_error, show_warning
+from dbqm.ui.display import show_query_result, show_query_result_vertical, show_error, show_warning, build_query_renderables
 from dbqm.ui.helpers import gather_params, pick_format, prompt_open_file
 from dbqm.ui.prompts import select, is_esc
 from dbqm.ui.display import show_success
@@ -181,7 +181,7 @@ def _post_result_actions(result: QueryResult, table: str = "", params: dict | No
 
 def _export_result(result: QueryResult, table: str = "", params: dict | None = None):
     """Export a single query result."""
-    fmt = pick_format()
+    fmt = pick_format(include_png=True)
     if fmt is None:
         return
 
@@ -189,6 +189,9 @@ def _export_result(result: QueryResult, table: str = "", params: dict | None = N
         path = export_query_csv(result, table, params)
     elif fmt == "json":
         path = export_query_json(result, table, params)
+    elif fmt == "png":
+        renderables = build_query_renderables(result, params)
+        path = export_screenshot(renderables, table or result.query_name, params)
     else:
         path = export_query_txt(result, table, params)
 

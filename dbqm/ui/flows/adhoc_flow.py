@@ -12,11 +12,11 @@ from dbqm.core.query_engine import (
     execute_adhoc, AdhocResult, generate_sql_text,
 )
 from dbqm.core.exporter import (
-    export_query_csv, export_query_json, export_query_txt, export_sql_file,
+    export_query_csv, export_query_json, export_query_txt, export_sql_file, export_screenshot,
 )
 from dbqm.models.connection import load_connections, find_connection
 from dbqm.models.query import Query, QueryParam, load_queries, save_queries
-from dbqm.ui.display import show_query_result, show_query_result_vertical, show_error, show_warning, show_success
+from dbqm.ui.display import show_query_result, show_query_result_vertical, show_error, show_warning, show_success, build_query_renderables
 from dbqm.ui.helpers import gather_params, pick_format, prompt_open_file, read_multiline_sql
 from dbqm.ui.prompts import select, text, is_esc
 
@@ -216,12 +216,15 @@ def _adhoc_execute_select(sql: str, conn, param_values: dict, table_name: str):
                 elif post_action == "vertical":
                     show_query_result_vertical(qr)
                 elif post_action == "export":
-                    fmt = pick_format()
+                    fmt = pick_format(include_png=True)
                     if fmt is not None:
                         if fmt == "csv":
                             path = export_query_csv(qr, table_name, param_values)
                         elif fmt == "json":
                             path = export_query_json(qr, table_name, param_values)
+                        elif fmt == "png":
+                            renderables = build_query_renderables(qr, param_values)
+                            path = export_screenshot(renderables, table_name or "adhoc", param_values)
                         else:
                             path = export_query_txt(qr, table_name, param_values)
                         show_success(f"Exportado: {path}")

@@ -35,16 +35,21 @@ def main_menu():
         action = select(
             message="O que deseja fazer?",
             choices=[
-                Separator("─── Executar ───────────────────"),
+                Separator("─── Consultas ──────────────────"),
                 {"name": "🔍  Executar consulta salva", "value": "exec_query"},
+                {"name": "⌨️   SQL avulso", "value": "adhoc_sql"},
+                {"name": "📝  Gerenciar consultas", "value": "config_query"},
+                Separator("─── Grupos ─────────────────────"),
                 {"name": "📊  Executar grupo comparativo", "value": "exec_group"},
-                {"name": "⌨️   Executar SQL avulso", "value": "adhoc_sql"},
+                {"name": "📁  Gerenciar grupos", "value": "config_group"},
                 Separator("─── Ferramentas ────────────────"),
                 {"name": "🏗️   Extrair DDL de objeto", "value": "extract_ddl"},
                 {"name": "🗂️   Navegar objetos do banco", "value": "browse"},
                 {"name": "📜  Historico de execucoes", "value": "history"},
                 Separator("─── Sistema ────────────────────"),
-                {"name": "⚙️   Configuracoes", "value": "config"},
+                {"name": "🔌  Conexoes", "value": "config_conn"},
+                {"name": "📦  Exportar / Importar", "value": "portability"},
+                {"name": "🛠️   Preferencias", "value": "settings"},
                 {"name": "🚪  Sair", "value": "exit"},
             ],
         )
@@ -53,49 +58,24 @@ def main_menu():
             clear_screen()
             console.print("[dim]Ate logo![/dim]\n")
             break
-        elif action == "config":
-            _config_menu()
-        elif action == "extract_ddl":
-            extract_ddl_flow()
         elif action == "exec_query":
             execute_query_flow()
-        elif action == "exec_group":
-            execute_group_flow()
         elif action == "adhoc_sql":
             adhoc_sql_flow()
+        elif action == "config_query":
+            query_wizard()
+        elif action == "exec_group":
+            execute_group_flow()
+        elif action == "config_group":
+            group_wizard()
+        elif action == "extract_ddl":
+            extract_ddl_flow()
         elif action == "browse":
             object_browser_flow()
         elif action == "history":
             history_flow()
-
-
-def _config_menu():
-    """Configuration sub-menu."""
-    while True:
-        console.print()
-        action = select(
-            message="Configuracoes:",
-            choices=[
-                Separator("─── Dados ──────────────────────"),
-                {"name": "🔌  Conexoes", "value": "config_conn"},
-                {"name": "📝  Consultas", "value": "config_query"},
-                {"name": "📁  Grupos", "value": "config_group"},
-                Separator("─── Sistema ────────────────────"),
-                {"name": "📦  Exportar / Importar", "value": "portability"},
-                {"name": "🛠️   Preferencias", "value": "settings"},
-                Separator("────────────────────────────────"),
-                {"name": "↩️   Voltar", "value": "back"},
-            ],
-        )
-
-        if is_esc(action) or action == "back":
-            break
         elif action == "config_conn":
             connection_wizard()
-        elif action == "config_query":
-            query_wizard()
-        elif action == "config_group":
-            group_wizard()
         elif action == "portability":
             portability_flow()
         elif action == "settings":

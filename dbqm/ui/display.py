@@ -686,6 +686,35 @@ def build_individual_renderables(result: QueryResult, sql: str, params: dict | N
     return renderables
 
 
+def build_query_renderables(result: QueryResult, params: dict | None = None) -> list:
+    """Build renderable objects for a single query result (used by screenshot export)."""
+    renderables = []
+
+    if params:
+        renderables.append(_build_params_table(params))
+
+    if result.rows:
+        table = Table(
+            title=f"📋 {result.query_name}",
+            show_lines=True,
+            border_style="bright_black",
+            title_style="bold cyan",
+            header_style="bold bright_white",
+            expand=True,
+        )
+        for col in result.columns:
+            table.add_column(col, style="white")
+        for row in result.rows:
+            table.add_row(*[str(v) if v is not None else "" for v in row])
+        renderables.append(table)
+
+    renderables.append(Text(
+        f"\n  📊 {result.row_count} registros  |  ⏱️  {result.elapsed:.2f}s  |  🔌 {result.connection_name}\n",
+        style="dim",
+    ))
+    return renderables
+
+
 def show_routine_result(result):
     """Display routine execution result (success/error with DBMS_OUTPUT)."""
 

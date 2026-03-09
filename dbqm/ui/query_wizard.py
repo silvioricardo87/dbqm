@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.table import Table
 
 from dbqm.core.query_engine import parse_sql, detect_params, replace_literals_with_params, execute_query
+from dbqm.core.db_manager import fetch_table_columns
 from dbqm.models.connection import load_connections, find_connection
 from dbqm.models.query import Query, QueryParam, load_queries, save_queries
 from dbqm.models.group import load_groups, save_groups
@@ -295,18 +296,81 @@ def _create_query_wizard():
             show_error("Tabela obrigatoria.")
         return
 
-    # Columns
-    console.print("\n[dim]Campos de retorno (um por linha, vazio para finalizar):[/dim]")
+    # Columns — choose input method
+    conn = find_connection(conn_name)
     columns_raw = []
-    while True:
-        col = text(message="  campo:")
-        if is_esc(col):
-            return
-        if not col:
-            break
-        columns_raw.append(col)
 
-    if not columns_raw:
+    col_mode = select(
+        message="Como definir os campos?",
+        choices=[
+            {"name": "🔍  Buscar campos da tabela (selecionar do banco)", "value": "fetch"},
+            {"name": "⌨️   Digitar manualmente", "value": "manual"},
+            {"name": "✳️   Usar todos (*)", "value": "star"},
+        ],
+    )
+    if is_esc(col_mode):
+        return
+
+    if col_mode == "fetch":
+        if not conn:
+            show_error(f'Conexao "{conn_name}" nao encontrada.')
+            return
+
+        with console.status("Buscando campos da tabela..."):
+            db_columns = fetch_table_columns(conn, table_name)
+
+        if not db_columns:
+            show_warning("Nao foi possivel buscar os campos. Verifique a tabela e conexao.")
+            show_info("Voce pode digitar manualmente.")
+            col_mode = "manual"
+        else:
+            console.print(f"\n  [dim]{len(db_columns)} campos encontrados[/dim]")
+            console.print("[dim]Use Espaco para marcar os campos desejados:[/dim]\n")
+
+            col_choices = [{"name": c, "value": c} for c in db_columns]
+            selected_cols = checkbox(message="Campos:", choices=col_choices)
+            if is_esc(selected_cols):
+                return
+
+            if not selected_cols:
+                show_info("Nenhum campo selecionado, usando todos (*).")
+                columns_raw = ["*"]
+            else:
+                # Offer alias for each selected column
+                use_alias = select(
+                    message="Definir alias para os campos?",
+                    choices=[
+                        {"name": "✅  Sim, definir alias", "value": "yes"},
+                        {"name": "❌  Nao, usar nomes originais", "value": "no"},
+                    ],
+                )
+                if is_esc(use_alias):
+                    return
+
+                if use_alias == "yes":
+                    console.print("\n[dim]Defina o alias para cada campo (Enter para manter o original):[/dim]")
+                    for col in selected_cols:
+                        alias = text(message=f"  {col} AS:", default="")
+                        if is_esc(alias):
+                            return
+                        if alias and alias.strip():
+                            columns_raw.append(f"{col} AS {alias.strip()}")
+                        else:
+                            columns_raw.append(col)
+                else:
+                    columns_raw = list(selected_cols)
+
+    if col_mode == "manual":
+        console.print("\n[dim]Campos de retorno (um por linha, vazio para finalizar):[/dim]")
+        while True:
+            col = text(message="  campo:")
+            if is_esc(col):
+                return
+            if not col:
+                break
+            columns_raw.append(col)
+
+    if col_mode == "star" or not columns_raw:
         columns_raw = ["*"]
 
     # WHERE conditions

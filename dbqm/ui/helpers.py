@@ -37,15 +37,18 @@ def prompt_open_file(path: str):
         subprocess.run(["xdg-open", resolved], check=False)
 
 
-def pick_format() -> str | None:
-    """Let user pick an export format. Returns 'csv'/'json'/'txt' or None on ESC."""
+def pick_format(include_png: bool = False) -> str | None:
+    """Let user pick an export format. Returns 'csv'/'json'/'txt'/'png' or None on ESC."""
+    choices = [
+        {"name": "📄  CSV", "value": "csv"},
+        {"name": "📋  JSON", "value": "json"},
+        {"name": "📃  TXT (tabela formatada)", "value": "txt"},
+    ]
+    if include_png:
+        choices.append({"name": "📸  PNG (captura de tela)", "value": "png"})
     fmt = select(
         message="Formato:",
-        choices=[
-            {"name": "📄  CSV", "value": "csv"},
-            {"name": "📋  JSON", "value": "json"},
-            {"name": "📃  TXT (tabela formatada)", "value": "txt"},
-        ],
+        choices=choices,
     )
     if is_esc(fmt):
         return None

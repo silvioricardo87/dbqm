@@ -213,6 +213,74 @@ def get_connection(conn: Connection) -> Any:
         raise ValueError(f"Tipo de banco desconhecido: {conn.db_type}")
 
 
+def fetch_table_columns(conn: Connection, table: str) -> list[str]:
+    """Fetch column names from a table. Returns empty list on error."""
+    db = None
+    try:
+        db = get_connection(conn)
+        cursor = db.cursor()
+        try:
+            # Handle schema.table notation
+            parts = table.replace('"', '').replace('`', '').replace('[', '').replace(']', '').split('.')
+            table_name = parts[-1]
+            schema = parts[0] if len(parts) > 1 else None
+
+            if conn.db_type == "oracle":
+                if schema:
+                    cursor.execute(
+                        "SELECT column_name FROM all_tab_columns "
+                        "WHERE table_name = :tbl AND owner = :own ORDER BY column_id",
+                        {"tbl": table_name.upper(), "own": schema.upper()},
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT column_name FROM user_tab_columns "
+                        "WHERE table_name = :tbl ORDER BY column_id",
+                        {"tbl": table_name.upper()},
+                    )
+            elif conn.db_type == "postgresql":
+                schema_val = schema or "public"
+                cursor.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = %(tbl)s AND table_schema = %(sch)s "
+                    "ORDER BY ordinal_position",
+                    {"tbl": table_name, "sch": schema_val},
+                )
+            elif conn.db_type == "mysql":
+                if schema:
+                    cursor.execute(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name = %(tbl)s AND table_schema = %(sch)s "
+                        "ORDER BY ordinal_position",
+                        {"tbl": table_name, "sch": schema},
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name = %(tbl)s AND table_schema = DATABASE() "
+                        "ORDER BY ordinal_position",
+                        {"tbl": table_name},
+                    )
+            else:
+                # sqlserver / generic
+                cursor.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = %(tbl)s ORDER BY ordinal_position",
+                    {"tbl": table_name},
+                )
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+    except Exception:
+        return []
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+
 def test_connection(conn: Connection) -> tuple[bool, str]:
     """Test a connection and return (success, message) with version and timing."""
     import time as _time
