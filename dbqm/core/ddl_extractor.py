@@ -603,8 +603,11 @@ def save_routine_extraction(result: RoutineExtractionResult) -> tuple[str, int]:
     safe_conn = _safe_name(result.connection_name, 30)
     safe_pkg = _safe_name(result.package_name)
     safe_routine = _safe_name(result.routine_name)
-    dir_name = f"{safe_conn}_{safe_pkg}_{safe_routine}_{ts}"
-    out_dir = EXPORTS_DIR / dir_name
+    label = f"{safe_pkg}_{safe_routine}".lower()
+    dir_name = f"{safe_conn}_{ts}"
+    ddl_dir = EXPORTS_DIR / "ddl" / label
+    ddl_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = ddl_dir / dir_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     header = (
@@ -752,12 +755,14 @@ def save_extraction(result: ExtractionResult) -> tuple[str, int]:
 
     Returns (dir_path, next_file_num).
     """
-    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_conn = _safe_name(result.connection_name, 30)
     safe_obj = _safe_name(result.object_name)
-    dir_name = f"{safe_conn}_{safe_obj}_{ts}"
-    out_dir = EXPORTS_DIR / dir_name
+    label = safe_obj.lower()
+    dir_name = f"{safe_conn}_{ts}"
+    ddl_dir = EXPORTS_DIR / "ddl" / label
+    ddl_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = ddl_dir / dir_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []

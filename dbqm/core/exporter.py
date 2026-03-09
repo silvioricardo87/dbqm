@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import csv
 import json
+import re
+import unicodedata
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
@@ -12,55 +14,93 @@ from dbqm.core.query_engine import QueryResult
 from dbqm.core.group_engine import GroupResult
 from dbqm.core.constants import EXPORTS_DIR
 
+# ---------------------------------------------------------------------------
+# Path helpers
+# ---------------------------------------------------------------------------
 
-def _ensure_exports_dir() -> Path:
-    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    return EXPORTS_DIR
+# Max length for the params portion of a filename
+_MAX_PARAMS_LEN = 60
+# Max length for normalized directory/label names
+_MAX_LABEL_LEN = 40
+
+
+def _sanitize(name: str) -> str:
+    """Sanitize a name for safe use in filenames."""
+    s = name.replace(" ", "_").replace("/", "_").replace("\\", "_")
+    s = re.sub(r'[<>:"|?*]', "_", s)
+    return s
+
+
+def _normalize_label(name: str) -> str:
+    """Normalize a name for use as subdirectory: lowercase, no accents, no special chars, truncated."""
+    # Remove accents (é→e, ã→a, etc.)
+    s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    s = _sanitize(s).lower()
+    s = re.sub(r'_+', '_', s).strip('_')
+    if len(s) > _MAX_LABEL_LEN:
+        s = s[:_MAX_LABEL_LEN].rstrip('_')
+    return s or "export"
+
+
+def _ensure_dir(category: str, label: str) -> Path:
+    """Create and return exports/{category}/{normalized_label}/."""
+    d = EXPORTS_DIR / category / _normalize_label(label)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def _timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-def _sanitize(name: str) -> str:
-    return name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-
-
 def _params_suffix(params: dict | None) -> str:
-    """Build a filename suffix from query parameters, e.g. '_apolice-123456'."""
+    """Build a compact filename suffix from query parameters.
+
+    Truncates to _MAX_PARAMS_LEN to prevent excessively long filenames.
+    Example: '_id-123_status-ativo'
+    """
     if not params:
         return ""
     parts = []
     for k, v in params.items():
         safe_v = _sanitize(str(v)).replace(".", "_")
         parts.append(f"{_sanitize(k)}-{safe_v}")
-    return "_" + "_".join(parts)
+    suffix = "_" + "_".join(parts)
+    if len(suffix) > _MAX_PARAMS_LEN:
+        suffix = suffix[:_MAX_PARAMS_LEN]
+    return suffix
 
 
-def _build_filepath(prefix: str, label: str, params: dict | None, ext: str, extra: str = "") -> Path:
+def _build_filepath(category: str, label: str, conn_name: str = "",
+                    params: dict | None = None, ext: str = "txt",
+                    extra: str = "") -> Path:
     """Build a standard export file path.
 
-    Combines prefix, label, params suffix, optional extra tag, timestamp, and extension.
+    Structure: exports/{category}/{normalized_label}/{conn}_{params}{extra}_{timestamp}.{ext}
     """
-    d = _ensure_exports_dir()
-    label_part = _sanitize(label) if label else "query"
-    filename = f"{_sanitize(prefix)}_{label_part}{_params_suffix(params)}{extra}_{_timestamp()}.{ext}"
+    d = _ensure_dir(category, label)
+    conn_part = _sanitize(conn_name) if conn_name else ""
+    filename = f"{conn_part}{_params_suffix(params)}{extra}_{_timestamp()}.{ext}"
+    # Remove leading underscore if no conn_part
+    filename = filename.lstrip("_")
     return d / filename
 
 
+# ---------------------------------------------------------------------------
+# Single query exports
+# ---------------------------------------------------------------------------
+
 def export_sql_file(sql_text: str, label: str = "adhoc", params: dict | None = None) -> str:
     """Export a generated SQL text to a .sql file. Returns the file path."""
-    d = _ensure_exports_dir()
-    label_part = _sanitize(label) if label else "adhoc"
-    filename = f"{label_part}{_params_suffix(params)}_{_timestamp()}.sql"
-    filepath = d / filename
+    filepath = _build_filepath("sql", label, params=params, ext="sql")
     filepath.write_text(sql_text, encoding="utf-8")
     return str(filepath)
 
 
 def export_query_csv(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result to CSV. Returns the file path."""
-    filepath = _build_filepath(result.connection_name, table, params, "csv")
+    label = table or result.query_name
+    filepath = _build_filepath("consultas", label, result.connection_name, params, "csv")
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(result.columns)
@@ -70,7 +110,8 @@ def export_query_csv(result: QueryResult, table: str = "", params: dict | None =
 
 def export_query_json(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result to JSON."""
-    filepath = _build_filepath(result.connection_name, table, params, "json")
+    label = table or result.query_name
+    filepath = _build_filepath("consultas", label, result.connection_name, params, "json")
     data = {
         "query": result.query_name,
         "connection": result.connection_name,
@@ -85,7 +126,8 @@ def export_query_json(result: QueryResult, table: str = "", params: dict | None 
 
 def export_query_txt(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result as formatted text (same as display)."""
-    filepath = _build_filepath(result.connection_name, table, params, "txt")
+    label = table or result.query_name
+    filepath = _build_filepath("consultas", label, result.connection_name, params, "txt")
 
     lines = _build_query_txt_lines(result)
 
@@ -97,7 +139,7 @@ def export_individual_txt(
     result: QueryResult, sql: str = "", params: dict | None = None,
 ) -> str:
     """Export individual query result with SQL and parameters (mirrors screen display)."""
-    filepath = _build_filepath(result.connection_name, result.query_name, params, "txt")
+    filepath = _build_filepath("consultas", result.query_name, result.connection_name, params, "txt")
 
     lines = []
 
@@ -153,6 +195,64 @@ def _build_query_txt_lines(result: QueryResult) -> list[str]:
     return lines
 
 
+# ---------------------------------------------------------------------------
+# Screenshot export
+# ---------------------------------------------------------------------------
+
+def export_screenshot(renderables: list, label: str = "resultado", params: dict | None = None) -> str:
+    """Export renderables (SQL + table) as a PNG screenshot.
+
+    Uses rich Console to capture plain text, then Pillow to render as PNG.
+    Returns the file path.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+    from rich.console import Console as RichConsole
+
+    # Capture plain text from rich renderables
+    offline = RichConsole(file=StringIO(), width=200, color_system=None)
+    for r in renderables:
+        offline.print(r)
+    text = offline.file.getvalue()
+
+    # Load a monospace font
+    font_size = 14
+    try:
+        font = ImageFont.truetype("consola.ttf", font_size)
+    except OSError:
+        try:
+            font = ImageFont.truetype("cour.ttf", font_size)
+        except OSError:
+            font = ImageFont.load_default()
+
+    # Measure text to determine image size
+    lines = text.rstrip("\n").split("\n")
+    dummy = Image.new("RGB", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    line_height = draw.textbbox((0, 0), "Ag|", font=font)[3] + 4
+    max_width = max((draw.textbbox((0, 0), line, font=font)[2] for line in lines), default=0)
+
+    padding = 24
+    img_w = int(max_width + padding * 2)
+    img_h = int(line_height * len(lines) + padding * 2)
+
+    # Draw text on image
+    img = Image.new("RGB", (img_w, img_h), color=(30, 30, 30))
+    draw = ImageDraw.Draw(img)
+    y = padding
+    for line in lines:
+        draw.text((padding, y), line, font=font, fill=(220, 220, 220))
+        y += line_height
+
+    filepath = _build_filepath("screenshots", label, params=params, ext="png")
+    img.save(str(filepath))
+
+    return str(filepath)
+
+
+# ---------------------------------------------------------------------------
+# Group exports — pivoted (one table per key)
+# ---------------------------------------------------------------------------
+
 def _build_pivoted_data(group_result: GroupResult) -> tuple[list[str], list[str], list, dict]:
     """Build pivoted data structure for group export.
 
@@ -182,7 +282,7 @@ def _status_label(status: str) -> str:
 
 def export_group_csv(group_result: GroupResult, params: dict | None = None) -> str:
     """Export pivoted group comparison to CSV (one section per key)."""
-    filepath = _build_filepath("grupo", group_result.group_name, params, "csv")
+    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="csv")
 
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
 
@@ -219,7 +319,7 @@ def export_group_csv(group_result: GroupResult, params: dict | None = None) -> s
 
 def export_group_json(group_result: GroupResult, params: dict | None = None) -> str:
     """Export pivoted group comparison to JSON."""
-    filepath = _build_filepath("grupo", group_result.group_name, params, "json")
+    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="json")
 
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
 
@@ -257,7 +357,7 @@ def export_group_json(group_result: GroupResult, params: dict | None = None) -> 
 
 def export_group_txt(group_result: GroupResult, params: dict | None = None) -> str:
     """Export pivoted group comparison as formatted text."""
-    filepath = _build_filepath("grupo", group_result.group_name, params, "txt")
+    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="txt")
 
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
 
@@ -338,57 +438,9 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
     return str(filepath)
 
 
-def export_screenshot(renderables: list, label: str = "resultado", params: dict | None = None) -> str:
-    """Export renderables (SQL + table) as a PNG screenshot.
-
-    Uses rich Console to capture plain text, then Pillow to render as PNG.
-    Returns the file path.
-    """
-    from PIL import Image, ImageDraw, ImageFont
-    from rich.console import Console as RichConsole
-
-    # Capture plain text from rich renderables
-    offline = RichConsole(file=StringIO(), width=200, color_system=None)
-    for r in renderables:
-        offline.print(r)
-    text = offline.file.getvalue()
-
-    # Load a monospace font
-    font_size = 14
-    try:
-        font = ImageFont.truetype("consola.ttf", font_size)
-    except OSError:
-        try:
-            font = ImageFont.truetype("cour.ttf", font_size)
-        except OSError:
-            font = ImageFont.load_default()
-
-    # Measure text to determine image size
-    lines = text.rstrip("\n").split("\n")
-    dummy = Image.new("RGB", (1, 1))
-    draw = ImageDraw.Draw(dummy)
-    line_height = draw.textbbox((0, 0), "Ag|", font=font)[3] + 4
-    max_width = max((draw.textbbox((0, 0), line, font=font)[2] for line in lines), default=0)
-
-    padding = 24
-    img_w = int(max_width + padding * 2)
-    img_h = int(line_height * len(lines) + padding * 2)
-
-    # Draw text on image
-    img = Image.new("RGB", (img_w, img_h), color=(30, 30, 30))
-    draw = ImageDraw.Draw(img)
-    y = padding
-    for line in lines:
-        draw.text((padding, y), line, font=font, fill=(220, 220, 220))
-        y += line_height
-
-    filepath = _build_filepath("screenshot", label, params, "png")
-    img.save(str(filepath))
-
-    return str(filepath)
-
-
-# --- Flat export (one section per compare column) ---
+# ---------------------------------------------------------------------------
+# Group exports — flat (one section per compare column)
+# ---------------------------------------------------------------------------
 
 def _flat_status_label(status: str) -> str:
     return {"OK": "Igual", "OK*": "Igual*", "DIFF": "Diferente", "ABSENT": "Ausente"}.get(status, status)
@@ -396,7 +448,7 @@ def _flat_status_label(status: str) -> str:
 
 def export_group_flat_csv(group_result: GroupResult, params: dict | None = None) -> str:
     """Export flat group comparison to CSV (one section per compare column)."""
-    filepath = _build_filepath("grupo", group_result.group_name, params, "csv", extra="_flat")
+    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="csv", extra="_flat")
 
     query_names = list(group_result.query_results.keys())
 
@@ -427,7 +479,7 @@ def export_group_flat_csv(group_result: GroupResult, params: dict | None = None)
 
 def export_group_flat_json(group_result: GroupResult, params: dict | None = None) -> str:
     """Export flat group comparison to JSON."""
-    filepath = _build_filepath("grupo", group_result.group_name, params, "json", extra="_flat")
+    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="json", extra="_flat")
 
     query_names = list(group_result.query_results.keys())
 
@@ -463,7 +515,7 @@ def export_group_flat_json(group_result: GroupResult, params: dict | None = None
 
 def export_group_flat_txt(group_result: GroupResult, params: dict | None = None) -> str:
     """Export flat group comparison as formatted text."""
-    filepath = _build_filepath("grupo", group_result.group_name, params, "txt", extra="_flat")
+    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="txt", extra="_flat")
 
     query_names = list(group_result.query_results.keys())
 

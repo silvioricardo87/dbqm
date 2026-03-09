@@ -50,9 +50,10 @@ def export_configs(
     if include_groups:
         bundle["groups"] = [g.to_dict() for g in load_groups()]
 
-    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    configs_dir = EXPORTS_DIR / "configs"
+    configs_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filepath = EXPORTS_DIR / f"dbqm_config_{ts}.dbqm"
+    filepath = configs_dir / f"dbqm_config_{ts}.dbqm"
     filepath.write_text(json.dumps(bundle, indent=2, ensure_ascii=False), encoding="utf-8")
     return str(filepath)
 

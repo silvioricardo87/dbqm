@@ -12,7 +12,7 @@ from dbqm.core.exporter import _build_filepath
 def export_group_html(group_result: GroupResult, params: dict | None = None) -> str:
     """Export group comparison as a standalone HTML file. Returns file path."""
     query_names = list(group_result.query_results.keys())
-    filepath = _build_filepath("grupo", group_result.group_name, params, "html")
+    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="html")
 
     html = _build_html(group_result, query_names, params)
     filepath.write_text(html, encoding="utf-8")
