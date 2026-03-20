@@ -35,6 +35,9 @@ exports/
 # Claude Code
 .claude/
 
+# Git worktrees
+.worktrees/
+
 # Planos e documentos de IA (apenas configs/agents ficam)
 docs/plans/
 PRD.md
