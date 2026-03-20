@@ -13,6 +13,7 @@ SETTINGS_FILE = CONFIG_DIR / "settings.json"
 @dataclass
 class Settings:
     audit_log_enabled: bool = False
+    theme: str = "github-dark"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -21,6 +22,7 @@ class Settings:
     def from_dict(cls, data: dict) -> Settings:
         return cls(
             audit_log_enabled=data.get("audit_log_enabled", False),
+            theme=data.get("theme", "github-dark"),
         )
 
 
