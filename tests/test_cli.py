@@ -709,10 +709,10 @@ class TestMainEntryPoint:
             main_mod.main()
             mock_cli.assert_called_once()
 
-    def test_main_no_args_routes_to_menu(self):
-        """main.py routes to interactive menu when no args are provided."""
+    def test_main_no_args_routes_to_tui(self):
+        """main.py routes to Textual TUI when no args are provided."""
         import main as main_mod
         with patch("sys.argv", ["main.py"]), \
-             patch("dbqm.ui.menu.main_menu") as mock_menu:
+             patch("dbqm.ui.app.DBQMApp.run") as mock_run:
             main_mod.main()
-            mock_menu.assert_called_once()
+            mock_run.assert_called_once()

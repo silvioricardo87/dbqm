@@ -24,15 +24,9 @@ def main():
             print(f"Erro inesperado: {e}", file=sys.stderr)
             sys.exit(1)
 
-    # No arguments — launch interactive menu
-    try:
-        from dbqm.ui.menu import main_menu
-        main_menu()
-    except KeyboardInterrupt:
-        from dbqm.ui.display import clear_screen
-        clear_screen()
-        print("Ate logo!\n")
-        sys.exit(0)
+    # No arguments — launch interactive TUI
+    from dbqm.ui.app import DBQMApp
+    DBQMApp().run()
 
 
 if __name__ == "__main__":
