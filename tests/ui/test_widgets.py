@@ -92,3 +92,122 @@ async def test_sidebar_has_section_labels():
         sidebar = app.query_one(Sidebar)
         labels = sidebar.query(".sidebar-section-label")
         assert len(labels) == 4  # CONSULTAS, GRUPOS, FERRAMENTAS, SISTEMA
+
+
+# ---------------------------------------------------------------------------
+# Breadcrumb tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.breadcrumb import Breadcrumb, BreadcrumbNavigated
+
+
+class BreadcrumbTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield Breadcrumb()
+
+
+@pytest.mark.asyncio
+async def test_breadcrumb_renders_path():
+    app = BreadcrumbTestApp()
+    async with app.run_test() as pilot:
+        bc = app.query_one(Breadcrumb)
+        bc.set_path(["Consultas", "Executar", "saldo_cliente"])
+        await pilot.pause()
+        rendered = bc.render_text()
+        assert "Consultas" in rendered
+        assert "Executar" in rendered
+        assert "saldo_cliente" in rendered
+
+
+@pytest.mark.asyncio
+async def test_breadcrumb_empty_path():
+    app = BreadcrumbTestApp()
+    async with app.run_test() as pilot:
+        bc = app.query_one(Breadcrumb)
+        bc.set_path([])
+        await pilot.pause()
+        rendered = bc.render_text()
+        assert rendered.strip() == ""
+
+
+# ---------------------------------------------------------------------------
+# StatusBar tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.status_bar import StatusBar
+
+
+class StatusBarTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield StatusBar()
+
+
+@pytest.mark.asyncio
+async def test_status_bar_shows_connection():
+    app = StatusBarTestApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one(StatusBar)
+        sb.set_connection("ORACLE-PRD")
+        await pilot.pause()
+        rendered = sb.render_text()
+        assert "ORACLE-PRD" in rendered
+
+
+@pytest.mark.asyncio
+async def test_status_bar_no_connection():
+    app = StatusBarTestApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one(StatusBar)
+        sb.set_connection(None)
+        await pilot.pause()
+        rendered = sb.render_text()
+        # Should show indicator but no connection name
+        assert "ORACLE-PRD" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_status_bar_shows_counts():
+    app = StatusBarTestApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one(StatusBar)
+        sb.update_counts(queries=5, connections=3, groups=2)
+        await pilot.pause()
+        rendered = sb.render_text()
+        assert "5" in rendered
+        assert "3" in rendered
+        assert "2" in rendered
+
+
+# ---------------------------------------------------------------------------
+# ActionBar tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected, Action
+
+
+class ActionBarTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield ActionBar()
+
+
+@pytest.mark.asyncio
+async def test_action_bar_renders_actions():
+    app = ActionBarTestApp()
+    async with app.run_test() as pilot:
+        ab = app.query_one(ActionBar)
+        ab.set_actions([
+            Action(label="Vertical", key="V", action_id="vertical"),
+            Action(label="Exportar", key="E", action_id="export"),
+        ])
+        await pilot.pause()
+        rendered = ab.render_text()
+        assert "Vertical" in rendered
+        assert "Exportar" in rendered
+
+
+@pytest.mark.asyncio
+async def test_action_bar_empty():
+    app = ActionBarTestApp()
+    async with app.run_test() as pilot:
+        ab = app.query_one(ActionBar)
+        ab.set_actions([])
+        await pilot.pause()
+        rendered = ab.render_text()
+        assert rendered.strip() == ""
