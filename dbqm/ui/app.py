@@ -190,8 +190,14 @@ class DBQMApp(App):
             self.call_after_refresh(lambda: self._focus_screen_widget(screen_widget))
 
     def _focus_screen_widget(self, screen_widget) -> None:
-        """Set focus to the primary interactive widget within a screen."""
+        """Set focus to the first interactive widget within a screen."""
         try:
+            # Find the first focusable child widget in the screen
+            for widget in screen_widget.query("*"):
+                if widget.can_focus:
+                    widget.focus()
+                    return
+            # Fallback: focus the screen container itself
             screen_widget.focus()
         except Exception:
             pass

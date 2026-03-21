@@ -186,11 +186,25 @@ class Sidebar(Vertical):
         self._selected_index = (self._selected_index + 1) % len(self._focusable_items)
 
     def key_enter(self) -> None:
-        """Select the currently highlighted item."""
+        """Select the currently highlighted item and release focus to content."""
         if not self._focusable_items:
             return
         item = self._focusable_items[self._selected_index]
         self.post_message(SidebarItemSelected(item._action))
+        # Release focus so the screen's _set_initial_focus takes over
+        self.app.call_after_refresh(self._release_focus)
+
+    def _release_focus(self) -> None:
+        """Move focus away from sidebar to the content area."""
+        try:
+            screen_area = self.app.query_one("#screen-area")
+            # Find the first focusable widget in the content area
+            for widget in screen_area.query("*"):
+                if widget.can_focus:
+                    widget.focus()
+                    return
+        except Exception:
+            pass
 
     def key_home(self) -> None:
         """Jump to first item."""
