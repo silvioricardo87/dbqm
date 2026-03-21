@@ -121,16 +121,19 @@ class ConnectionFormModal(ModalScreen[dict | None]):
             # DB Type
             yield Static("Tipo de banco:", classes="field-label")
             current_type = conn.get("db_type", "")
-            # Validate that current_type is a known option
             valid_types = [v for _, v in DB_TYPE_OPTIONS]
-            if current_type not in valid_types:
-                current_type = Select.BLANK
-            yield Select(
-                DB_TYPE_OPTIONS,
-                value=current_type if current_type != Select.BLANK else Select.BLANK,
-                id="field-db-type",
-                allow_blank=True,
-            )
+            if current_type in valid_types:
+                yield Select(
+                    DB_TYPE_OPTIONS,
+                    value=current_type,
+                    id="field-db-type",
+                )
+            else:
+                yield Select(
+                    DB_TYPE_OPTIONS,
+                    prompt="Selecione o tipo",
+                    id="field-db-type",
+                )
 
             # Dynamic fields container
             yield Vertical(id="dynamic-fields")
@@ -171,6 +174,9 @@ class ConnectionFormModal(ModalScreen[dict | None]):
     def _mount_oracle_fields(self, container: Vertical, conn: dict) -> None:
         """Mount Oracle-specific fields."""
         current_mode = conn.get("mode", "direct")
+        valid_modes = [v for _, v in ORACLE_MODE_OPTIONS]
+        if current_mode not in valid_modes:
+            current_mode = "direct"
 
         container.mount(Static("Modo:", classes="field-label"))
         container.mount(
@@ -178,7 +184,6 @@ class ConnectionFormModal(ModalScreen[dict | None]):
                 ORACLE_MODE_OPTIONS,
                 value=current_mode,
                 id="field-oracle-mode",
-                allow_blank=False,
             )
         )
         # Sub-container for mode-specific fields
