@@ -5,6 +5,7 @@ import json
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.widgets import Input, Select
 
 from dbqm.ui.screens.connections import ConnectionsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -546,3 +547,211 @@ async def test_group_manage_screen_with_data(tmp_config_dir):
         assert str(row0[1]) == "grupo_a"
         row1 = table.get_row_at(1)
         assert str(row1[1]) == "grupo_b"
+
+
+# ======================================================================
+# AdhocScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.adhoc import AdhocScreen
+
+
+class AdhocTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield AdhocScreen()
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_renders(tmp_config_dir):
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        assert app.query_one(AdhocScreen) is not None
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_has_input_phase(tmp_config_dir):
+    """AdhocScreen should show input phase on mount."""
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        input_phase = screen.query_one("#adhoc-input-phase")
+        assert input_phase.display is True
+        results_phase = screen.query_one("#adhoc-results-phase")
+        assert results_phase.display is False
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_has_sql_area(tmp_config_dir):
+    """AdhocScreen should have a TextArea for SQL input."""
+    from textual.widgets import TextArea
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        text_area = screen.query_one("#adhoc-sql-area", TextArea)
+        assert text_area is not None
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_has_buttons(tmp_config_dir):
+    """AdhocScreen should have execute, generate, and save buttons."""
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        from textual.widgets import Button
+        execute_btn = screen.query_one("#adhoc-execute", Button)
+        generate_btn = screen.query_one("#adhoc-generate", Button)
+        save_btn = screen.query_one("#adhoc-save", Button)
+        assert execute_btn is not None
+        assert generate_btn is not None
+        assert save_btn is not None
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_go_back_to_input(tmp_config_dir):
+    """go_back_to_input should show input and hide results."""
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        # Simulate being in results phase
+        screen.query_one("#adhoc-input-phase").display = False
+        screen.query_one("#adhoc-results-phase").display = True
+
+        screen.go_back_to_input()
+
+        assert screen.query_one("#adhoc-input-phase").display is True
+        assert screen.query_one("#adhoc-results-phase").display is False
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_connection_selector(tmp_config_dir):
+    """AdhocScreen should have a connection selector."""
+    config_dir = tmp_config_dir / "config"
+    conn_data = {
+        "connections": [
+            {
+                "name": "test_conn",
+                "db_type": "oracle",
+                "mode": "direct",
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "ORCL",
+                "user": "admin",
+                "password": "pass",
+            },
+        ]
+    }
+    (config_dir / "connections.json").write_text(
+        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        select_widget = screen.query_one("#adhoc-conn-select", Select)
+        assert select_widget is not None
+
+
+# ======================================================================
+# DDLScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.ddl import DDLScreen
+
+
+class DDLTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield DDLScreen()
+
+
+@pytest.mark.asyncio
+async def test_ddl_screen_renders(tmp_config_dir):
+    app = DDLTestApp()
+    async with app.run_test() as pilot:
+        assert app.query_one(DDLScreen) is not None
+
+
+@pytest.mark.asyncio
+async def test_ddl_screen_has_input_phase(tmp_config_dir):
+    """DDLScreen should show input phase on mount."""
+    app = DDLTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(DDLScreen)
+        input_phase = screen.query_one("#ddl-input-phase")
+        assert input_phase.display is True
+        results_phase = screen.query_one("#ddl-results-phase")
+        assert results_phase.display is False
+
+
+@pytest.mark.asyncio
+async def test_ddl_screen_has_object_input(tmp_config_dir):
+    """DDLScreen should have an Input for object name."""
+    app = DDLTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(DDLScreen)
+        obj_input = screen.query_one("#ddl-object-input", Input)
+        assert obj_input is not None
+
+
+@pytest.mark.asyncio
+async def test_ddl_screen_has_extract_button(tmp_config_dir):
+    """DDLScreen should have an extract button."""
+    app = DDLTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(DDLScreen)
+        from textual.widgets import Button
+        extract_btn = screen.query_one("#ddl-extract", Button)
+        assert extract_btn is not None
+
+
+@pytest.mark.asyncio
+async def test_ddl_screen_go_back_to_input(tmp_config_dir):
+    """go_back_to_input should show input and hide results."""
+    app = DDLTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(DDLScreen)
+        # Simulate being in results phase
+        screen.query_one("#ddl-input-phase").display = False
+        screen.query_one("#ddl-results-phase").display = True
+
+        screen.go_back_to_input()
+
+        assert screen.query_one("#ddl-input-phase").display is True
+        assert screen.query_one("#ddl-results-phase").display is False
+
+
+@pytest.mark.asyncio
+async def test_ddl_screen_connection_selector(tmp_config_dir):
+    """DDLScreen should have a connection selector with supported connections."""
+    config_dir = tmp_config_dir / "config"
+    conn_data = {
+        "connections": [
+            {
+                "name": "oracle_conn",
+                "db_type": "oracle",
+                "mode": "direct",
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "ORCL",
+                "user": "admin",
+                "password": "pass",
+            },
+            {
+                "name": "sqlite_conn",
+                "db_type": "sqlite",
+                "host": "",
+                "port": 0,
+                "database": "test.db",
+                "user": "",
+                "password": "",
+            },
+        ]
+    }
+    (config_dir / "connections.json").write_text(
+        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = DDLTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(DDLScreen)
+        select_widget = screen.query_one("#ddl-conn-select", Select)
+        assert select_widget is not None

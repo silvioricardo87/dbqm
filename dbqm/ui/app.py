@@ -127,6 +127,14 @@ class DBQMApp(App):
         elif action == "config_group":
             from dbqm.ui.screens.group_manage import GroupManageScreen
             screen_area.mount(GroupManageScreen(id="group-manage-screen"))
+        elif action == "adhoc_sql":
+            from dbqm.ui.screens.adhoc import AdhocScreen
+            self.query_one(Breadcrumb).set_path(["Consultas", "SQL avulso"])
+            screen_area.mount(AdhocScreen(id="adhoc-screen"))
+        elif action == "extract_ddl":
+            from dbqm.ui.screens.ddl import DDLScreen
+            self.query_one(Breadcrumb).set_path(["Ferramentas", "DDL"])
+            screen_area.mount(DDLScreen(id="ddl-screen"))
         elif action == "config_conn":
             from dbqm.ui.screens.connections import ConnectionsScreen
             screen_area.mount(ConnectionsScreen(id="connections-screen"))
@@ -159,6 +167,30 @@ class DBQMApp(App):
             results_phase = group_screen.query_one("#ge-results-phase")
             if results_phase.display:
                 group_screen.go_back_to_selection()
+                self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
+        # Check if an AdhocScreen is in results phase
+        try:
+            from dbqm.ui.screens.adhoc import AdhocScreen
+            adhoc_screen = self.query_one(AdhocScreen)
+            results_phase = adhoc_screen.query_one("#adhoc-results-phase")
+            if results_phase.display:
+                adhoc_screen.go_back_to_input()
+                self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
+        # Check if a DDLScreen is in results phase
+        try:
+            from dbqm.ui.screens.ddl import DDLScreen
+            ddl_screen = self.query_one(DDLScreen)
+            results_phase = ddl_screen.query_one("#ddl-results-phase")
+            if results_phase.display:
+                ddl_screen.go_back_to_input()
                 self.query_one(ActionBar).set_actions([])
                 return
         except Exception:
