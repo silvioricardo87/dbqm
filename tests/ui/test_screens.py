@@ -755,3 +755,211 @@ async def test_ddl_screen_connection_selector(tmp_config_dir):
         screen = app.query_one(DDLScreen)
         select_widget = screen.query_one("#ddl-conn-select", Select)
         assert select_widget is not None
+
+
+# ======================================================================
+# BrowserScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.browser import BrowserScreen
+
+
+class BrowserTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield BrowserScreen()
+
+
+@pytest.mark.asyncio
+async def test_browser_screen_renders(tmp_config_dir):
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        assert app.query_one(BrowserScreen) is not None
+
+
+@pytest.mark.asyncio
+async def test_browser_screen_has_select_phase(tmp_config_dir):
+    """BrowserScreen should show select phase on mount."""
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        select_phase = screen.query_one("#br-select-phase")
+        assert select_phase.display is True
+        list_phase = screen.query_one("#br-list-phase")
+        assert list_phase.display is False
+        detail_phase = screen.query_one("#br-detail-phase")
+        assert detail_phase.display is False
+        data_phase = screen.query_one("#br-data-phase")
+        assert data_phase.display is False
+
+
+@pytest.mark.asyncio
+async def test_browser_screen_has_type_buttons(tmp_config_dir):
+    """BrowserScreen should have type selection buttons."""
+    from textual.widgets import Button
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        table_btn = screen.query_one("#br-type-table", Button)
+        view_btn = screen.query_one("#br-type-view", Button)
+        assert table_btn is not None
+        assert view_btn is not None
+
+
+@pytest.mark.asyncio
+async def test_browser_screen_has_connection_selector(tmp_config_dir):
+    """BrowserScreen should have a connection selector."""
+    config_dir = tmp_config_dir / "config"
+    conn_data = {
+        "connections": [
+            {
+                "name": "test_conn",
+                "db_type": "oracle",
+                "mode": "direct",
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "ORCL",
+                "user": "admin",
+                "password": "pass",
+            },
+        ]
+    }
+    (config_dir / "connections.json").write_text(
+        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        select_widget = screen.query_one("#br-conn-select", Select)
+        assert select_widget is not None
+
+
+@pytest.mark.asyncio
+async def test_browser_screen_go_back_to_select(tmp_config_dir):
+    """go_back_to_select should show select and hide other phases."""
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        # Simulate being in list phase
+        screen.query_one("#br-select-phase").display = False
+        screen.query_one("#br-list-phase").display = True
+
+        screen.go_back_to_select()
+
+        assert screen.query_one("#br-select-phase").display is True
+        assert screen.query_one("#br-list-phase").display is False
+
+
+@pytest.mark.asyncio
+async def test_browser_screen_go_back_to_list(tmp_config_dir):
+    """go_back_to_list should show list and hide detail."""
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        # Simulate being in detail phase
+        screen.query_one("#br-select-phase").display = False
+        screen.query_one("#br-list-phase").display = False
+        screen.query_one("#br-detail-phase").display = True
+
+        screen.go_back_to_list()
+
+        assert screen.query_one("#br-list-phase").display is True
+        assert screen.query_one("#br-detail-phase").display is False
+
+
+# ======================================================================
+# HistoryScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.history import HistoryScreen
+
+
+class HistoryTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield HistoryScreen()
+
+
+@pytest.mark.asyncio
+async def test_history_screen_renders(tmp_config_dir):
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        assert app.query_one(HistoryScreen) is not None
+
+
+@pytest.mark.asyncio
+async def test_history_screen_empty(tmp_config_dir):
+    """With no history, should show empty message and hide table."""
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        empty = screen.query_one("#hist-empty")
+        assert empty.display is True
+        from textual.widgets import DataTable
+        table = screen.query_one("#hist-table", DataTable)
+        assert table.display is False
+
+
+@pytest.mark.asyncio
+async def test_history_screen_with_data(tmp_config_dir):
+    """With history entries, should show them in the table."""
+    from dbqm.core.history import save_history, HistoryEntry
+
+    entries = [
+        HistoryEntry(
+            id="001",
+            timestamp="2025-01-15T10:30:00",
+            entry_type="query",
+            name="test_query",
+            connection="dev_oracle",
+            row_count=42,
+            elapsed=1.5,
+            success=True,
+        ),
+        HistoryEntry(
+            id="002",
+            timestamp="2025-01-15T10:35:00",
+            entry_type="group",
+            name="test_group",
+            connection="",
+            all_match=False,
+            summary="1 divergente",
+            elapsed=3.2,
+        ),
+    ]
+    save_history(entries)
+
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        empty = screen.query_one("#hist-empty")
+        assert empty.display is False
+        from textual.widgets import DataTable
+        table = screen.query_one("#hist-table", DataTable)
+        assert table.display is True
+        assert table.row_count == 2
+
+
+@pytest.mark.asyncio
+async def test_history_screen_detail_hidden_initially(tmp_config_dir):
+    """Detail phase should be hidden on mount."""
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        detail = screen.query_one("#hist-detail-phase")
+        assert detail.display is False
+
+
+@pytest.mark.asyncio
+async def test_history_screen_go_back_to_list(tmp_config_dir):
+    """go_back_to_list should show list and hide detail."""
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        # Simulate being in detail phase
+        screen.query_one("#hist-list-phase").display = False
+        screen.query_one("#hist-detail-phase").display = True
+
+        screen.go_back_to_list()
+
+        assert screen.query_one("#hist-list-phase").display is True
+        assert screen.query_one("#hist-detail-phase").display is False

@@ -135,6 +135,14 @@ class DBQMApp(App):
             from dbqm.ui.screens.ddl import DDLScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "DDL"])
             screen_area.mount(DDLScreen(id="ddl-screen"))
+        elif action == "browse":
+            from dbqm.ui.screens.browser import BrowserScreen
+            self.query_one(Breadcrumb).set_path(["Ferramentas", "Objetos"])
+            screen_area.mount(BrowserScreen(id="browser-screen"))
+        elif action == "history":
+            from dbqm.ui.screens.history import HistoryScreen
+            self.query_one(Breadcrumb).set_path(["Ferramentas", "Historico"])
+            screen_area.mount(HistoryScreen(id="history-screen"))
         elif action == "config_conn":
             from dbqm.ui.screens.connections import ConnectionsScreen
             screen_area.mount(ConnectionsScreen(id="connections-screen"))
@@ -192,6 +200,36 @@ class DBQMApp(App):
             if results_phase.display:
                 ddl_screen.go_back_to_input()
                 self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
+        # Check if a BrowserScreen is in a non-select phase
+        try:
+            from dbqm.ui.screens.browser import BrowserScreen
+            browser_screen = self.query_one(BrowserScreen)
+            data_phase = browser_screen.query_one("#br-data-phase")
+            if data_phase.display:
+                browser_screen.go_back_to_detail()
+                return
+            detail_phase = browser_screen.query_one("#br-detail-phase")
+            if detail_phase.display:
+                browser_screen.go_back_to_list()
+                return
+            list_phase = browser_screen.query_one("#br-list-phase")
+            if list_phase.display:
+                browser_screen.go_back_to_select()
+                return
+        except Exception:
+            pass
+
+        # Check if a HistoryScreen is in detail phase
+        try:
+            from dbqm.ui.screens.history import HistoryScreen
+            history_screen = self.query_one(HistoryScreen)
+            detail_phase = history_screen.query_one("#hist-detail-phase")
+            if detail_phase.display:
+                history_screen.go_back_to_list()
                 return
         except Exception:
             pass
