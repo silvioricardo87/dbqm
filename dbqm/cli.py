@@ -346,11 +346,13 @@ def cmd_list(args: argparse.Namespace) -> None:
             return
         if args.format == "json":
             data = [{"name": q.name, "connection": q.connection, "folder": q.folder,
+                      "description": q.description,
                       "params": [p.name for p in q.params]} for q in items]
             print(json.dumps(data, indent=2, ensure_ascii=False))
             return
         table = Table(title="Consultas")
         table.add_column("Nome")
+        table.add_column("Descricao")
         table.add_column("Conexao")
         table.add_column("Pasta")
         table.add_column("Parametros")
@@ -358,7 +360,8 @@ def cmd_list(args: argparse.Namespace) -> None:
         for q in items:
             params = ", ".join(p.name for p in q.params) or "-"
             fav = "*" if q.is_favorite else ""
-            table.add_row(q.name, q.connection, q.folder or "-", params, fav)
+            desc = q.description[:50] + "..." if len(q.description) > 50 else q.description
+            table.add_row(q.name, desc or "-", q.connection, q.folder or "-", params, fav)
         console.print(table)
 
     elif resource == "groups":
@@ -367,17 +370,19 @@ def cmd_list(args: argparse.Namespace) -> None:
             console.print("[yellow]Nenhum grupo configurado.[/yellow]")
             return
         if args.format == "json":
-            data = [{"name": g.name, "queries": g.queries, "join_key": g.join_key,
-                      "compare_columns": g.compare_columns} for g in items]
+            data = [{"name": g.name, "description": g.description, "queries": g.queries,
+                      "join_key": g.join_key, "compare_columns": g.compare_columns} for g in items]
             print(json.dumps(data, indent=2, ensure_ascii=False))
             return
         table = Table(title="Grupos")
         table.add_column("Nome")
+        table.add_column("Descricao")
         table.add_column("Consultas")
         table.add_column("Chave")
         table.add_column("Colunas")
         for g in items:
-            table.add_row(g.name, ", ".join(g.queries), g.join_key,
+            desc = g.description[:50] + "..." if len(g.description) > 50 else g.description
+            table.add_row(g.name, desc or "-", ", ".join(g.queries), g.join_key,
                          ", ".join(g.compare_columns))
         console.print(table)
 
