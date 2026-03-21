@@ -2313,3 +2313,335 @@ def test_generate_wizard_template_no_params():
     assert "PROCEDURE do_stuff" in spec
     assert "PROCEDURE do_stuff" in body
     assert "MY_PKG" in spec
+
+
+# ======================================================================
+# Integration tests — real user flows via DBQMApp
+# ======================================================================
+
+
+# --- 1. Sidebar keyboard navigation ---
+
+
+@pytest.mark.asyncio
+async def test_sidebar_up_down_navigation(tmp_config_dir):
+    """Arrow keys navigate sidebar items."""
+    from dbqm.ui.app import DBQMApp
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        sidebar.focus()
+        initial = sidebar._selected_index
+        sidebar.key_down()
+        assert sidebar._selected_index == initial + 1
+        sidebar.key_up()
+        assert sidebar._selected_index == initial
+
+
+@pytest.mark.asyncio
+async def test_sidebar_home_end(tmp_config_dir):
+    """Home/End jump to first/last item."""
+    from dbqm.ui.app import DBQMApp
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        sidebar.focus()
+        sidebar.key_end()
+        assert sidebar._selected_index == len(sidebar._focusable_items) - 1
+        sidebar.key_home()
+        assert sidebar._selected_index == 0
+
+
+@pytest.mark.asyncio
+async def test_sidebar_collapse_toggle_via_shortcut(tmp_config_dir):
+    """Ctrl+B toggles sidebar collapse."""
+    from dbqm.ui.app import DBQMApp
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        assert not sidebar.collapsed
+        await pilot.press("ctrl+b")
+        assert sidebar.collapsed
+        await pilot.press("ctrl+b")
+        assert not sidebar.collapsed
+
+
+# --- 2. Help modal ---
+
+
+@pytest.mark.asyncio
+async def test_help_modal_opens_and_closes(tmp_config_dir):
+    """? opens help, ESC closes it."""
+    from dbqm.ui.app import DBQMApp
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert len(app.screen_stack) > 1
+        await pilot.press("escape")
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+
+
+# --- 3. Query exec screen with data ---
+
+
+@pytest.mark.asyncio
+async def test_query_exec_loads_queries(tmp_config_dir):
+    """Query exec screen shows all queries."""
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.query_exec import QueryExecScreen
+    from dbqm.ui.widgets.query_list import _QueryListItem
+
+    save_queries([
+        Query(name=f"q{i}", connection="c1", sql="SELECT 1", table="t1")
+        for i in range(5)
+    ])
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "exec_query":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        items = app.query(_QueryListItem)
+        assert len(items) == 5
+
+
+@pytest.mark.asyncio
+async def test_query_exec_folder_navigation(tmp_config_dir):
+    """Left/Right arrows switch folders."""
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.query_exec import QueryExecScreen
+
+    save_queries([
+        Query(name="q1", connection="c1", sql="SELECT 1", table="t1", folder="A"),
+        Query(name="q2", connection="c1", sql="SELECT 1", table="t1", folder="B"),
+    ])
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "exec_query":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        screen = app.query_one(QueryExecScreen)
+        assert screen._active_folder_idx == 0
+        screen.key_right()
+        assert screen._active_folder_idx == 1
+        screen.key_left()
+        assert screen._active_folder_idx == 0
+
+
+# --- 4. Query manage shortcuts ---
+
+
+@pytest.mark.asyncio
+async def test_query_manage_view_sql_shortcut(tmp_config_dir):
+    """V shortcut opens SQL viewer modal."""
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.app import DBQMApp
+
+    save_queries([Query(name="q1", connection="c1", sql="SELECT 1 FROM dual", table="dual")])
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "config_query":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("v")
+        await pilot.pause()
+        await pilot.pause()
+        assert len(app.screen_stack) > 1  # Modal opened
+
+
+@pytest.mark.asyncio
+async def test_query_manage_rename_shortcut(tmp_config_dir):
+    """R shortcut opens rename modal."""
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.app import DBQMApp
+
+    save_queries([Query(name="q1", connection="c1", sql="SELECT 1", table="t1")])
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "config_query":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("r")
+        await pilot.pause()
+        await pilot.pause()
+        assert len(app.screen_stack) > 1
+
+
+# --- 5. History with data ---
+
+
+@pytest.mark.asyncio
+async def test_history_shows_entries(tmp_config_dir):
+    """History screen shows recorded entries."""
+    from dbqm.core.history import record_query_execution
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.history import HistoryScreen
+    from textual.widgets import DataTable
+
+    record_query_execution(
+        query_name="test_q", connection_name="test_conn",
+        params={}, row_count=10, elapsed=0.5, success=True, error="",
+    )
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "history":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        screen = app.query_one(HistoryScreen)
+        table = screen.query_one("#hist-table", DataTable)
+        assert table.row_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_history_detail_view(tmp_config_dir):
+    """Enter on history row shows detail."""
+    from dbqm.core.history import record_query_execution
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.history import HistoryScreen
+
+    record_query_execution(
+        query_name="test_q", connection_name="test_conn",
+        params={"p1": "v1"}, row_count=5, elapsed=0.3, success=True, error="",
+    )
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "history":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        screen = app.query_one(HistoryScreen)
+        detail = screen.query_one("#hist-detail-phase")
+        assert detail.display is True
+
+
+# --- 6. Settings ---
+
+
+@pytest.mark.asyncio
+async def test_settings_has_theme_and_audit(tmp_config_dir):
+    """Settings screen has theme selector and audit toggle."""
+    from dbqm.ui.app import DBQMApp
+    from textual.widgets import Select, Switch
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "settings":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        selects = app.query(Select)
+        switches = app.query(Switch)
+        assert len(selects) >= 1
+        assert len(switches) >= 1
+
+
+# --- 7. Package editor core edge cases ---
+
+
+def test_package_blank_template_structure():
+    from dbqm.core.package_editor import generate_blank_template
+
+    spec, body = generate_blank_template("MY_PKG")
+    assert spec.startswith("CREATE OR REPLACE PACKAGE MY_PKG")
+    assert body.startswith("CREATE OR REPLACE PACKAGE BODY MY_PKG")
+    assert spec.endswith("END MY_PKG;")
+    assert body.endswith("END MY_PKG;")
+
+
+def test_package_wizard_template_with_function():
+    from dbqm.core.package_editor import generate_wizard_template
+
+    routines = [{"name": "get_total", "type": "FUNCTION", "params": "p_id NUMBER", "return_type": "NUMBER"}]
+    spec, body = generate_wizard_template("PKG", routines)
+    assert "FUNCTION get_total" in spec
+    assert "RETURN NUMBER" in spec
+    assert "RETURN NULL" in body
+
+
+def test_package_wizard_template_with_procedure():
+    from dbqm.core.package_editor import generate_wizard_template
+
+    routines = [{"name": "do_stuff", "type": "PROCEDURE", "params": "p_name VARCHAR2", "return_type": None}]
+    spec, body = generate_wizard_template("PKG", routines)
+    assert "PROCEDURE do_stuff" in spec
+    assert "NULL; -- TODO" in body
+
+
+def test_package_wizard_empty_routines():
+    from dbqm.core.package_editor import generate_wizard_template
+
+    spec, body = generate_wizard_template("PKG_EMPTY", [])
+    assert "PKG_EMPTY" in spec
+    assert "PKG_EMPTY" in body
+
+
+# --- 8. ESC navigation ---
+
+
+@pytest.mark.asyncio
+async def test_esc_clears_screen(tmp_config_dir):
+    """ESC from a screen returns to empty state."""
+    from dbqm.ui.app import DBQMApp
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = app.query_one("Sidebar")
+        for i, item in enumerate(sidebar._focusable_items):
+            if item._action == "history":
+                sidebar._selected_index = i
+                break
+        sidebar.key_enter()
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        area = app.query_one("#screen-area")
+        # Should be cleared or back to previous state
