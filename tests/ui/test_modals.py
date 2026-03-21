@@ -1,9 +1,12 @@
 """Tests for modal dialogs."""
 import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Input, Label
+from textual.widgets import Button, Input, Label
 
+from dbqm.ui.modals.confirm import ConfirmModal
+from dbqm.ui.modals.export_picker import ExportPickerModal
 from dbqm.ui.modals.param_input import ParamModal
+from dbqm.ui.modals.text_input import TextInputModal
 
 
 class ModalTestApp(App):
@@ -122,3 +125,138 @@ async def test_param_modal_label_format():
         text = labels[0].render().plain
         assert ":apolice" in text
         assert "(Numero da apolice)" in text
+
+
+# --- ConfirmModal tests ---
+
+
+@pytest.mark.asyncio
+async def test_confirm_modal_shows_message():
+    modal = ConfirmModal("Remover item?")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        assert isinstance(app.screen, ConfirmModal)
+
+
+@pytest.mark.asyncio
+async def test_confirm_modal_esc_returns_false():
+    modal = ConfirmModal("Remover?")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        await pilot.press("escape")
+    assert app.result is False
+
+
+@pytest.mark.asyncio
+async def test_confirm_modal_sim_returns_true():
+    modal = ConfirmModal("Remover?")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        btn = app.screen.query_one("#confirm", Button)
+        await pilot.click(btn.__class__, offset=(0, 0))
+        btn.press()
+        await pilot.pause()
+    assert app.result is True
+
+
+@pytest.mark.asyncio
+async def test_confirm_modal_nao_returns_false():
+    modal = ConfirmModal("Remover?")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        btn = app.screen.query_one("#cancel", Button)
+        btn.press()
+        await pilot.pause()
+    assert app.result is False
+
+
+# --- TextInputModal tests ---
+
+
+@pytest.mark.asyncio
+async def test_text_input_modal_prefills_default():
+    modal = TextInputModal("Novo nome", default="query_1")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        inp = app.screen.query(Input).first()
+        assert inp.value == "query_1"
+
+
+@pytest.mark.asyncio
+async def test_text_input_modal_esc_returns_none():
+    modal = TextInputModal("Nome")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        await pilot.press("escape")
+    assert app.result is None
+
+
+@pytest.mark.asyncio
+async def test_text_input_modal_enter_returns_value():
+    modal = TextInputModal("Nome", default="abc")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+    assert app.result == "abc"
+
+
+@pytest.mark.asyncio
+async def test_text_input_modal_shows_message():
+    modal = TextInputModal("Titulo", message="Digite algo")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        assert isinstance(app.screen, TextInputModal)
+
+
+# --- ExportPickerModal tests ---
+
+
+@pytest.mark.asyncio
+async def test_export_picker_shows_formats():
+    modal = ExportPickerModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        assert isinstance(app.screen, ExportPickerModal)
+
+
+@pytest.mark.asyncio
+async def test_export_picker_esc_returns_none():
+    modal = ExportPickerModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        await pilot.press("escape")
+    assert app.result is None
+
+
+@pytest.mark.asyncio
+async def test_export_picker_has_csv_json_txt():
+    modal = ExportPickerModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        buttons = app.screen.query(Button)
+        ids = {b.id for b in buttons}
+        assert "fmt-csv" in ids
+        assert "fmt-json" in ids
+        assert "fmt-txt" in ids
+        assert "fmt-png" not in ids
+
+
+@pytest.mark.asyncio
+async def test_export_picker_includes_png_when_enabled():
+    modal = ExportPickerModal(include_png=True)
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        buttons = app.screen.query(Button)
+        ids = {b.id for b in buttons}
+        assert "fmt-png" in ids
+
+
+@pytest.mark.asyncio
+async def test_export_picker_click_csv_returns_csv():
+    modal = ExportPickerModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        btn = app.screen.query_one("#fmt-csv", Button)
+        btn.press()
+        await pilot.pause()
+    assert app.result == "csv"
