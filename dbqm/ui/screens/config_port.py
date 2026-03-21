@@ -14,6 +14,8 @@ class ConfigPortScreen(Vertical):
 
     Export flow: select items, enter password, create .dbqm bundle.
     Import flow: enter file path, enter password, import.
+
+    Pass initial_mode="export" or "import" to skip mode selection.
     """
 
     DEFAULT_CSS = """
@@ -92,6 +94,10 @@ class ConfigPortScreen(Vertical):
     }
     """
 
+    def __init__(self, initial_mode: str | None = None, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._initial_mode = initial_mode
+
     def compose(self) -> ComposeResult:
         # Phase 1: mode selection
         with Vertical(id="cp-mode-phase"):
@@ -131,12 +137,22 @@ class ConfigPortScreen(Vertical):
                 yield Button("Voltar", id="cp-import-back", variant="default")
 
     def on_mount(self) -> None:
-        self._show_mode_phase()
+        if self._initial_mode == "export":
+            self._show_export_phase()
+        elif self._initial_mode == "import":
+            self._show_import_phase()
+        else:
+            self._show_mode_phase()
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
         try:
-            self.query_one("#cp-btn-export", Button).focus()
+            if self._initial_mode == "export":
+                self.query_one("#cp-chk-connections", Checkbox).focus()
+            elif self._initial_mode == "import":
+                self.query_one("#cp-import-path", Input).focus()
+            else:
+                self.query_one("#cp-btn-export", Button).focus()
         except Exception:
             pass
 

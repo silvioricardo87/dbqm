@@ -2,18 +2,14 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
+from textual.containers import Vertical, VerticalScroll, Horizontal
 from textual.widgets import Button, Select, Static, Switch
 
 
-class SettingsScreen(Vertical):
+class SettingsScreen(VerticalScroll):
     """Screen widget for application settings.
 
-    Provides:
-    - Theme selector (GitHub Dark / GitHub Light)
-    - Audit log toggle
-    - Config export/import (portability)
+    Uses VerticalScroll so content is accessible on smaller terminals.
     """
 
     DEFAULT_CSS = """
@@ -145,18 +141,17 @@ class SettingsScreen(Vertical):
             self._open_portability("import")
 
     def _open_portability(self, mode: str) -> None:
+        """Load ConfigPortScreen directly in the chosen mode (skip mode selection)."""
         from dbqm.ui.screens.config_port import ConfigPortScreen
-
         try:
-            # Load portability screen in the app's screen area
             from textual.containers import Container
+            from dbqm.ui.widgets.breadcrumb import Breadcrumb
+
             screen_area = self.app.query_one("#screen-area", Container)
             screen_area.remove_children()
-
-            from dbqm.ui.widgets.breadcrumb import Breadcrumb
             self.app.query_one(Breadcrumb).set_path(["Sistema", "Config", "Exportar/Importar"])
 
-            port_screen = ConfigPortScreen(id="config-port-screen")
+            port_screen = ConfigPortScreen(initial_mode=mode, id="config-port-screen")
             screen_area.mount(port_screen)
         except Exception as e:
             self.notify(f"Erro: {e}", severity="error")
