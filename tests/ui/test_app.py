@@ -50,13 +50,14 @@ async def test_welcome_message_shown_on_first_run(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_sidebar_item_shows_placeholder(tmp_config_dir):
-    """Clicking a sidebar item shows a placeholder in the screen area."""
+async def test_sidebar_item_loads_settings_screen(tmp_config_dir):
+    """Clicking the settings sidebar item should load the SettingsScreen."""
     from dbqm.ui.widgets.sidebar import SidebarItemSelected
+    from dbqm.ui.screens.settings import SettingsScreen
 
     app = DBQMApp()
     async with app.run_test() as pilot:
-        app.post_message(SidebarItemSelected("config_conn"))
+        app.post_message(SidebarItemSelected("settings"))
         await pilot.pause()
-        placeholder = app.query_one("#placeholder")
-        assert placeholder is not None
+        screen = app.query_one(SettingsScreen)
+        assert screen is not None

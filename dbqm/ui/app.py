@@ -146,6 +146,14 @@ class DBQMApp(App):
         elif action == "config_conn":
             from dbqm.ui.screens.connections import ConnectionsScreen
             screen_area.mount(ConnectionsScreen(id="connections-screen"))
+        elif action == "settings":
+            from dbqm.ui.screens.settings import SettingsScreen
+            self.query_one(Breadcrumb).set_path(["Sistema", "Config"])
+            screen_area.mount(SettingsScreen(id="settings-screen"))
+        elif action == "portability":
+            from dbqm.ui.screens.config_port import ConfigPortScreen
+            self.query_one(Breadcrumb).set_path(["Sistema", "Exportar"])
+            screen_area.mount(ConfigPortScreen(id="config-port-screen"))
         else:
             screen_area.mount(Static(f"[dim]{label}[/dim] (em construção)", id="placeholder"))
 

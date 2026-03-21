@@ -963,3 +963,161 @@ async def test_history_screen_go_back_to_list(tmp_config_dir):
 
         assert screen.query_one("#hist-list-phase").display is True
         assert screen.query_one("#hist-detail-phase").display is False
+
+
+# ======================================================================
+# SettingsScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.settings import SettingsScreen
+
+
+class SettingsTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield SettingsScreen()
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_renders(tmp_config_dir):
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        assert app.query_one(SettingsScreen) is not None
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_has_theme_select(tmp_config_dir):
+    """SettingsScreen should have a theme selector."""
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        theme_select = screen.query_one("#settings-theme-select", Select)
+        assert theme_select is not None
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_has_audit_switch(tmp_config_dir):
+    """SettingsScreen should have an audit log switch."""
+    from textual.widgets import Switch
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        audit_switch = screen.query_one("#settings-audit-switch", Switch)
+        assert audit_switch is not None
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_loads_defaults(tmp_config_dir):
+    """SettingsScreen should load default settings values."""
+    from textual.widgets import Switch
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        theme_select = screen.query_one("#settings-theme-select", Select)
+        assert theme_select.value == "github-dark"
+        audit_switch = screen.query_one("#settings-audit-switch", Switch)
+        assert audit_switch.value is False
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_loads_saved_settings(tmp_config_dir):
+    """SettingsScreen should load previously saved settings."""
+    from textual.widgets import Switch
+    config_dir = tmp_config_dir / "config"
+    settings_data = {"audit_log_enabled": True, "theme": "github-light"}
+    (config_dir / "settings.json").write_text(
+        json.dumps(settings_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        theme_select = screen.query_one("#settings-theme-select", Select)
+        assert theme_select.value == "github-light"
+        audit_switch = screen.query_one("#settings-audit-switch", Switch)
+        assert audit_switch.value is True
+
+
+# ======================================================================
+# ConfigPortScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.config_port import ConfigPortScreen
+
+
+class ConfigPortTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield ConfigPortScreen()
+
+
+@pytest.mark.asyncio
+async def test_config_port_screen_renders(tmp_config_dir):
+    app = ConfigPortTestApp()
+    async with app.run_test() as pilot:
+        assert app.query_one(ConfigPortScreen) is not None
+
+
+@pytest.mark.asyncio
+async def test_config_port_screen_shows_mode_phase(tmp_config_dir):
+    """ConfigPortScreen should show mode selection on mount."""
+    app = ConfigPortTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConfigPortScreen)
+        mode_phase = screen.query_one("#cp-mode-phase")
+        assert mode_phase.display is True
+        export_phase = screen.query_one("#cp-export-phase")
+        assert export_phase.display is False
+        import_phase = screen.query_one("#cp-import-phase")
+        assert import_phase.display is False
+
+
+@pytest.mark.asyncio
+async def test_config_port_screen_has_export_button(tmp_config_dir):
+    """ConfigPortScreen should have export and import buttons."""
+    from textual.widgets import Button
+    app = ConfigPortTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConfigPortScreen)
+        export_btn = screen.query_one("#cp-btn-export", Button)
+        import_btn = screen.query_one("#cp-btn-import", Button)
+        assert export_btn is not None
+        assert import_btn is not None
+
+
+@pytest.mark.asyncio
+async def test_config_port_export_phase_toggle(tmp_config_dir):
+    """Clicking export button should show export phase."""
+    app = ConfigPortTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConfigPortScreen)
+        await pilot.click("#cp-btn-export")
+        assert screen.query_one("#cp-mode-phase").display is False
+        assert screen.query_one("#cp-export-phase").display is True
+        assert screen.query_one("#cp-import-phase").display is False
+
+
+@pytest.mark.asyncio
+async def test_config_port_import_phase_toggle(tmp_config_dir):
+    """Clicking import button should show import phase."""
+    app = ConfigPortTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConfigPortScreen)
+        await pilot.click("#cp-btn-import")
+        assert screen.query_one("#cp-mode-phase").display is False
+        assert screen.query_one("#cp-export-phase").display is False
+        assert screen.query_one("#cp-import-phase").display is True
+
+
+@pytest.mark.asyncio
+async def test_config_port_export_back_button(tmp_config_dir):
+    """Clicking back in export phase should return to mode selection."""
+    from textual.widgets import Button
+    app = ConfigPortTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.query_one(ConfigPortScreen)
+        await pilot.click("#cp-btn-export")
+        assert screen.query_one("#cp-export-phase").display is True
+        # Use press on the button directly since it may be off-screen
+        screen.query_one("#cp-export-back", Button).press()
+        await pilot.pause()
+        assert screen.query_one("#cp-mode-phase").display is True
+        assert screen.query_one("#cp-export-phase").display is False
