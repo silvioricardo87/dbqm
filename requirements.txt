@@ -1,5 +1,4 @@
 rich>=13.0
-InquirerPy>=0.3.4
 textual>=0.80
 oracledb>=2.0
 pymssql>=2.2
