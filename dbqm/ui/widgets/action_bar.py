@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections import namedtuple
 
-from textual.containers import Horizontal
 from textual.message import Message
-from textual.widgets import Button
+from textual.widgets import Static
 
 Action = namedtuple("Action", ["label", "key", "action_id"])
 
@@ -19,74 +18,55 @@ class ActionSelected(Message):
         super().__init__()
 
 
-class _ActionButton(Button):
-    """A single action button with a shortcut key displayed."""
+class ActionBar(Static):
+    """A single-line bar showing contextual actions.
 
-    DEFAULT_CSS = """
-    _ActionButton {
-        min-width: 6;
-        height: 1;
-        margin: 0 1 0 0;
-        background: $surface-lighten-1;
-        color: $text;
-        border: none;
-        padding: 0 1;
-    }
-    _ActionButton:hover {
-        background: $primary 30%;
-    }
-    _ActionButton:focus {
-        background: $primary 40%;
-        text-style: bold;
-    }
+    Actions are accessible in two ways:
+    - Pressing the shortcut key (N, T, E...) from anywhere (handled by App.on_key)
+    - Clicking the action text
     """
 
-    def __init__(self, action: Action) -> None:
-        label = f"[{action.key}] {action.label}" if action.key else action.label
-        super().__init__(label, id=f"ab-{action.action_id}")
-        self.action = action
-
-
-class ActionBar(Horizontal):
-    """A bar showing contextual action buttons, navigable via Tab and arrow keys."""
+    can_focus = False
 
     DEFAULT_CSS = """
     ActionBar {
         height: auto;
-        max-height: 2;
         padding: 0 1;
         background: $surface;
-    }
-    ActionBar.empty {
-        height: 0;
-        display: none;
+        dock: bottom;
     }
     """
 
-    can_focus = False  # Container itself not focusable, but children (buttons) are
-
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__("")
         self._actions: list[Action] = []
 
     def set_actions(self, actions: list[Action]) -> None:
-        """Set the list of available actions, rebuilding buttons."""
+        """Set the list of available actions."""
         self._actions = list(actions)
         self._rebuild()
 
     def _rebuild(self) -> None:
-        """Rebuild the action bar buttons."""
-        self.remove_children()
+        """Rebuild the action bar content."""
         if not self._actions:
-            self.add_class("empty")
+            self.update("")
+            self.display = False
             return
-        self.remove_class("empty")
+        self.display = True
+        parts: list[str] = []
         for action in self._actions:
-            if action.key or action.label:  # Skip empty actions
-                self.mount(_ActionButton(action))
+            if not action.key and not action.label:
+                continue
+            if action.key:
+                parts.append(
+                    f"[@click=select_action('{action.action_id}')]"
+                    f"[bold black on white] {action.key} [/] {action.label}"
+                    f"[/]"
+                )
+            else:
+                parts.append(f"[dim]{action.label}[/]")
+        self.update("  ".join(parts))
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button click — post ActionSelected."""
-        if isinstance(event.button, _ActionButton):
-            self.post_message(ActionSelected(event.button.action.action_id))
-            event.stop()
+    def action_select_action(self, action_id: str) -> None:
+        """Handle click on an action."""
+        self.post_message(ActionSelected(action_id))

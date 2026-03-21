@@ -197,9 +197,8 @@ async def test_action_bar_renders_actions():
             Action(label="Exportar", key="E", action_id="export"),
         ])
         await pilot.pause()
-        from dbqm.ui.widgets.action_bar import _ActionButton
-        buttons = ab.query(_ActionButton)
-        assert len(buttons) == 2
+        assert ab.display is True
+        assert len(ab._actions) == 2
 
 
 @pytest.mark.asyncio
@@ -209,23 +208,7 @@ async def test_action_bar_empty():
         ab = app.query_one(ActionBar)
         ab.set_actions([])
         await pilot.pause()
-        from dbqm.ui.widgets.action_bar import _ActionButton
-        buttons = ab.query(_ActionButton)
-        assert len(buttons) == 0
-
-
-@pytest.mark.asyncio
-async def test_action_bar_buttons_are_focusable():
-    app = ActionBarTestApp()
-    async with app.run_test() as pilot:
-        ab = app.query_one(ActionBar)
-        ab.set_actions([
-            Action(label="Nova", key="N", action_id="new"),
-        ])
-        await pilot.pause()
-        from dbqm.ui.widgets.action_bar import _ActionButton
-        btn = ab.query_one(_ActionButton)
-        assert btn.can_focus is True
+        assert ab.display is False
 
 
 # ---------------------------------------------------------------------------
