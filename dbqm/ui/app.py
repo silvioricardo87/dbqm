@@ -38,6 +38,8 @@ class DBQMApp(App):
         Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar"),
         Binding("ctrl+q", "quit", "Quit"),
         Binding("escape", "go_back", "Back"),
+        Binding("question_mark", "show_help", "Ajuda", show=False),
+        Binding("slash", "search", "Buscar", show=False),
     ]
 
     def compose(self) -> ComposeResult:
@@ -156,6 +158,20 @@ class DBQMApp(App):
             screen_area.mount(ConfigPortScreen(id="config-port-screen"))
         else:
             screen_area.mount(Static(f"[dim]{label}[/dim] (em construção)", id="placeholder"))
+
+    def action_show_help(self) -> None:
+        """Show the help overlay with keyboard shortcuts."""
+        from dbqm.ui.modals.help import HelpModal
+        self.push_screen(HelpModal())
+
+    def action_search(self) -> None:
+        """Trigger search/filter on the active QueryListWidget if present."""
+        from dbqm.ui.widgets.query_list import QueryListWidget
+        try:
+            ql = self.query_one(QueryListWidget)
+            ql.action_start_search()
+        except Exception:
+            pass
 
     def action_toggle_sidebar(self) -> None:
         """Toggle sidebar collapse state."""
