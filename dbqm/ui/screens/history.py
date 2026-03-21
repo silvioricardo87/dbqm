@@ -124,10 +124,10 @@ class HistoryScreen(Vertical):
 
             table.add_row(
                 str(i),
-                e.timestamp,
+                str(e.timestamp) if e.timestamp else "",
                 tipo,
-                e.name,
-                e.connection or "-",
+                str(e.name) if e.name else "",
+                str(e.connection) if e.connection else "-",
                 resultado,
                 f"{e.elapsed:.1f}s",
                 key=str(i),
@@ -175,7 +175,7 @@ class HistoryScreen(Vertical):
             lines.append(f"[bold]Conexao:[/bold] {entry.connection}")
         if entry.params:
             for k, v in entry.params.items():
-                lines.append(f"[bold]{k}:[/bold] {v}")
+                lines.append(f"[bold]{str(k)}:[/bold] {str(v)}")
         lines.append(f"[bold]Tempo:[/bold] {entry.elapsed:.2f}s")
 
         if entry.entry_type == "query":
@@ -184,7 +184,7 @@ class HistoryScreen(Vertical):
                 f"[bold]Sucesso:[/bold] {'Sim' if entry.success else 'Nao'}"
             )
             if entry.error:
-                lines.append(f"[bold]Erro:[/bold] {entry.error}")
+                lines.append(f"[bold]Erro:[/bold] {str(entry.error)}")
         elif entry.entry_type == "group":
             if entry.all_match is not None:
                 status = (
@@ -194,7 +194,7 @@ class HistoryScreen(Vertical):
                 )
                 lines.append(f"[bold]Resultado:[/bold] {status}")
             if entry.summary:
-                lines.append(f"[bold]Resumo:[/bold] {entry.summary}")
+                lines.append(f"[bold]Resumo:[/bold] {str(entry.summary)}")
 
         detail_info = self.query_one("#hist-detail-info", Static)
         detail_info.update("\n".join(lines))

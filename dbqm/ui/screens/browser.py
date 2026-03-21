@@ -404,7 +404,7 @@ class BrowserScreen(Vertical):
         # Info bar
         info = self.query_one("#br-detail-info", Static)
         info.update(
-            f"[bold]Tabela:[/] {structure.table} | "
+            f"[bold]Tabela:[/] {str(structure.table)} | "
             f"{len(structure.columns)} colunas | "
             f"{len(structure.indexes)} indices | "
             f"{structure.elapsed:.2f}s"
@@ -439,8 +439,8 @@ class BrowserScreen(Vertical):
             key = " ".join(key_parts)
 
             struct_table.add_row(
-                col.name, col.data_type, size,
-                "Y" if col.nullable else "N", key
+                str(col.name), str(col.data_type), str(size),
+                "Y" if col.nullable else "N", str(key)
             )
 
         # Index info
@@ -504,7 +504,7 @@ class BrowserScreen(Vertical):
         self.query_one("#br-data-phase").display = False
 
         info = self.query_one("#br-detail-info", Static)
-        info.update(f"[bold]View:[/] {view_info.name} | Owner: {view_info.owner}")
+        info.update(f"[bold]View:[/] {str(view_info.name)} | Owner: {str(view_info.owner)}")
 
         # Hide table-specific widgets
         self.query_one("#br-structure-table", DataTable).display = False

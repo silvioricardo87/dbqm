@@ -119,13 +119,13 @@ class GroupResultWidget(Vertical, can_focus=False):
         for comp in gr.comparisons:
             # Section title
             container.mount(
-                Static(f"Coluna: {comp.column}", classes="gr-section-title")
+                Static(f"Coluna: {str(comp.column)}", classes="gr-section-title")
             )
 
             table = DataTable()
             table.add_column("Chave", key="key")
             for qn in query_names:
-                table.add_column(qn, key=sanitize_id(qn))
+                table.add_column(str(qn), key=sanitize_id(str(qn)))
             table.add_column("Status", key="status")
 
             rows = comp.rows
@@ -137,7 +137,7 @@ class GroupResultWidget(Vertical, can_focus=False):
                 for qn in query_names:
                     val = row.values.get(qn)
                     cells.append(str(val) if val is not None else "-")
-                cells.append(self._status_markup(row.status))
+                cells.append(str(row.status))
                 table.add_row(*cells)
 
             container.mount(table)
@@ -171,18 +171,18 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         for key in all_keys:
             container.mount(
-                Static(f"Chave: {key}", classes="gr-section-title")
+                Static(f"Chave: {str(key)}", classes="gr-section-title")
             )
 
             table = DataTable()
             table.add_column("Consulta", key="__consulta__")
             for col in compare_columns:
-                table.add_column(col, key=f"__col_{col}__")
+                table.add_column(str(col), key=f"__col_{col}__")
             table.add_column("Status", key="__status__")
 
             # One row per query
             for qn in query_names:
-                cells = [qn]
+                cells = [str(qn)]
                 for col in compare_columns:
                     cr = lookup.get((key, col))
                     val = cr.values.get(qn) if cr else None
@@ -195,13 +195,13 @@ class GroupResultWidget(Vertical, can_focus=False):
             worst_statuses = []
             for col in compare_columns:
                 cr = lookup.get((key, col))
-                status = cr.status if cr else "ABSENT"
+                status = str(cr.status) if cr else "ABSENT"
                 worst_statuses.append(status)
-                result_cells.append(self._status_markup(status))
+                result_cells.append(status)
             # Overall status for this key
             priority = {"ABSENT": 3, "DIFF": 2, "OK*": 1, "OK": 0}
             overall = max(worst_statuses, key=lambda s: priority.get(s, 0))
-            result_cells.append(self._status_markup(overall))
+            result_cells.append(str(overall))
             table.add_row(*result_cells)
 
             container.mount(table)
@@ -219,7 +219,8 @@ class GroupResultWidget(Vertical, can_focus=False):
         lines.append("")
 
         for comp in gr.comparisons:
-            lines.append(f"[bold]{comp.column}[/]:")
+            col_name = str(comp.column) if comp.column is not None else ""
+            lines.append(f"[bold]{col_name}[/]:")
             lines.append(f"  [green]Iguais:[/]      {comp.equal_count}/{comp.total_keys}")
             if comp.normalized_count > 0:
                 lines.append(f"  [green]Normalizados:[/] {comp.normalized_count}/{comp.total_keys}")

@@ -84,7 +84,7 @@ class ConnectionsScreen(Vertical):
             db_label = DB_TYPE_LABELS.get(conn.db_type, conn.db_type)
             if conn.db_type == "oracle" and conn.mode == "tns":
                 db_label = "Oracle/TNS"
-            table.add_row(str(i), conn.name, db_label, conn.display_target())
+            table.add_row(str(i), str(conn.name), str(db_label), str(conn.display_target()))
 
     def _set_actions(self) -> None:
         try:

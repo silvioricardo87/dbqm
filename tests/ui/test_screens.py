@@ -1443,6 +1443,491 @@ async def test_group_list_shows_all_items(tmp_config_dir):
         assert len(items) == 8
 
 
+# ======================================================================
+# GroupResultWidget — result display tests (the bug area)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_group_result_flat_mode_with_sample_data(tmp_config_dir):
+    """GroupResultWidget should render flat mode without crashing."""
+    qr1 = QR(
+        query_name="q1", connection_name="c1",
+        columns=["id", "status"], rows=[[1, "active"], [2, "inactive"]],
+        row_count=2, elapsed=0.1,
+    )
+    qr2 = QR(
+        query_name="q2", connection_name="c2",
+        columns=["id", "status"], rows=[[1, "active"], [2, "active"]],
+        row_count=2, elapsed=0.1,
+    )
+    comp = ComparisonResult(
+        column="status",
+        rows=[
+            ComparisonRow(key_value=1, values={"q1": "active", "q2": "active"}, status="OK"),
+            ComparisonRow(key_value=2, values={"q1": "inactive", "q2": "active"}, status="DIFF"),
+        ],
+        total_keys=2, equal_count=1, diff_count=1, absent_count=0, normalized_count=0,
+    )
+    gr = GR(
+        group_name="test_group",
+        query_results={"q1": qr1, "q2": qr2},
+        comparisons=[comp],
+        all_match=False,
+        summary_lines=["Coluna: status", "  Iguais: 1", "  Diferentes: 1"],
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield GroupResultWidget()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)
+        assert w.mode == "flat"
+        assert w._group_result is not None
+
+
+@pytest.mark.asyncio
+async def test_group_result_pivoted_mode_with_sample_data(tmp_config_dir):
+    """GroupResultWidget should render pivoted mode without crashing."""
+    qr1 = QR(
+        query_name="q1", connection_name="c1",
+        columns=["id", "val"], rows=[[1, 100], [2, 200]],
+        row_count=2, elapsed=0.1,
+    )
+    qr2 = QR(
+        query_name="q2", connection_name="c2",
+        columns=["id", "val"], rows=[[1, 100], [2, 250]],
+        row_count=2, elapsed=0.1,
+    )
+    comp = ComparisonResult(
+        column="val",
+        rows=[
+            ComparisonRow(key_value=1, values={"q1": 100, "q2": 100}, status="OK"),
+            ComparisonRow(key_value=2, values={"q1": 200, "q2": 250}, status="DIFF"),
+        ],
+        total_keys=2, equal_count=1, diff_count=1, absent_count=0, normalized_count=0,
+    )
+    gr = GR(
+        group_name="test_pivot",
+        query_results={"q1": qr1, "q2": qr2},
+        comparisons=[comp],
+        all_match=False,
+        summary_lines=["Coluna: val", "  Iguais: 1"],
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield GroupResultWidget()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)
+        w.toggle_mode()
+        assert w.mode == "pivoted"
+
+
+@pytest.mark.asyncio
+async def test_group_result_with_absent_rows(tmp_config_dir):
+    """GroupResultWidget should handle ABSENT status without crashing."""
+    qr1 = QR(
+        query_name="q1", connection_name="c1",
+        columns=["id", "val"], rows=[[1, 100]],
+        row_count=1, elapsed=0.1,
+    )
+    qr2 = QR(
+        query_name="q2", connection_name="c2",
+        columns=["id", "val"], rows=[[1, 100], [2, 200]],
+        row_count=2, elapsed=0.1,
+    )
+    comp = ComparisonResult(
+        column="val",
+        rows=[
+            ComparisonRow(key_value=1, values={"q1": 100, "q2": 100}, status="OK"),
+            ComparisonRow(key_value=2, values={"q1": None, "q2": 200}, status="ABSENT"),
+        ],
+        total_keys=2, equal_count=1, diff_count=0, absent_count=1, normalized_count=0,
+    )
+    gr = GR(
+        group_name="test_absent",
+        query_results={"q1": qr1, "q2": qr2},
+        comparisons=[comp],
+        all_match=False,
+        summary_lines=[],
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield GroupResultWidget()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)
+        assert w._group_result is not None
+
+
+@pytest.mark.asyncio
+async def test_group_result_with_none_values(tmp_config_dir):
+    """GroupResultWidget should handle None values in comparison rows."""
+    comp = ComparisonResult(
+        column="val",
+        rows=[
+            ComparisonRow(key_value="key1", values={"q1": None, "q2": None}, status="OK"),
+        ],
+        total_keys=1, equal_count=1, diff_count=0, absent_count=0, normalized_count=0,
+    )
+    qr1 = QR(query_name="q1", connection_name="c1",
+             columns=["id", "val"], rows=[], row_count=0, elapsed=0.0)
+    qr2 = QR(query_name="q2", connection_name="c2",
+             columns=["id", "val"], rows=[], row_count=0, elapsed=0.0)
+    gr = GR(
+        group_name="test_none",
+        query_results={"q1": qr1, "q2": qr2},
+        comparisons=[comp],
+        all_match=True,
+        summary_lines=[],
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield GroupResultWidget()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)
+        assert w._group_result is not None
+
+
+@pytest.mark.asyncio
+async def test_group_result_filter_status(tmp_config_dir):
+    """GroupResultWidget status filter should work without crashing."""
+    comp = ComparisonResult(
+        column="val",
+        rows=[
+            ComparisonRow(key_value=1, values={"q1": "a", "q2": "a"}, status="OK"),
+            ComparisonRow(key_value=2, values={"q1": "b", "q2": "c"}, status="DIFF"),
+        ],
+        total_keys=2, equal_count=1, diff_count=1, absent_count=0, normalized_count=0,
+    )
+    qr1 = QR(query_name="q1", connection_name="c1",
+             columns=["id", "val"], rows=[], row_count=0, elapsed=0.0)
+    qr2 = QR(query_name="q2", connection_name="c2",
+             columns=["id", "val"], rows=[], row_count=0, elapsed=0.0)
+    gr = GR(
+        group_name="test_filter",
+        query_results={"q1": qr1, "q2": qr2},
+        comparisons=[comp],
+        all_match=False,
+        summary_lines=[],
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield GroupResultWidget()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)
+        w.filter_status({"DIFF"})
+        assert w._status_filter == {"DIFF"}
+        w.filter_status(set())
+        assert w._status_filter is None
+
+
+@pytest.mark.asyncio
+async def test_group_result_multiple_compare_columns(tmp_config_dir):
+    """GroupResultWidget should handle multiple comparison columns."""
+    comp1 = ComparisonResult(
+        column="status",
+        rows=[
+            ComparisonRow(key_value=1, values={"q1": "A", "q2": "A"}, status="OK"),
+        ],
+        total_keys=1, equal_count=1, diff_count=0, absent_count=0, normalized_count=0,
+    )
+    comp2 = ComparisonResult(
+        column="amount",
+        rows=[
+            ComparisonRow(key_value=1, values={"q1": 100, "q2": 200}, status="DIFF"),
+        ],
+        total_keys=1, equal_count=0, diff_count=1, absent_count=0, normalized_count=0,
+    )
+    qr1 = QR(query_name="q1", connection_name="c1",
+             columns=["id", "status", "amount"], rows=[], row_count=0, elapsed=0.0)
+    qr2 = QR(query_name="q2", connection_name="c2",
+             columns=["id", "status", "amount"], rows=[], row_count=0, elapsed=0.0)
+    gr = GR(
+        group_name="multi_col",
+        query_results={"q1": qr1, "q2": qr2},
+        comparisons=[comp1, comp2],
+        all_match=False,
+        summary_lines=["Coluna: status", "  Iguais: 1", "Coluna: amount", "  Diferentes: 1"],
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield GroupResultWidget()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)
+        # Test both modes
+        assert w.mode == "flat"
+        w.toggle_mode()
+        assert w.mode == "pivoted"
+        w.toggle_mode()
+        assert w.mode == "flat"
+
+
+# ======================================================================
+# ResultTable widget tests
+# ======================================================================
+
+from dbqm.ui.widgets.result_table import ResultTable
+
+
+@pytest.mark.asyncio
+async def test_result_table_load_result(tmp_config_dir):
+    """ResultTable should load and display query results."""
+    qr = QR(
+        query_name="test", connection_name="c1",
+        columns=["id", "name", "value"],
+        rows=[[1, "Alice", 100], [2, "Bob", 200]],
+        row_count=2, elapsed=0.05,
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield ResultTable()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        rt = app.query_one(ResultTable)
+        rt.load_result(qr)
+        assert rt.row_count == 2
+        assert rt.total_pages == 1
+
+
+@pytest.mark.asyncio
+async def test_result_table_vertical_mode(tmp_config_dir):
+    """ResultTable should toggle vertical mode."""
+    qr = QR(
+        query_name="test", connection_name="c1",
+        columns=["id", "name"],
+        rows=[[1, "Alice"]],
+        row_count=1, elapsed=0.05,
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield ResultTable()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        rt = app.query_one(ResultTable)
+        rt.load_result(qr)
+        rt.toggle_vertical()
+        assert rt.vertical_mode is True
+        rt.toggle_vertical()
+        assert rt.vertical_mode is False
+
+
+@pytest.mark.asyncio
+async def test_result_table_with_none_values(tmp_config_dir):
+    """ResultTable should handle None values in rows."""
+    qr = QR(
+        query_name="test", connection_name="c1",
+        columns=["id", "name"],
+        rows=[[1, None], [None, "Bob"]],
+        row_count=2, elapsed=0.05,
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield ResultTable()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        rt = app.query_one(ResultTable)
+        rt.load_result(qr)
+        assert rt.row_count == 2
+
+
+@pytest.mark.asyncio
+async def test_result_table_pagination(tmp_config_dir):
+    """ResultTable should paginate large results."""
+    rows = [[i, f"row_{i}"] for i in range(250)]
+    qr = QR(
+        query_name="test", connection_name="c1",
+        columns=["id", "name"],
+        rows=rows,
+        row_count=250, elapsed=0.1,
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield ResultTable(page_size=100)
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        rt = app.query_one(ResultTable)
+        rt.load_result(qr)
+        assert rt.total_pages == 3
+        assert rt.current_page == 0
+        rt.next_page()
+        assert rt.current_page == 1
+        rt.next_page()
+        assert rt.current_page == 2
+        rt.next_page()  # should stay at 2
+        assert rt.current_page == 2
+        rt.prev_page()
+        assert rt.current_page == 1
+
+
+# ======================================================================
+# History detail view test
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_history_detail_view_with_params(tmp_config_dir):
+    """History detail view should display params without crashing."""
+    from dbqm.core.history import save_history, HistoryEntry
+
+    entries = [
+        HistoryEntry(
+            id="001",
+            timestamp="2025-01-15T10:30:00",
+            entry_type="query",
+            name="param_query",
+            connection="dev_oracle",
+            params={"start_date": "2025-01-01", "end_date": "2025-01-31"},
+            row_count=10,
+            elapsed=1.0,
+            success=True,
+        ),
+    ]
+    save_history(entries)
+
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        from textual.widgets import DataTable
+        table = screen.query_one("#hist-table", DataTable)
+        assert table.row_count == 1
+        # Show detail for the entry
+        screen._show_detail(entries[0])
+        detail = screen.query_one("#hist-detail-phase")
+        assert detail.display is True
+
+
+@pytest.mark.asyncio
+async def test_history_detail_view_group_entry(tmp_config_dir):
+    """History detail view should display group entry with summary."""
+    from dbqm.core.history import save_history, HistoryEntry
+
+    entries = [
+        HistoryEntry(
+            id="002",
+            timestamp="2025-01-15T11:00:00",
+            entry_type="group",
+            name="comparison_group",
+            connection="",
+            all_match=False,
+            summary="Coluna: status\n  Iguais: 5\n  Diferentes: 2",
+            elapsed=3.5,
+        ),
+    ]
+    save_history(entries)
+
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        screen._show_detail(entries[0])
+        detail = screen.query_one("#hist-detail-phase")
+        assert detail.display is True
+
+
+# ======================================================================
+# Settings screen theme change test
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_settings_theme_change_saves(tmp_config_dir):
+    """Changing theme should persist to settings file."""
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        theme_select = screen.query_one("#settings-theme-select", Select)
+        # Change theme to github-light
+        theme_select.value = "github-light"
+        await pilot.pause()
+
+        from dbqm.models.settings import load_settings
+        settings = load_settings()
+        assert settings.theme == "github-light"
+
+
+# ======================================================================
+# Group exec result display integration test
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_group_exec_show_result_does_not_crash(tmp_config_dir):
+    """_show_result should display group results without AttributeError."""
+    from dbqm.ui.widgets.action_bar import ActionBar
+
+    qr1 = QR(
+        query_name="q1", connection_name="c1",
+        columns=["id", "status"], rows=[[1, "ok"], [2, "fail"]],
+        row_count=2, elapsed=0.1,
+    )
+    qr2 = QR(
+        query_name="q2", connection_name="c2",
+        columns=["id", "status"], rows=[[1, "ok"], [2, "ok"]],
+        row_count=2, elapsed=0.1,
+    )
+    comp = ComparisonResult(
+        column="status",
+        rows=[
+            ComparisonRow(key_value=1, values={"q1": "ok", "q2": "ok"}, status="OK"),
+            ComparisonRow(key_value=2, values={"q1": "fail", "q2": "ok"}, status="DIFF"),
+        ],
+        total_keys=2, equal_count=1, diff_count=1, absent_count=0, normalized_count=0,
+    )
+    gr = GR(
+        group_name="test_group",
+        query_results={"q1": qr1, "q2": qr2},
+        comparisons=[comp],
+        all_match=False,
+        summary_lines=["Coluna: status", "  Iguais: 1", "  Diferentes: 1"],
+    )
+
+    class TestApp(App):
+        def compose(self_):
+            yield ActionBar()
+            yield GroupExecScreen()
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        # Directly call _show_result — this is where the bug was
+        screen._show_result(gr, {"param1": "value1"})
+        await pilot.pause()
+
+        # Results phase should be visible
+        assert screen.query_one("#ge-results-phase").display is True
+        assert screen.query_one("#ge-selection-phase").display is False
+
+
 @pytest.mark.asyncio
 async def test_group_exec_folder_bar_is_horizontal_scroll(tmp_config_dir):
     """Group exec folder bar should use HorizontalScroll for scrollability."""

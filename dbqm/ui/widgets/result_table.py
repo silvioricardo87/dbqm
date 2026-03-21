@@ -137,7 +137,7 @@ class ResultTable(Vertical, can_focus=False):
         if self._result is None:
             return
         for col in self._result.columns:
-            self._data_table.add_column(col, key=col)
+            self._data_table.add_column(str(col), key=str(col))
         for row in self._current_page_rows():
             display_row = [str(v) if v is not None else "" for v in row]
             self._data_table.add_row(*display_row)
@@ -156,12 +156,13 @@ class ResultTable(Vertical, can_focus=False):
         if not rows:
             self._vertical_view.update("(sem resultados)")
             return
-        max_col_len = max(len(c) for c in columns)
+        str_columns = [str(c) for c in columns]
+        max_col_len = max(len(c) for c in str_columns)
         blocks: list[str] = []
         base = self.current_page * self.page_size
         for i, row in enumerate(rows):
             lines = [f"*** Registro {base + i + 1} ***"]
-            for col, val in zip(columns, row):
+            for col, val in zip(str_columns, row):
                 display_val = str(val) if val is not None else ""
                 lines.append(f"  {col:>{max_col_len}}: {display_val}")
             blocks.append("\n".join(lines))

@@ -465,9 +465,10 @@ class GroupExecScreen(Vertical):
         # Update info bar
         overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
         overall_color = "green" if group_result.all_match else "yellow"
+        group_name = str(group_result.group_name) if group_result.group_name else ""
         info = self.query_one("#ge-result-info", Static)
         info.update(
-            f"[bold]{group_result.group_name}[/] | "
+            f"[bold]{escape_markup(group_name)}[/] | "
             f"{len(group_result.query_results)} consultas | "
             f"[{overall_color} bold]{overall}[/]"
         )
@@ -483,11 +484,12 @@ class GroupExecScreen(Vertical):
         """Record execution in history/audit."""
         try:
             from dbqm.core.history import record_group_execution
+            summary_lines = [str(line) for line in group_result.summary_lines]
             record_group_execution(
-                group_name=group.name,
+                group_name=str(group.name),
                 params=params,
                 all_match=group_result.all_match,
-                summary="\n".join(group_result.summary_lines),
+                summary="\n".join(summary_lines),
                 elapsed=elapsed,
             )
         except Exception:
@@ -497,7 +499,7 @@ class GroupExecScreen(Vertical):
             from dbqm.core.audit import log_execution
             log_execution(
                 "group",
-                group.name,
+                str(group.name),
                 "",
                 params,
                 0,
