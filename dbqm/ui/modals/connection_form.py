@@ -102,6 +102,8 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         super().__init__()
         self._connection = connection
         self._edit_mode = connection is not None
+        self._current_db_type: str = ""
+        self._current_oracle_mode: str = ""
 
     def compose(self) -> ComposeResult:
         conn = self._connection or {}
@@ -154,13 +156,24 @@ class ConnectionFormModal(ModalScreen[dict | None]):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "field-db-type":
-            db_type = event.value if event.value != Select.BLANK else ""
-            self._rebuild_fields(str(db_type))
+            db_type = str(event.value) if event.value != Select.BLANK else ""
+            # Skip if fields are already built for this db_type (avoids
+            # duplicate-ID crash from the initial Select.Changed event
+            # firing after on_mount has already built the fields).
+            if db_type == self._current_db_type:
+                return
+            self._rebuild_fields(db_type)
         elif event.select.id == "field-oracle-mode":
-            self._rebuild_oracle_detail(str(event.value))
+            mode = str(event.value)
+            # Skip if oracle detail is already built for this mode
+            if mode == self._current_oracle_mode:
+                return
+            self._rebuild_oracle_detail(mode)
 
     def _rebuild_fields(self, db_type: str) -> None:
         """Clear and re-populate the dynamic fields container."""
+        self._current_db_type = db_type
+        self._current_oracle_mode = ""
         container = self.query_one("#dynamic-fields", Vertical)
         container.remove_children()
 
@@ -189,8 +202,8 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         # Sub-container for mode-specific fields
         sub = Vertical(id="oracle-detail")
         container.mount(sub)
-
-        self.call_later(self._rebuild_oracle_detail, current_mode)
+        # Mount detail fields directly (not via call_later to avoid race conditions)
+        self._populate_oracle_detail(sub, current_mode, conn)
 
     def _rebuild_oracle_detail(self, mode: str) -> None:
         """Rebuild Oracle detail fields based on mode (tns or direct)."""
@@ -199,9 +212,12 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         except Exception:
             return
         detail.remove_children()
-
         conn = self._connection or {}
+        self._populate_oracle_detail(detail, mode, conn)
 
+    def _populate_oracle_detail(self, detail: Vertical, mode: str, conn: dict) -> None:
+        """Populate Oracle detail fields for a given mode."""
+        self._current_oracle_mode = mode
         if mode == "tns":
             from pathlib import Path
             default_tns = str(
@@ -219,7 +235,6 @@ class ConnectionFormModal(ModalScreen[dict | None]):
             detail.mount(Static("Service Name:", classes="field-label"))
             detail.mount(Input(value=conn.get("service_name", ""), id="field-service-name"))
 
-        # Common auth fields
         detail.mount(Static("Usuario:", classes="field-label"))
         detail.mount(Input(value=conn.get("user", ""), id="field-user"))
         detail.mount(Static("Senha:", classes="field-label"))
