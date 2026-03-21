@@ -58,6 +58,9 @@ class DBQMApp(App):
         Binding("p", "shortcut('p')", "", show=False, priority=True),
         Binding("c", "shortcut('c')", "", show=False, priority=True),
         Binding("b", "shortcut('b')", "", show=False, priority=True),
+        # Arrow navigation between focusable widgets in form screens
+        Binding("down", "focus_next_widget", "", show=False, priority=True),
+        Binding("up", "focus_prev_widget", "", show=False, priority=True),
     ]
 
     def compose(self) -> ComposeResult:
@@ -107,13 +110,12 @@ class DBQMApp(App):
             )
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        """Disable shortcut bindings when an Input or TextArea is focused."""
+        """Disable bindings contextually based on focused widget."""
         if action == "shortcut":
             from textual.widgets import Input, TextArea
             focused = self.focused
             if isinstance(focused, (Input, TextArea)):
-                return False  # Binding disabled → key passes through to widget
-            # Also check if there's a matching action in the bar
+                return False
             try:
                 action_bar = self.query_one(ActionBar)
             except Exception:
@@ -121,9 +123,31 @@ class DBQMApp(App):
             key = parameters[0] if parameters else ""
             for act in action_bar._actions:
                 if act.key and act.key.lower() == key.lower():
-                    return True  # Binding enabled
-            return False  # No matching action → let key pass through
+                    return True
+            return False
+
+        if action in ("focus_next_widget", "focus_prev_widget"):
+            # Disable arrow navigation for widgets that use arrows internally
+            from textual.widgets import DataTable, ListView, TextArea, Select
+            from dbqm.ui.widgets.sidebar import Sidebar
+            focused = self.focused
+            if focused is None:
+                return False
+            if isinstance(focused, (DataTable, ListView, TextArea, Sidebar)):
+                return False
+            if isinstance(focused, Select) and focused.expanded:
+                return False
+            return True
+
         return True
+
+    def action_focus_next_widget(self) -> None:
+        """Move focus to next widget (arrow down)."""
+        self.screen.focus_next()
+
+    def action_focus_prev_widget(self) -> None:
+        """Move focus to previous widget (arrow up)."""
+        self.screen.focus_previous()
 
     def action_shortcut(self, key: str) -> None:
         """Handle action bar shortcut keys (N, T, E, R, etc.)."""
