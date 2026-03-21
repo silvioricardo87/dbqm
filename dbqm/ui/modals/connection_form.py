@@ -35,16 +35,12 @@ DEFAULT_HOSTS = {
 
 
 class ConnectionFormModal(ModalScreen[dict | None]):
-    """Modal for creating or editing a database connection.
-
-    Dismisses with a dict of field values on save, or None on cancel/ESC.
-    """
+    """Modal for creating or editing a database connection."""
 
     DEFAULT_CSS = """
     ConnectionFormModal {
         align: center middle;
     }
-
     ConnectionFormModal #dialog {
         width: 70;
         max-height: 90%;
@@ -52,43 +48,35 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         border: thick $accent;
         padding: 1 2;
     }
-
     ConnectionFormModal #form-title {
         text-style: bold;
         width: 100%;
         content-align: center middle;
         margin-bottom: 1;
     }
-
     ConnectionFormModal .field-label {
         margin-top: 1;
         height: 1;
     }
-
     ConnectionFormModal Input {
         width: 100%;
     }
-
     ConnectionFormModal Select {
         width: 100%;
     }
-
     ConnectionFormModal #buttons {
         margin-top: 1;
         width: 100%;
         align: center middle;
     }
-
     ConnectionFormModal Button {
         margin: 0 1;
     }
-
     ConnectionFormModal #test-result {
         margin-top: 1;
         height: auto;
         width: 100%;
     }
-
     ConnectionFormModal #dynamic-fields {
         height: auto;
     }
@@ -104,6 +92,8 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         self._edit_mode = connection is not None
         self._current_db_type: str = ""
         self._current_oracle_mode: str = ""
+        # Direct references to field widgets (avoids ID conflicts)
+        self._fields: dict[str, Input | Select] = {}
 
     def compose(self) -> ComposeResult:
         conn = self._connection or {}
@@ -112,38 +102,24 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         with Vertical(id="dialog"):
             yield Static(title, id="form-title")
 
-            # Name
             yield Static("Nome:", classes="field-label")
-            yield Input(
-                value=conn.get("name", ""),
-                id="field-name",
-                disabled=self._edit_mode,
-            )
+            name_input = Input(value=conn.get("name", ""), disabled=self._edit_mode)
+            self._fields["name"] = name_input
+            yield name_input
 
-            # DB Type
             yield Static("Tipo de banco:", classes="field-label")
             current_type = conn.get("db_type", "")
             valid_types = [v for _, v in DB_TYPE_OPTIONS]
             if current_type in valid_types:
-                yield Select(
-                    DB_TYPE_OPTIONS,
-                    value=current_type,
-                    id="field-db-type",
-                )
+                db_select = Select(DB_TYPE_OPTIONS, value=current_type, id="field-db-type")
             else:
-                yield Select(
-                    DB_TYPE_OPTIONS,
-                    prompt="Selecione o tipo",
-                    id="field-db-type",
-                )
+                db_select = Select(DB_TYPE_OPTIONS, prompt="Selecione o tipo", id="field-db-type")
+            self._fields["db_type"] = db_select
+            yield db_select
 
-            # Dynamic fields container
             yield Vertical(id="dynamic-fields")
-
-            # Test result area
             yield Static("", id="test-result")
 
-            # Buttons
             with Horizontal(id="buttons"):
                 yield Button("Salvar", variant="primary", id="btn-save")
                 yield Button("Testar", variant="warning", id="btn-test")
@@ -151,172 +127,189 @@ class ConnectionFormModal(ModalScreen[dict | None]):
 
     def on_mount(self) -> None:
         if self._edit_mode and self._connection:
-            self._rebuild_fields(self._connection.get("db_type", ""))
-        self.query_one("#field-name", Input).focus()
+            db_type = self._connection.get("db_type", "")
+            if db_type:
+                self._build_fields_for_type(db_type)
+        self._fields["name"].focus()
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "field-db-type":
             db_type = str(event.value) if event.value != Select.BLANK else ""
-            # Skip if fields are already built for this db_type (avoids
-            # duplicate-ID crash from the initial Select.Changed event
-            # firing after on_mount has already built the fields).
             if db_type == self._current_db_type:
                 return
-            self._rebuild_fields(db_type)
-        elif event.select.id == "field-oracle-mode":
+            self._build_fields_for_type(db_type)
+        elif event.select is self._fields.get("oracle_mode"):
             mode = str(event.value)
-            # Skip if oracle detail is already built for this mode
             if mode == self._current_oracle_mode:
                 return
-            self._rebuild_oracle_detail(mode)
+            self._build_oracle_detail(mode)
 
-    def _rebuild_fields(self, db_type: str) -> None:
-        """Clear and re-populate the dynamic fields container."""
+    def _build_fields_for_type(self, db_type: str) -> None:
+        """Rebuild all dynamic fields for the selected db type."""
         self._current_db_type = db_type
         self._current_oracle_mode = ""
+
         container = self.query_one("#dynamic-fields", Vertical)
+        # Remove old field references
+        for key in list(self._fields):
+            if key not in ("name", "db_type"):
+                self._fields.pop(key, None)
         container.remove_children()
 
         conn = self._connection or {}
 
         if db_type == "oracle":
-            self._mount_oracle_fields(container, conn)
+            self._build_oracle_fields(container, conn)
         elif db_type in ("sqlserver", "postgresql", "mysql"):
-            self._mount_generic_fields(container, conn, db_type)
+            self._build_generic_fields(container, conn, db_type)
 
-    def _mount_oracle_fields(self, container: Vertical, conn: dict) -> None:
-        """Mount Oracle-specific fields."""
+    def _build_oracle_fields(self, container: Vertical, conn: dict) -> None:
         current_mode = conn.get("mode", "direct")
         valid_modes = [v for _, v in ORACLE_MODE_OPTIONS]
         if current_mode not in valid_modes:
             current_mode = "direct"
 
         container.mount(Static("Modo:", classes="field-label"))
-        container.mount(
-            Select(
-                ORACLE_MODE_OPTIONS,
-                value=current_mode,
-                id="field-oracle-mode",
-            )
-        )
-        # Sub-container for mode-specific fields
-        sub = Vertical(id="oracle-detail")
-        container.mount(sub)
-        # Mount detail fields directly (not via call_later to avoid race conditions)
-        self._populate_oracle_detail(sub, current_mode, conn)
+        mode_select = Select(ORACLE_MODE_OPTIONS, value=current_mode)
+        self._fields["oracle_mode"] = mode_select
+        container.mount(mode_select)
 
-    def _rebuild_oracle_detail(self, mode: str) -> None:
-        """Rebuild Oracle detail fields based on mode (tns or direct)."""
-        try:
-            detail = self.query_one("#oracle-detail", Vertical)
-        except Exception:
-            return
-        detail.remove_children()
-        conn = self._connection or {}
-        self._populate_oracle_detail(detail, mode, conn)
+        # Build detail fields inline
+        self._current_oracle_mode = current_mode
+        self._mount_oracle_detail_fields(container, current_mode, conn)
 
-    def _populate_oracle_detail(self, detail: Vertical, mode: str, conn: dict) -> None:
-        """Populate Oracle detail fields for a given mode."""
+    def _build_oracle_detail(self, mode: str) -> None:
+        """Rebuild oracle detail when mode changes (tns <-> direct)."""
         self._current_oracle_mode = mode
+        container = self.query_one("#dynamic-fields", Vertical)
+
+        # Remove everything except the mode label and selector (first 2 children)
+        children = list(container.children)
+        for child in children[2:]:
+            child.remove()
+
+        # Remove old field refs
+        for key in list(self._fields):
+            if key not in ("name", "db_type", "oracle_mode"):
+                self._fields.pop(key, None)
+
+        conn = self._connection or {}
+        self._mount_oracle_detail_fields(container, mode, conn)
+
+    def _mount_oracle_detail_fields(self, container: Vertical, mode: str, conn: dict) -> None:
         if mode == "tns":
             from pathlib import Path
             default_tns = str(
                 Path(__file__).resolve().parent.parent.parent.parent / "tns" / "tnsnames.ora"
             )
-            detail.mount(Static("Caminho tnsnames.ora:", classes="field-label"))
-            detail.mount(Input(value=conn.get("tns_path", default_tns), id="field-tns-path"))
-            detail.mount(Static("TNS Name:", classes="field-label"))
-            detail.mount(Input(value=conn.get("tns_name", ""), id="field-tns-name"))
+            container.mount(Static("Caminho tnsnames.ora:", classes="field-label"))
+            tns_path = Input(value=conn.get("tns_path", default_tns))
+            self._fields["tns_path"] = tns_path
+            container.mount(tns_path)
+
+            container.mount(Static("TNS Name:", classes="field-label"))
+            tns_name = Input(value=conn.get("tns_name", ""))
+            self._fields["tns_name"] = tns_name
+            container.mount(tns_name)
         else:
-            detail.mount(Static("Host:", classes="field-label"))
-            detail.mount(Input(value=conn.get("host", ""), id="field-host"))
-            detail.mount(Static("Porta:", classes="field-label"))
-            detail.mount(Input(value=str(conn.get("port", 1521)), id="field-port"))
-            detail.mount(Static("Service Name:", classes="field-label"))
-            detail.mount(Input(value=conn.get("service_name", ""), id="field-service-name"))
+            container.mount(Static("Host:", classes="field-label"))
+            host = Input(value=conn.get("host", ""))
+            self._fields["host"] = host
+            container.mount(host)
 
-        detail.mount(Static("Usuario:", classes="field-label"))
-        detail.mount(Input(value=conn.get("user", ""), id="field-user"))
-        detail.mount(Static("Senha:", classes="field-label"))
-        detail.mount(Input(
-            value="",
-            id="field-password",
-            password=True,
-            placeholder="(manter atual)" if self._edit_mode else "",
-        ))
+            container.mount(Static("Porta:", classes="field-label"))
+            port = Input(value=str(conn.get("port", 1521)))
+            self._fields["port"] = port
+            container.mount(port)
 
-    def _mount_generic_fields(self, container: Vertical, conn: dict, db_type: str) -> None:
-        """Mount fields for SQL Server, PostgreSQL, MySQL."""
+            container.mount(Static("Service Name:", classes="field-label"))
+            svc = Input(value=conn.get("service_name", ""))
+            self._fields["service_name"] = svc
+            container.mount(svc)
+
+        container.mount(Static("Usuario:", classes="field-label"))
+        user = Input(value=conn.get("user", ""))
+        self._fields["user"] = user
+        container.mount(user)
+
+        container.mount(Static("Senha:", classes="field-label"))
+        pwd = Input(value="", password=True,
+                    placeholder="(manter atual)" if self._edit_mode else "")
+        self._fields["password"] = pwd
+        container.mount(pwd)
+
+    def _build_generic_fields(self, container: Vertical, conn: dict, db_type: str) -> None:
         default_host = DEFAULT_HOSTS.get(db_type, "")
         default_port = DEFAULT_PORTS.get(db_type, "")
 
         container.mount(Static("Host:", classes="field-label"))
-        container.mount(Input(value=conn.get("host", default_host), id="field-host"))
+        host = Input(value=conn.get("host", default_host))
+        self._fields["host"] = host
+        container.mount(host)
+
         container.mount(Static("Porta:", classes="field-label"))
-        container.mount(Input(value=str(conn.get("port", default_port)), id="field-port"))
+        port = Input(value=str(conn.get("port", default_port)))
+        self._fields["port"] = port
+        container.mount(port)
+
         container.mount(Static("Database:", classes="field-label"))
-        container.mount(Input(value=conn.get("database", ""), id="field-database"))
+        db = Input(value=conn.get("database", ""))
+        self._fields["database"] = db
+        container.mount(db)
+
         container.mount(Static("Usuario:", classes="field-label"))
-        container.mount(Input(value=conn.get("user", ""), id="field-user"))
+        user = Input(value=conn.get("user", ""))
+        self._fields["user"] = user
+        container.mount(user)
+
         container.mount(Static("Senha:", classes="field-label"))
-        container.mount(Input(
-            value="",
-            id="field-password",
-            password=True,
-            placeholder="(manter atual)" if self._edit_mode else "",
-        ))
+        pwd = Input(value="", password=True,
+                    placeholder="(manter atual)" if self._edit_mode else "")
+        self._fields["password"] = pwd
+        container.mount(pwd)
 
     def _collect_values(self) -> dict | None:
-        """Collect all field values into a dict. Returns None if validation fails."""
-        try:
-            name = self.query_one("#field-name", Input).value.strip()
-        except Exception:
-            return None
-
+        """Collect all field values into a dict."""
+        name = self._fields["name"].value.strip()
         if not name:
             self.notify("Nome obrigatorio.", severity="error")
             return None
 
-        db_type_select = self.query_one("#field-db-type", Select)
-        if db_type_select.value == Select.BLANK:
+        db_select = self._fields["db_type"]
+        if db_select.value == Select.BLANK:
             self.notify("Selecione o tipo de banco.", severity="error")
             return None
-        db_type = str(db_type_select.value)
+        db_type = str(db_select.value)
 
         result: dict = {"name": name, "db_type": db_type}
 
         if db_type == "oracle":
-            try:
-                mode_select = self.query_one("#field-oracle-mode", Select)
-                result["mode"] = str(mode_select.value)
-            except Exception:
-                result["mode"] = "direct"
+            mode_select = self._fields.get("oracle_mode")
+            result["mode"] = str(mode_select.value) if mode_select else "direct"
 
             if result["mode"] == "tns":
-                result["tns_path"] = self._get_input("#field-tns-path")
-                result["tns_name"] = self._get_input("#field-tns-name")
+                result["tns_path"] = self._field_val("tns_path")
+                result["tns_name"] = self._field_val("tns_name")
             else:
-                result["host"] = self._get_input("#field-host")
-                result["port"] = self._get_input_int("#field-port", 1521)
-                result["service_name"] = self._get_input("#field-service-name")
+                result["host"] = self._field_val("host")
+                result["port"] = self._field_int("port", 1521)
+                result["service_name"] = self._field_val("service_name")
         else:
-            result["host"] = self._get_input("#field-host")
-            result["port"] = self._get_input_int("#field-port", int(DEFAULT_PORTS.get(db_type, "0")))
-            result["database"] = self._get_input("#field-database")
+            result["host"] = self._field_val("host")
+            result["port"] = self._field_int("port", int(DEFAULT_PORTS.get(db_type, "0")))
+            result["database"] = self._field_val("database")
 
-        result["user"] = self._get_input("#field-user")
-        result["password"] = self._get_input("#field-password")
+        result["user"] = self._field_val("user")
+        result["password"] = self._field_val("password")
 
         return result
 
-    def _get_input(self, selector: str) -> str:
-        try:
-            return self.query_one(selector, Input).value.strip()
-        except Exception:
-            return ""
+    def _field_val(self, key: str) -> str:
+        inp = self._fields.get(key)
+        return inp.value.strip() if inp else ""
 
-    def _get_input_int(self, selector: str, default: int) -> int:
-        val = self._get_input(selector)
+    def _field_int(self, key: str, default: int) -> int:
+        val = self._field_val(key)
         try:
             return int(val)
         except (ValueError, TypeError):
@@ -333,11 +326,9 @@ class ConnectionFormModal(ModalScreen[dict | None]):
             self.dismiss(None)
 
     def _do_test(self) -> None:
-        """Test the connection using collected field values."""
         values = self._collect_values()
         if values is None:
             return
-
         result_label = self.query_one("#test-result", Static)
         result_label.update("[dim]Testando conexao...[/]")
         self._run_test(values)
@@ -348,7 +339,6 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         from dbqm.core.db_manager import test_connection
         from dbqm.models.connection import Connection
 
-        # Build a Connection object for testing
         password = values.get("password", "")
         if password:
             password = encrypt(password)
