@@ -12,7 +12,7 @@ from textual.widgets import DataTable, Static
 from dbqm.core.query_engine import QueryResult
 
 
-class ResultTable(Vertical):
+class ResultTable(Vertical, can_focus=False):
     """Widget that wraps DataTable to display query results with pagination."""
 
     DEFAULT_CSS = """
@@ -49,6 +49,13 @@ class ResultTable(Vertical):
     def compose(self):
         yield self._data_table
         yield self._vertical_view
+
+    def focus(self, scroll_visible: bool = True) -> None:
+        """Delegate focus to the internal DataTable."""
+        try:
+            self._data_table.focus(scroll_visible)
+        except Exception:
+            super().focus(scroll_visible)
 
     def on_mount(self) -> None:
         self._vertical_view.display = False

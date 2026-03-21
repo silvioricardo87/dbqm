@@ -10,7 +10,7 @@ from dbqm.core.group_engine import GroupResult, ComparisonResult
 from dbqm.ui.utils import sanitize_id
 
 
-class GroupResultWidget(Vertical):
+class GroupResultWidget(Vertical, can_focus=False):
     """Widget that displays group comparison results with flat/pivoted toggle and status filtering."""
 
     DEFAULT_CSS = """

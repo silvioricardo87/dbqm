@@ -7,7 +7,7 @@ from textual.containers import Vertical
 from textual.widgets import LoadingIndicator, Static
 
 
-class ProgressIndicator(Vertical):
+class ProgressIndicator(Vertical, can_focus=False):
     """A compact progress indicator with a message and loading animation.
 
     Hidden by default. Call ``start(message)`` to show it and ``stop()`` to

@@ -89,7 +89,7 @@ class _QueryListItem(ListItem):
                 yield Static(f"[dim]{table}[/]", classes="ql-table", markup=True)
 
 
-class QueryListWidget(Vertical):
+class QueryListWidget(Vertical, can_focus=False):
     """Displays a list of queries with sorting, filtering, and text search."""
 
     DEFAULT_CSS = """
@@ -122,6 +122,13 @@ class QueryListWidget(Vertical):
         self._current_folder: str | None = None
         self._search_text: str = ""
         self._composed = False
+
+    def focus(self, scroll_visible: bool = True) -> None:
+        """Delegate focus to the internal ListView."""
+        try:
+            self.query_one("#ql-listview", ListView).focus(scroll_visible)
+        except Exception:
+            super().focus(scroll_visible)
 
     def compose(self):
         with Horizontal(id="ql-search"):
