@@ -20,6 +20,7 @@ MENU_ITEMS: list[tuple[str, list[tuple[str, str, str]]]] = [
     ]),
     ("FERRAMENTAS", [
         ("extract_ddl", "\U0001f3d7", "DDL"),
+        ("package_editor", "\U0001f4e6", "Packages"),
         ("browse", "\U0001f5c2", "Objetos"),
         ("history", "\U0001f4dc", "Historico"),
     ]),

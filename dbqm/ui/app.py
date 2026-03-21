@@ -23,6 +23,7 @@ ACTION_LABELS: dict[str, str] = {
     "exec_group": "Executar Grupo",
     "config_group": "Gerenciar Grupos",
     "extract_ddl": "DDL",
+    "package_editor": "Packages",
     "browse": "Objetos",
     "history": "Histórico",
     "config_conn": "Conexões",
@@ -56,6 +57,8 @@ class DBQMApp(App):
         Binding("h", "shortcut('h')", "", show=False, priority=True),
         Binding("i", "shortcut('i')", "", show=False, priority=True),
         Binding("p", "shortcut('p')", "", show=False, priority=True),
+        Binding("c", "shortcut('c')", "", show=False, priority=True),
+        Binding("b", "shortcut('b')", "", show=False, priority=True),
     ]
 
     def compose(self) -> ComposeResult:
@@ -206,6 +209,10 @@ class DBQMApp(App):
             from dbqm.ui.screens.ddl import DDLScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "DDL"])
             screen_widget = DDLScreen(id="ddl-screen")
+        elif action == "package_editor":
+            from dbqm.ui.screens.package_editor import PackageEditorScreen
+            self.query_one(Breadcrumb).set_path(["Ferramentas", "Packages"])
+            screen_widget = PackageEditorScreen(id="package-editor-screen")
         elif action == "browse":
             from dbqm.ui.screens.browser import BrowserScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "Objetos"])

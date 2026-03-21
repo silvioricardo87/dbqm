@@ -2231,3 +2231,85 @@ async def test_global_error_handler_shows_modal(tmp_config_dir):
         await pilot.pause()
         modals = app.query(ErrorModal)
         assert len(modals) > 0 or True  # At minimum no crash
+
+
+# ======================================================================
+# PackageEditorScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.package_editor import PackageEditorScreen
+
+
+class PackageEditorTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield PackageEditorScreen()
+
+
+@pytest.mark.asyncio
+async def test_package_editor_screen_renders(tmp_config_dir):
+    app = PackageEditorTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        assert app.query_one(PackageEditorScreen) is not None
+
+
+# ======================================================================
+# Package editor core tests
+# ======================================================================
+
+
+def test_generate_blank_template():
+    from dbqm.core.package_editor import generate_blank_template
+
+    spec, body = generate_blank_template("PKG_TEST")
+    assert "PKG_TEST" in spec
+    assert "CREATE OR REPLACE PACKAGE PKG_TEST" in spec
+    assert "CREATE OR REPLACE PACKAGE BODY PKG_TEST" in body
+
+
+def test_generate_blank_template_uppercases_name():
+    from dbqm.core.package_editor import generate_blank_template
+
+    spec, body = generate_blank_template("my_pkg")
+    assert "MY_PKG" in spec
+    assert "MY_PKG" in body
+
+
+def test_generate_wizard_template():
+    from dbqm.core.package_editor import generate_wizard_template
+
+    routines = [
+        {
+            "name": "calc",
+            "type": "FUNCTION",
+            "params": "p_id IN NUMBER",
+            "return_type": "NUMBER",
+        },
+        {
+            "name": "process",
+            "type": "PROCEDURE",
+            "params": "p_name IN VARCHAR2",
+            "return_type": None,
+        },
+    ]
+    spec, body = generate_wizard_template("PKG_TEST", routines)
+    assert "FUNCTION calc" in spec
+    assert "PROCEDURE process" in spec
+    assert "RETURN NULL" in body
+    assert "NULL; -- TODO" in body
+
+
+def test_generate_wizard_template_no_params():
+    from dbqm.core.package_editor import generate_wizard_template
+
+    routines = [
+        {
+            "name": "do_stuff",
+            "type": "PROCEDURE",
+            "params": "",
+            "return_type": None,
+        },
+    ]
+    spec, body = generate_wizard_template("MY_PKG", routines)
+    assert "PROCEDURE do_stuff" in spec
+    assert "PROCEDURE do_stuff" in body
+    assert "MY_PKG" in spec
