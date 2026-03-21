@@ -359,87 +359,99 @@ class GroupExecScreen(Vertical):
         from dbqm.core.query_engine import execute_query
         from dbqm.core.group_engine import build_group_result
 
-        query_results = {}
-        start_time = time.time()
+        try:
+            query_results = {}
+            start_time = time.time()
 
-        for qname in group.queries:
-            query = find_query(qname)
-            if query is None:
+            for qname in group.queries:
+                query = find_query(qname)
+                if query is None:
+                    self.call_from_thread(
+                        self.notify,
+                        f"Consulta '{qname}' nao encontrada no grupo.",
+                        severity="warning",
+                    )
+                    continue
+
+                conn = find_connection(query.connection)
+                if conn is None:
+                    self.call_from_thread(
+                        self.notify,
+                        f"Conexao '{query.connection}' nao encontrada para '{qname}'.",
+                        severity="warning",
+                    )
+                    continue
+
+                # Merge shared params with query-specific defaults
+                q_params = dict(param_values)
+                for p in query.params:
+                    if p.name not in q_params:
+                        q_params[p.name] = p.default or ""
+
                 self.call_from_thread(
-                    self.notify,
-                    f"Consulta '{qname}' nao encontrada no grupo.",
-                    severity="warning",
+                    self._update_progress,
+                    f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
                 )
-                continue
 
-            conn = find_connection(query.connection)
-            if conn is None:
+                try:
+                    result = execute_query(query, conn, q_params)
+                except Exception as e:
+                    self.call_from_thread(
+                        self.notify,
+                        f"Erro em '{qname}': {e}",
+                        severity="error",
+                        timeout=8,
+                    )
+                    continue
+
+                # Apply column maps
+                if result.success and result.rows:
+                    query.apply_column_maps(result.rows, result.columns)
+
+                query_results[qname] = result
+
+            elapsed = time.time() - start_time
+
+            if not query_results:
+                self.call_from_thread(self._on_error, "Nenhuma consulta executada com sucesso.")
+                return
+
+            # Check for failed queries
+            failures = {k: v for k, v in query_results.items() if not v.success}
+            if failures:
+                for qn, res in failures.items():
+                    self.call_from_thread(
+                        self.notify,
+                        f"Erro em '{qn}': {res.error}",
+                        severity="error",
+                        timeout=8,
+                    )
+
+            # Only compare successful results
+            success_results = {k: v for k, v in query_results.items() if v.success}
+
+            if len(success_results) < 2:
                 self.call_from_thread(
-                    self.notify,
-                    f"Conexao '{query.connection}' nao encontrada para '{qname}'.",
-                    severity="warning",
+                    self._on_error,
+                    "Necessario pelo menos 2 consultas com sucesso para comparar.",
                 )
-                continue
+                return
 
-            # Merge shared params with query-specific defaults
-            q_params = dict(param_values)
-            for p in query.params:
-                if p.name not in q_params:
-                    q_params[p.name] = p.default or ""
-
-            self.call_from_thread(
-                self._update_progress,
-                f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
+            group_result = build_group_result(
+                group_name=group.name,
+                query_results=success_results,
+                join_key=group.join_key,
+                compare_columns=group.compare_columns,
+                column_mapping=group.column_mapping or None,
+                normalize=group.normalize or None,
             )
 
-            result = execute_query(query, conn, q_params)
+            # Record history
+            self._record_execution(group, param_values, group_result, elapsed)
 
-            # Apply column maps
-            if result.success and result.rows:
-                query.apply_column_maps(result.rows, result.columns)
-
-            query_results[qname] = result
-
-        elapsed = time.time() - start_time
-
-        if not query_results:
-            self.call_from_thread(self._on_error, "Nenhuma consulta executada com sucesso.")
-            return
-
-        # Check for failed queries
-        failures = {k: v for k, v in query_results.items() if not v.success}
-        if failures:
-            for qn, res in failures.items():
-                self.call_from_thread(
-                    self.notify,
-                    f"Erro em '{qn}': {res.error}",
-                    severity="error",
-                    timeout=8,
-                )
-
-        # Only compare successful results
-        success_results = {k: v for k, v in query_results.items() if v.success}
-
-        if len(success_results) < 2:
-            self.call_from_thread(
-                self._on_error,
-                "Necessario pelo menos 2 consultas com sucesso para comparar.",
-            )
-            return
-
-        group_result = build_group_result(
-            group_name=group.name,
-            query_results=success_results,
-            join_key=group.join_key,
-            compare_columns=group.compare_columns,
-            column_mapping=group.column_mapping or None,
-            normalize=group.normalize or None,
-        )
-
-        # Record history
-        self._record_execution(group, param_values, group_result, elapsed)
-
-        self.call_from_thread(self._show_result, group_result, param_values)
+            self.call_from_thread(self._show_result, group_result, param_values)
+        except Exception as e:
+            self.call_from_thread(self._on_error, f"Erro inesperado: {e}")
 
     def _update_progress(self, msg: str) -> None:
         """Update progress message (safe to call from main thread via call_from_thread)."""

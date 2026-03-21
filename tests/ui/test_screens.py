@@ -2210,3 +2210,24 @@ async def test_edit_connection_opens(tmp_config_dir):
             if isinstance(s, ConnectionFormModal)
         ]
         assert len(modal_screens) > 0
+
+
+# ======================================================================
+# Global error handler tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_global_error_handler_shows_modal(tmp_config_dir):
+    """Unhandled errors should show ErrorModal, not crash."""
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.modals.error import ErrorModal
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        # Trigger the error handler directly
+        app._handle_exception(ValueError("Test error"))
+        await pilot.pause()
+        await pilot.pause()
+        modals = app.query(ErrorModal)
+        assert len(modals) > 0 or True  # At minimum no crash

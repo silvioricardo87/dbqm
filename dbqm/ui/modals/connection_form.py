@@ -344,28 +344,32 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         from dbqm.core.db_manager import test_connection
         from dbqm.models.connection import Connection
 
-        password = values.get("password", "")
-        if password:
-            password = encrypt(password)
-        elif self._edit_mode and self._connection:
-            password = self._connection.get("password", "")
+        try:
+            password = values.get("password", "")
+            if password:
+                password = encrypt(password)
+            elif self._edit_mode and self._connection:
+                password = self._connection.get("password", "")
 
-        conn = Connection(
-            name=values["name"],
-            db_type=values["db_type"],
-            user=values.get("user", ""),
-            password=password,
-            mode=values.get("mode"),
-            host=values.get("host"),
-            port=values.get("port"),
-            service_name=values.get("service_name"),
-            database=values.get("database"),
-            tns_path=values.get("tns_path"),
-            tns_name=values.get("tns_name"),
-        )
+            conn = Connection(
+                name=values["name"],
+                db_type=values["db_type"],
+                user=values.get("user", ""),
+                password=password,
+                mode=values.get("mode"),
+                host=values.get("host"),
+                port=values.get("port"),
+                service_name=values.get("service_name"),
+                database=values.get("database"),
+                tns_path=values.get("tns_path"),
+                tns_name=values.get("tns_name"),
+            )
 
-        success, msg = test_connection(conn)
-        self.call_from_thread(self._show_test_result, success, msg)
+            success, msg = test_connection(conn)
+        except Exception as e:
+            success, msg = False, f"Erro: {e}"
+
+        self.app.call_from_thread(self._show_test_result, success, msg)
 
     def _show_test_result(self, success: bool, msg: str) -> None:
         result_label = self.query_one("#test-result", Static)

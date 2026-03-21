@@ -277,13 +277,21 @@ class QueryExecScreen(Vertical):
         """Execute query in a background thread."""
         from dbqm.core.query_engine import execute_query
 
-        result = execute_query(query, conn, params)
+        try:
+            result = execute_query(query, conn, params)
 
-        # Apply column maps (DE-PARA)
-        if result.success and result.rows:
-            query.apply_column_maps(result.rows, result.columns)
+            # Apply column maps (DE-PARA)
+            if result.success and result.rows:
+                query.apply_column_maps(result.rows, result.columns)
 
-        self.call_from_thread(self._on_result, query, conn, params, result)
+            self.call_from_thread(self._on_result, query, conn, params, result)
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
+
+    def _show_error(self, msg: str) -> None:
+        """Show error notification and stop progress indicator."""
+        self.query_one(ProgressIndicator).stop()
+        self.notify(f"Erro: {msg}", severity="error", timeout=8)
 
     def _on_result(self, query, conn, params: dict[str, str], result: QueryResult) -> None:
         """Handle query result back on the main thread."""

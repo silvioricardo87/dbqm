@@ -189,16 +189,21 @@ class ConnectionsScreen(Vertical):
         from dbqm.core.db_manager import test_connection
         from dbqm.models.connection import find_connection
 
-        conn = find_connection(name)
-        if conn is None:
-            self.call_from_thread(
-                self.notify, f'Conexao "{name}" nao encontrada.', severity="error"
-            )
-            return
+        try:
+            conn = find_connection(name)
+            if conn is None:
+                self.call_from_thread(
+                    self.notify, f'Conexao "{name}" nao encontrada.', severity="error"
+                )
+                return
 
-        success, msg = test_connection(conn)
-        severity = "information" if success else "error"
-        self.call_from_thread(self.notify, msg, severity=severity, timeout=6)
+            success, msg = test_connection(conn)
+            severity = "information" if success else "error"
+            self.call_from_thread(self.notify, msg, severity=severity, timeout=6)
+        except Exception as e:
+            self.call_from_thread(
+                self.notify, f"Erro ao testar conexao: {e}", severity="error", timeout=8
+            )
 
     # -- Edit --
 

@@ -1,6 +1,8 @@
 """Main Textual application for DB Query Manager."""
 from __future__ import annotations
 
+import traceback
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, Container
@@ -242,6 +244,27 @@ class DBQMApp(App):
             screen_widget.focus()
         except Exception:
             pass
+
+    def _handle_exception(self, error: Exception) -> None:
+        """Global error handler — show error modal instead of crashing."""
+        from dbqm.ui.modals.error import ErrorModal
+        tb = traceback.format_exception(type(error), error, error.__traceback__)
+        detail = "".join(tb)
+        # Escape Rich markup in the traceback
+        detail = detail.replace("[", "\\[")
+        title = f"Erro: {type(error).__name__}"
+        try:
+            self.push_screen(ErrorModal(title, detail))
+        except Exception:
+            # Last resort: use notification
+            self.notify(f"{title}: {error}", severity="error", timeout=10)
+        return  # Don't re-raise — app stays alive
+
+    def on_worker_state_changed(self, event) -> None:
+        """Catch worker thread errors and show them in a modal."""
+        from textual.worker import WorkerState
+        if event.state == WorkerState.ERROR and event.worker.error:
+            self._handle_exception(event.worker.error)
 
     def action_show_help(self) -> None:
         """Show the help overlay with keyboard shortcuts."""

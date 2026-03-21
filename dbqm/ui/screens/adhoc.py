@@ -258,8 +258,16 @@ class AdhocScreen(Vertical):
     @work(thread=True)
     def _run_sql(self, sql: str, conn, params: dict[str, str]) -> None:
         """Execute SQL in a background thread."""
-        result = execute_adhoc(sql, conn, params)
-        self.call_from_thread(self._on_sql_result, result)
+        try:
+            result = execute_adhoc(sql, conn, params)
+            self.call_from_thread(self._on_sql_result, result)
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
+
+    def _show_error(self, msg: str) -> None:
+        """Show error notification and stop progress indicator."""
+        self.query_one(ProgressIndicator).stop()
+        self.notify(f"Erro: {msg}", severity="error", timeout=8)
 
     def _on_sql_result(self, result) -> None:
         """Handle SQL result back on the main thread."""
