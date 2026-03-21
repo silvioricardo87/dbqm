@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
@@ -49,6 +49,7 @@ class HelpModal(ModalScreen[None]):
         background: $surface;
         border: thick $accent;
         padding: 1 2;
+        overflow-y: auto;
     }
     """
 
@@ -59,7 +60,7 @@ class HelpModal(ModalScreen[None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="help-dialog"):
+        with VerticalScroll(id="help-dialog"):
             yield Static(HELP_TEXT, markup=True)
 
     def action_dismiss_help(self) -> None:

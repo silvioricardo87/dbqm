@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
+from textual.containers import Vertical, VerticalScroll, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static
 
@@ -28,6 +28,7 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         background: $surface;
         border: thick $accent;
         padding: 1 2;
+        overflow-y: auto;
     }
 
     ParamModal #title {
@@ -82,7 +83,7 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         self._param_id_to_name: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
+        with VerticalScroll(id="dialog"):
             yield Static(self.query_name, id="title")
             if self.description:
                 yield Static(self.description, id="subtitle")

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
+from textual.containers import Vertical, VerticalScroll, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Input, Select, Static
 
@@ -25,6 +25,7 @@ class ColumnMapsModal(ModalScreen[dict | None]):
         background: $surface;
         border: thick $accent;
         padding: 1 2;
+        overflow-y: auto;
     }
 
     ColumnMapsModal #title {
@@ -84,7 +85,7 @@ class ColumnMapsModal(ModalScreen[dict | None]):
 
     def compose(self) -> ComposeResult:
         options = [(col, col) for col in self._columns]
-        with Vertical(id="dialog"):
+        with VerticalScroll(id="dialog"):
             yield Static("DE-PARA (Mapeamento de Valores)", id="title")
             yield Select(options, prompt="Selecione uma coluna", id="col-select")
             yield DataTable(id="maps-table")

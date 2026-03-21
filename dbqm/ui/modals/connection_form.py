@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
+from textual.containers import Vertical, VerticalScroll, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Static, Select
 from textual import work
@@ -47,6 +47,7 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         background: $surface;
         border: thick $accent;
         padding: 1 2;
+        overflow-y: auto;
     }
     ConnectionFormModal #form-title {
         text-style: bold;
@@ -99,7 +100,7 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         conn = self._connection or {}
         title = "Editar Conexao" if self._edit_mode else "Nova Conexao"
 
-        with Vertical(id="dialog"):
+        with VerticalScroll(id="dialog"):
             yield Static(title, id="form-title")
 
             yield Static("Nome:", classes="field-label")
