@@ -46,13 +46,23 @@ class QueryExecScreen(Vertical):
         text-align: center;
     }
     QueryExecScreen #folder-bar {
-        height: auto;
+        height: 3;
         padding: 0 1;
         background: $surface;
     }
     QueryExecScreen #folder-bar Button {
         min-width: 8;
         margin: 0 1 0 0;
+    }
+    QueryExecScreen #folder-bar Button.-active {
+        background: $primary;
+        color: $text;
+    }
+    QueryExecScreen #folder-hint {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+        text-style: dim italic;
     }
     """
 
@@ -69,6 +79,8 @@ class QueryExecScreen(Vertical):
         self._current_params: dict[str, str] = {}
         self._current_result: QueryResult | None = None
         self._folder_map: dict[str, str] = {}
+        self._folder_buttons: list[Button] = []
+        self._active_folder_idx: int = 0
 
     def compose(self) -> ComposeResult:
         # Selection phase
@@ -126,20 +138,23 @@ class QueryExecScreen(Vertical):
             folder_bar = Horizontal(id="folder-bar")
             selection.mount(folder_bar)
             # "Todas" button
-            folder_bar.mount(
-                Button("Todas", id="folder-todas", variant="primary")
-            )
+            btn_todas = Button("Todas", id="folder-todas", variant="primary")
+            folder_bar.mount(btn_todas)
+            self._folder_buttons = [btn_todas]
             for folder in folders:
                 safe_id = sanitize_id(folder)
                 self._folder_map[safe_id] = folder
-                folder_bar.mount(
-                    Button(folder, id=f"folder-{safe_id}", variant="default")
-                )
+                btn = Button(folder, id=f"folder-{safe_id}", variant="default")
+                folder_bar.mount(btn)
+                self._folder_buttons.append(btn)
             has_no_folder = any(not q.folder for q in queries)
             if has_no_folder:
-                folder_bar.mount(
-                    Button("Sem pasta", id="folder-sem-pasta", variant="default")
-                )
+                btn_sem = Button("Sem pasta", id="folder-sem-pasta", variant="default")
+                folder_bar.mount(btn_sem)
+                self._folder_buttons.append(btn_sem)
+            # Hint for keyboard navigation
+            selection.mount(Static("[dim]← → alternar pastas[/dim]", id="folder-hint", markup=True))
+            self._active_folder_idx = 0
 
         selection.mount(ql)
         ql.load_queries(queries)
@@ -150,28 +165,50 @@ class QueryExecScreen(Vertical):
         if not btn_id.startswith("folder-"):
             return
 
-        # Update button variants
-        try:
-            folder_bar = self.query_one("#folder-bar", Horizontal)
-            for btn in folder_bar.query(Button):
-                btn.variant = "default"
-            event.button.variant = "primary"
-        except Exception:
-            pass
+        # Sync index
+        for i, b in enumerate(self._folder_buttons):
+            if b is event.button:
+                self._active_folder_idx = i
+                break
 
-        # Filter the query list
+        self._activate_folder_button(event.button)
+
+    # ------------------------------------------------------------------
+    # Folder keyboard navigation (← →)
+    # ------------------------------------------------------------------
+
+    def key_left(self) -> None:
+        """Switch to previous folder."""
+        if not self._folder_buttons:
+            return
+        self._active_folder_idx = max(0, self._active_folder_idx - 1)
+        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
+
+    def key_right(self) -> None:
+        """Switch to next folder."""
+        if not self._folder_buttons:
+            return
+        self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
+        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
+
+    def _activate_folder_button(self, btn: Button) -> None:
+        """Simulate clicking a folder button."""
+        for b in self._folder_buttons:
+            b.variant = "default"
+        btn.variant = "primary"
+        # Trigger the filter
+        btn_id = btn.id or ""
         safe_id = btn_id.removeprefix("folder-")
         ql = self.query_one("#ql-main", QueryListWidget)
-
         if safe_id == "todas":
             ql.load_queries(self._all_queries)
         elif safe_id == "sem-pasta":
             ql.load_queries([q for q in self._all_queries if not q.folder])
         else:
             folder_label = self._folder_map.get(safe_id, "")
-            ql.load_queries(
-                [q for q in self._all_queries if q.folder == folder_label]
-            )
+            ql.load_queries([q for q in self._all_queries if q.folder == folder_label])
+        # Keep focus on the list
+        ql.focus()
 
     # ------------------------------------------------------------------
     # Query selected → parameterize & execute

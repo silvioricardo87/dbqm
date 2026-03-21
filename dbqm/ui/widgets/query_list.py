@@ -30,19 +30,19 @@ class _QueryListItem(ListItem):
 
     DEFAULT_CSS = """
     _QueryListItem {
-        height: auto;
+        height: 1;
         padding: 0 1;
     }
     _QueryListItem Horizontal {
-        height: auto;
+        height: 1;
         width: 1fr;
     }
     _QueryListItem .ql-star {
-        width: 3;
-        min-width: 3;
+        width: 2;
     }
     _QueryListItem .ql-name {
-        width: 1fr;
+        width: 20;
+        min-width: 12;
         text-style: bold;
     }
     _QueryListItem .ql-desc {
@@ -50,13 +50,13 @@ class _QueryListItem(ListItem):
         color: $text-muted;
     }
     _QueryListItem .ql-conn {
-        width: auto;
+        width: 16;
         min-width: 10;
         text-align: right;
-        color: $accent;
+        color: $warning;
     }
     _QueryListItem .ql-table {
-        width: auto;
+        width: 16;
         min-width: 10;
         text-align: right;
         color: $text-muted;
@@ -80,13 +80,10 @@ class _QueryListItem(ListItem):
 
         with Horizontal():
             yield Static(star, classes="ql-star", markup=True)
-            yield Static(f"[bold]{name}[/]", classes="ql-name", markup=True)
-            if desc:
-                yield Static(f"[dim]{desc}[/]", classes="ql-desc", markup=True)
-            if conn:
-                yield Static(f"[on dark_blue] {conn} [/]", classes="ql-conn", markup=True)
-            if table:
-                yield Static(f"[dim]{table}[/]", classes="ql-table", markup=True)
+            yield Static(name, classes="ql-name")
+            yield Static(desc or "", classes="ql-desc")
+            yield Static(conn, classes="ql-conn")
+            yield Static(table, classes="ql-table")
 
 
 class QueryListWidget(Vertical, can_focus=False):
@@ -109,6 +106,19 @@ class QueryListWidget(Vertical, can_focus=False):
     }
     QueryListWidget ListView {
         height: 1fr;
+    }
+    QueryListWidget ListView > ListItem.--highlight {
+        background: $primary 30%;
+    }
+    QueryListWidget ListView:focus > ListItem.--highlight {
+        background: $primary 50%;
+    }
+    QueryListWidget ListView > ListItem.--highlight .ql-name {
+        color: $text;
+        text-style: bold;
+    }
+    QueryListWidget ListView > ListItem.--highlight .ql-conn {
+        color: $warning-lighten-2;
     }
     """
 
