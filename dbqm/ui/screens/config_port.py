@@ -1,0 +1,301 @@
+"""Config portability screen — export/import configurations."""
+from __future__ import annotations
+
+from pathlib import Path
+
+from textual import work
+from textual.app import ComposeResult
+from textual.containers import Vertical, Horizontal
+from textual.widgets import Button, Checkbox, Input, Static
+
+
+class ConfigPortScreen(Vertical):
+    """Screen widget for exporting and importing configurations.
+
+    Export flow: select items, enter password, create .dbqm bundle.
+    Import flow: enter file path, enter password, import.
+    """
+
+    DEFAULT_CSS = """
+    ConfigPortScreen {
+        height: 1fr;
+        padding: 1 2;
+    }
+
+    /* -- Mode selection -- */
+    ConfigPortScreen #cp-mode-phase {
+        height: auto;
+        padding: 1;
+    }
+    ConfigPortScreen .cp-mode-buttons {
+        height: auto;
+        margin-top: 1;
+    }
+    ConfigPortScreen .cp-mode-buttons Button {
+        margin-right: 1;
+        min-width: 20;
+    }
+
+    /* -- Export phase -- */
+    ConfigPortScreen #cp-export-phase {
+        height: auto;
+        padding: 1;
+        background: $surface;
+        border: round $accent;
+    }
+    ConfigPortScreen .cp-checks {
+        height: auto;
+        margin-bottom: 1;
+    }
+    ConfigPortScreen .cp-checks Checkbox {
+        margin-bottom: 0;
+        height: auto;
+    }
+    ConfigPortScreen .cp-password-row {
+        height: auto;
+        margin-bottom: 1;
+    }
+    ConfigPortScreen .cp-password-row Input {
+        width: 40;
+    }
+    ConfigPortScreen .cp-password-row Static {
+        width: auto;
+        padding: 0 0 0 0;
+    }
+
+    /* -- Import phase -- */
+    ConfigPortScreen #cp-import-phase {
+        height: auto;
+        padding: 1;
+        background: $surface;
+        border: round $accent;
+    }
+    ConfigPortScreen .cp-field {
+        height: auto;
+        margin-bottom: 1;
+    }
+    ConfigPortScreen .cp-field-label {
+        height: auto;
+        text-style: bold;
+    }
+    ConfigPortScreen .cp-field Input {
+        width: 60;
+    }
+
+    /* -- Actions -- */
+    ConfigPortScreen .cp-actions {
+        height: auto;
+        margin-top: 1;
+    }
+    ConfigPortScreen .cp-actions Button {
+        margin-right: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        # Phase 1: mode selection
+        with Vertical(id="cp-mode-phase"):
+            yield Static("[bold]Exportar ou Importar configuracoes[/]", markup=True)
+            with Horizontal(classes="cp-mode-buttons"):
+                yield Button("Exportar", id="cp-btn-export", variant="primary")
+                yield Button("Importar", id="cp-btn-import", variant="default")
+
+        # Phase 2: export form
+        with Vertical(id="cp-export-phase"):
+            yield Static("[bold]Exportar configuracoes[/]", markup=True, classes="cp-field-label")
+            with Vertical(classes="cp-checks"):
+                yield Checkbox("Conexoes", id="cp-chk-connections", value=True)
+                yield Checkbox("Consultas", id="cp-chk-queries", value=True)
+                yield Checkbox("Grupos", id="cp-chk-groups", value=True)
+            with Vertical(classes="cp-password-row"):
+                yield Static("Senha:", classes="cp-field-label")
+                yield Input(placeholder="Senha para proteger o arquivo", password=True, id="cp-export-password")
+            with Vertical(classes="cp-password-row"):
+                yield Static("Confirmar senha:", classes="cp-field-label")
+                yield Input(placeholder="Confirme a senha", password=True, id="cp-export-password-confirm")
+            with Horizontal(classes="cp-actions"):
+                yield Button("Exportar", id="cp-do-export", variant="primary")
+                yield Button("Voltar", id="cp-export-back", variant="default")
+
+        # Phase 3: import form
+        with Vertical(id="cp-import-phase"):
+            yield Static("[bold]Importar configuracoes[/]", markup=True, classes="cp-field-label")
+            with Vertical(classes="cp-field"):
+                yield Static("Caminho do arquivo .dbqm:", classes="cp-field-label")
+                yield Input(placeholder="Ex: C:\\exports\\config.dbqm", id="cp-import-path")
+            with Vertical(classes="cp-field"):
+                yield Static("Senha do arquivo:", classes="cp-field-label")
+                yield Input(placeholder="Senha usada na exportacao", password=True, id="cp-import-password")
+            with Horizontal(classes="cp-actions"):
+                yield Button("Importar", id="cp-do-import", variant="primary")
+                yield Button("Voltar", id="cp-import-back", variant="default")
+
+    def on_mount(self) -> None:
+        self._show_mode_phase()
+
+    # ------------------------------------------------------------------
+    # Phase management
+    # ------------------------------------------------------------------
+
+    def _show_mode_phase(self) -> None:
+        self.query_one("#cp-mode-phase").display = True
+        self.query_one("#cp-export-phase").display = False
+        self.query_one("#cp-import-phase").display = False
+
+    def _show_export_phase(self) -> None:
+        self.query_one("#cp-mode-phase").display = False
+        self.query_one("#cp-export-phase").display = True
+        self.query_one("#cp-import-phase").display = False
+
+    def _show_import_phase(self) -> None:
+        self.query_one("#cp-mode-phase").display = False
+        self.query_one("#cp-export-phase").display = False
+        self.query_one("#cp-import-phase").display = True
+
+    # ------------------------------------------------------------------
+    # Button handlers
+    # ------------------------------------------------------------------
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "cp-btn-export":
+            self._show_export_phase()
+        elif btn_id == "cp-btn-import":
+            self._show_import_phase()
+        elif btn_id == "cp-export-back":
+            self._show_mode_phase()
+        elif btn_id == "cp-import-back":
+            self._show_mode_phase()
+        elif btn_id == "cp-do-export":
+            self._handle_export()
+        elif btn_id == "cp-do-import":
+            self._handle_import()
+
+    # ------------------------------------------------------------------
+    # Export
+    # ------------------------------------------------------------------
+
+    def _handle_export(self) -> None:
+        password = self.query_one("#cp-export-password", Input).value.strip()
+        password_confirm = self.query_one("#cp-export-password-confirm", Input).value.strip()
+
+        if not password:
+            self.notify("Senha obrigatoria para exportar.", severity="warning")
+            return
+
+        if password != password_confirm:
+            self.notify("Senhas nao conferem.", severity="error")
+            return
+
+        include_connections = self.query_one("#cp-chk-connections", Checkbox).value
+        include_queries = self.query_one("#cp-chk-queries", Checkbox).value
+        include_groups = self.query_one("#cp-chk-groups", Checkbox).value
+
+        if not (include_connections or include_queries or include_groups):
+            self.notify("Selecione ao menos um item para exportar.", severity="warning")
+            return
+
+        self._run_export(password, include_connections, include_queries, include_groups)
+
+    @work(thread=True)
+    def _run_export(
+        self,
+        password: str,
+        include_connections: bool,
+        include_queries: bool,
+        include_groups: bool,
+    ) -> None:
+        from dbqm.core.config_portability import export_configs
+
+        try:
+            path = export_configs(
+                password=password,
+                include_connections=include_connections,
+                include_queries=include_queries,
+                include_groups=include_groups,
+            )
+            self.call_from_thread(
+                self.notify, f"Configuracoes exportadas: {path}", severity="information", timeout=8
+            )
+            self.call_from_thread(self._clear_export_form)
+        except Exception as e:
+            self.call_from_thread(
+                self.notify, f"Erro ao exportar: {e}", severity="error", timeout=8
+            )
+
+    def _clear_export_form(self) -> None:
+        self.query_one("#cp-export-password", Input).value = ""
+        self.query_one("#cp-export-password-confirm", Input).value = ""
+
+    # ------------------------------------------------------------------
+    # Import
+    # ------------------------------------------------------------------
+
+    def _handle_import(self) -> None:
+        filepath = self.query_one("#cp-import-path", Input).value.strip().strip('"').strip("'")
+        password = self.query_one("#cp-import-password", Input).value.strip()
+
+        if not filepath:
+            self.notify("Informe o caminho do arquivo .dbqm.", severity="warning")
+            return
+
+        if not Path(filepath).exists():
+            self.notify("Arquivo nao encontrado.", severity="error")
+            return
+
+        if not password:
+            self.notify("Informe a senha do arquivo.", severity="warning")
+            return
+
+        self._run_import(filepath, password)
+
+    @work(thread=True)
+    def _run_import(self, filepath: str, password: str) -> None:
+        from dbqm.core.config_portability import import_configs
+
+        try:
+            summary = import_configs(filepath, password)
+            total = summary["connections"] + summary["queries"] + summary["groups"]
+            parts = []
+            if summary["connections"]:
+                parts.append(f'{summary["connections"]} conexoes')
+            if summary["queries"]:
+                parts.append(f'{summary["queries"]} consultas')
+            if summary["groups"]:
+                parts.append(f'{summary["groups"]} grupos')
+            if summary["skipped"]:
+                parts.append(f'{summary["skipped"]} ignorados (duplicados)')
+
+            if total > 0:
+                msg = f"Importado: {', '.join(parts)}"
+                self.call_from_thread(self.notify, msg, severity="information", timeout=8)
+            else:
+                msg = f"Nenhuma configuracao nova importada. {summary['skipped']} duplicados ignorados."
+                self.call_from_thread(self.notify, msg, severity="warning", timeout=8)
+
+            self.call_from_thread(self._clear_import_form)
+            self.call_from_thread(self._update_status_bar)
+        except Exception as e:
+            self.call_from_thread(
+                self.notify, f"Erro ao importar: {e}", severity="error", timeout=8
+            )
+
+    def _clear_import_form(self) -> None:
+        self.query_one("#cp-import-path", Input).value = ""
+        self.query_one("#cp-import-password", Input).value = ""
+
+    def _update_status_bar(self) -> None:
+        try:
+            from dbqm.models.connection import load_connections
+            from dbqm.models.query import load_queries
+            from dbqm.models.group import load_groups
+            from dbqm.ui.widgets.status_bar import StatusBar
+
+            status_bar = self.app.query_one(StatusBar)
+            status_bar.update_counts(
+                connections=len(load_connections()),
+                queries=len(load_queries()),
+                groups=len(load_groups()),
+            )
+        except Exception:
+            pass
