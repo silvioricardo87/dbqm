@@ -2132,7 +2132,7 @@ async def test_all_sidebar_items_open_without_crash(tmp_config_dir):
         "exec_query", "adhoc_sql", "config_query",
         "exec_group", "config_group",
         "extract_ddl", "browse", "history",
-        "config_conn", "portability", "settings",
+        "config_conn", "settings",
     ]
 
     for action in actions_to_test:

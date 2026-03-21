@@ -26,7 +26,6 @@ MENU_ITEMS: list[tuple[str, list[tuple[str, str, str]]]] = [
     ]),
     ("SISTEMA", [
         ("config_conn", "\U0001f50c", "Conexoes"),
-        ("portability", "\U0001f4e6", "Exportar"),
         ("settings", "\u2699", "Config"),
         ("exit", "\U0001f6aa", "Sair"),
     ]),

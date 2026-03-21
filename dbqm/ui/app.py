@@ -27,7 +27,6 @@ ACTION_LABELS: dict[str, str] = {
     "browse": "Objetos",
     "history": "Histórico",
     "config_conn": "Conexões",
-    "portability": "Exportar/Importar",
     "settings": "Configurações",
 }
 
@@ -173,7 +172,7 @@ class DBQMApp(App):
         # Update breadcrumb
         label = ACTION_LABELS.get(action, action)
         # System items get "Sistema" as parent breadcrumb
-        system_actions = {"config_conn", "portability", "settings"}
+        system_actions = {"config_conn", "settings"}
         if action in system_actions:
             self.query_one(Breadcrumb).set_path(["Sistema", label])
         elif action == "config_query":
@@ -228,10 +227,6 @@ class DBQMApp(App):
             from dbqm.ui.screens.settings import SettingsScreen
             self.query_one(Breadcrumb).set_path(["Sistema", "Config"])
             screen_widget = SettingsScreen(id="settings-screen")
-        elif action == "portability":
-            from dbqm.ui.screens.config_port import ConfigPortScreen
-            self.query_one(Breadcrumb).set_path(["Sistema", "Exportar"])
-            screen_widget = ConfigPortScreen(id="config-port-screen")
         else:
             screen_widget = Static(f"[dim]{label}[/dim] (em construção)", id="placeholder")
 

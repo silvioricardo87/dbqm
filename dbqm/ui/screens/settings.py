@@ -1,9 +1,10 @@
-"""Settings screen — theme and audit log configuration."""
+"""Settings screen — theme, audit log, and config portability."""
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Vertical
-from textual.widgets import Select, Static, Switch
+from textual.binding import Binding
+from textual.containers import Vertical, Horizontal
+from textual.widgets import Button, Select, Static, Switch
 
 
 class SettingsScreen(Vertical):
@@ -12,6 +13,7 @@ class SettingsScreen(Vertical):
     Provides:
     - Theme selector (GitHub Dark / GitHub Light)
     - Audit log toggle
+    - Config export/import (portability)
     """
 
     DEFAULT_CSS = """
@@ -36,11 +38,16 @@ class SettingsScreen(Vertical):
     }
     SettingsScreen .audit-row {
         height: auto;
-        layout: horizontal;
     }
     SettingsScreen .audit-row Static {
         width: auto;
         padding: 0 1 0 0;
+    }
+    SettingsScreen .port-buttons {
+        height: auto;
+    }
+    SettingsScreen .port-buttons Button {
+        margin: 0 1 0 0;
     }
     """
 
@@ -68,16 +75,26 @@ class SettingsScreen(Vertical):
                     markup=True,
                 )
 
+        # Export/Import section
+        with Vertical(classes="settings-section"):
+            yield Static("Exportar / Importar configuracoes", classes="settings-label")
+            yield Static(
+                "[dim]Exporte conexoes, consultas e grupos como bundle .dbqm "
+                "ou importe de um arquivo existente[/]",
+                markup=True,
+            )
+            with Horizontal(classes="port-buttons"):
+                yield Button("Exportar", variant="primary", id="btn-export")
+                yield Button("Importar", variant="warning", id="btn-import")
+
     def on_mount(self) -> None:
         from dbqm.models.settings import load_settings
 
         settings = load_settings()
 
-        # Set theme selector value
         theme_select = self.query_one("#settings-theme-select", Select)
         theme_select.value = settings.theme
 
-        # Set audit switch value
         audit_switch = self.query_one("#settings-audit-switch", Switch)
         audit_switch.value = settings.audit_log_enabled
 
@@ -120,3 +137,26 @@ class SettingsScreen(Vertical):
         save_settings(settings)
         status = "ativado" if event.value else "desativado"
         self.notify(f"Log de auditoria {status}!")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-export":
+            self._open_portability("export")
+        elif event.button.id == "btn-import":
+            self._open_portability("import")
+
+    def _open_portability(self, mode: str) -> None:
+        from dbqm.ui.screens.config_port import ConfigPortScreen
+
+        try:
+            # Load portability screen in the app's screen area
+            from textual.containers import Container
+            screen_area = self.app.query_one("#screen-area", Container)
+            screen_area.remove_children()
+
+            from dbqm.ui.widgets.breadcrumb import Breadcrumb
+            self.app.query_one(Breadcrumb).set_path(["Sistema", "Config", "Exportar/Importar"])
+
+            port_screen = ConfigPortScreen(id="config-port-screen")
+            screen_area.mount(port_screen)
+        except Exception as e:
+            self.notify(f"Erro: {e}", severity="error")
