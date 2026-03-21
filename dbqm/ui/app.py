@@ -99,22 +99,75 @@ class DBQMApp(App):
 
         # Update breadcrumb
         label = ACTION_LABELS.get(action, action)
-        self.query_one(Breadcrumb).set_path(["Início", label])
+        # System items get "Sistema" as parent breadcrumb
+        system_actions = {"config_conn", "portability", "settings"}
+        if action in system_actions:
+            self.query_one(Breadcrumb).set_path(["Sistema", label])
+        elif action == "config_query":
+            self.query_one(Breadcrumb).set_path(["Consultas", "Gerenciar"])
+        elif action == "config_group":
+            self.query_one(Breadcrumb).set_path(["Grupos", "Gerenciar"])
+        else:
+            self.query_one(Breadcrumb).set_path(["Início", label])
 
-        # Show placeholder in screen area
+        # Load appropriate screen into the content area
         screen_area = self.query_one("#screen-area", Container)
         screen_area.remove_children()
-        screen_area.mount(Static(f"[dim]{label}[/dim] (em construção)", id="placeholder"))
+
+        if action == "exec_query":
+            from dbqm.ui.screens.query_exec import QueryExecScreen
+            screen_area.mount(QueryExecScreen(id="query-exec-screen"))
+        elif action == "exec_group":
+            from dbqm.ui.screens.group_exec import GroupExecScreen
+            self.query_one(Breadcrumb).set_path(["Grupos", "Executar"])
+            screen_area.mount(GroupExecScreen(id="group-exec-screen"))
+        elif action == "config_query":
+            from dbqm.ui.screens.query_manage import QueryManageScreen
+            screen_area.mount(QueryManageScreen(id="query-manage-screen"))
+        elif action == "config_group":
+            from dbqm.ui.screens.group_manage import GroupManageScreen
+            screen_area.mount(GroupManageScreen(id="group-manage-screen"))
+        elif action == "config_conn":
+            from dbqm.ui.screens.connections import ConnectionsScreen
+            screen_area.mount(ConnectionsScreen(id="connections-screen"))
+        else:
+            screen_area.mount(Static(f"[dim]{label}[/dim] (em construção)", id="placeholder"))
 
     def action_toggle_sidebar(self) -> None:
         """Toggle sidebar collapse state."""
         self.query_one(Sidebar).toggle_collapse()
 
     def action_go_back(self) -> None:
-        """Go back — pop breadcrumb and clear screen area."""
+        """Go back — if showing results, return to selection; otherwise clear screen."""
+        from dbqm.ui.screens.query_exec import QueryExecScreen
+
+        # Check if a QueryExecScreen is in results phase
+        try:
+            exec_screen = self.query_one(QueryExecScreen)
+            results_phase = exec_screen.query_one("#results-phase")
+            if results_phase.display:
+                exec_screen.go_back_to_selection()
+                self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
+        # Check if a GroupExecScreen is in results phase
+        try:
+            from dbqm.ui.screens.group_exec import GroupExecScreen
+            group_screen = self.query_one(GroupExecScreen)
+            results_phase = group_screen.query_one("#ge-results-phase")
+            if results_phase.display:
+                group_screen.go_back_to_selection()
+                self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
         breadcrumb = self.query_one(Breadcrumb)
         if breadcrumb.path:
             breadcrumb.set_path([])
             screen_area = self.query_one("#screen-area", Container)
             screen_area.remove_children()
             self.query_one(Sidebar).set_active("")
+            self.query_one(ActionBar).set_actions([])
