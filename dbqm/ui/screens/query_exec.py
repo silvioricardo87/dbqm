@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, HorizontalScroll, Vertical
 from textual.widgets import Button, Static
 from textual import work
 
@@ -49,14 +49,11 @@ class QueryExecScreen(Vertical):
         height: 3;
         padding: 0 1;
         background: $surface;
+        scrollbar-size: 0 0;
     }
     QueryExecScreen #folder-bar Button {
         min-width: 8;
         margin: 0 1 0 0;
-    }
-    QueryExecScreen #folder-bar Button.-active {
-        background: $primary;
-        color: $text;
     }
     QueryExecScreen #folder-hint {
         height: 1;
@@ -135,7 +132,7 @@ class QueryExecScreen(Vertical):
         self._all_queries = queries
 
         if folders:
-            folder_bar = Horizontal(id="folder-bar")
+            folder_bar = HorizontalScroll(id="folder-bar")
             selection.mount(folder_bar)
             # "Todas" button
             btn_todas = Button("Todas", id="folder-todas", variant="primary")

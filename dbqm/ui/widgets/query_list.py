@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from textual.binding import Binding
-from textual.containers import Horizontal, HorizontalScroll, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Input, ListView, ListItem, Static
 
@@ -26,48 +26,20 @@ def _attr(obj: Any, key: str, default: Any = "") -> Any:
 
 
 class _QueryListItem(ListItem):
-    """A single query entry inside the ListView."""
+    """A single query entry inside the ListView.
+
+    Renders as a single line of formatted text to avoid layout issues
+    with nested containers inside ListItem.
+    """
 
     DEFAULT_CSS = """
     _QueryListItem {
         height: 1;
         padding: 0 1;
     }
-    _QueryListItem HorizontalScroll {
+    _QueryListItem Static {
         height: 1;
         width: 1fr;
-        scrollbar-size: 0 0;
-    }
-    _QueryListItem .ql-star {
-        width: 2;
-        min-width: 2;
-    }
-    _QueryListItem .ql-name {
-        width: auto;
-        min-width: 16;
-        max-width: 24;
-        text-style: bold;
-    }
-    _QueryListItem .ql-sep {
-        width: 3;
-        min-width: 3;
-        color: $text-muted;
-    }
-    _QueryListItem .ql-desc {
-        width: auto;
-        min-width: 10;
-        max-width: 40;
-        color: $text-muted;
-    }
-    _QueryListItem .ql-conn {
-        width: auto;
-        min-width: 8;
-        color: $warning;
-    }
-    _QueryListItem .ql-table {
-        width: auto;
-        min-width: 8;
-        color: $text-muted;
     }
     """
 
@@ -79,23 +51,26 @@ class _QueryListItem(ListItem):
     def compose(self):
         is_fav = _attr(self.query_data, "is_favorite", False)
         star = "[yellow]★[/]" if is_fav else "[dim]☆[/]"
+
         name = _attr(self.query_data, "name", "")
         desc = _attr(self.query_data, "description", "")
-        if len(desc) > 40:
-            desc = desc[:37] + "..."
         conn = _attr(self.query_data, "connection", "")
         table = _attr(self.query_data, "table", "")
 
-        with HorizontalScroll():
-            yield Static(star, classes="ql-star", markup=True)
-            yield Static(name, classes="ql-name")
-            if desc:
-                yield Static(" · ", classes="ql-sep")
-                yield Static(desc, classes="ql-desc")
-            yield Static(" · ", classes="ql-sep")
-            yield Static(conn, classes="ql-conn")
-            yield Static(" · ", classes="ql-sep")
-            yield Static(table, classes="ql-table")
+        # Truncate description to keep line readable
+        if len(desc) > 35:
+            desc = desc[:32] + "..."
+
+        # Build a single formatted line
+        parts = [f"{star} [bold]{name}[/bold]"]
+        if desc:
+            parts.append(f"[dim]{desc}[/dim]")
+        parts.append(f"[#e3b341]{conn}[/#e3b341]")
+        if table:
+            parts.append(f"[dim]{table}[/dim]")
+
+        line = "  │  ".join(parts)
+        yield Static(line, markup=True)
 
 
 class QueryListWidget(Vertical, can_focus=False):
@@ -120,17 +95,10 @@ class QueryListWidget(Vertical, can_focus=False):
         height: 1fr;
     }
     QueryListWidget ListView > ListItem.--highlight {
-        background: $primary 30%;
+        background: $primary 25%;
     }
     QueryListWidget ListView:focus > ListItem.--highlight {
-        background: $primary 50%;
-    }
-    QueryListWidget ListView > ListItem.--highlight .ql-name {
-        color: $text;
-        text-style: bold;
-    }
-    QueryListWidget ListView > ListItem.--highlight .ql-conn {
-        color: $warning-lighten-2;
+        background: $primary 40%;
     }
     """
 
