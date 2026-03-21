@@ -130,8 +130,29 @@ class DBQMApp(App):
 
         for action in action_bar._actions:
             if action.key and action.key.lower() == key.lower():
-                action_bar.post_message(ActionSelected(action.action_id))
+                # Post to the active screen widget so it receives the message
+                screen_area = self.query_one("#screen-area", Container)
+                children = list(screen_area.children)
+                if children:
+                    children[0].post_message(ActionSelected(action.action_id))
+                else:
+                    action_bar.post_message(ActionSelected(action.action_id))
                 return
+
+    def on_action_selected(self, message: ActionSelected) -> None:
+        """Forward ActionSelected from action bar clicks to the active screen.
+
+        This is only needed for CLICK-based actions on the ActionBar markup.
+        Shortcut-based actions already post directly to the screen widget.
+        """
+        # Only forward if this came from the ActionBar (bubbled up),
+        # not from a screen (would cause infinite loop)
+        if isinstance(message._sender, ActionBar):
+            screen_area = self.query_one("#screen-area", Container)
+            children = list(screen_area.children)
+            if children:
+                children[0].post_message(ActionSelected(message.action_id))
+            message.stop()
 
     def on_sidebar_item_selected(self, message: SidebarItemSelected) -> None:
         """Handle sidebar navigation."""

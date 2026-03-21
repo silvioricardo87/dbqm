@@ -120,12 +120,16 @@ class ConnectionFormModal(ModalScreen[dict | None]):
 
             # DB Type
             yield Static("Tipo de banco:", classes="field-label")
-            current_type = conn.get("db_type", Select.BLANK)
+            current_type = conn.get("db_type", "")
+            # Validate that current_type is a known option
+            valid_types = [v for _, v in DB_TYPE_OPTIONS]
+            if current_type not in valid_types:
+                current_type = Select.BLANK
             yield Select(
                 DB_TYPE_OPTIONS,
-                value=current_type,
+                value=current_type if current_type != Select.BLANK else Select.BLANK,
                 id="field-db-type",
-                allow_blank=not self._edit_mode,
+                allow_blank=True,
             )
 
             # Dynamic fields container
