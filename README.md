@@ -1,26 +1,23 @@
 # DB Query Manager (dbqm)
 
-Interactive command-line tool for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, and **MySQL**. Built for database maintenance teams that need to compare data across environments, extract DDL, browse database objects, and export results.
+Fullscreen terminal application for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, and **MySQL**. Built with [Textual](https://textual.textualize.io/) for a modern TUI experience with sidebar navigation, keyboard shortcuts, and theme support.
 
 ## Features
 
-- **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL connections
-- **Cross-database comparison** — Execute query groups across databases and compare results side-by-side with match/diff/absent status
+- **Fullscreen TUI** — Fixed layout with sidebar navigation, breadcrumb, status bar, and keyboard-driven workflow
+- **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL
+- **Cross-database comparison** — Execute query groups and compare results side-by-side with match/diff/absent status
 - **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE)
-- **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages with parameter collection
+- **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages
 - **Ad-hoc SQL** — Paste and execute SQL with automatic parameter detection and bind variable support
-- **Data export** — Export results as CSV, JSON, TXT (formatted tables), PNG (screenshots), HTML reports, and SQL files
+- **Dark/Light themes** — GitHub Dark (default) and GitHub Light, switchable in settings
+- **Data export** — Export results as CSV, JSON, TXT, PNG, HTML reports, and SQL files
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
-- **Portable configurations** — Export/import connection, query, and group configs as encrypted `.dbqm` bundles
-- **Favorites & recent queries** — Star queries and sort by most recently used
-- **Paginated results** — Navigate large result sets with next/prev page controls (100 rows per page)
-- **In-place query editing** — Edit SQL, params, connection, and table directly from the query wizard
-- **Execution history** — Browse the last 100 executions with timing, row counts, and group consistency status
-- **HTML comparison reports** — Self-contained HTML files with dark theme, filter buttons, and search
-- **Filtered group views** — Show only divergent, absent, or combined rows from group comparisons
-- **Audit logging** — Opt-in append-only JSON log of all executions (enable in Settings)
-- **Pre-validation** — Validate group bindings (queries, connections, params) before execution
-- **Auto-suggest** — Ad-hoc save names and column mappings suggested based on context
+- **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
+- **Favorites & folders** — Organize queries in folders, star favorites for quick access
+- **Paginated results** — Navigate large result sets with next/prev page controls
+- **Execution history** — Browse recent executions with timing, row counts, and status
+- **Audit logging** — Opt-in append-only JSON log of all executions
 
 ## Requirements
 
@@ -31,7 +28,7 @@ Interactive command-line tool for managing and executing SQL queries across mult
 
 ```bash
 git clone <repo-url>
-cd mapfre-sustentacao-py
+cd dbqm
 
 python -m venv venv
 # Windows
@@ -44,101 +41,166 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Interactive mode (TUI)
+
 ```bash
-python main.py
+python -m dbqm
 ```
 
-On first launch, the tool prompts you to configure your first database connection and generates an encryption key (`.dbqm_key`).
+On first launch, the app prompts you to configure your first database connection and generates an encryption key (`.dbqm_key`).
 
-### Main Menu
+### CLI mode (non-interactive)
 
-| Option | Description |
-|--------|-------------|
-| Execute query | Run a saved query with pagination and export |
-| Execute group | Run multiple queries across databases and compare results |
-| Ad-hoc SQL | Paste and execute SQL directly |
-| Extract DDL | Extract DDL from Oracle, PostgreSQL, or MySQL objects |
-| Object browser | Browse tables, views, packages (Oracle), and routines (PostgreSQL/MySQL) |
-| Execution history | Browse recent query and group executions |
-| Configurations | Manage connections, queries, groups, portability, and settings |
+```bash
+# Execute a saved query
+python -m dbqm run <query-name> --param1 value1
 
-### Query Groups & Comparison
+# Execute a query group
+python -m dbqm run-group <group-name> --param1 value1
 
-Groups let you run the same logical query across multiple databases and compare results:
+# Execute ad-hoc SQL
+python -m dbqm sql "SELECT * FROM table" <connection>
+
+# Test connections
+python -m dbqm test [connection]
+
+# List resources
+python -m dbqm list connections|queries|groups
+
+# Extract DDL
+python -m dbqm ddl <object> <connection>
+
+# Export/Import configs
+python -m dbqm export-config
+python -m dbqm import-config <file.dbqm>
+
+# View history
+python -m dbqm history
+```
+
+Output format options: `--format table|json|csv` and `--export csv|json|txt`.
+
+## Keyboard Navigation
+
+The application is fully keyboard-driven:
+
+| Key | Action | Context |
+|-----|--------|---------|
+| `↑` `↓` | Navigate items | Sidebar, lists, tables |
+| `←` `→` | Switch folder tabs | Query/group lists |
+| `Enter` | Select / Confirm | Global |
+| `Escape` | Go back | Global |
+| `Ctrl+B` | Toggle sidebar | Global |
+| `Ctrl+Q` | Quit | Global |
+| `/` | Search / filter | Lists |
+| `?` | Help (shortcuts) | Global |
+| `V` | Vertical view | Query results |
+| `E` | Export | Query/group results |
+| `R` | Re-execute | Query/group results |
+| `F` | Toggle flat/pivoted | Group results |
+| `S` | Filter by status | Group results |
+| `H` | HTML report | Group results |
+
+## Sidebar
+
+| Section | Options |
+|---------|---------|
+| **Consultas** | Executar, SQL avulso, Gerenciar |
+| **Grupos** | Executar, Gerenciar |
+| **Ferramentas** | DDL, Objetos, Historico |
+| **Sistema** | Conexoes, Exportar, Config, Sair |
+
+## Query Groups & Comparison
+
+Groups run the same logical query across multiple databases and compare results:
 
 - Define a **join key** (row identifier) and **comparison columns**
 - Optional **normalization mapping** for semantic equivalence (e.g., "paga" = "pago")
-- Optional **column mapping** for when column names differ between queries (auto-suggested by position)
+- Optional **column mapping** for mismatched column names
 - Results show status per row: `OK`, `DIFF`, `ABSENT`
-- Filter results by status (divergent only, absent only, or combined)
-- Export as HTML report with interactive filters and search
-- Pre-validation checks queries, connections, and parameters before execution
-- Summary with match/difference/missing counts
-
-### Parameter Support
-
-Queries support named bind variables (`:param` syntax) with default values and descriptions. Group queries can share parameters — entered once and applied to all queries in the group.
-
-### Column Value Mapping
-
-Transform raw database values into readable labels during display (e.g., status code `1` → `"vencida/pendente"`).
-
-### Execution History
-
-The tool records the last 100 executions (queries and groups) with:
-- Timestamp, duration, and row counts
-- Group consistency status (CONSISTENTE/DIVERGENTE)
-- Parameter values used
-- Browsable detail view
-
-### Audit Log
-
-Optional append-only audit log (JSON lines format) that records all executions. Enable via **Configurations > Settings**. Stored at `config/audit.log` with restricted file permissions.
+- Two display modes: **flat** (one table per column) and **pivoted** (one table per key)
+- Filter results by status (divergent, absent, or combined)
+- Export as HTML report with interactive filters
 
 ## Project Structure
 
 ```
-mapfre-sustentacao-py/
-├── main.py                    # Entry point
-├── requirements.txt           # Dependencies
-├── dbqm/                      # Main package
-│   ├── ui/                    # User interface
-│   │   ├── menu.py            # Main menu system
-│   │   ├── flows/             # Feature flows (query, group, DDL, adhoc, history, settings)
-│   │   ├── wizards/           # Configuration wizards
-│   │   ├── display.py         # Rich-based output formatting
-│   │   └── helpers.py         # UI utilities
-│   ├── core/                  # Business logic
-│   │   ├── db_manager.py      # Database connection handling (Oracle, SQL Server, PostgreSQL, MySQL)
-│   │   ├── query_engine.py    # SQL execution with unified parameter binding
-│   │   ├── group_engine.py    # Multi-database comparison
-│   │   ├── exporter.py        # Export (CSV, JSON, TXT, PNG)
-│   │   ├── html_report.py     # Standalone HTML comparison reports
-│   │   ├── history.py         # Execution history persistence
-│   │   ├── audit.py           # Opt-in audit logging
-│   │   ├── ddl_extractor.py   # Oracle DDL extraction with dependencies
-│   │   ├── ddl_pg.py          # PostgreSQL DDL extraction (pg_catalog)
-│   │   ├── ddl_mysql.py       # MySQL DDL extraction (SHOW CREATE)
-│   │   ├── object_browser.py  # Database object introspection
-│   │   ├── table_browser.py   # Table data browsing with FK resolution
-│   │   ├── crypto.py          # Password encryption
-│   │   └── config_portability.py  # Config import/export
-│   └── models/                # Data models
-│       ├── connection.py      # Connection configuration
-│       ├── query.py           # Query definition (with favorites)
-│       ├── group.py           # Query group configuration
-│       └── settings.py        # Application settings
-├── config/                    # JSON configs (gitignored)
-├── exports/                   # Generated output files (gitignored)
-└── tns/                       # Oracle TNS files (gitignored)
+dbqm/
+├── main.py                        # Entry point
+├── requirements.txt               # Dependencies
+├── dbqm/
+│   ├── __main__.py                # python -m dbqm support
+│   ├── cli.py                     # Non-interactive CLI
+│   ├── ui/
+│   │   ├── app.py                 # Main Textual App (layout, routing, keybindings)
+│   │   ├── theme.py               # GitHub Dark/Light theme definitions
+│   │   ├── utils.py               # sanitize_id, escape_markup utilities
+│   │   ├── screens/               # Screen widgets (one per feature)
+│   │   │   ├── query_exec.py      # Execute saved query
+│   │   │   ├── query_manage.py    # Query CRUD, DE-PARA, SQL viewer
+│   │   │   ├── group_exec.py      # Execute group comparison
+│   │   │   ├── group_manage.py    # Group CRUD
+│   │   │   ├── adhoc.py           # Ad-hoc SQL execution
+│   │   │   ├── ddl.py             # DDL extraction
+│   │   │   ├── browser.py         # Object browser (tables, views, packages)
+│   │   │   ├── history.py         # Execution history
+│   │   │   ├── connections.py     # Connection management
+│   │   │   ├── settings.py        # Theme selector, audit toggle
+│   │   │   └── config_port.py     # Config export/import
+│   │   ├── widgets/               # Reusable UI components
+│   │   │   ├── sidebar.py         # Collapsible sidebar with keyboard nav
+│   │   │   ├── breadcrumb.py      # Navigation breadcrumb
+│   │   │   ├── result_table.py    # DataTable with pagination + vertical view
+│   │   │   ├── query_list.py      # Query ListView with search/filter
+│   │   │   ├── group_result.py    # Flat/pivoted comparison display
+│   │   │   ├── sql_viewer.py      # Syntax-highlighted SQL display
+│   │   │   ├── action_bar.py      # Contextual keyboard shortcuts bar
+│   │   │   ├── status_bar.py      # Connection status + counters
+│   │   │   └── progress.py        # Loading indicator
+│   │   ├── modals/                # Dialog screens
+│   │   │   ├── param_input.py     # Query parameter input
+│   │   │   ├── confirm.py         # Yes/No confirmation
+│   │   │   ├── text_input.py      # Single text input
+│   │   │   ├── export_picker.py   # Export format selector
+│   │   │   ├── connection_form.py # Connection create/edit form
+│   │   │   ├── column_maps.py     # DE-PARA value mapping
+│   │   │   └── help.py            # Keyboard shortcuts overlay
+│   │   └── legacy/
+│   │       └── display.py         # Rich renderables for PNG/TXT export
+│   ├── core/                      # Business logic (database-agnostic)
+│   │   ├── db_manager.py          # Connection handling
+│   │   ├── query_engine.py        # SQL execution + parameter binding
+│   │   ├── group_engine.py        # Multi-database comparison
+│   │   ├── exporter.py            # Export (CSV, JSON, TXT, PNG)
+│   │   ├── html_report.py         # HTML comparison reports
+│   │   ├── ddl_extractor.py       # Oracle DDL (DBMS_METADATA)
+│   │   ├── ddl_pg.py              # PostgreSQL DDL
+│   │   ├── ddl_mysql.py           # MySQL DDL
+│   │   ├── object_browser.py      # Database object introspection
+│   │   ├── table_browser.py       # Table data browsing
+│   │   ├── crypto.py              # Password encryption
+│   │   ├── config_portability.py  # Config import/export
+│   │   ├── history.py             # Execution history
+│   │   └── audit.py               # Audit logging
+│   └── models/                    # Data models (JSON persistence)
+│       ├── connection.py          # Connection config
+│       ├── query.py               # Query definition
+│       ├── group.py               # Query group config
+│       └── settings.py            # App settings (theme, audit)
+├── config/                        # JSON configs (gitignored)
+├── exports/                       # Generated output files (gitignored)
+└── tests/                         # Test suite (391 tests)
+    ├── core/                      # Core logic tests
+    ├── models/                    # Model tests
+    └── ui/                        # TUI widget/screen/modal tests
 ```
 
 ## Key Dependencies
 
 | Library | Purpose |
 |---------|---------|
-| `rich` | Terminal UI — tables, panels, spinners, progress bars |
-| `InquirerPy` | Interactive menus and prompts |
+| `textual` | Fullscreen TUI framework (layout, widgets, themes) |
+| `rich` | Terminal formatting (used by Textual internally + exports) |
 | `oracledb` | Oracle database driver |
 | `pymssql` | SQL Server database driver |
 | `psycopg` | PostgreSQL database driver (v3) |
@@ -149,15 +211,12 @@ mapfre-sustentacao-py/
 
 ## Security
 
-- Database passwords are encrypted at rest using Fernet (`.dbqm_key` master key, `chmod 600`)
-- Configuration bundles use PBKDF2 (480,000 iterations) + Fernet for password-protected export
+- Database passwords encrypted at rest using Fernet (`.dbqm_key` master key)
+- Configuration bundles use PBKDF2 (480,000 iterations) + Fernet
 - Queries use bind variables to prevent SQL injection
-- SQL identifiers are validated against an allowlist pattern (`[\w#$.]`)
-- Query results are capped at 10,000 rows to prevent memory exhaustion
-- Config bundle imports are limited to 10 MB
-- HTML reports escape all user-controlled values to prevent XSS
-- Error messages are truncated to prevent information leakage
-- Audit log files are created with restricted permissions (`chmod 600`)
-- History files are size-guarded (5 MB limit)
-- File open operations are restricted to the exports directory
-- Sensitive files are excluded from version control via `.gitignore`
+- SQL identifiers validated against allowlist pattern
+- Query results capped at 10,000 rows
+- Config bundle imports limited to 10 MB
+- HTML reports escape all user-controlled values
+- Audit log files created with restricted permissions
+- File open operations restricted to exports directory
