@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, HorizontalScroll, Vertical
 from textual.message import Message
 from textual.widgets import Input, ListView, ListItem, Static
 
@@ -33,32 +33,40 @@ class _QueryListItem(ListItem):
         height: 1;
         padding: 0 1;
     }
-    _QueryListItem Horizontal {
+    _QueryListItem HorizontalScroll {
         height: 1;
         width: 1fr;
+        scrollbar-size: 0 0;
     }
     _QueryListItem .ql-star {
         width: 2;
+        min-width: 2;
     }
     _QueryListItem .ql-name {
-        width: 20;
-        min-width: 12;
+        width: auto;
+        min-width: 16;
+        max-width: 24;
         text-style: bold;
     }
+    _QueryListItem .ql-sep {
+        width: 3;
+        min-width: 3;
+        color: $text-muted;
+    }
     _QueryListItem .ql-desc {
-        width: 1fr;
+        width: auto;
+        min-width: 10;
+        max-width: 40;
         color: $text-muted;
     }
     _QueryListItem .ql-conn {
-        width: 16;
-        min-width: 10;
-        text-align: right;
+        width: auto;
+        min-width: 8;
         color: $warning;
     }
     _QueryListItem .ql-table {
-        width: 16;
-        min-width: 10;
-        text-align: right;
+        width: auto;
+        min-width: 8;
         color: $text-muted;
     }
     """
@@ -78,11 +86,15 @@ class _QueryListItem(ListItem):
         conn = _attr(self.query_data, "connection", "")
         table = _attr(self.query_data, "table", "")
 
-        with Horizontal():
+        with HorizontalScroll():
             yield Static(star, classes="ql-star", markup=True)
             yield Static(name, classes="ql-name")
-            yield Static(desc or "", classes="ql-desc")
+            if desc:
+                yield Static(" · ", classes="ql-sep")
+                yield Static(desc, classes="ql-desc")
+            yield Static(" · ", classes="ql-sep")
             yield Static(conn, classes="ql-conn")
+            yield Static(" · ", classes="ql-sep")
             yield Static(table, classes="ql-table")
 
 
