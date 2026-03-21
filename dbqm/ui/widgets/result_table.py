@@ -142,6 +142,9 @@ class ResultTable(Vertical):
             self._vertical_view.update("")
             return
         columns = self._result.columns
+        if not columns:
+            self._vertical_view.update("(sem resultados)")
+            return
         rows = self._current_page_rows()
         if not rows:
             self._vertical_view.update("(sem resultados)")

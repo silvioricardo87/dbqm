@@ -8,6 +8,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Static
 from textual import work
 
+from dbqm.ui.utils import sanitize_id, escape_markup
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.query_list import QueryListWidget, QuerySelected
@@ -67,6 +68,7 @@ class QueryExecScreen(Vertical):
         self._current_conn = None
         self._current_params: dict[str, str] = {}
         self._current_result: QueryResult | None = None
+        self._folder_map: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         # Selection phase
@@ -128,7 +130,8 @@ class QueryExecScreen(Vertical):
                 Button("Todas", id="folder-todas", variant="primary")
             )
             for folder in folders:
-                safe_id = folder.lower().replace(" ", "-").replace("/", "-")
+                safe_id = sanitize_id(folder)
+                self._folder_map[safe_id] = folder
                 folder_bar.mount(
                     Button(folder, id=f"folder-{safe_id}", variant="default")
                 )
@@ -157,22 +160,15 @@ class QueryExecScreen(Vertical):
             pass
 
         # Filter the query list
-        folder_name = btn_id.removeprefix("folder-")
+        safe_id = btn_id.removeprefix("folder-")
         ql = self.query_one("#ql-main", QueryListWidget)
 
-        if folder_name == "todas":
+        if safe_id == "todas":
             ql.load_queries(self._all_queries)
-        elif folder_name == "sem-pasta":
+        elif safe_id == "sem-pasta":
             ql.load_queries([q for q in self._all_queries if not q.folder])
         else:
-            # Reverse the safe_id to find matching folder
-            for q in self._all_queries:
-                safe = q.folder.lower().replace(" ", "-").replace("/", "-")
-                if safe == folder_name:
-                    folder_label = q.folder
-                    break
-            else:
-                folder_label = folder_name
+            folder_label = self._folder_map.get(safe_id, "")
             ql.load_queries(
                 [q for q in self._all_queries if q.folder == folder_label]
             )
@@ -237,7 +233,7 @@ class QueryExecScreen(Vertical):
         """Start query execution in a worker thread."""
         self._current_params = params
         self.query_one(ProgressIndicator).start(
-            f"Executando [bold]{query.name}[/] em [bold]{conn.name}[/]..."
+            f"Executando [bold]{escape_markup(query.name)}[/] em [bold]{escape_markup(conn.name)}[/]..."
         )
         self._run_query(query, conn, params)
 

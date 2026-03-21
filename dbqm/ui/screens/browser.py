@@ -1041,6 +1041,10 @@ class BrowserScreen(Vertical):
             except Exception:
                 pass
 
+    def on_unmount(self) -> None:
+        """Close DB connection when the screen is unmounted."""
+        self._close_db()
+
     def _close_db(self) -> None:
         """Close the database connection."""
         if self._db is not None:

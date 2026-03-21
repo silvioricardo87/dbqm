@@ -653,6 +653,13 @@ class AdhocScreen(Vertical):
 
     def go_back_to_input(self) -> None:
         """Return to the SQL input phase."""
+        if self._db_connection:
+            try:
+                self._db_connection.rollback()
+                self._db_connection.close()
+            except Exception:
+                pass
+            self._db_connection = None
         self.query_one("#adhoc-input-phase").display = True
         self.query_one("#adhoc-results-phase").display = False
         self._current_result = None

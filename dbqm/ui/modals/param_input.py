@@ -7,6 +7,8 @@ from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static
 
+from dbqm.ui.utils import sanitize_id
+
 
 class ParamModal(ModalScreen[dict[str, str] | None]):
     """Modal for collecting query parameter values.
@@ -77,6 +79,7 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         self.params = params
         self.last_values = last_values or {}
         self.description = description
+        self._param_id_to_name: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
@@ -96,10 +99,12 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
                 yield Label(label_text, classes="param-label")
 
                 value = self.last_values.get(name, default)
+                safe_id = sanitize_id(name)
+                self._param_id_to_name[safe_id] = name
                 yield Input(
                     value=value,
                     placeholder=default if not value else "",
-                    id=f"param-{name}",
+                    id=f"param-{safe_id}",
                 )
 
             with Horizontal(id="buttons"):
@@ -121,7 +126,8 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         values: dict[str, str] = {}
         for param in self.params:
             name = param["name"]
-            inp = self.query_one(f"#param-{name}", Input)
+            safe_id = sanitize_id(name)
+            inp = self.query_one(f"#param-{safe_id}", Input)
             values[name] = inp.value
         return values
 

@@ -7,6 +7,7 @@ from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
 from dbqm.core.group_engine import GroupResult, ComparisonResult
+from dbqm.ui.utils import sanitize_id
 
 
 class GroupResultWidget(Vertical):
@@ -124,7 +125,7 @@ class GroupResultWidget(Vertical):
             table = DataTable()
             table.add_column("Chave", key="key")
             for qn in query_names:
-                table.add_column(qn, key=qn)
+                table.add_column(qn, key=sanitize_id(qn))
             table.add_column("Status", key="status")
 
             rows = comp.rows

@@ -260,3 +260,36 @@ async def test_export_picker_click_csv_returns_csv():
         btn.press()
         await pilot.pause()
     assert app.result == "csv"
+
+
+# --- ParamModal with accented parameter names ---
+
+
+@pytest.mark.asyncio
+async def test_param_modal_accented_names():
+    """ParamModal should handle accented parameter names without crashing."""
+    params = [
+        {"name": "ap\u00f3lice", "description": "N\u00famero da ap\u00f3lice", "default": "12345"},
+        {"name": "c\u00f3digo", "description": "C\u00f3digo do cliente", "default": ""},
+    ]
+    modal = ParamModal("consulta_teste", params)
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        inputs = app.screen.query(Input)
+        assert len(inputs) >= 2
+        # Should not crash with accented names
+
+
+@pytest.mark.asyncio
+async def test_param_modal_accented_names_submit():
+    """ParamModal should return original accented param names on submit."""
+    params = [
+        {"name": "ap\u00f3lice", "description": "", "default": "999"},
+    ]
+    modal = ParamModal("test", params)
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+    assert app.result is not None
+    assert "ap\u00f3lice" in app.result
+    assert app.result["ap\u00f3lice"] == "999"

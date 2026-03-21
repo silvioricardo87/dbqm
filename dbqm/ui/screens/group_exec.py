@@ -10,6 +10,7 @@ from textual.message import Message
 from textual.widgets import Button, ListItem, ListView, Static
 from textual import work
 
+from dbqm.ui.utils import sanitize_id, escape_markup
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
@@ -140,6 +141,7 @@ class GroupExecScreen(Vertical):
         self._current_params: dict[str, str] = {}
         self._current_group_result: GroupResult | None = None
         self._all_groups: list = []
+        self._folder_map: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         # Selection phase
@@ -199,7 +201,8 @@ class GroupExecScreen(Vertical):
                 Button("Todas", id="ge-folder-todas", variant="primary")
             )
             for folder in folders:
-                safe_id = folder.lower().replace(" ", "-").replace("/", "-")
+                safe_id = sanitize_id(folder)
+                self._folder_map[safe_id] = folder
                 folder_bar.mount(
                     Button(folder, id=f"ge-folder-{safe_id}", variant="default")
                 )
@@ -240,20 +243,14 @@ class GroupExecScreen(Vertical):
         except Exception:
             pass
 
-        folder_name = btn_id.removeprefix("ge-folder-")
+        safe_id = btn_id.removeprefix("ge-folder-")
 
-        if folder_name == "todas":
+        if safe_id == "todas":
             self._populate_group_list(self._all_groups)
-        elif folder_name == "sem-pasta":
+        elif safe_id == "sem-pasta":
             self._populate_group_list([g for g in self._all_groups if not g.folder])
         else:
-            for g in self._all_groups:
-                safe = g.folder.lower().replace(" ", "-").replace("/", "-")
-                if safe == folder_name:
-                    folder_label = g.folder
-                    break
-            else:
-                folder_label = folder_name
+            folder_label = self._folder_map.get(safe_id, "")
             self._populate_group_list(
                 [g for g in self._all_groups if g.folder == folder_label]
             )
@@ -319,7 +316,7 @@ class GroupExecScreen(Vertical):
         """Start group execution in a worker thread."""
         self._current_params = params
         self.query_one(ProgressIndicator).start(
-            f"Executando grupo [bold]{group.name}[/] ({len(group.queries)} consultas)..."
+            f"Executando grupo [bold]{escape_markup(group.name)}[/] ({len(group.queries)} consultas)..."
         )
         self._run_group(group, params)
 
@@ -360,8 +357,8 @@ class GroupExecScreen(Vertical):
                     q_params[p.name] = p.default or ""
 
             self.call_from_thread(
-                self.query_one(ProgressIndicator).update_message,
-                f"Executando [bold]{qname}[/] em [bold]{conn.name}[/]...",
+                self._update_progress,
+                f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
             )
 
             result = execute_query(query, conn, q_params)
@@ -412,6 +409,12 @@ class GroupExecScreen(Vertical):
         self._record_execution(group, param_values, group_result, elapsed)
 
         self.call_from_thread(self._show_result, group_result, param_values)
+
+    def _update_progress(self, msg: str) -> None:
+        """Update progress message (safe to call from main thread via call_from_thread)."""
+        progress = self.query_one(ProgressIndicator)
+        if progress:
+            progress.update_message(msg)
 
     def _on_error(self, message: str) -> None:
         """Handle execution error on main thread."""
@@ -679,21 +682,26 @@ class _QueryPickerModal(ModalScreen[str | None]):
     def __init__(self, query_names: list[str]) -> None:
         super().__init__()
         self._query_names = query_names
+        self._qname_map: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         with Vertical(id="qp-dialog"):
             yield Static("Selecionar consulta", id="qp-title")
             for qn in self._query_names:
-                yield Button(qn, variant="primary", id=f"qp-{qn}")
-            yield Button("Cancelar", variant="default", id="qp-cancel")
+                safe_id = sanitize_id(qn)
+                self._qname_map[safe_id] = qn
+                yield Button(qn, variant="primary", id=f"qp-{safe_id}")
+            yield Button("Cancelar", variant="default", id="qp--cancel--")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
-        if btn_id == "qp-cancel":
+        if btn_id == "qp--cancel--":
             self.dismiss(None)
         elif btn_id.startswith("qp-"):
-            qn = btn_id.removeprefix("qp-")
-            self.dismiss(qn)
+            safe_id = btn_id.removeprefix("qp-")
+            qn = self._qname_map.get(safe_id)
+            if qn:
+                self.dismiss(qn)
 
     def action_cancel(self) -> None:
         self.dismiss(None)

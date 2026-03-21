@@ -107,6 +107,43 @@ async def test_query_exec_screen_with_folders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_query_exec_accented_folders(tmp_config_dir):
+    """Folders with accents should not crash the app."""
+    config_dir = tmp_config_dir / "config"
+    queries_data = {
+        "queries": [
+            {
+                "name": "q1",
+                "connection": "c1",
+                "sql": "SELECT 1",
+                "folder": "Investiga\u00e7\u00e3o",
+            },
+            {
+                "name": "q2",
+                "connection": "c1",
+                "sql": "SELECT 1",
+                "folder": "Produ\u00e7\u00e3o",
+            },
+        ]
+    }
+    (config_dir / "queries.json").write_text(
+        json.dumps(queries_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        assert screen is not None
+        # Should have folder bar with accented folder buttons
+        folder_bar = screen.query_one("#folder-bar")
+        assert folder_bar is not None
+        from textual.widgets import Button
+        buttons = folder_bar.query(Button)
+        # "Todas" + 2 folders = 3
+        assert len(buttons) >= 3
+
+
+@pytest.mark.asyncio
 async def test_query_exec_results_phase_hidden_initially(tmp_config_dir):
     """Results phase should be hidden on mount."""
     app = QueryExecTestApp()
@@ -467,6 +504,44 @@ async def test_group_exec_go_back_to_selection(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_group_exec_screen_with_accented_folders(tmp_config_dir):
+    """Groups with accented folders should not crash the app."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g_acc_a",
+                "description": "",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "Produ\u00e7\u00e3o",
+            },
+            {
+                "name": "g_acc_b",
+                "description": "",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["val"],
+                "folder": "Homologa\u00e7\u00e3o",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        folder_bar = screen.query_one("#ge-folder-bar")
+        assert folder_bar is not None
+        from textual.widgets import Button
+        buttons = folder_bar.query(Button)
+        assert len(buttons) >= 3
+
+
+@pytest.mark.asyncio
 async def test_group_exec_screen_with_folders(tmp_config_dir):
     """Groups with folders should produce folder filter bar."""
     config_dir = tmp_config_dir / "config"
@@ -620,6 +695,34 @@ async def test_adhoc_screen_go_back_to_input(tmp_config_dir):
 
         assert screen.query_one("#adhoc-input-phase").display is True
         assert screen.query_one("#adhoc-results-phase").display is False
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_go_back_cleans_connection(tmp_config_dir):
+    """go_back_to_input should rollback and close any open DML connection."""
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+
+        # Create a mock connection
+        class MockConn:
+            rolled_back = False
+            closed = False
+            def rollback(self):
+                self.rolled_back = True
+            def close(self):
+                self.closed = True
+
+        mock = MockConn()
+        screen._db_connection = mock
+        screen.query_one("#adhoc-input-phase").display = False
+        screen.query_one("#adhoc-results-phase").display = True
+
+        screen.go_back_to_input()
+
+        assert mock.rolled_back is True
+        assert mock.closed is True
+        assert screen._db_connection is None
 
 
 @pytest.mark.asyncio
@@ -865,6 +968,26 @@ async def test_browser_screen_go_back_to_list(tmp_config_dir):
 
         assert screen.query_one("#br-list-phase").display is True
         assert screen.query_one("#br-detail-phase").display is False
+
+
+@pytest.mark.asyncio
+async def test_browser_screen_unmount_closes_db(tmp_config_dir):
+    """Unmounting BrowserScreen should close the DB connection."""
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+
+        class MockDB:
+            closed = False
+            def close(self):
+                self.closed = True
+
+        mock = MockDB()
+        screen._db = mock
+        screen.on_unmount()
+
+        assert mock.closed is True
+        assert screen._db is None
 
 
 # ======================================================================
@@ -1121,3 +1244,54 @@ async def test_config_port_export_back_button(tmp_config_dir):
         await pilot.pause()
         assert screen.query_one("#cp-mode-phase").display is True
         assert screen.query_one("#cp-export-phase").display is False
+
+
+# ======================================================================
+# GroupResultWidget with accented names
+# ======================================================================
+
+from dbqm.ui.widgets.group_result import GroupResultWidget
+from dbqm.core.query_engine import QueryResult as QR
+from dbqm.core.group_engine import GroupResult as GR, ComparisonResult, ComparisonRow
+
+
+@pytest.mark.asyncio
+async def test_group_result_accented_names(tmp_config_dir):
+    """GroupResultWidget should handle query names with special characters."""
+    qr1 = QR(
+        query_name="Produ\u00e7\u00e3o", connection_name="c1",
+        columns=["id", "status"], rows=[[1, "ok"]],
+        row_count=1, elapsed=0.1,
+    )
+    qr2 = QR(
+        query_name="Homologa\u00e7\u00e3o", connection_name="c2",
+        columns=["id", "status"], rows=[[1, "ok"]],
+        row_count=1, elapsed=0.1,
+    )
+    comp = ComparisonResult(
+        column="status",
+        rows=[ComparisonRow(
+            key_value=1,
+            values={"Produ\u00e7\u00e3o": "ok", "Homologa\u00e7\u00e3o": "ok"},
+            status="OK",
+        )],
+        total_keys=1, equal_count=1, diff_count=0,
+        absent_count=0, normalized_count=0,
+    )
+    gr = GR(
+        group_name="Grupo Teste",
+        query_results={"Produ\u00e7\u00e3o": qr1, "Homologa\u00e7\u00e3o": qr2},
+        comparisons=[comp],
+        all_match=True,
+        summary_lines=[],
+    )
+
+    class GRTestApp(App):
+        def compose(self_):
+            yield GroupResultWidget()
+
+    app = GRTestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)  # Should not crash
+        assert w._group_result is not None
