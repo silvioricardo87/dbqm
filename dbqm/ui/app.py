@@ -40,6 +40,20 @@ class DBQMApp(App):
         Binding("escape", "go_back", "Back"),
         Binding("question_mark", "show_help", "Ajuda", show=False),
         Binding("slash", "search", "Buscar", show=False),
+        # Action bar shortcut keys — bound at app level to guarantee they work
+        # regardless of which widget has focus. The action_shortcut handler
+        # checks if the key matches a current action bar entry.
+        Binding("n", "shortcut('n')", "", show=False, priority=True),
+        Binding("t", "shortcut('t')", "", show=False, priority=True),
+        Binding("e", "shortcut('e')", "", show=False, priority=True),
+        Binding("r", "shortcut('r')", "", show=False, priority=True),
+        Binding("d", "shortcut('d')", "", show=False, priority=True),
+        Binding("v", "shortcut('v')", "", show=False, priority=True),
+        Binding("f", "shortcut('f')", "", show=False, priority=True),
+        Binding("s", "shortcut('s')", "", show=False, priority=True),
+        Binding("h", "shortcut('h')", "", show=False, priority=True),
+        Binding("i", "shortcut('i')", "", show=False, priority=True),
+        Binding("p", "shortcut('p')", "", show=False, priority=True),
     ]
 
     def compose(self) -> ComposeResult:
@@ -88,30 +102,36 @@ class DBQMApp(App):
                 )
             )
 
-    def on_key(self, event) -> None:
-        """Forward key presses to the action bar if they match a shortcut."""
-        from textual.widgets import Input, TextArea
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        """Disable shortcut bindings when an Input or TextArea is focused."""
+        if action == "shortcut":
+            from textual.widgets import Input, TextArea
+            focused = self.focused
+            if isinstance(focused, (Input, TextArea)):
+                return False  # Binding disabled → key passes through to widget
+            # Also check if there's a matching action in the bar
+            try:
+                action_bar = self.query_one(ActionBar)
+            except Exception:
+                return False
+            key = parameters[0] if parameters else ""
+            for act in action_bar._actions:
+                if act.key and act.key.lower() == key.lower():
+                    return True  # Binding enabled
+            return False  # No matching action → let key pass through
+        return True
 
-        # Don't intercept keys when the user is typing in an input/textarea
-        focused = self.focused
-        if isinstance(focused, (Input, TextArea)):
-            return
-
+    def action_shortcut(self, key: str) -> None:
+        """Handle action bar shortcut keys (N, T, E, R, etc.)."""
         try:
             action_bar = self.query_one(ActionBar)
         except Exception:
             return
-        if action_bar._actions:
-            key = event.key
-            for action in action_bar._actions:
-                action_key = action.key.lower()
-                if not action_key:
-                    continue
-                if key == action_key:
-                    action_bar.post_message(ActionSelected(action.action_id))
-                    event.prevent_default()
-                    event.stop()
-                    return
+
+        for action in action_bar._actions:
+            if action.key and action.key.lower() == key.lower():
+                action_bar.post_message(ActionSelected(action.action_id))
+                return
 
     def on_sidebar_item_selected(self, message: SidebarItemSelected) -> None:
         """Handle sidebar navigation."""
