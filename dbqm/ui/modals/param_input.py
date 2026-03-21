@@ -28,7 +28,9 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         background: $surface;
         border: thick $accent;
         padding: 1 2;
-        overflow-y: auto;
+    }
+    ParamModal #param-scroll {
+        height: 1fr;
     }
 
     ParamModal #title {
@@ -83,30 +85,31 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         self._param_id_to_name: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(id="dialog"):
-            yield Static(self.query_name, id="title")
-            if self.description:
-                yield Static(self.description, id="subtitle")
+        with Vertical(id="dialog"):
+            with VerticalScroll(id="param-scroll"):
+                yield Static(self.query_name, id="title")
+                if self.description:
+                    yield Static(self.description, id="subtitle")
 
-            for param in self.params:
-                name = param["name"]
-                desc = param.get("description", "")
-                default = param.get("default", "")
+                for param in self.params:
+                    name = param["name"]
+                    desc = param.get("description", "")
+                    default = param.get("default", "")
 
-                label_text = f":{name}"
-                if desc:
-                    label_text += f" ({desc})"
+                    label_text = f":{name}"
+                    if desc:
+                        label_text += f" ({desc})"
 
-                yield Label(label_text, classes="param-label")
+                    yield Label(label_text, classes="param-label")
 
-                value = self.last_values.get(name, default)
-                safe_id = sanitize_id(name)
-                self._param_id_to_name[safe_id] = name
-                yield Input(
-                    value=value,
-                    placeholder=default if not value else "",
-                    id=f"param-{safe_id}",
-                )
+                    value = self.last_values.get(name, default)
+                    safe_id = sanitize_id(name)
+                    self._param_id_to_name[safe_id] = name
+                    yield Input(
+                        value=value,
+                        placeholder=default if not value else "",
+                        id=f"param-{safe_id}",
+                    )
 
             with Horizontal(id="buttons"):
                 yield Button("Executar", variant="primary", id="submit")

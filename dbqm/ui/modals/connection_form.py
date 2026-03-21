@@ -47,7 +47,9 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         background: $surface;
         border: thick $accent;
         padding: 1 2;
-        overflow-y: auto;
+    }
+    ConnectionFormModal #form-scroll {
+        height: 1fr;
     }
     ConnectionFormModal #form-title {
         text-style: bold;
@@ -67,6 +69,7 @@ class ConnectionFormModal(ModalScreen[dict | None]):
     }
     ConnectionFormModal #buttons {
         margin-top: 1;
+        height: auto;
         width: 100%;
         align: center middle;
     }
@@ -100,27 +103,28 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         conn = self._connection or {}
         title = "Editar Conexao" if self._edit_mode else "Nova Conexao"
 
-        with VerticalScroll(id="dialog"):
-            yield Static(title, id="form-title")
+        with Vertical(id="dialog"):
+            with VerticalScroll(id="form-scroll"):
+                yield Static(title, id="form-title")
 
-            yield Static("Nome:", classes="field-label")
-            name_input = Input(value=conn.get("name", ""), disabled=self._edit_mode)
-            self._fields["name"] = name_input
-            yield name_input
+                yield Static("Nome:", classes="field-label")
+                name_input = Input(value=conn.get("name", ""), disabled=self._edit_mode)
+                self._fields["name"] = name_input
+                yield name_input
 
-            yield Static("Tipo de banco:", classes="field-label")
-            current_type = conn.get("db_type", "")
-            valid_types = [v for _, v in DB_TYPE_OPTIONS]
-            if current_type in valid_types:
-                db_select = Select(DB_TYPE_OPTIONS, value=current_type, id="field-db-type")
-            else:
-                db_select = Select(DB_TYPE_OPTIONS, prompt="Selecione o tipo", id="field-db-type")
-            self._fields["db_type"] = db_select
-            yield db_select
+                yield Static("Tipo de banco:", classes="field-label")
+                current_type = conn.get("db_type", "")
+                valid_types = [v for _, v in DB_TYPE_OPTIONS]
+                if current_type in valid_types:
+                    db_select = Select(DB_TYPE_OPTIONS, value=current_type, id="field-db-type")
+                else:
+                    db_select = Select(DB_TYPE_OPTIONS, prompt="Selecione o tipo", id="field-db-type")
+                self._fields["db_type"] = db_select
+                yield db_select
 
-            yield Vertical(id="dynamic-fields")
+                yield Vertical(id="dynamic-fields")
+
             yield Static("", id="test-result")
-
             with Horizontal(id="buttons"):
                 yield Button("Salvar", variant="primary", id="btn-save")
                 yield Button("Testar", variant="warning", id="btn-test")

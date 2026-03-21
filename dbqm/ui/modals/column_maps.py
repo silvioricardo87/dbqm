@@ -25,7 +25,9 @@ class ColumnMapsModal(ModalScreen[dict | None]):
         background: $surface;
         border: thick $accent;
         padding: 1 2;
-        overflow-y: auto;
+    }
+    ColumnMapsModal #maps-scroll {
+        height: 1fr;
     }
 
     ColumnMapsModal #title {
@@ -85,15 +87,16 @@ class ColumnMapsModal(ModalScreen[dict | None]):
 
     def compose(self) -> ComposeResult:
         options = [(col, col) for col in self._columns]
-        with VerticalScroll(id="dialog"):
-            yield Static("DE-PARA (Mapeamento de Valores)", id="title")
-            yield Select(options, prompt="Selecione uma coluna", id="col-select")
-            yield DataTable(id="maps-table")
-            with Horizontal(id="add-row"):
-                yield Input(placeholder="Valor original", id="raw-input", classes="map-input")
-                yield Input(placeholder="Exibir como", id="display-input", classes="map-input")
-                yield Button("+", variant="success", id="add-map")
-            yield Button("Remover selecionado", variant="error", id="remove-map")
+        with Vertical(id="dialog"):
+            with VerticalScroll(id="maps-scroll"):
+                yield Static("DE-PARA (Mapeamento de Valores)", id="title")
+                yield Select(options, prompt="Selecione uma coluna", id="col-select")
+                yield DataTable(id="maps-table")
+                with Horizontal(id="add-row"):
+                    yield Input(placeholder="Valor original", id="raw-input", classes="map-input")
+                    yield Input(placeholder="Exibir como", id="display-input", classes="map-input")
+                    yield Button("+", variant="success", id="add-map")
+                yield Button("Remover selecionado", variant="error", id="remove-map")
             with Horizontal(id="buttons"):
                 yield Button("Salvar", variant="primary", id="save")
                 yield Button("Cancelar", variant="default", id="cancel")
