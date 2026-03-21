@@ -284,9 +284,9 @@ class QueryExecScreen(Vertical):
             if result.success and result.rows:
                 query.apply_column_maps(result.rows, result.columns)
 
-            self.call_from_thread(self._on_result, query, conn, params, result)
+            self.app.call_from_thread(self._on_result, query, conn, params, result)
         except Exception as e:
-            self.call_from_thread(self._show_error, str(e))
+            self.app.call_from_thread(self._show_error, str(e))
 
     def _show_error(self, msg: str) -> None:
         """Show error notification and stop progress indicator."""

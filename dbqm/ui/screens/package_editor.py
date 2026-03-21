@@ -751,9 +751,9 @@ class PackageEditorScreen(Vertical):
             conn = find_connection(conn_name)
             if conn:
                 db = get_connection(conn)
-                self.call_from_thread(self._store_db, db)
+                self.app.call_from_thread(self._store_db, db)
         except Exception as e:
-            self.call_from_thread(
+            self.app.call_from_thread(
                 self._show_db_error,
                 f"Erro ao conectar: {e}",
             )
@@ -849,11 +849,11 @@ class PackageEditorScreen(Vertical):
         try:
             success, error_msg = compile_package(self._db, sql)
             errors = fetch_compilation_errors(self._db, self._pkg_name, obj_type)
-            self.call_from_thread(
+            self.app.call_from_thread(
                 self._on_compile_result, target, success, error_msg, errors
             )
         except Exception as e:
-            self.call_from_thread(self._on_compile_error, str(e))
+            self.app.call_from_thread(self._on_compile_error, str(e))
 
     def _on_compile_result(
         self,

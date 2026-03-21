@@ -260,9 +260,9 @@ class AdhocScreen(Vertical):
         """Execute SQL in a background thread."""
         try:
             result = execute_adhoc(sql, conn, params)
-            self.call_from_thread(self._on_sql_result, result)
+            self.app.call_from_thread(self._on_sql_result, result)
         except Exception as e:
-            self.call_from_thread(self._show_error, str(e))
+            self.app.call_from_thread(self._show_error, str(e))
 
     def _show_error(self, msg: str) -> None:
         """Show error notification and stop progress indicator."""

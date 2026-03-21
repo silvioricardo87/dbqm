@@ -273,9 +273,9 @@ class BrowserScreen(Vertical):
                 self._db = get_connection(conn)
 
             objects = list_objects(self._db, conn.db_type, obj_type)
-            self.call_from_thread(self._on_objects_loaded, objects)
+            self.app.call_from_thread(self._on_objects_loaded, objects)
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_objects_loaded(self, objects: list[str]) -> None:
         """Handle objects loaded."""
@@ -387,9 +387,9 @@ class BrowserScreen(Vertical):
             structure = get_table_structure(
                 self._db, self._current_conn.db_type, table_name
             )
-            self.call_from_thread(self._on_table_structure_loaded, structure)
+            self.app.call_from_thread(self._on_table_structure_loaded, structure)
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_table_structure_loaded(self, structure) -> None:
         """Display table structure."""
@@ -490,9 +490,9 @@ class BrowserScreen(Vertical):
             view_info = get_view_definition(
                 self._db, self._current_conn.db_type, view_name
             )
-            self.call_from_thread(self._on_view_loaded, view_info)
+            self.app.call_from_thread(self._on_view_loaded, view_info)
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_view_loaded(self, view_info) -> None:
         """Display view definition."""
@@ -541,9 +541,9 @@ class BrowserScreen(Vertical):
             pkg_info = list_package_routines(
                 self._db, self._current_conn.db_type, pkg_name
             )
-            self.call_from_thread(self._on_package_loaded, pkg_info)
+            self.app.call_from_thread(self._on_package_loaded, pkg_info)
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_package_loaded(self, pkg_info) -> None:
         """Display package routines."""
@@ -619,15 +619,15 @@ class BrowserScreen(Vertical):
 
             if row:
                 rtype, rdata, rdef = row
-                self.call_from_thread(
+                self.app.call_from_thread(
                     self._on_routine_loaded, routine_name, rtype, rdata, rdef
                 )
             else:
-                self.call_from_thread(
+                self.app.call_from_thread(
                     self._on_load_error, "Rotina nao encontrada."
                 )
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_routine_loaded(
         self, routine_name: str, rtype: str, rdata: str, rdef: str | None
@@ -697,9 +697,9 @@ class BrowserScreen(Vertical):
             result = browse_table(
                 self._db, conn.db_type, obj_name, conn.name, limit, offset
             )
-            self.call_from_thread(self._on_data_result, result)
+            self.app.call_from_thread(self._on_data_result, result)
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_data_result(self, result) -> None:
         """Display data query results."""
@@ -781,9 +781,9 @@ class BrowserScreen(Vertical):
             source = get_package_source(
                 self._db, self._current_conn.db_type, pkg_name, source_type
             )
-            self.call_from_thread(self._on_source_loaded, source, source_type, pkg_name)
+            self.app.call_from_thread(self._on_source_loaded, source, source_type, pkg_name)
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_source_loaded(self, source: str, source_type: str, pkg_name: str) -> None:
         self.query_one(ProgressIndicator).stop()
@@ -909,7 +909,7 @@ class BrowserScreen(Vertical):
                 parts.append("/")
 
             if not parts:
-                self.call_from_thread(
+                self.app.call_from_thread(
                     self._on_load_error,
                     "Nenhum source encontrado para este package.",
                 )
@@ -917,9 +917,9 @@ class BrowserScreen(Vertical):
 
             content = "\n".join(parts)
             path = export_sql_file(content, pkg_name)
-            self.call_from_thread(self._on_package_exported, path)
+            self.app.call_from_thread(self._on_package_exported, path)
         except Exception as e:
-            self.call_from_thread(self._on_load_error, str(e))
+            self.app.call_from_thread(self._on_load_error, str(e))
 
     def _on_package_exported(self, path: str) -> None:
         self.query_one(ProgressIndicator).stop()

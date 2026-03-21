@@ -221,12 +221,12 @@ class ConfigPortScreen(Vertical):
                 include_queries=include_queries,
                 include_groups=include_groups,
             )
-            self.call_from_thread(
+            self.app.call_from_thread(
                 self.notify, f"Configuracoes exportadas: {path}", severity="information", timeout=8
             )
-            self.call_from_thread(self._clear_export_form)
+            self.app.call_from_thread(self._clear_export_form)
         except Exception as e:
-            self.call_from_thread(
+            self.app.call_from_thread(
                 self.notify, f"Erro ao exportar: {e}", severity="error", timeout=8
             )
 
@@ -275,15 +275,15 @@ class ConfigPortScreen(Vertical):
 
             if total > 0:
                 msg = f"Importado: {', '.join(parts)}"
-                self.call_from_thread(self.notify, msg, severity="information", timeout=8)
+                self.app.call_from_thread(self.notify, msg, severity="information", timeout=8)
             else:
                 msg = f"Nenhuma configuracao nova importada. {summary['skipped']} duplicados ignorados."
-                self.call_from_thread(self.notify, msg, severity="warning", timeout=8)
+                self.app.call_from_thread(self.notify, msg, severity="warning", timeout=8)
 
-            self.call_from_thread(self._clear_import_form)
-            self.call_from_thread(self._update_status_bar)
+            self.app.call_from_thread(self._clear_import_form)
+            self.app.call_from_thread(self._update_status_bar)
         except Exception as e:
-            self.call_from_thread(
+            self.app.call_from_thread(
                 self.notify, f"Erro ao importar: {e}", severity="error", timeout=8
             )
 

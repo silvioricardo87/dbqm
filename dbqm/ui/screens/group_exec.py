@@ -366,7 +366,7 @@ class GroupExecScreen(Vertical):
             for qname in group.queries:
                 query = find_query(qname)
                 if query is None:
-                    self.call_from_thread(
+                    self.app.call_from_thread(
                         self.notify,
                         f"Consulta '{qname}' nao encontrada no grupo.",
                         severity="warning",
@@ -375,7 +375,7 @@ class GroupExecScreen(Vertical):
 
                 conn = find_connection(query.connection)
                 if conn is None:
-                    self.call_from_thread(
+                    self.app.call_from_thread(
                         self.notify,
                         f"Conexao '{query.connection}' nao encontrada para '{qname}'.",
                         severity="warning",
@@ -388,7 +388,7 @@ class GroupExecScreen(Vertical):
                     if p.name not in q_params:
                         q_params[p.name] = p.default or ""
 
-                self.call_from_thread(
+                self.app.call_from_thread(
                     self._update_progress,
                     f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
                 )
@@ -396,7 +396,7 @@ class GroupExecScreen(Vertical):
                 try:
                     result = execute_query(query, conn, q_params)
                 except Exception as e:
-                    self.call_from_thread(
+                    self.app.call_from_thread(
                         self.notify,
                         f"Erro em '{qname}': {e}",
                         severity="error",
@@ -413,14 +413,14 @@ class GroupExecScreen(Vertical):
             elapsed = time.time() - start_time
 
             if not query_results:
-                self.call_from_thread(self._on_error, "Nenhuma consulta executada com sucesso.")
+                self.app.call_from_thread(self._on_error, "Nenhuma consulta executada com sucesso.")
                 return
 
             # Check for failed queries
             failures = {k: v for k, v in query_results.items() if not v.success}
             if failures:
                 for qn, res in failures.items():
-                    self.call_from_thread(
+                    self.app.call_from_thread(
                         self.notify,
                         f"Erro em '{qn}': {res.error}",
                         severity="error",
@@ -431,7 +431,7 @@ class GroupExecScreen(Vertical):
             success_results = {k: v for k, v in query_results.items() if v.success}
 
             if len(success_results) < 2:
-                self.call_from_thread(
+                self.app.call_from_thread(
                     self._on_error,
                     "Necessario pelo menos 2 consultas com sucesso para comparar.",
                 )
@@ -449,9 +449,9 @@ class GroupExecScreen(Vertical):
             # Record history
             self._record_execution(group, param_values, group_result, elapsed)
 
-            self.call_from_thread(self._show_result, group_result, param_values)
+            self.app.call_from_thread(self._show_result, group_result, param_values)
         except Exception as e:
-            self.call_from_thread(self._on_error, f"Erro inesperado: {e}")
+            self.app.call_from_thread(self._on_error, f"Erro inesperado: {e}")
 
     def _update_progress(self, msg: str) -> None:
         """Update progress message (safe to call from main thread via call_from_thread)."""

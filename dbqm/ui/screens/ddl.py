@@ -203,7 +203,7 @@ class DDLScreen(Vertical):
                     pkg_name, routine_name = obj_upper.split(".", 1)
                     result = extract_routine(conn, pkg_name, routine_name)
                     if result.errors and not result.body_routines:
-                        self.call_from_thread(self._on_extraction_error, result.errors)
+                        self.app.call_from_thread(self._on_extraction_error, result.errors)
                         return
                     dir_path, next_num = save_routine_extraction(result)
                     # Build combined DDL text for display
@@ -220,7 +220,7 @@ class DDLScreen(Vertical):
                     deps = result.dependencies
                     files = result.saved_files
                     errors = result.errors
-                    self.call_from_thread(
+                    self.app.call_from_thread(
                         self._on_extraction_result,
                         combined_ddl, info, dir_path, next_num, deps, files, errors,
                     )
@@ -230,14 +230,14 @@ class DDLScreen(Vertical):
             elif conn.db_type in ("postgresql", "mysql"):
                 result = self._extract_generic(conn, obj_input)
             else:
-                self.call_from_thread(
+                self.app.call_from_thread(
                     self._on_extraction_error,
                     [f"Tipo de banco '{conn.db_type}' nao suportado para DDL."],
                 )
                 return
 
             if result.errors and not result.objects:
-                self.call_from_thread(self._on_extraction_error, result.errors)
+                self.app.call_from_thread(self._on_extraction_error, result.errors)
                 return
 
             dir_path, next_num = save_extraction(result)
@@ -252,14 +252,14 @@ class DDLScreen(Vertical):
                 f"Objeto: {result.owner}.{result.object_name} | "
                 f"Tipo: {result.object_type} | {result.connection_name}"
             )
-            self.call_from_thread(
+            self.app.call_from_thread(
                 self._on_extraction_result,
                 combined_ddl, info, dir_path, next_num,
                 result.dependencies, result.saved_files, result.errors,
             )
 
         except Exception as e:
-            self.call_from_thread(self._on_extraction_error, [str(e)])
+            self.app.call_from_thread(self._on_extraction_error, [str(e)])
 
     def _extract_generic(self, conn, object_name: str):
         """Extract DDL for PostgreSQL/MySQL objects."""
@@ -383,7 +383,7 @@ class DDLScreen(Vertical):
             dep_result = extract_dependencies_ddl(conn, dependencies, parent_name)
 
             if not dep_result.objects:
-                self.call_from_thread(
+                self.app.call_from_thread(
                     self._on_deps_error, "Nenhuma dependencia pode ser extraida."
                 )
                 return
@@ -396,10 +396,10 @@ class DDLScreen(Vertical):
                 ddl_parts.append(f"-- {obj.obj_type}: {obj.name}\n{obj.ddl}")
             combined = "\n\n".join(ddl_parts)
 
-            self.call_from_thread(self._on_deps_result, combined, dep_filepath, dep_result.errors)
+            self.app.call_from_thread(self._on_deps_result, combined, dep_filepath, dep_result.errors)
 
         except Exception as e:
-            self.call_from_thread(self._on_deps_error, str(e))
+            self.app.call_from_thread(self._on_deps_error, str(e))
 
     def _on_deps_error(self, error: str) -> None:
         self.query_one(ProgressIndicator).stop()
