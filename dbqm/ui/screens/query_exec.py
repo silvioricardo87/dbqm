@@ -47,12 +47,13 @@ class QueryExecScreen(Vertical):
     }
     QueryExecScreen #folder-bar {
         height: 3;
+        width: 1fr;
         padding: 0 1;
         background: $surface;
-        scrollbar-size: 0 0;
+        scrollbar-size-horizontal: 1;
     }
     QueryExecScreen #folder-bar Button {
-        min-width: 8;
+        min-width: 6;
         margin: 0 1 0 0;
     }
     QueryExecScreen #folder-hint {

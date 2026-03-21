@@ -1295,3 +1295,183 @@ async def test_group_result_accented_names(tmp_config_dir):
         w = app.query_one(GroupResultWidget)
         w.load_result(gr)  # Should not crash
         assert w._group_result is not None
+
+
+# ======================================================================
+# Folder navigation and list item rendering tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_query_exec_folder_arrow_navigation(tmp_config_dir):
+    """Left/Right arrows should switch folder tabs."""
+    config_dir = tmp_config_dir / "config"
+    queries_data = {
+        "queries": [
+            {
+                "name": "q1",
+                "connection": "c1",
+                "sql": "SELECT 1",
+                "folder": "FolderA",
+            },
+            {
+                "name": "q2",
+                "connection": "c1",
+                "sql": "SELECT 1",
+                "folder": "FolderB",
+            },
+        ]
+    }
+    (config_dir / "queries.json").write_text(
+        json.dumps(queries_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        # Should have folder buttons: Todas + FolderA + FolderB
+        assert len(screen._folder_buttons) >= 3
+        assert screen._active_folder_idx == 0
+        # Right arrow should advance
+        screen.key_right()
+        assert screen._active_folder_idx == 1
+        screen.key_right()
+        assert screen._active_folder_idx == 2
+        # Should not go past the end
+        screen.key_right()
+        assert screen._active_folder_idx == 2
+        # Left arrow should go back
+        screen.key_left()
+        assert screen._active_folder_idx == 1
+        screen.key_left()
+        assert screen._active_folder_idx == 0
+        # Should not go below 0
+        screen.key_left()
+        assert screen._active_folder_idx == 0
+
+
+@pytest.mark.asyncio
+async def test_group_exec_folder_arrow_navigation(tmp_config_dir):
+    """Left/Right arrows should switch folder tabs in group exec."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g1",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "F1",
+            },
+            {
+                "name": "g2",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "F2",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        # Should have folder buttons: Todas + F1 + F2
+        assert len(screen._folder_buttons) >= 3
+        assert screen._active_folder_idx == 0
+        # Right arrow should advance
+        screen.key_right()
+        assert screen._active_folder_idx == 1
+        screen.key_right()
+        assert screen._active_folder_idx == 2
+        # Left arrow should go back
+        screen.key_left()
+        assert screen._active_folder_idx == 1
+
+
+@pytest.mark.asyncio
+async def test_query_list_shows_all_items(tmp_config_dir):
+    """All queries should render in the list, not just one."""
+    config_dir = tmp_config_dir / "config"
+    queries_data = {
+        "queries": [
+            {
+                "name": f"q{i}",
+                "connection": "c1",
+                "sql": "SELECT 1",
+            }
+            for i in range(10)
+        ]
+    }
+    (config_dir / "queries.json").write_text(
+        json.dumps(queries_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        from dbqm.ui.widgets.query_list import _QueryListItem
+        items = app.query(_QueryListItem)
+        assert len(items) == 10
+
+
+@pytest.mark.asyncio
+async def test_group_list_shows_all_items(tmp_config_dir):
+    """All groups should render in the list, not just one."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": f"g{i}",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+            }
+            for i in range(8)
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        from dbqm.ui.screens.group_exec import _GroupListItem
+        items = app.query(_GroupListItem)
+        assert len(items) == 8
+
+
+@pytest.mark.asyncio
+async def test_group_exec_folder_bar_is_horizontal_scroll(tmp_config_dir):
+    """Group exec folder bar should use HorizontalScroll for scrollability."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g1",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["s"],
+                "folder": "A",
+            },
+            {
+                "name": "g2",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["s"],
+                "folder": "B",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        from textual.containers import HorizontalScroll
+        screen = app.query_one(GroupExecScreen)
+        folder_bar = screen.query_one("#ge-folder-bar")
+        assert isinstance(folder_bar, HorizontalScroll)

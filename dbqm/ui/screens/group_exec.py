@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, HorizontalScroll, Vertical
 from textual.message import Message
 from textual.widgets import Button, ListItem, ListView, Static
 from textual import work
@@ -32,30 +32,20 @@ class _GroupSelected(Message):
 
 
 class _GroupListItem(ListItem):
-    """A single group entry in the selection list."""
+    """A single group entry in the selection list.
+
+    Renders as a single line of formatted text to avoid layout issues
+    with nested containers inside ListItem.
+    """
 
     DEFAULT_CSS = """
     _GroupListItem {
-        height: auto;
+        height: 1;
         padding: 0 1;
     }
-    _GroupListItem Horizontal {
-        height: auto;
+    _GroupListItem Static {
+        height: 1;
         width: 1fr;
-    }
-    _GroupListItem .gl-name {
-        width: 1fr;
-        text-style: bold;
-    }
-    _GroupListItem .gl-desc {
-        width: 1fr;
-        color: $text-muted;
-    }
-    _GroupListItem .gl-queries {
-        width: auto;
-        min-width: 12;
-        text-align: right;
-        color: $accent;
     }
     """
 
@@ -67,19 +57,18 @@ class _GroupListItem(ListItem):
     def compose(self):
         name = self.group_data.name
         desc = self.group_data.description or ""
-        if len(desc) > 40:
-            desc = desc[:37] + "..."
+        if len(desc) > 35:
+            desc = desc[:32] + "..."
         n_queries = len(self.group_data.queries)
+        queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
 
-        with Horizontal():
-            yield Static(f"[bold]{name}[/]", classes="gl-name", markup=True)
-            if desc:
-                yield Static(f"[dim]{desc}[/]", classes="gl-desc", markup=True)
-            yield Static(
-                f"[on dark_blue] {n_queries} consulta{'s' if n_queries != 1 else ''} [/]",
-                classes="gl-queries",
-                markup=True,
-            )
+        parts = [f"[bold]{name}[/bold]"]
+        if desc:
+            parts.append(f"[dim]{desc}[/dim]")
+        parts.append(f"[#e3b341]{queries_label}[/#e3b341]")
+
+        line = "  |  ".join(parts)
+        yield Static(line, markup=True)
 
 
 # ---------------------------------------------------------------------------
@@ -116,13 +105,21 @@ class GroupExecScreen(Vertical):
         text-align: center;
     }
     GroupExecScreen #ge-folder-bar {
-        height: auto;
+        height: 3;
+        width: 1fr;
         padding: 0 1;
         background: $surface;
+        scrollbar-size-horizontal: 1;
     }
     GroupExecScreen #ge-folder-bar Button {
-        min-width: 8;
+        min-width: 6;
         margin: 0 1 0 0;
+    }
+    GroupExecScreen #ge-folder-hint {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+        text-style: dim italic;
     }
     GroupExecScreen #ge-group-list {
         height: 1fr;
@@ -142,6 +139,8 @@ class GroupExecScreen(Vertical):
         self._current_group_result: GroupResult | None = None
         self._all_groups: list = []
         self._folder_map: dict[str, str] = {}
+        self._folder_buttons: list[Button] = []
+        self._active_folder_idx: int = 0
 
     def compose(self) -> ComposeResult:
         # Selection phase
@@ -195,22 +194,25 @@ class GroupExecScreen(Vertical):
         group_list = ListView(id="ge-group-list")
 
         if folders:
-            folder_bar = Horizontal(id="ge-folder-bar")
+            folder_bar = HorizontalScroll(id="ge-folder-bar")
             selection.mount(folder_bar)
-            folder_bar.mount(
-                Button("Todas", id="ge-folder-todas", variant="primary")
-            )
+            btn_todas = Button("Todas", id="ge-folder-todas", variant="primary")
+            folder_bar.mount(btn_todas)
+            self._folder_buttons = [btn_todas]
             for folder in folders:
                 safe_id = sanitize_id(folder)
                 self._folder_map[safe_id] = folder
-                folder_bar.mount(
-                    Button(folder, id=f"ge-folder-{safe_id}", variant="default")
-                )
+                btn = Button(folder, id=f"ge-folder-{safe_id}", variant="default")
+                folder_bar.mount(btn)
+                self._folder_buttons.append(btn)
             has_no_folder = any(not g.folder for g in groups)
             if has_no_folder:
-                folder_bar.mount(
-                    Button("Sem pasta", id="ge-folder-sem-pasta", variant="default")
-                )
+                btn_sem = Button("Sem pasta", id="ge-folder-sem-pasta", variant="default")
+                folder_bar.mount(btn_sem)
+                self._folder_buttons.append(btn_sem)
+            # Hint for keyboard navigation
+            selection.mount(Static("[dim]← → alternar pastas[/dim]", id="ge-folder-hint", markup=True))
+            self._active_folder_idx = 0
 
         selection.mount(group_list)
         self._populate_group_list(groups)
@@ -234,15 +236,39 @@ class GroupExecScreen(Vertical):
         if not btn_id.startswith("ge-folder-"):
             return
 
-        # Update button variants
-        try:
-            folder_bar = self.query_one("#ge-folder-bar", Horizontal)
-            for btn in folder_bar.query(Button):
-                btn.variant = "default"
-            event.button.variant = "primary"
-        except Exception:
-            pass
+        # Sync index
+        for i, b in enumerate(self._folder_buttons):
+            if b is event.button:
+                self._active_folder_idx = i
+                break
 
+        self._activate_folder_button(event.button)
+
+    # ------------------------------------------------------------------
+    # Folder keyboard navigation (← →)
+    # ------------------------------------------------------------------
+
+    def key_left(self) -> None:
+        """Switch to previous folder."""
+        if not self._folder_buttons:
+            return
+        self._active_folder_idx = max(0, self._active_folder_idx - 1)
+        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
+
+    def key_right(self) -> None:
+        """Switch to next folder."""
+        if not self._folder_buttons:
+            return
+        self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
+        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
+
+    def _activate_folder_button(self, btn: Button) -> None:
+        """Activate a folder button and filter the group list."""
+        for b in self._folder_buttons:
+            b.variant = "default"
+        btn.variant = "primary"
+
+        btn_id = btn.id or ""
         safe_id = btn_id.removeprefix("ge-folder-")
 
         if safe_id == "todas":
@@ -254,6 +280,11 @@ class GroupExecScreen(Vertical):
             self._populate_group_list(
                 [g for g in self._all_groups if g.folder == folder_label]
             )
+        # Keep focus on the list
+        try:
+            self.query_one("#ge-group-list", ListView).focus()
+        except Exception:
+            pass
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle group selection from the list."""
