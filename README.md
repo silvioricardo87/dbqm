@@ -8,6 +8,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL
 - **Cross-database comparison** — Execute query groups and compare results side-by-side with match/diff/absent status
 - **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE)
+- **Package editor** — Create and edit Oracle packages with spec/body tabs, inline compilation errors from ALL_ERRORS, and wizard mode
 - **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages
 - **Ad-hoc SQL** — Paste and execute SQL with automatic parameter detection and bind variable support
 - **Dark/Light themes** — GitHub Dark (default) and GitHub Light, switchable in settings
@@ -94,12 +95,15 @@ The application is fully keyboard-driven:
 | `Ctrl+Q` | Quit | Global |
 | `/` | Search / filter | Lists |
 | `?` | Help (shortcuts) | Global |
+| `Tab` | Next widget | Forms, settings |
 | `V` | Vertical view | Query results |
 | `E` | Export | Query/group results |
 | `R` | Re-execute | Query/group results |
 | `F` | Toggle flat/pivoted | Group results |
 | `S` | Filter by status | Group results |
 | `H` | HTML report | Group results |
+| `C` | Compile Spec | Package editor |
+| `B` | Compile Body | Package editor |
 
 ## Sidebar
 
@@ -107,8 +111,8 @@ The application is fully keyboard-driven:
 |---------|---------|
 | **Consultas** | Executar, SQL avulso, Gerenciar |
 | **Grupos** | Executar, Gerenciar |
-| **Ferramentas** | DDL, Objetos, Historico |
-| **Sistema** | Conexoes, Exportar, Config, Sair |
+| **Ferramentas** | DDL, Packages, Objetos, Historico |
+| **Sistema** | Conexoes, Config (inclui Exportar/Importar), Sair |
 
 ## Query Groups & Comparison
 
@@ -145,8 +149,9 @@ dbqm/
 │   │   │   ├── browser.py         # Object browser (tables, views, packages)
 │   │   │   ├── history.py         # Execution history
 │   │   │   ├── connections.py     # Connection management
-│   │   │   ├── settings.py        # Theme selector, audit toggle
-│   │   │   └── config_port.py     # Config export/import
+│   │   │   ├── package_editor.py   # Oracle package editor (spec/body, compile)
+│   │   │   ├── settings.py        # Theme, audit toggle, export/import
+│   │   │   └── config_port.py     # Config export/import (used by settings)
 │   │   ├── widgets/               # Reusable UI components
 │   │   │   ├── sidebar.py         # Collapsible sidebar with keyboard nav
 │   │   │   ├── breadcrumb.py      # Navigation breadcrumb
@@ -164,6 +169,7 @@ dbqm/
 │   │   │   ├── export_picker.py   # Export format selector
 │   │   │   ├── connection_form.py # Connection create/edit form
 │   │   │   ├── column_maps.py     # DE-PARA value mapping
+│   │   │   ├── error.py           # Error display modal
 │   │   │   └── help.py            # Keyboard shortcuts overlay
 │   │   └── legacy/
 │   │       └── display.py         # Rich renderables for PNG/TXT export
@@ -178,6 +184,7 @@ dbqm/
 │   │   ├── ddl_mysql.py           # MySQL DDL
 │   │   ├── object_browser.py      # Database object introspection
 │   │   ├── table_browser.py       # Table data browsing
+│   │   ├── package_editor.py       # Oracle package compile + errors
 │   │   ├── crypto.py              # Password encryption
 │   │   ├── config_portability.py  # Config import/export
 │   │   ├── history.py             # Execution history
@@ -189,7 +196,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (391 tests)
+└── tests/                         # Test suite (440+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests
