@@ -46,6 +46,17 @@ class ConnectionsScreen(Vertical):
         self._setup_table()
         self._load_connections()
         self._set_actions()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        table = self.query_one("#conn-table", DataTable)
+        if table.display:
+            table.focus()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle Enter on a row — test the selected connection."""
+        if event.data_table.id == "conn-table":
+            self._handle_test()
 
     def _setup_table(self) -> None:
         table = self.query_one("#conn-table", DataTable)

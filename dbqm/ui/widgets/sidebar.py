@@ -43,6 +43,8 @@ class SidebarItemSelected(Message):
 class SidebarItem(Static):
     """A single clickable menu item in the sidebar."""
 
+    can_focus = False
+
     def __init__(self, action: str, icon: str, label: str) -> None:
         self._action = action
         self._icon = icon
@@ -58,6 +60,8 @@ class SidebarItem(Static):
 class SidebarSectionLabel(Static):
     """A section header label in the sidebar."""
 
+    can_focus = False
+
     def __init__(self, text: str) -> None:
         super().__init__(text)
         self.add_class("sidebar-section-label")
@@ -66,7 +70,9 @@ class SidebarSectionLabel(Static):
 class Sidebar(Vertical):
     """Collapsible sidebar navigation docked to the left."""
 
+    can_focus = True
     collapsed: reactive[bool] = reactive(False)
+    _selected_index: reactive[int] = reactive(0)
 
     DEFAULT_CSS = """
     Sidebar {
@@ -75,6 +81,10 @@ class Sidebar(Vertical):
         background: $surface;
         border-right: solid $primary-background;
         padding: 1 0;
+    }
+
+    Sidebar:focus-within {
+        border-right: solid $accent;
     }
 
     Sidebar.sidebar--collapsed {
@@ -108,6 +118,11 @@ class Sidebar(Vertical):
         color: $text;
     }
 
+    .sidebar-item--cursor {
+        background: $accent 30%;
+        text-style: reverse;
+    }
+
     .sidebar-separator {
         height: 1;
     }
@@ -120,6 +135,12 @@ class Sidebar(Vertical):
             yield SidebarSectionLabel(section_name)
             for action, icon, label in items:
                 yield SidebarItem(action, icon, label)
+
+    def on_mount(self) -> None:
+        """Build the list of focusable item indices after mount."""
+        self._focusable_items: list[SidebarItem] = list(self.query(SidebarItem))
+        if self._focusable_items:
+            self._update_cursor()
 
     def watch_collapsed(self, collapsed: bool) -> None:
         if collapsed:
@@ -138,3 +159,45 @@ class Sidebar(Vertical):
                 item.add_class("sidebar-item--active")
             else:
                 item.remove_class("sidebar-item--active")
+
+    def _update_cursor(self) -> None:
+        """Update visual cursor to match _selected_index."""
+        for i, item in enumerate(self._focusable_items):
+            if i == self._selected_index:
+                item.add_class("sidebar-item--cursor")
+            else:
+                item.remove_class("sidebar-item--cursor")
+
+    def watch__selected_index(self, value: int) -> None:
+        """React to _selected_index changes."""
+        if hasattr(self, '_focusable_items') and self._focusable_items:
+            self._update_cursor()
+
+    def key_up(self) -> None:
+        """Move cursor up."""
+        if not self._focusable_items:
+            return
+        self._selected_index = (self._selected_index - 1) % len(self._focusable_items)
+
+    def key_down(self) -> None:
+        """Move cursor down."""
+        if not self._focusable_items:
+            return
+        self._selected_index = (self._selected_index + 1) % len(self._focusable_items)
+
+    def key_enter(self) -> None:
+        """Select the currently highlighted item."""
+        if not self._focusable_items:
+            return
+        item = self._focusable_items[self._selected_index]
+        self.post_message(SidebarItemSelected(item._action))
+
+    def key_home(self) -> None:
+        """Jump to first item."""
+        if self._focusable_items:
+            self._selected_index = 0
+
+    def key_end(self) -> None:
+        """Jump to last item."""
+        if self._focusable_items:
+            self._selected_index = len(self._focusable_items) - 1

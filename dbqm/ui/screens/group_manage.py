@@ -369,6 +369,17 @@ class GroupManageScreen(Vertical):
         self._setup_table()
         self._load_groups()
         self._set_actions()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        table = self.query_one("#gm-table", DataTable)
+        if table.display:
+            table.focus()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle Enter on a row — edit the selected group."""
+        if event.data_table.id == "gm-table":
+            self._handle_edit()
 
     def _setup_table(self) -> None:
         table = self.query_one("#gm-table", DataTable)

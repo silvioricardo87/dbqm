@@ -21,6 +21,8 @@ class ActionSelected(Message):
 class ActionBar(Static):
     """A single-line bar showing contextual action buttons."""
 
+    can_focus = False
+
     DEFAULT_CSS = """
     ActionBar {
         height: auto;

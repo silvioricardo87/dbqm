@@ -157,6 +157,13 @@ class BrowserScreen(Vertical):
         self.query_one("#br-data-phase").display = False
         self._load_connections()
         self._setup_type_buttons()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        try:
+            self.query_one("#br-conn-select", Select).focus()
+        except Exception:
+            pass
 
     def _load_connections(self) -> None:
         """Load connections into the Select widget."""

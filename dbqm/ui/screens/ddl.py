@@ -106,6 +106,13 @@ class DDLScreen(Vertical):
     def on_mount(self) -> None:
         self.query_one("#ddl-results-phase").display = False
         self._load_connections()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        try:
+            self.query_one("#ddl-object-input", Input).focus()
+        except Exception:
+            pass
 
     def _load_connections(self) -> None:
         """Load supported connections into the Select widget."""

@@ -81,6 +81,14 @@ class SettingsScreen(Vertical):
         audit_switch = self.query_one("#settings-audit-switch", Switch)
         audit_switch.value = settings.audit_log_enabled
 
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        try:
+            self.query_one("#settings-theme-select", Select).focus()
+        except Exception:
+            pass
+
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id != "settings-theme-select":
             return

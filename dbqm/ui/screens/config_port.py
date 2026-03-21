@@ -132,6 +132,13 @@ class ConfigPortScreen(Vertical):
 
     def on_mount(self) -> None:
         self._show_mode_phase()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        try:
+            self.query_one("#cp-btn-export", Button).focus()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Phase management

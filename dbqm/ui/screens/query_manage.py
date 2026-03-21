@@ -494,6 +494,17 @@ class QueryManageScreen(Vertical):
         self._setup_table()
         self._load_queries()
         self._set_actions()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        table = self.query_one("#qm-table", DataTable)
+        if table.display:
+            table.focus()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle Enter on a row — view SQL of the selected query."""
+        if event.data_table.id == "qm-table":
+            self._handle_view_sql()
 
     def _setup_table(self) -> None:
         table = self.query_one("#qm-table", DataTable)

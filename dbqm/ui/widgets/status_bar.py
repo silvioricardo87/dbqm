@@ -8,6 +8,8 @@ from textual.widgets import Static
 class StatusBar(Static):
     """A single-line status bar showing connection state and counters."""
 
+    can_focus = False
+
     DEFAULT_CSS = """
     StatusBar {
         dock: bottom;

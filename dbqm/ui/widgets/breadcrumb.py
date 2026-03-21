@@ -18,6 +18,8 @@ class BreadcrumbNavigated(Message):
 class Breadcrumb(Static):
     """A single-line breadcrumb bar showing the navigation path."""
 
+    can_focus = False
+
     DEFAULT_CSS = """
     Breadcrumb {
         height: 1;

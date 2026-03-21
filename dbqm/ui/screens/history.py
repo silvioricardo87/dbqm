@@ -71,6 +71,12 @@ class HistoryScreen(Vertical):
     def on_mount(self) -> None:
         self.query_one("#hist-detail-phase").display = False
         self._load_history()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        table = self.query_one("#hist-table", DataTable)
+        if table.display:
+            table.focus()
 
     def _load_history(self) -> None:
         """Load and display history entries."""

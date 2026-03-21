@@ -10,7 +10,7 @@ from dbqm.ui.theme import GITHUB_DARK, GITHUB_LIGHT
 from dbqm.ui.widgets.sidebar import Sidebar, SidebarItemSelected
 from dbqm.ui.widgets.breadcrumb import Breadcrumb
 from dbqm.ui.widgets.status_bar import StatusBar
-from dbqm.ui.widgets.action_bar import ActionBar
+from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
 
 
 # Map sidebar actions to breadcrumb labels
@@ -88,6 +88,31 @@ class DBQMApp(App):
                 )
             )
 
+    def on_key(self, event) -> None:
+        """Forward key presses to the action bar if they match a shortcut."""
+        from textual.widgets import Input, TextArea
+
+        # Don't intercept keys when the user is typing in an input/textarea
+        focused = self.focused
+        if isinstance(focused, (Input, TextArea)):
+            return
+
+        try:
+            action_bar = self.query_one(ActionBar)
+        except Exception:
+            return
+        if action_bar._actions:
+            key = event.key
+            for action in action_bar._actions:
+                action_key = action.key.lower()
+                if not action_key:
+                    continue
+                if key == action_key:
+                    action_bar.post_message(ActionSelected(action.action_id))
+                    event.prevent_default()
+                    event.stop()
+                    return
+
     def on_sidebar_item_selected(self, message: SidebarItemSelected) -> None:
         """Handle sidebar navigation."""
         action = message.action
@@ -116,48 +141,60 @@ class DBQMApp(App):
         screen_area = self.query_one("#screen-area", Container)
         screen_area.remove_children()
 
+        screen_widget = None
         if action == "exec_query":
             from dbqm.ui.screens.query_exec import QueryExecScreen
-            screen_area.mount(QueryExecScreen(id="query-exec-screen"))
+            screen_widget = QueryExecScreen(id="query-exec-screen")
         elif action == "exec_group":
             from dbqm.ui.screens.group_exec import GroupExecScreen
             self.query_one(Breadcrumb).set_path(["Grupos", "Executar"])
-            screen_area.mount(GroupExecScreen(id="group-exec-screen"))
+            screen_widget = GroupExecScreen(id="group-exec-screen")
         elif action == "config_query":
             from dbqm.ui.screens.query_manage import QueryManageScreen
-            screen_area.mount(QueryManageScreen(id="query-manage-screen"))
+            screen_widget = QueryManageScreen(id="query-manage-screen")
         elif action == "config_group":
             from dbqm.ui.screens.group_manage import GroupManageScreen
-            screen_area.mount(GroupManageScreen(id="group-manage-screen"))
+            screen_widget = GroupManageScreen(id="group-manage-screen")
         elif action == "adhoc_sql":
             from dbqm.ui.screens.adhoc import AdhocScreen
             self.query_one(Breadcrumb).set_path(["Consultas", "SQL avulso"])
-            screen_area.mount(AdhocScreen(id="adhoc-screen"))
+            screen_widget = AdhocScreen(id="adhoc-screen")
         elif action == "extract_ddl":
             from dbqm.ui.screens.ddl import DDLScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "DDL"])
-            screen_area.mount(DDLScreen(id="ddl-screen"))
+            screen_widget = DDLScreen(id="ddl-screen")
         elif action == "browse":
             from dbqm.ui.screens.browser import BrowserScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "Objetos"])
-            screen_area.mount(BrowserScreen(id="browser-screen"))
+            screen_widget = BrowserScreen(id="browser-screen")
         elif action == "history":
             from dbqm.ui.screens.history import HistoryScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "Historico"])
-            screen_area.mount(HistoryScreen(id="history-screen"))
+            screen_widget = HistoryScreen(id="history-screen")
         elif action == "config_conn":
             from dbqm.ui.screens.connections import ConnectionsScreen
-            screen_area.mount(ConnectionsScreen(id="connections-screen"))
+            screen_widget = ConnectionsScreen(id="connections-screen")
         elif action == "settings":
             from dbqm.ui.screens.settings import SettingsScreen
             self.query_one(Breadcrumb).set_path(["Sistema", "Config"])
-            screen_area.mount(SettingsScreen(id="settings-screen"))
+            screen_widget = SettingsScreen(id="settings-screen")
         elif action == "portability":
             from dbqm.ui.screens.config_port import ConfigPortScreen
             self.query_one(Breadcrumb).set_path(["Sistema", "Exportar"])
-            screen_area.mount(ConfigPortScreen(id="config-port-screen"))
+            screen_widget = ConfigPortScreen(id="config-port-screen")
         else:
-            screen_area.mount(Static(f"[dim]{label}[/dim] (em construção)", id="placeholder"))
+            screen_widget = Static(f"[dim]{label}[/dim] (em construção)", id="placeholder")
+
+        if screen_widget is not None:
+            screen_area.mount(screen_widget)
+            self.call_after_refresh(lambda: self._focus_screen_widget(screen_widget))
+
+    def _focus_screen_widget(self, screen_widget) -> None:
+        """Set focus to the primary interactive widget within a screen."""
+        try:
+            screen_widget.focus()
+        except Exception:
+            pass
 
     def action_show_help(self) -> None:
         """Show the help overlay with keyboard shortcuts."""

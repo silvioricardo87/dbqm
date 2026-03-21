@@ -86,6 +86,14 @@ class QueryExecScreen(Vertical):
     def on_mount(self) -> None:
         self.query_one("#results-phase").display = False
         self._load_selection()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        try:
+            ql = self.query_one("#ql-main", QueryListWidget)
+            ql.focus()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Phase 1: Query selection

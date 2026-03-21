@@ -159,6 +159,14 @@ class GroupExecScreen(Vertical):
     def on_mount(self) -> None:
         self.query_one("#ge-results-phase").display = False
         self._load_selection()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        try:
+            gl = self.query_one("#ge-group-list", ListView)
+            gl.focus()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Phase 1: Group selection

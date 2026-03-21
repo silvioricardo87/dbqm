@@ -125,6 +125,13 @@ class AdhocScreen(Vertical):
         self.query_one("#adhoc-dml-result").display = False
         self.query_one("#adhoc-sql-viewer").display = False
         self._load_connections()
+        self.call_after_refresh(self._set_initial_focus)
+
+    def _set_initial_focus(self) -> None:
+        try:
+            self.query_one("#adhoc-sql-area", TextArea).focus()
+        except Exception:
+            pass
 
     def _load_connections(self) -> None:
         """Load connections into the Select widget."""
