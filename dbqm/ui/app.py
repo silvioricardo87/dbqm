@@ -115,7 +115,7 @@ class DBQMApp(App):
         if event.key not in ("up", "down"):
             return
 
-        from textual.widgets import DataTable, ListView, TextArea
+        from textual.widgets import DataTable, ListView, TextArea, OptionList
         from dbqm.ui.widgets.sidebar import Sidebar
 
         focused = self.focused
@@ -125,7 +125,7 @@ class DBQMApp(App):
         # Check the focused widget AND its ancestors for types that use arrows
         widget_chain = [focused] + list(focused.ancestors)
         for w in widget_chain:
-            if isinstance(w, (DataTable, ListView, TextArea, Sidebar)):
+            if isinstance(w, (DataTable, ListView, TextArea, OptionList, Sidebar)):
                 return
 
         # Navigate within the content section only
