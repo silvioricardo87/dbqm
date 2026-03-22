@@ -6,6 +6,7 @@ import re
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Select, Static, TextArea
+from dbqm.ui.utils import NavSelect
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
@@ -103,7 +104,7 @@ class AdhocScreen(Vertical):
         # Input phase
         with Vertical(id="adhoc-input-phase"):
             with Horizontal(id="adhoc-conn-bar"):
-                yield Select([], prompt="Selecione a conexao", id="adhoc-conn-select")
+                yield NavSelect([], prompt="Selecione a conexao", id="adhoc-conn-select")
             yield TextArea("", language="sql", id="adhoc-sql-area")
             with Horizontal(id="adhoc-btn-bar"):
                 yield Button("Executar", variant="primary", id="adhoc-execute")

@@ -58,9 +58,6 @@ class DBQMApp(App):
         Binding("p", "shortcut('p')", "", show=False, priority=True),
         Binding("c", "shortcut('c')", "", show=False, priority=True),
         Binding("b", "shortcut('b')", "", show=False, priority=True),
-        # Arrow navigation between focusable widgets in form screens
-        Binding("down", "focus_next_widget", "", show=False, priority=True),
-        Binding("up", "focus_prev_widget", "", show=False, priority=True),
     ]
 
     def compose(self) -> ComposeResult:
@@ -109,6 +106,33 @@ class DBQMApp(App):
                 )
             )
 
+    def on_key(self, event) -> None:
+        """Use arrow keys to navigate between widgets in content area.
+
+        DataTable, ListView, TextArea, and Sidebar handle arrows internally.
+        For other widgets (Button, Switch, Input, Select), arrows move focus.
+        """
+        if event.key not in ("up", "down"):
+            return
+
+        from textual.widgets import DataTable, ListView, TextArea
+        from dbqm.ui.widgets.sidebar import Sidebar
+
+        focused = self.focused
+        if focused is None:
+            return
+
+        # Check the focused widget AND its ancestors for types that use arrows
+        widget_chain = [focused] + list(focused.ancestors)
+        for w in widget_chain:
+            if isinstance(w, (DataTable, ListView, TextArea, Sidebar)):
+                return
+
+        # Navigate within the content section only
+        self._focus_within_section(forward=(event.key == "down"))
+        event.prevent_default()
+        event.stop()
+
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         """Disable bindings contextually based on focused widget."""
         if action == "shortcut":
@@ -126,28 +150,68 @@ class DBQMApp(App):
                     return True
             return False
 
-        if action in ("focus_next_widget", "focus_prev_widget"):
-            # Disable arrow navigation for widgets that use arrows internally
-            from textual.widgets import DataTable, ListView, TextArea, Select
-            from dbqm.ui.widgets.sidebar import Sidebar
-            focused = self.focused
-            if focused is None:
-                return False
-            if isinstance(focused, (DataTable, ListView, TextArea, Sidebar)):
-                return False
-            if isinstance(focused, Select) and focused.expanded:
-                return False
-            return True
-
         return True
 
-    def action_focus_next_widget(self) -> None:
-        """Move focus to next widget (arrow down)."""
-        self.screen.focus_next()
+    def _focus_within_section(self, forward: bool) -> None:
+        """Navigate focus only within the current section (sidebar or content area)."""
+        focused = self.focused
+        if focused is None:
+            return
 
-    def action_focus_prev_widget(self) -> None:
-        """Move focus to previous widget (arrow up)."""
-        self.screen.focus_previous()
+        try:
+            sidebar = self.query_one(Sidebar)
+            content = self.query_one("#content", Vertical)
+        except Exception:
+            return
+
+        # Check if focused widget is inside sidebar
+        in_sidebar = focused is sidebar or sidebar in focused.ancestors
+        if in_sidebar:
+            return
+
+        # Get all focusable widgets inside the content area only
+        # Exclude pure layout containers that shouldn't receive focus
+        from textual.widgets import Select
+        focusable = []
+        for w in content.query("*"):
+            if not w.can_focus or not w.display:
+                continue
+            # Include interactive widgets: Select, Button, Switch, Input, etc.
+            # Exclude layout containers (Vertical, Horizontal, Container, ScrollView)
+            # Select inherits from Vertical, so check it explicitly first
+            if isinstance(w, Select):
+                focusable.append(w)
+            elif w.__class__.__name__ in (
+                "Vertical", "Horizontal", "Container",
+                "VerticalScroll", "HorizontalScroll",
+                "NavVerticalScroll", "SettingsScreen",
+            ):
+                continue
+            else:
+                focusable.append(w)
+
+        if not focusable:
+            return
+
+        # Find current index — focused might be a child of a focusable widget
+        # (e.g. SelectCurrent inside Select), so check ancestors too
+        current_idx = -1
+        for i, w in enumerate(focusable):
+            if w is focused or w in focused.ancestors:
+                current_idx = i
+                break
+
+        if current_idx < 0:
+            # Not found — focus first or last
+            focusable[0 if forward else -1].focus()
+            return
+
+        if forward:
+            next_idx = min(current_idx + 1, len(focusable) - 1)
+        else:
+            next_idx = max(current_idx - 1, 0)
+
+        focusable[next_idx].focus()
 
     def action_shortcut(self, key: str) -> None:
         """Handle action bar shortcut keys (N, T, E, R, etc.)."""

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Vertical, VerticalScroll, Horizontal
+from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Select, Static, Switch
 
+from dbqm.ui.utils import NavSelect, NavVerticalScroll
 
-class SettingsScreen(VerticalScroll):
+
+class SettingsScreen(NavVerticalScroll):
     """Screen widget for application settings.
 
     Uses VerticalScroll so content is accessible on smaller terminals.
@@ -51,7 +53,7 @@ class SettingsScreen(VerticalScroll):
         # Theme section
         with Vertical(classes="settings-section"):
             yield Static("Tema", classes="settings-label")
-            yield Select(
+            yield NavSelect(
                 [
                     ("GitHub Dark", "github-dark"),
                     ("GitHub Light", "github-light"),

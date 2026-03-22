@@ -4,6 +4,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Select, Static
+from dbqm.ui.utils import NavSelect
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
@@ -121,7 +122,7 @@ class BrowserScreen(Vertical):
         # Phase 1: Connection + type selection
         with Vertical(id="br-select-phase"):
             with Horizontal(id="br-conn-bar"):
-                yield Select([], prompt="Selecione a conexao", id="br-conn-select")
+                yield NavSelect([], prompt="Selecione a conexao", id="br-conn-select")
             with Horizontal(id="br-type-bar"):
                 yield Button("Tabelas", id="br-type-table")
                 yield Button("Views", id="br-type-view")

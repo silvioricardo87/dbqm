@@ -4,6 +4,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Select, Static
+from dbqm.ui.utils import NavSelect
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
@@ -85,7 +86,7 @@ class DDLScreen(Vertical):
         # Input phase
         with Vertical(id="ddl-input-phase"):
             with Horizontal(id="ddl-conn-bar"):
-                yield Select([], prompt="Selecione a conexao", id="ddl-conn-select")
+                yield NavSelect([], prompt="Selecione a conexao", id="ddl-conn-select")
             with Horizontal(id="ddl-object-bar"):
                 yield Input(
                     placeholder="Nome do objeto (ex: tabela, view, package, package.rotina)",
