@@ -18,6 +18,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Favorites & folders** — Organize queries in folders, star favorites for quick access
 - **Paginated results** — Navigate large result sets with next/prev page controls
 - **Execution history** — Browse recent executions with timing, row counts, and status
+- **Error handling** — Global error modal displays details instead of crashing the app
 - **Audit logging** — Opt-in append-only JSON log of all executions
 
 ## Requirements
@@ -87,7 +88,7 @@ The application is fully keyboard-driven:
 
 | Key | Action | Context |
 |-----|--------|---------|
-| `↑` `↓` | Navigate items | Sidebar, lists, tables |
+| `↑` `↓` | Navigate items / widgets | Sidebar, lists, tables, forms |
 | `←` `→` | Switch folder tabs | Query/group lists |
 | `Enter` | Select / Confirm | Global |
 | `Escape` | Go back | Global |
@@ -102,6 +103,9 @@ The application is fully keyboard-driven:
 | `F` | Toggle flat/pivoted | Group results |
 | `S` | Filter by status | Group results |
 | `H` | HTML report | Group results |
+| `X` | Clear history | History |
+| `N` | New item | Connections, queries |
+| `D` | Delete / Details | Connections, history |
 | `C` | Compile Spec | Package editor |
 | `B` | Compile Body | Package editor |
 
