@@ -12,7 +12,7 @@ from typing import Any
 
 from dbqm.core.query_engine import QueryResult
 from dbqm.core.group_engine import GroupResult
-from dbqm.core.constants import EXPORTS_DIR
+from dbqm.core.paths import EXPORTS_DIR
 
 # ---------------------------------------------------------------------------
 # Path helpers

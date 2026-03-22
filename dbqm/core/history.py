@@ -7,9 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from dbqm.core.constants import CONFIG_DIR
-
-HISTORY_DIR = CONFIG_DIR / "history"
+from dbqm.core.paths import HISTORY_DIR
 MAX_HISTORY = 100
 
 

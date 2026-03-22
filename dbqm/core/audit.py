@@ -5,10 +5,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from dbqm.core.constants import CONFIG_DIR
+from dbqm.core.paths import CONFIG_DIR, AUDIT_FILE
 from dbqm.models.settings import load_settings
-
-AUDIT_FILE = CONFIG_DIR / "audit.log"
 
 
 def _is_enabled() -> bool:

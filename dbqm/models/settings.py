@@ -5,9 +5,7 @@ import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-from dbqm.core.constants import CONFIG_DIR
-
-SETTINGS_FILE = CONFIG_DIR / "settings.json"
+from dbqm.core.paths import CONFIG_DIR, SETTINGS_FILE
 
 
 @dataclass

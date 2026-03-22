@@ -9,7 +9,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 
-KEY_FILE = Path(__file__).resolve().parent.parent.parent / ".dbqm_key"
+from dbqm.core.paths import KEY_FILE
 
 
 def _get_or_create_key() -> bytes:

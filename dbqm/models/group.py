@@ -6,8 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
-GROUPS_FILE = CONFIG_DIR / "groups.json"
+from dbqm.core.paths import CONFIG_DIR, GROUPS_FILE
 
 
 @dataclass

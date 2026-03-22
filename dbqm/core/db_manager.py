@@ -51,8 +51,7 @@ def _parse_tns_entry(tns_path: str, tns_name: str) -> dict | None:
     }
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-CLIENTS_DIR = PROJECT_ROOT / "clients"
+from dbqm.core.paths import CLIENTS_DIR
 
 
 def _find_oracle_client_dir() -> str | None:

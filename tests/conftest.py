@@ -20,11 +20,22 @@ def tmp_config_dir(tmp_path, monkeypatch):
     history_dir = config_dir / "history"
     history_dir.mkdir()
 
-    # Patch constants
+    # Patch the canonical paths module (source of truth)
+    monkeypatch.setattr("dbqm.core.paths.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("dbqm.core.paths.EXPORTS_DIR", exports_dir)
+    monkeypatch.setattr("dbqm.core.paths.HISTORY_DIR", history_dir)
+    monkeypatch.setattr("dbqm.core.paths.KEY_FILE", config_dir / ".dbqm_key")
+    monkeypatch.setattr("dbqm.core.paths.AUDIT_FILE", config_dir / "audit.log")
+    monkeypatch.setattr("dbqm.core.paths.CONNECTIONS_FILE", config_dir / "connections.json")
+    monkeypatch.setattr("dbqm.core.paths.QUERIES_FILE", config_dir / "queries.json")
+    monkeypatch.setattr("dbqm.core.paths.GROUPS_FILE", config_dir / "groups.json")
+    monkeypatch.setattr("dbqm.core.paths.SETTINGS_FILE", config_dir / "settings.json")
+
+    # Patch backward-compat re-exports in constants
     monkeypatch.setattr("dbqm.core.constants.CONFIG_DIR", config_dir)
     monkeypatch.setattr("dbqm.core.constants.EXPORTS_DIR", exports_dir)
 
-    # Patch module-level references that import CONFIG_DIR at load time
+    # Patch module-level references that imported at load time
     for mod_path in [
         "dbqm.models.connection.CONFIG_DIR",
         "dbqm.models.connection.CONNECTIONS_FILE",
@@ -35,7 +46,9 @@ def tmp_config_dir(tmp_path, monkeypatch):
         "dbqm.models.settings.SETTINGS_FILE",
         "dbqm.core.history.HISTORY_DIR",
         "dbqm.core.audit.AUDIT_FILE",
+        "dbqm.core.audit.CONFIG_DIR",
         "dbqm.core.exporter.EXPORTS_DIR",
+        "dbqm.core.crypto.KEY_FILE",
     ]:
         parts = mod_path.rsplit(".", 1)
         mod, attr = parts[0], parts[1]
@@ -55,6 +68,8 @@ def tmp_config_dir(tmp_path, monkeypatch):
             monkeypatch.setattr(mod_path, config_dir / "audit.log")
         elif attr == "EXPORTS_DIR":
             monkeypatch.setattr(mod_path, exports_dir)
+        elif attr == "KEY_FILE":
+            monkeypatch.setattr(mod_path, config_dir / ".dbqm_key")
 
     return tmp_path
 

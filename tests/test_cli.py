@@ -702,17 +702,17 @@ class TestPrintQueryResult:
 class TestMainEntryPoint:
     def test_main_with_args_routes_to_cli(self):
         """main.py routes to CLI when args are provided."""
-        import importlib
-        import main as main_mod
-        with patch("sys.argv", ["main.py", "list", "connections"]), \
+        from dbqm.main import main as dbqm_main
+        with patch("sys.argv", ["dbqm", "list", "connections"]), \
              patch("dbqm.cli.run_cli", return_value=True) as mock_cli:
-            main_mod.main()
+            dbqm_main()
             mock_cli.assert_called_once()
 
     def test_main_no_args_routes_to_tui(self):
         """main.py routes to Textual TUI when no args are provided."""
-        import main as main_mod
-        with patch("sys.argv", ["main.py"]), \
+        from dbqm.main import main as dbqm_main
+        with patch("sys.argv", ["dbqm"]), \
+             patch("dbqm.core.paths.ensure_dirs"), \
              patch("dbqm.ui.app.DBQMApp.run") as mock_run:
-            main_mod.main()
+            dbqm_main()
             mock_run.assert_called_once()

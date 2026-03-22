@@ -203,10 +203,8 @@ class ConnectionFormModal(ModalScreen[dict | None]):
 
     def _mount_oracle_detail_fields(self, container: Vertical, mode: str, conn: dict) -> None:
         if mode == "tns":
-            from pathlib import Path
-            default_tns = str(
-                Path(__file__).resolve().parent.parent.parent.parent / "tns" / "tnsnames.ora"
-            )
+            from dbqm.core.paths import TNS_DIR
+            default_tns = str(TNS_DIR / "tnsnames.ora")
             container.mount(Static("Caminho tnsnames.ora:", classes="field-label"))
             tns_path = Input(value=conn.get("tns_path", default_tns))
             self._fields["tns_path"] = tns_path
