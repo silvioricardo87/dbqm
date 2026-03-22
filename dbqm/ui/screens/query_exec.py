@@ -474,3 +474,10 @@ class QueryExecScreen(Vertical):
             action_bar.set_actions([])
         except Exception:
             pass
+
+        # Restore focus to query list
+        try:
+            from dbqm.ui.widgets.query_list import QueryListWidget
+            self.query_one("#ql-main", QueryListWidget).focus()
+        except Exception:
+            pass

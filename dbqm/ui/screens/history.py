@@ -256,7 +256,11 @@ class HistoryScreen(Vertical):
     # ------------------------------------------------------------------
 
     def go_back_to_list(self) -> None:
-        """Return to the history list."""
+        """Return to the history list and restore focus."""
         self.query_one("#hist-list-phase").display = True
         self.query_one("#hist-detail-phase").display = False
         self._set_list_actions()
+        # Restore focus to the table
+        table = self.query_one("#hist-table", DataTable)
+        if table.display:
+            table.focus()

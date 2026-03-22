@@ -683,6 +683,13 @@ class GroupExecScreen(Vertical):
         except Exception:
             pass
 
+        # Restore focus to group list
+        try:
+            from textual.widgets import ListView
+            self.query_one("#ge-group-list", ListView).focus()
+        except Exception:
+            pass
+
 
 # ---------------------------------------------------------------------------
 # Helper modals for group execution

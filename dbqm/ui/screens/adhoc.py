@@ -674,3 +674,10 @@ class AdhocScreen(Vertical):
         self._current_result = None
         self._current_adhoc_result = None
         self._clear_action_bar()
+
+        # Restore focus to TextArea
+        try:
+            from textual.widgets import TextArea
+            self.query_one(TextArea).focus()
+        except Exception:
+            pass

@@ -460,3 +460,14 @@ class DDLScreen(Vertical):
             self.app.query_one(ActionBar).set_actions([])
         except Exception:
             pass
+
+        # Restore focus to object name input
+        try:
+            from textual.widgets import Input
+            inputs = self.query(Input)
+            for inp in inputs:
+                if inp.display:
+                    inp.focus()
+                    break
+        except Exception:
+            pass

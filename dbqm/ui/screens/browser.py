@@ -1014,6 +1014,15 @@ class BrowserScreen(Vertical):
             self.app.query_one(ActionBar).set_actions([])
         except Exception:
             pass
+        # Restore focus to connection selector
+        try:
+            from textual.widgets import Select
+            for s in self.query(Select):
+                if s.display:
+                    s.focus()
+                    break
+        except Exception:
+            pass
 
     def go_back_to_list(self) -> None:
         """Return to the object list."""
@@ -1022,6 +1031,13 @@ class BrowserScreen(Vertical):
         self.query_one("#br-detail-phase").display = False
         self.query_one("#br-data-phase").display = False
         self._set_list_actions()
+        # Restore focus to object table
+        try:
+            table = self.query_one("#br-obj-table", DataTable)
+            if table.display:
+                table.focus()
+        except Exception:
+            pass
 
     def go_back_to_detail(self) -> None:
         """Return from data view to detail view."""
