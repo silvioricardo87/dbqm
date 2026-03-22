@@ -58,6 +58,8 @@ class DBQMApp(App):
         Binding("p", "shortcut('p')", "", show=False, priority=True),
         Binding("c", "shortcut('c')", "", show=False, priority=True),
         Binding("b", "shortcut('b')", "", show=False, priority=True),
+        Binding("x", "shortcut('x')", "", show=False, priority=True),
+        Binding("q", "shortcut('q')", "", show=False, priority=True),
     ]
 
     def compose(self) -> ComposeResult:

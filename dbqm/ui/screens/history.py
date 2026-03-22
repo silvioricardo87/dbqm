@@ -224,6 +224,10 @@ class HistoryScreen(Vertical):
 
     def _on_clear_confirmed(self, confirmed: bool) -> None:
         if not confirmed:
+            # Stay on the history screen, restore focus
+            table = self.query_one("#hist-table", DataTable)
+            if table.display:
+                table.focus()
             return
 
         from dbqm.core.history import clear_history
@@ -231,6 +235,7 @@ class HistoryScreen(Vertical):
         clear_history()
         self.notify("Historico limpo!", timeout=5)
         self._load_history()
+        self._set_list_actions()
 
     # ------------------------------------------------------------------
     # Action bar handlers
