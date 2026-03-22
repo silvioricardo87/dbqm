@@ -455,6 +455,16 @@ class DBQMApp(App):
         except Exception:
             pass
 
+        # Check if ConfigPortScreen is displayed (go back to Settings)
+        try:
+            from dbqm.ui.screens.config_port import ConfigPortScreen
+            config_port = self.query_one(ConfigPortScreen)
+            if config_port._initial_mode:
+                config_port._go_back_to_settings()
+                return
+        except Exception:
+            pass
+
         breadcrumb = self.query_one(Breadcrumb)
         if breadcrumb.path:
             breadcrumb.set_path([])

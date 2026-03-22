@@ -175,6 +175,22 @@ class ConfigPortScreen(Vertical):
         self.query_one("#cp-export-phase").display = False
         self.query_one("#cp-import-phase").display = True
 
+    def _go_back_to_settings(self) -> None:
+        """Navigate back to the Settings screen."""
+        try:
+            from dbqm.ui.screens.settings import SettingsScreen
+            from textual.containers import Container
+            from dbqm.ui.widgets.breadcrumb import Breadcrumb
+
+            screen_area = self.app.query_one("#screen-area", Container)
+            screen_area.remove_children()
+            self.app.query_one(Breadcrumb).set_path(["Sistema", "Config"])
+
+            settings = SettingsScreen(id="settings-screen")
+            screen_area.mount(settings)
+        except Exception as e:
+            self.notify(f"Erro: {e}", severity="error")
+
     # ------------------------------------------------------------------
     # Button handlers
     # ------------------------------------------------------------------
@@ -185,10 +201,11 @@ class ConfigPortScreen(Vertical):
             self._show_export_phase()
         elif btn_id == "cp-btn-import":
             self._show_import_phase()
-        elif btn_id == "cp-export-back":
-            self._show_mode_phase()
-        elif btn_id == "cp-import-back":
-            self._show_mode_phase()
+        elif btn_id in ("cp-export-back", "cp-import-back"):
+            if self._initial_mode:
+                self._go_back_to_settings()
+            else:
+                self._show_mode_phase()
         elif btn_id == "cp-do-export":
             self._handle_export()
         elif btn_id == "cp-do-import":
