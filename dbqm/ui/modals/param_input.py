@@ -103,6 +103,8 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
                     yield Label(label_text, classes="param-label")
 
                     value = self.last_values.get(name, default)
+                    if not isinstance(value, str):
+                        value = str(value) if value is not None else ""
                     safe_id = sanitize_id(name)
                     self._param_id_to_name[safe_id] = name
                     yield Input(

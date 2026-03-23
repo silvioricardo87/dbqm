@@ -322,7 +322,7 @@ class GroupExecScreen(Vertical):
             params_dicts.append({
                 "name": name,
                 "description": "",
-                "default": default or "",
+                "default": str(default) if default and not isinstance(default, str) else (default or ""),
             })
 
         modal = ParamModal(
