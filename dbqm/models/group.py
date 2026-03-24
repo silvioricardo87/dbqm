@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 from dbqm.core.paths import CONFIG_DIR, GROUPS_FILE

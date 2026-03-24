@@ -31,11 +31,18 @@ def tmp_config_dir(tmp_path, monkeypatch):
     monkeypatch.setattr("dbqm.core.paths.GROUPS_FILE", config_dir / "groups.json")
     monkeypatch.setattr("dbqm.core.paths.SETTINGS_FILE", config_dir / "settings.json")
 
-    # Patch backward-compat re-exports in constants
-    monkeypatch.setattr("dbqm.core.constants.CONFIG_DIR", config_dir)
-    monkeypatch.setattr("dbqm.core.constants.EXPORTS_DIR", exports_dir)
-
     # Patch module-level references that imported at load time
+    attr_values = {
+        "CONFIG_DIR": config_dir,
+        "EXPORTS_DIR": exports_dir,
+        "HISTORY_DIR": history_dir,
+        "KEY_FILE": config_dir / ".dbqm_key",
+        "AUDIT_FILE": config_dir / "audit.log",
+        "CONNECTIONS_FILE": config_dir / "connections.json",
+        "QUERIES_FILE": config_dir / "queries.json",
+        "GROUPS_FILE": config_dir / "groups.json",
+        "SETTINGS_FILE": config_dir / "settings.json",
+    }
     for mod_path in [
         "dbqm.models.connection.CONFIG_DIR",
         "dbqm.models.connection.CONNECTIONS_FILE",
@@ -43,33 +50,18 @@ def tmp_config_dir(tmp_path, monkeypatch):
         "dbqm.models.query.QUERIES_FILE",
         "dbqm.models.group.CONFIG_DIR",
         "dbqm.models.group.GROUPS_FILE",
+        "dbqm.models.settings.CONFIG_DIR",
         "dbqm.models.settings.SETTINGS_FILE",
         "dbqm.core.history.HISTORY_DIR",
         "dbqm.core.audit.AUDIT_FILE",
         "dbqm.core.audit.CONFIG_DIR",
         "dbqm.core.exporter.EXPORTS_DIR",
         "dbqm.core.crypto.KEY_FILE",
+        "dbqm.core.ddl_extractor.EXPORTS_DIR",
+        "dbqm.core.config_portability.EXPORTS_DIR",
     ]:
-        parts = mod_path.rsplit(".", 1)
-        mod, attr = parts[0], parts[1]
-        if attr == "CONFIG_DIR":
-            monkeypatch.setattr(mod_path, config_dir)
-        elif attr == "CONNECTIONS_FILE":
-            monkeypatch.setattr(mod_path, config_dir / "connections.json")
-        elif attr == "QUERIES_FILE":
-            monkeypatch.setattr(mod_path, config_dir / "queries.json")
-        elif attr == "GROUPS_FILE":
-            monkeypatch.setattr(mod_path, config_dir / "groups.json")
-        elif attr == "SETTINGS_FILE":
-            monkeypatch.setattr(mod_path, config_dir / "settings.json")
-        elif attr == "HISTORY_DIR":
-            monkeypatch.setattr(mod_path, history_dir)
-        elif attr == "AUDIT_FILE":
-            monkeypatch.setattr(mod_path, config_dir / "audit.log")
-        elif attr == "EXPORTS_DIR":
-            monkeypatch.setattr(mod_path, exports_dir)
-        elif attr == "KEY_FILE":
-            monkeypatch.setattr(mod_path, config_dir / ".dbqm_key")
+        attr = mod_path.rsplit(".", 1)[1]
+        monkeypatch.setattr(mod_path, attr_values[attr])
 
     return tmp_path
 

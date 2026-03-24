@@ -9,7 +9,7 @@ from typing import Any
 
 from dbqm.core.db_manager import get_connection
 from dbqm.models.connection import Connection
-from dbqm.core.constants import EXPORTS_DIR
+from dbqm.core.paths import EXPORTS_DIR
 
 MAX_COMPONENT_LEN = 60  # Max chars per name component in paths (safe for Windows)
 

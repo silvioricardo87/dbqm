@@ -1,4 +1,5 @@
 """Allow running as `python -m dbqm`."""
 from dbqm.main import main
 
-main()
+if __name__ == "__main__":
+    main()

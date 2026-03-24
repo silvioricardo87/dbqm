@@ -6,7 +6,6 @@ import json
 import re
 import unicodedata
 from datetime import datetime
-from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -193,60 +192,6 @@ def _build_query_txt_lines(result: QueryResult) -> list[str]:
         lines.append(line)
 
     return lines
-
-
-# ---------------------------------------------------------------------------
-# Screenshot export
-# ---------------------------------------------------------------------------
-
-def export_screenshot(renderables: list, label: str = "resultado", params: dict | None = None) -> str:
-    """Export renderables (SQL + table) as a PNG screenshot.
-
-    Uses rich Console to capture plain text, then Pillow to render as PNG.
-    Returns the file path.
-    """
-    from PIL import Image, ImageDraw, ImageFont
-    from rich.console import Console as RichConsole
-
-    # Capture plain text from rich renderables
-    offline = RichConsole(file=StringIO(), width=200, color_system=None)
-    for r in renderables:
-        offline.print(r)
-    text = offline.file.getvalue()
-
-    # Load a monospace font
-    font_size = 14
-    try:
-        font = ImageFont.truetype("consola.ttf", font_size)
-    except OSError:
-        try:
-            font = ImageFont.truetype("cour.ttf", font_size)
-        except OSError:
-            font = ImageFont.load_default()
-
-    # Measure text to determine image size
-    lines = text.rstrip("\n").split("\n")
-    dummy = Image.new("RGB", (1, 1))
-    draw = ImageDraw.Draw(dummy)
-    line_height = draw.textbbox((0, 0), "Ag|", font=font)[3] + 4
-    max_width = max((draw.textbbox((0, 0), line, font=font)[2] for line in lines), default=0)
-
-    padding = 24
-    img_w = int(max_width + padding * 2)
-    img_h = int(line_height * len(lines) + padding * 2)
-
-    # Draw text on image
-    img = Image.new("RGB", (img_w, img_h), color=(30, 30, 30))
-    draw = ImageDraw.Draw(img)
-    y = padding
-    for line in lines:
-        draw.text((padding, y), line, font=font, fill=(220, 220, 220))
-        y += line_height
-
-    filepath = _build_filepath("screenshots", label, params=params, ext="png")
-    img.save(str(filepath))
-
-    return str(filepath)
 
 
 # ---------------------------------------------------------------------------

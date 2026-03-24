@@ -5,7 +5,6 @@ import json
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from dbqm.core.paths import HISTORY_DIR
 MAX_HISTORY = 100

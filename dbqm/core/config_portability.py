@@ -16,7 +16,7 @@ from dbqm.core.crypto import (
 from dbqm.models.connection import Connection, load_connections, save_connections
 from dbqm.models.query import Query, load_queries, save_queries
 from dbqm.models.group import Group, load_groups, save_groups
-from dbqm.core.constants import EXPORTS_DIR
+from dbqm.core.paths import EXPORTS_DIR
 BUNDLE_VERSION = 1
 
 

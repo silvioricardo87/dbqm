@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from pathlib import Path
 
 from dbqm.core.paths import CONFIG_DIR, AUDIT_FILE
 from dbqm.models.settings import load_settings
