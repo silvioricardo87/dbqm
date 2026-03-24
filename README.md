@@ -28,8 +28,24 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 
 ## Installation
 
+### From source (pip install)
+
 ```bash
-git clone <repo-url>
+git clone https://github.com/silvioricardo87/dbqm.git
+cd dbqm
+pip install .
+```
+
+This installs the `dbqm` command globally. For development:
+
+```bash
+pip install -e ".[dev]"
+```
+
+### From source (venv)
+
+```bash
+git clone https://github.com/silvioricardo87/dbqm.git
 cd dbqm
 
 python -m venv venv
@@ -46,41 +62,55 @@ pip install -r requirements.txt
 ### Interactive mode (TUI)
 
 ```bash
+dbqm
+# or
 python -m dbqm
 ```
 
-On first launch, the app prompts you to configure your first database connection and generates an encryption key (`.dbqm_key`).
+On first launch, the app creates its data directory (`~/.dbqm`), prompts you to configure your first database connection, and generates an encryption key.
 
 ### CLI mode (non-interactive)
 
 ```bash
+# Show version
+dbqm --version
+
 # Execute a saved query
-python -m dbqm run <query-name> --param1 value1
+dbqm run <query-name> --param1 value1
 
 # Execute a query group
-python -m dbqm run-group <group-name> --param1 value1
+dbqm run-group <group-name> --param1 value1
 
 # Execute ad-hoc SQL
-python -m dbqm sql "SELECT * FROM table" <connection>
+dbqm sql "SELECT * FROM table" <connection>
 
 # Test connections
-python -m dbqm test [connection]
+dbqm test [connection]
 
 # List resources
-python -m dbqm list connections|queries|groups
+dbqm list connections|queries|groups
 
 # Extract DDL
-python -m dbqm ddl <object> <connection>
+dbqm ddl <object> <connection>
 
 # Export/Import configs
-python -m dbqm export-config
-python -m dbqm import-config <file.dbqm>
+dbqm export-config
+dbqm import-config <file.dbqm>
 
 # View history
-python -m dbqm history
+dbqm history
 ```
 
 Output format options: `--format table|json|csv` and `--export csv|json|txt`.
+
+### Data directory
+
+DBQM stores all configuration, credentials, and exports under `~/.dbqm/` by default. Override with the `DBQM_HOME` environment variable:
+
+```bash
+export DBQM_HOME=/path/to/custom/dir
+dbqm
+```
 
 ## Keyboard Navigation
 
@@ -134,9 +164,12 @@ Groups run the same logical query across multiple databases and compare results:
 
 ```
 dbqm/
-├── main.py                        # Entry point
-├── requirements.txt               # Dependencies
+├── pyproject.toml                 # Package metadata & dependencies
+├── main.py                        # Legacy entry point (delegates to dbqm.main)
+├── requirements.txt               # Dependencies (alternative to pyproject.toml)
 ├── dbqm/
+│   ├── _version.py                # Package version (1.0.0)
+│   ├── main.py                    # Entry point (TUI + CLI dispatch)
 │   ├── __main__.py                # python -m dbqm support
 │   ├── cli.py                     # Non-interactive CLI
 │   ├── ui/
@@ -178,6 +211,7 @@ dbqm/
 │   │   └── legacy/
 │   │       └── display.py         # Rich renderables for PNG/TXT export
 │   ├── core/                      # Business logic (database-agnostic)
+│   │   ├── paths.py               # Centralized path resolution (~/.dbqm)
 │   │   ├── db_manager.py          # Connection handling
 │   │   ├── query_engine.py        # SQL execution + parameter binding
 │   │   ├── group_engine.py        # Multi-database comparison
