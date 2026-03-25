@@ -178,15 +178,15 @@ class QueryExecScreen(Vertical):
     # ------------------------------------------------------------------
 
     def key_left(self) -> None:
-        """Switch to previous folder."""
-        if not self._folder_buttons:
+        """Switch to previous folder (only in selection phase)."""
+        if self._current_result is not None or not self._folder_buttons:
             return
         self._active_folder_idx = max(0, self._active_folder_idx - 1)
         self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
 
     def key_right(self) -> None:
-        """Switch to next folder."""
-        if not self._folder_buttons:
+        """Switch to next folder (only in selection phase)."""
+        if self._current_result is not None or not self._folder_buttons:
             return
         self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
         self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
