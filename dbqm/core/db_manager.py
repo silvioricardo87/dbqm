@@ -58,20 +58,50 @@ def _find_oracle_client_dir() -> str | None:
     """Auto-detect Oracle Instant Client directory matching Python architecture."""
     import struct
     arch = "x64" if struct.calcsize("P") * 8 == 64 else "x86"
-    # 1. Check project's clients/ directory first — prefer matching architecture
-    if CLIENTS_DIR.exists():
+
+    def _best_instantclient(base_dir: Path) -> str | None:
+        """Find best matching instantclient subdirectory in base_dir."""
+        if not base_dir.exists():
+            return None
         candidates = sorted(
-            [e for e in CLIENTS_DIR.iterdir() if e.is_dir() and "instantclient" in e.name.lower()],
+            [e for e in base_dir.iterdir() if e.is_dir() and "instantclient" in e.name.lower()],
             key=lambda e: (arch in e.name.lower(), e.name),
             reverse=True,
         )
-        if candidates:
-            return str(candidates[0])
-    # 2. Check ORACLE_HOME env var
+        return str(candidates[0]) if candidates else None
+
+    # 1. Check DBQM_HOME clients/ directory
+    result = _best_instantclient(CLIENTS_DIR)
+    if result:
+        return result
+    # 2. Check package-local clients/ directory (next to dbqm/ package)
+    pkg_clients = Path(__file__).resolve().parent.parent.parent / "clients"
+    result = _best_instantclient(pkg_clients)
+    if result:
+        return result
+    # 3. Check ORACLE_HOME env var — validate architecture via oci.dll
     oracle_home = os.environ.get("ORACLE_HOME")
-    if oracle_home and Path(oracle_home).exists():
-        return oracle_home
-    # 3. Search common locations
+    if oracle_home:
+        oh_path = Path(oracle_home)
+        if oh_path.exists():
+            oci_dll = oh_path / "oci.dll"
+            if oci_dll.exists():
+                try:
+                    with open(oci_dll, "rb") as f:
+                        f.seek(0x3C)
+                        pe_offset = int.from_bytes(f.read(4), "little")
+                        f.seek(pe_offset + 4)
+                        machine = int.from_bytes(f.read(2), "little")
+                        # 0x8664 = AMD64, 0x14c = i386
+                        dll_is_64 = machine == 0x8664
+                        python_is_64 = struct.calcsize("P") * 8 == 64
+                        if dll_is_64 == python_is_64:
+                            return oracle_home
+                except Exception:
+                    pass
+            else:
+                return oracle_home
+    # 4. Search common locations
     search_paths = [
         Path(os.environ.get("LOCALAPPDATA", "")),
         Path("C:/oracle"),
