@@ -147,6 +147,10 @@ def _needs_thick_mode(error: Exception) -> bool:
     return "DPY-3015" in msg or "password verifier type" in msg
 
 
+# Eagerly initialize thick mode at import time — must happen before any connection
+_init_thick_mode()
+
+
 def get_oracle_connection(conn: Connection) -> Any:
     """Establish Oracle connection. Initializes thick mode eagerly to avoid DPY-3015."""
     import oracledb
@@ -156,17 +160,25 @@ def get_oracle_connection(conn: Connection) -> Any:
 
     if conn.mode == "tns" and conn.tns_name:
         dsn = conn.tns_name
-        # Try to parse TNS file to build a direct DSN
+        # Try to parse TNS file to build a proper DSN
         if conn.tns_path:
             tns_info = _parse_tns_entry(conn.tns_path, conn.tns_name)
             if tns_info:
-                svc = tns_info.get("service_name") or tns_info.get("sid", "")
-                dsn = f"{tns_info['host']}:{tns_info['port']}/{svc}"
+                if tns_info.get("service_name"):
+                    dsn = oracledb.makedsn(
+                        tns_info["host"], tns_info["port"],
+                        service_name=tns_info["service_name"],
+                    )
+                elif tns_info.get("sid"):
+                    dsn = oracledb.makedsn(
+                        tns_info["host"], tns_info["port"],
+                        sid=tns_info["sid"],
+                    )
     else:
         host = conn.host or "localhost"
         port = conn.port or 1521
         svc = conn.service_name or ""
-        dsn = f"{host}:{port}/{svc}"
+        dsn = oracledb.makedsn(host, port, service_name=svc)
 
     # Always try to initialize thick mode eagerly (avoids DPY-3015)
     if not _thick_mode_initialized:

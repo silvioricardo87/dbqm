@@ -98,6 +98,17 @@ class ResultTable(Vertical, can_focus=False):
         self._result = result
         self.current_page = 0
         self._refresh_view()
+        # Auto-focus the DataTable so arrow keys navigate rows
+        self.call_after_refresh(self._focus_table)
+
+    def _focus_table(self) -> None:
+        """Focus the active view (DataTable or vertical)."""
+        if self.vertical_mode:
+            self._vertical_view.focus()
+        else:
+            self._data_table.focus()
+            if self._data_table.row_count > 0:
+                self._data_table.move_cursor(row=0)
 
     def next_page(self) -> None:
         if self.current_page < self.total_pages - 1:

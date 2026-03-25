@@ -137,6 +137,8 @@ class GroupExecScreen(Vertical):
         self._current_group = None
         self._current_params: dict[str, str] = {}
         self._current_group_result: GroupResult | None = None
+        self._raw_query_rows: dict[str, list[list]] | None = None  # original rows per query
+        self._showing_mapped: bool = True
         self._all_groups: list = []
         self._folder_map: dict[str, str] = {}
         self._folder_buttons: list[Button] = []
@@ -361,6 +363,7 @@ class GroupExecScreen(Vertical):
     @work(thread=True)
     def _run_group(self, group, param_values: dict[str, str]) -> None:
         """Execute all queries in the group and build comparison."""
+        import copy
         from dbqm.models.query import find_query
         from dbqm.models.connection import find_connection
         from dbqm.core.query_engine import execute_query
@@ -368,6 +371,8 @@ class GroupExecScreen(Vertical):
 
         try:
             query_results = {}
+            raw_rows_map = {}
+            has_any_maps = False
             start_time = time.time()
 
             for qname in group.queries:
@@ -410,6 +415,11 @@ class GroupExecScreen(Vertical):
                         timeout=8,
                     )
                     continue
+
+                # Save raw rows before column maps
+                if result.success and result.rows and query.column_maps:
+                    raw_rows_map[qname] = copy.deepcopy(result.rows)
+                    has_any_maps = True
 
                 # Apply column maps
                 if result.success and result.rows:
@@ -456,7 +466,10 @@ class GroupExecScreen(Vertical):
             # Record history
             self._record_execution(group, param_values, group_result, elapsed)
 
-            self.app.call_from_thread(self._show_result, group_result, param_values)
+            self.app.call_from_thread(
+                self._show_result, group_result, param_values,
+                raw_rows_map if has_any_maps else None,
+            )
         except Exception as e:
             self.app.call_from_thread(self._on_error, f"Erro inesperado: {e}")
 
@@ -471,10 +484,12 @@ class GroupExecScreen(Vertical):
         self.query_one(ProgressIndicator).stop()
         self.notify(message, severity="error", timeout=8)
 
-    def _show_result(self, group_result: GroupResult, param_values: dict[str, str]) -> None:
+    def _show_result(self, group_result: GroupResult, param_values: dict[str, str], raw_rows_map: dict | None = None) -> None:
         """Display the group result on the main thread."""
         self.query_one(ProgressIndicator).stop()
         self._current_group_result = group_result
+        self._raw_query_rows = raw_rows_map
+        self._showing_mapped = True
 
         # Switch to results phase
         self.query_one("#ge-selection-phase").display = False
@@ -542,11 +557,16 @@ class GroupExecScreen(Vertical):
         actions = [
             Action("Flat/Pivot", "F", "toggle_mode"),
             Action("Filtrar", "S", "filter_status"),
+        ]
+        if self._raw_query_rows is not None:
+            label = "Original" if self._showing_mapped else "De-Para"
+            actions.append(Action(label, "M", "toggle_mapping"))
+        actions.extend([
             Action("Exportar", "E", "export"),
             Action("HTML", "H", "export_html"),
             Action("Individual", "I", "view_individual"),
             Action("Reexecutar", "R", "reexecute"),
-        ]
+        ])
         action_bar.set_actions(actions)
 
     def on_action_selected(self, message: ActionSelected) -> None:
@@ -557,6 +577,8 @@ class GroupExecScreen(Vertical):
             self._handle_toggle_mode()
         elif action == "filter_status":
             self._handle_filter_status()
+        elif action == "toggle_mapping":
+            self._handle_toggle_mapping()
         elif action == "export":
             self._handle_export()
         elif action == "export_html":
@@ -569,6 +591,48 @@ class GroupExecScreen(Vertical):
     def _handle_toggle_mode(self) -> None:
         grw = self.query_one("#ge-group-result", GroupResultWidget)
         grw.toggle_mode()
+
+    def _handle_toggle_mapping(self) -> None:
+        """Toggle between mapped (de-para) and original values in group results."""
+        import copy
+        if self._current_group_result is None or self._raw_query_rows is None:
+            return
+
+        from dbqm.models.query import find_query
+        from dbqm.core.group_engine import build_group_result
+
+        gr = self._current_group_result
+        for qname, result in gr.query_results.items():
+            if qname in self._raw_query_rows:
+                if self._showing_mapped:
+                    # Restore original rows
+                    result.rows = copy.deepcopy(self._raw_query_rows[qname])
+                else:
+                    # Re-apply column maps
+                    result.rows = copy.deepcopy(self._raw_query_rows[qname])
+                    query = find_query(qname)
+                    if query:
+                        query.apply_column_maps(result.rows, result.columns)
+
+        # Rebuild comparison with current row data
+        new_gr = build_group_result(
+            group_name=gr.group_name,
+            query_results=gr.query_results,
+            join_key=self._current_group.join_key,
+            compare_columns=self._current_group.compare_columns,
+            column_mapping=self._current_group.column_mapping or None,
+            normalize=self._current_group.normalize or None,
+        )
+        self._current_group_result = new_gr
+
+        self._showing_mapped = not self._showing_mapped
+
+        grw = self.query_one("#ge-group-result", GroupResultWidget)
+        grw.load_result(new_gr)
+        self._set_result_actions()
+
+        label = "mapeados (de-para)" if self._showing_mapped else "originais"
+        self.notify(f"Exibindo valores {label}", timeout=2)
 
     def _handle_filter_status(self) -> None:
         """Push a status filter dialog."""
@@ -683,6 +747,8 @@ class GroupExecScreen(Vertical):
         self.query_one("#ge-selection-phase").display = True
         self.query_one("#ge-results-phase").display = False
         self._current_group_result = None
+        self._raw_query_rows = None
+        self._showing_mapped = True
 
         try:
             action_bar = self.app.query_one(ActionBar)
@@ -821,6 +887,7 @@ class _IndividualResultModal(ModalScreen[None]):
     def on_mount(self) -> None:
         rt = self.query_one("#ir-result-table", ResultTable)
         rt.load_result(self._result)
+        rt.focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ir-close":

@@ -100,6 +100,19 @@ class GroupResultWidget(Vertical, can_focus=False):
             self._render_pivoted(scroll)
 
         self._render_summary()
+        # Auto-focus first DataTable for keyboard navigation
+        self.call_after_refresh(self._focus_first_table)
+
+    def _focus_first_table(self) -> None:
+        """Focus the first DataTable in the results."""
+        try:
+            tables = self.query(DataTable)
+            if tables:
+                tables.first().focus()
+                if tables.first().row_count > 0:
+                    tables.first().move_cursor(row=0)
+        except Exception:
+            pass
 
     def _status_markup(self, status: str) -> str:
         """Return Rich-markup-colored status label."""
