@@ -34,7 +34,10 @@ ACTION_LABELS: dict[str, str] = {
 class DBQMApp(App):
     """DB Query Manager — main application."""
 
-    TITLE = "DB Query Manager v1.0"
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        from dbqm._version import __version__
+        self.title = f"DB Query Manager v{__version__}"
 
     BINDINGS = [
         Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar"),
