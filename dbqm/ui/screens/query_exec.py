@@ -76,6 +76,8 @@ class QueryExecScreen(Vertical):
         self._current_conn = None
         self._current_params: dict[str, str] = {}
         self._current_result: QueryResult | None = None
+        self._raw_rows: list[list] | None = None  # rows before column maps
+        self._showing_mapped: bool = True
         self._folder_map: dict[str, str] = {}
         self._folder_buttons: list[Button] = []
         self._active_folder_idx: int = 0
@@ -276,15 +278,19 @@ class QueryExecScreen(Vertical):
     def _run_query(self, query, conn, params: dict[str, str]) -> None:
         """Execute query in a background thread."""
         from dbqm.core.query_engine import execute_query
+        import copy
 
         try:
             result = execute_query(query, conn, params)
+
+            # Save raw rows before applying column maps
+            raw_rows = copy.deepcopy(result.rows) if result.success and result.rows and query.column_maps else None
 
             # Apply column maps (DE-PARA)
             if result.success and result.rows:
                 query.apply_column_maps(result.rows, result.columns)
 
-            self.app.call_from_thread(self._on_result, query, conn, params, result)
+            self.app.call_from_thread(self._on_result, query, conn, params, result, raw_rows)
         except Exception as e:
             self.app.call_from_thread(self._show_error, str(e))
 
@@ -293,7 +299,7 @@ class QueryExecScreen(Vertical):
         self.query_one(ProgressIndicator).stop()
         self.notify(f"Erro: {msg}", severity="error", timeout=8)
 
-    def _on_result(self, query, conn, params: dict[str, str], result: QueryResult) -> None:
+    def _on_result(self, query, conn, params: dict[str, str], result: QueryResult, raw_rows: list[list] | None = None) -> None:
         """Handle query result back on the main thread."""
         self.query_one(ProgressIndicator).stop()
 
@@ -302,6 +308,8 @@ class QueryExecScreen(Vertical):
             return
 
         self._current_result = result
+        self._raw_rows = raw_rows
+        self._showing_mapped = True
 
         # Record history & audit
         self._record_execution(query, conn, params, result)
@@ -334,9 +342,14 @@ class QueryExecScreen(Vertical):
 
         actions = [
             Action("Vertical", "V", "toggle_vertical"),
+        ]
+        if self._raw_rows is not None:
+            label = "Original" if self._showing_mapped else "De-Para"
+            actions.append(Action(label, "M", "toggle_mapping"))
+        actions.extend([
             Action("Exportar", "E", "export"),
             Action("Reexecutar", "R", "reexecute"),
-        ]
+        ])
         if result_table.total_pages > 1:
             actions.append(Action("Pag.Ant", "PgUp", "prev_page"))
             actions.append(Action("Prox.Pag", "PgDn", "next_page"))
@@ -397,6 +410,8 @@ class QueryExecScreen(Vertical):
 
         if action == "toggle_vertical":
             self._handle_toggle_vertical()
+        elif action == "toggle_mapping":
+            self._handle_toggle_mapping()
         elif action == "export":
             self._handle_export()
         elif action == "reexecute":
@@ -409,6 +424,29 @@ class QueryExecScreen(Vertical):
     def _handle_toggle_vertical(self) -> None:
         result_table = self.query_one("#result-table", ResultTable)
         result_table.toggle_vertical()
+
+    def _handle_toggle_mapping(self) -> None:
+        """Toggle between mapped (de-para) and original result view."""
+        import copy
+        if self._current_result is None or self._raw_rows is None:
+            return
+
+        result_table = self.query_one("#result-table", ResultTable)
+
+        if self._showing_mapped:
+            # Switch to original: swap rows with raw copy
+            self._current_result.rows = copy.deepcopy(self._raw_rows)
+            self._showing_mapped = False
+            self.notify("Exibindo valores originais", timeout=2)
+        else:
+            # Switch to mapped: re-apply column maps
+            self._current_result.rows = copy.deepcopy(self._raw_rows)
+            self._current_query.apply_column_maps(self._current_result.rows, self._current_result.columns)
+            self._showing_mapped = True
+            self.notify("Exibindo valores mapeados (de-para)", timeout=2)
+
+        result_table.load_result(self._current_result)
+        self._set_result_actions(result_table)
 
     def _handle_export(self) -> None:
         from dbqm.ui.modals.export_picker import ExportPickerModal
@@ -468,6 +506,8 @@ class QueryExecScreen(Vertical):
         self.query_one("#selection-phase").display = True
         self.query_one("#results-phase").display = False
         self._current_result = None
+        self._raw_rows = None
+        self._showing_mapped = True
 
         try:
             action_bar = self.app.query_one(ActionBar)

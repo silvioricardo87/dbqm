@@ -318,12 +318,19 @@ class GroupExecScreen(Vertical):
         from dbqm.ui.modals.param_input import ParamModal
 
         params_dicts = []
-        for name, default in group.shared_params.items():
-            params_dicts.append({
-                "name": name,
-                "description": "",
-                "default": str(default) if default and not isinstance(default, str) else (default or ""),
-            })
+        for name, value in group.shared_params.items():
+            if isinstance(value, dict):
+                params_dicts.append({
+                    "name": name,
+                    "description": value.get("description", ""),
+                    "default": str(value.get("default", "")) if value.get("default") else "",
+                })
+            else:
+                params_dicts.append({
+                    "name": name,
+                    "description": "",
+                    "default": str(value) if value and not isinstance(value, str) else (value or ""),
+                })
 
         modal = ParamModal(
             query_name=group.name,

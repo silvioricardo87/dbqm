@@ -11,11 +11,14 @@ from typing import Any
 
 from dbqm.core.query_engine import QueryResult
 from dbqm.core.group_engine import GroupResult
-from dbqm.core.paths import EXPORTS_DIR
 
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
+
+# Base directory for exports. None means CWD (current working directory).
+# Can be overridden (e.g. by tests) to redirect export output.
+EXPORTS_DIR: Path | None = None
 
 # Max length for the params portion of a filename
 _MAX_PARAMS_LEN = 60
@@ -42,8 +45,9 @@ def _normalize_label(name: str) -> str:
 
 
 def _ensure_dir(category: str, label: str) -> Path:
-    """Create and return exports/{category}/{normalized_label}/."""
-    d = EXPORTS_DIR / category / _normalize_label(label)
+    """Create and return exports/{category}/{normalized_label}/ under CWD or EXPORTS_DIR."""
+    base = EXPORTS_DIR if EXPORTS_DIR is not None else Path.cwd() / "exports"
+    d = base / category / _normalize_label(label)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
