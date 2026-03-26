@@ -58,6 +58,7 @@ class DBQMApp(App):
         Binding("s", "shortcut('s')", "", show=False, priority=True),
         Binding("h", "shortcut('h')", "", show=False, priority=True),
         Binding("i", "shortcut('i')", "", show=False, priority=True),
+        Binding("m", "shortcut('m')", "", show=False, priority=True),
         Binding("p", "shortcut('p')", "", show=False, priority=True),
         Binding("c", "shortcut('c')", "", show=False, priority=True),
         Binding("b", "shortcut('b')", "", show=False, priority=True),
@@ -141,6 +142,9 @@ class DBQMApp(App):
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         """Disable bindings contextually based on focused widget."""
         if action == "shortcut":
+            # Block shortcuts when a modal screen is active
+            if len(self.screen_stack) > 1:
+                return False
             from textual.widgets import Input, TextArea
             focused = self.focused
             if isinstance(focused, (Input, TextArea)):
