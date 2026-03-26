@@ -143,6 +143,12 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
                 cursor.execute(
                     "SELECT view_name FROM user_views ORDER BY view_name"
                 )
+            elif obj_upper in ("PROCEDURE", "FUNCTION"):
+                cursor.execute(
+                    "SELECT object_name FROM user_objects "
+                    "WHERE object_type = :t ORDER BY object_name",
+                    {"t": obj_upper},
+                )
             else:
                 return []
         elif db_type == "sqlserver":
@@ -713,6 +719,53 @@ def list_package_routines(db, db_type: str, package: str) -> PackageInfo:
         cursor.close()
 
 
+def get_standalone_routine_info(db, routine_name: str, routine_type: str = "PROCEDURE") -> RoutineInfo:
+    """Get parameter info for a standalone procedure or function from ALL_ARGUMENTS."""
+    cursor = db.cursor()
+    try:
+        cursor.execute("""
+            SELECT argument_name, data_type, in_out, default_value, position
+            FROM all_arguments
+            WHERE object_name = :name
+              AND package_name IS NULL
+              AND data_level = 0
+              AND owner = USER
+            ORDER BY position
+        """, {"name": routine_name.upper()})
+
+        params = []
+        return_type = ""
+        for row in cursor.fetchall():
+            arg_name, dtype, in_out, default_val, position = row
+            if position == 0 and not arg_name:
+                # Position 0 with no name = function return type
+                return_type = dtype or ""
+                continue
+            if not arg_name:
+                continue
+            direction = {"IN": "IN", "OUT": "OUT", "IN/OUT": "IN OUT"}.get(in_out, "IN")
+            params.append(RoutineParam(
+                name=arg_name,
+                data_type=dtype or "",
+                direction=direction,
+                default=str(default_val).strip() if default_val else "",
+            ))
+
+        return RoutineInfo(
+            name=routine_name.upper(),
+            routine_type=routine_type.upper(),
+            params=params,
+            return_type=return_type,
+        )
+    finally:
+        cursor.close()
+
+
+def execute_standalone_routine(db, routine: RoutineInfo, param_values: dict[str, str]) -> RoutineExecutionResult:
+    """Execute a standalone procedure or function (not inside a package)."""
+    return execute_routine(db, "", routine, param_values)
+
+
 # ---------------------------------------------------------------------------
 # Package source
 # ---------------------------------------------------------------------------
@@ -901,7 +954,7 @@ def execute_routine(
                 call_args.append(out_vars[p.name])
 
         args_str = ", ".join(call_args)
-        qualified_name = f"{package}.{routine.name}"
+        qualified_name = f"{package}.{routine.name}" if package else routine.name
 
         if routine.routine_type == "FUNCTION" and return_var:
             begin_lines.append(f"  {return_var} := {qualified_name}({args_str});")

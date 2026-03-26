@@ -1,8 +1,10 @@
 """Tests for object browser — pure logic functions."""
 import pytest
+from unittest.mock import MagicMock
 from dbqm.core.object_browser import (
     _is_numeric_type, _parse_params, _parse_spec_routines,
-    RoutineInfo, RoutineParam,
+    RoutineInfo, RoutineParam, get_standalone_routine_info,
+    list_objects,
 )
 
 
@@ -101,3 +103,96 @@ class TestRoutineInfoSignature:
                         params=[RoutineParam("p_id", "NUMBER", "IN")],
                         return_type="VARCHAR2")
         assert "RETURN VARCHAR2" in r.signature
+
+
+class TestListObjectsProcedureFunction:
+    """Test list_objects support for PROCEDURE and FUNCTION types."""
+
+    def test_oracle_procedure(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [("MY_PROC",), ("OTHER_PROC",)]
+        mock_db.cursor.return_value = mock_cursor
+
+        result = list_objects(mock_db, "oracle", "PROCEDURE")
+        assert result == ["MY_PROC", "OTHER_PROC"]
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "user_objects" in sql
+        assert mock_cursor.execute.call_args[0][1]["t"] == "PROCEDURE"
+
+    def test_oracle_function(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [("FN_CALC",)]
+        mock_db.cursor.return_value = mock_cursor
+
+        result = list_objects(mock_db, "oracle", "FUNCTION")
+        assert result == ["FN_CALC"]
+        assert mock_cursor.execute.call_args[0][1]["t"] == "FUNCTION"
+
+    def test_sqlserver_no_packages(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_db.cursor.return_value = mock_cursor
+
+        result = list_objects(mock_db, "sqlserver", "PACKAGE")
+        assert result == []
+
+
+class TestGetStandaloneRoutineInfo:
+    """Test get_standalone_routine_info."""
+
+    def test_procedure_with_params(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            ("P_ID", "NUMBER", "IN", None, 1),
+            ("P_NAME", "VARCHAR2", "IN", None, 2),
+            ("P_RESULT", "NUMBER", "OUT", None, 3),
+        ]
+        mock_db.cursor.return_value = mock_cursor
+
+        info = get_standalone_routine_info(mock_db, "MY_PROC", "PROCEDURE")
+        assert info.name == "MY_PROC"
+        assert info.routine_type == "PROCEDURE"
+        assert len(info.params) == 3
+        assert info.params[0].name == "P_ID"
+        assert info.params[0].direction == "IN"
+        assert info.params[2].direction == "OUT"
+        assert info.return_type == ""
+
+    def test_function_with_return(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            (None, "NUMBER", "OUT", None, 0),  # return type
+            ("P_INPUT", "VARCHAR2", "IN", None, 1),
+        ]
+        mock_db.cursor.return_value = mock_cursor
+
+        info = get_standalone_routine_info(mock_db, "FN_CALC", "FUNCTION")
+        assert info.return_type == "NUMBER"
+        assert len(info.params) == 1
+        assert info.params[0].name == "P_INPUT"
+
+    def test_procedure_no_params(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_db.cursor.return_value = mock_cursor
+
+        info = get_standalone_routine_info(mock_db, "SIMPLE_PROC")
+        assert info.params == []
+        assert info.routine_type == "PROCEDURE"
+
+    def test_in_out_direction_mapping(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            ("P_VAL", "NUMBER", "IN/OUT", None, 1),
+        ]
+        mock_db.cursor.return_value = mock_cursor
+
+        info = get_standalone_routine_info(mock_db, "MY_PROC")
+        assert info.params[0].direction == "IN OUT"

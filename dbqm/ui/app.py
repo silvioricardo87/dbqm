@@ -24,6 +24,7 @@ ACTION_LABELS: dict[str, str] = {
     "config_group": "Gerenciar Grupos",
     "extract_ddl": "DDL",
     "package_editor": "Packages",
+    "exec_routine": "Executar Rotina",
     "browse": "Objetos",
     "history": "Histórico",
     "config_conn": "Conexões",
@@ -314,6 +315,10 @@ class DBQMApp(App):
             from dbqm.ui.screens.package_editor import PackageEditorScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "Packages"])
             screen_widget = PackageEditorScreen(id="package-editor-screen")
+        elif action == "exec_routine":
+            from dbqm.ui.screens.exec_routine import ExecRoutineScreen
+            self.query_one(Breadcrumb).set_path(["Ferramentas", "Executar Rotina"])
+            screen_widget = ExecRoutineScreen(id="exec-routine-screen")
         elif action == "browse":
             from dbqm.ui.screens.browser import BrowserScreen
             self.query_one(Breadcrumb).set_path(["Ferramentas", "Objetos"])
@@ -435,6 +440,15 @@ class DBQMApp(App):
             if results_phase.display:
                 ddl_screen.go_back_to_input()
                 self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
+        # Check if ExecRoutineScreen has back navigation
+        try:
+            from dbqm.ui.screens.exec_routine import ExecRoutineScreen
+            er_screen = self.query_one(ExecRoutineScreen)
+            if er_screen.go_back():
                 return
         except Exception:
             pass
