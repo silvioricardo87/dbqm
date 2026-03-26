@@ -628,7 +628,27 @@ class GroupExecScreen(Vertical):
         self._showing_mapped = not self._showing_mapped
 
         grw = self.query_one("#ge-group-result", GroupResultWidget)
-        grw.load_result(new_gr)
+        hide_status = not self._showing_mapped
+        grw.load_result(new_gr, hide_status=hide_status)
+
+        # Update info bar
+        info = self.query_one("#ge-result-info", Static)
+        group_name = str(new_gr.group_name) if new_gr.group_name else ""
+        if self._showing_mapped:
+            overall = "CONSISTENTE" if new_gr.all_match else "DIVERGENTE"
+            overall_color = "green" if new_gr.all_match else "yellow"
+            info.update(
+                f"[bold]{escape_markup(group_name)}[/] | "
+                f"{len(new_gr.query_results)} consultas | "
+                f"[{overall_color} bold]{overall}[/]"
+            )
+        else:
+            info.update(
+                f"[bold]{escape_markup(group_name)}[/] | "
+                f"{len(new_gr.query_results)} consultas | "
+                f"[dim]valores originais[/]"
+            )
+
         self._set_result_actions()
 
         label = "mapeados (de-para)" if self._showing_mapped else "originais"

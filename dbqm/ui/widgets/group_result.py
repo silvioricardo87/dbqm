@@ -51,6 +51,7 @@ class GroupResultWidget(Vertical, can_focus=False):
         super().__init__(name=name, id=id, classes=classes)
         self._group_result: GroupResult | None = None
         self._status_filter: set[str] | None = None
+        self._hide_status: bool = False
 
     def compose(self):
         yield VerticalScroll(id="gr-scroll")
@@ -60,10 +61,11 @@ class GroupResultWidget(Vertical, can_focus=False):
     # Public API
     # ------------------------------------------------------------------
 
-    def load_result(self, group_result: GroupResult) -> None:
+    def load_result(self, group_result: GroupResult, hide_status: bool = False) -> None:
         """Populate widget from a GroupResult."""
         self._group_result = group_result
         self._status_filter = None
+        self._hide_status = hide_status
         self._refresh_view()
 
     def toggle_mode(self) -> None:
@@ -139,10 +141,11 @@ class GroupResultWidget(Vertical, can_focus=False):
             table.add_column("Chave", key="key")
             for qn in query_names:
                 table.add_column(str(qn), key=sanitize_id(str(qn)))
-            table.add_column("Status", key="status")
+            if not self._hide_status:
+                table.add_column("Status", key="status")
 
             rows = comp.rows
-            if self._status_filter:
+            if self._status_filter and not self._hide_status:
                 rows = [r for r in rows if r.status in self._status_filter]
 
             for row in rows:
@@ -150,7 +153,8 @@ class GroupResultWidget(Vertical, can_focus=False):
                 for qn in query_names:
                     val = row.values.get(qn)
                     cells.append(str(val) if val is not None else "-")
-                cells.append(str(row.status))
+                if not self._hide_status:
+                    cells.append(str(row.status))
                 table.add_row(*cells)
 
             container.mount(table)
@@ -191,7 +195,8 @@ class GroupResultWidget(Vertical, can_focus=False):
             table.add_column("Consulta", key="__consulta__")
             for col in compare_columns:
                 table.add_column(str(col), key=f"__col_{col}__")
-            table.add_column("Status", key="__status__")
+            if not self._hide_status:
+                table.add_column("Status", key="__status__")
 
             # One row per query
             for qn in query_names:
@@ -200,22 +205,23 @@ class GroupResultWidget(Vertical, can_focus=False):
                     cr = lookup.get((key, col))
                     val = cr.values.get(qn) if cr else None
                     cells.append(str(val) if val is not None else "-")
-                cells.append("")  # no per-query status
+                if not self._hide_status:
+                    cells.append("")  # no per-query status
                 table.add_row(*cells)
 
-            # Result row at the bottom
-            result_cells = ["Resultado"]
-            worst_statuses = []
-            for col in compare_columns:
-                cr = lookup.get((key, col))
-                status = str(cr.status) if cr else "ABSENT"
-                worst_statuses.append(status)
-                result_cells.append(status)
-            # Overall status for this key
-            priority = {"ABSENT": 3, "DIFF": 2, "OK*": 1, "OK": 0}
-            overall = max(worst_statuses, key=lambda s: priority.get(s, 0))
-            result_cells.append(str(overall))
-            table.add_row(*result_cells)
+            # Result row at the bottom (only when showing status)
+            if not self._hide_status:
+                result_cells = ["Resultado"]
+                worst_statuses = []
+                for col in compare_columns:
+                    cr = lookup.get((key, col))
+                    status = str(cr.status) if cr else "ABSENT"
+                    worst_statuses.append(status)
+                    result_cells.append(status)
+                priority = {"ABSENT": 3, "DIFF": 2, "OK*": 1, "OK": 0}
+                overall = max(worst_statuses, key=lambda s: priority.get(s, 0))
+                result_cells.append(str(overall))
+                table.add_row(*result_cells)
 
             container.mount(table)
 
@@ -223,6 +229,12 @@ class GroupResultWidget(Vertical, can_focus=False):
         """Render summary section with counts per column."""
         gr = self._group_result
         if gr is None:
+            return
+
+        summary = self.query_one("#gr-summary", Static)
+
+        if self._hide_status:
+            summary.update("[dim]Exibindo valores originais (sem mapeamento)[/]")
             return
 
         lines = []
@@ -240,5 +252,4 @@ class GroupResultWidget(Vertical, can_focus=False):
             lines.append(f"  [yellow]Diferentes:[/]  {comp.diff_count}/{comp.total_keys}")
             lines.append(f"  [red]Ausentes:[/]    {comp.absent_count}/{comp.total_keys}")
 
-        summary = self.query_one("#gr-summary", Static)
         summary.update("\n".join(lines))
