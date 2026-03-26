@@ -261,6 +261,16 @@ def cmd_sql(args: argparse.Namespace) -> None:
         console.print(f"[green]{result.rows_affected} registros afetados (committed)[/green]")
         return
 
+    # DDL results
+    if not isinstance(result, tuple) and result.sql_type == "DDL":
+        if result.success:
+            console.print(f"[green]DDL executado com sucesso ({result.elapsed:.2f}s)[/green]")
+        else:
+            console.print(f"[yellow]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/yellow]")
+            console.print(f"[red]{result.error}[/red]")
+            sys.exit(1)
+        return
+
     if not result.success:
         console.print(f"[red]Erro: {result.error}[/red]")
         sys.exit(1)

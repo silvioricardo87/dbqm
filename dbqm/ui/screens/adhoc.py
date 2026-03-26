@@ -197,7 +197,7 @@ class AdhocScreen(Vertical):
         sql_type = classify_sql(raw_sql)
         if sql_type == "UNKNOWN":
             self.notify(
-                "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE ou DELETE.",
+                "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE ou DDL.",
                 severity="error",
             )
             return
@@ -215,10 +215,19 @@ class AdhocScreen(Vertical):
             self._execute_sql(raw_sql, conn, {})
 
     def _extract_table_name(self, sql: str, sql_type: str) -> str:
-        """Extract table name from SQL."""
+        """Extract table/object name from SQL."""
         if sql_type == "SELECT":
             parsed = parse_sql(sql)
             return parsed.get("table", "")
+        elif sql_type == "DDL":
+            # Extract object name from DDL (CREATE/ALTER/DROP ... TYPE NAME)
+            m = re.search(
+                r"(?:CREATE\s+(?:OR\s+REPLACE\s+)?|ALTER\s+|DROP\s+)"
+                r"(?:PACKAGE\s+BODY|PACKAGE|TABLE|VIEW|PROCEDURE|FUNCTION|TRIGGER|"
+                r"SEQUENCE|TYPE\s+BODY|TYPE|INDEX|SYNONYM)\s+(?:\w+\.)?(\w+)",
+                sql, re.IGNORECASE,
+            )
+            return m.group(1) if m else ""
         else:
             tbl_match = re.search(
                 r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\S+)",
@@ -298,6 +307,8 @@ class AdhocScreen(Vertical):
 
         if self._sql_type == "SELECT":
             self._show_select_result(adhoc_result)
+        elif self._sql_type == "DDL":
+            self._show_ddl_result(adhoc_result)
         else:
             self._show_dml_result(adhoc_result, db_connection)
 
@@ -403,6 +414,36 @@ class AdhocScreen(Vertical):
                 pass
         else:
             self.notify("Conexao nao disponivel para commit/rollback.", severity="warning")
+
+    def _show_ddl_result(self, result: AdhocResult) -> None:
+        """Display DDL execution result with compilation errors if any."""
+        # Hide SELECT elements
+        self.query_one("#adhoc-result-info").display = False
+        self.query_one("#adhoc-result-table").display = False
+        self.query_one("#adhoc-sql-viewer").display = False
+
+        # Show result in DML static area
+        dml_static = self.query_one("#adhoc-dml-result", Static)
+        dml_static.display = True
+
+        if result.success:
+            dml_static.update(
+                f"[green bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"
+            )
+        else:
+            errors = result.error or "Erro desconhecido"
+            dml_static.update(
+                f"[yellow bold]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
+                f"[red]{errors}[/]"
+            )
+
+        try:
+            action_bar = self.app.query_one(ActionBar)
+            action_bar.set_actions([
+                Action("Reexecutar", "R", "reexecute"),
+            ])
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Generate SQL

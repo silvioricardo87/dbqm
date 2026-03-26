@@ -18,9 +18,9 @@ class TestClassifySql:
         ("INSERT INTO t VALUES (1)", "INSERT"),
         ("UPDATE t SET x=1", "UPDATE"),
         ("DELETE FROM t WHERE id=1", "DELETE"),
-        ("CREATE TABLE t (id INT)", "UNKNOWN"),
+        ("CREATE TABLE t (id INT)", "DDL"),
         ("", "UNKNOWN"),
-        ("DROP TABLE t", "UNKNOWN"),
+        ("DROP TABLE t", "DDL"),
     ])
     def test_classify(self, sql, expected):
         assert classify_sql(sql) == expected

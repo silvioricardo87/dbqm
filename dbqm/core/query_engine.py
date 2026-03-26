@@ -36,8 +36,17 @@ def _is_select_only(sql: str) -> bool:
     return stmt_type in ("SELECT", None)
 
 
+_DDL_KEYWORDS = frozenset({
+    "CREATE", "ALTER", "DROP", "TRUNCATE", "GRANT", "REVOKE",
+    "COMMENT", "RENAME", "PURGE", "FLASHBACK", "ANALYZE",
+})
+
+
 def classify_sql(sql: str) -> str:
-    """Classify SQL statement type. Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', or 'UNKNOWN'."""
+    """Classify SQL statement type.
+
+    Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DDL', or 'UNKNOWN'.
+    """
     parsed = sqlparse.parse(sql.strip())
     if not parsed:
         return "UNKNOWN"
@@ -47,6 +56,8 @@ def classify_sql(sql: str) -> str:
     first_word = sql.strip().split()[0].upper() if sql.strip() else ""
     if first_word in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         return first_word
+    if first_word in _DDL_KEYWORDS:
+        return "DDL"
     return "UNKNOWN"
 
 
@@ -144,11 +155,12 @@ class AdhocResult:
 
 
 def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: bool = False) -> AdhocResult | tuple[AdhocResult, Any]:
-    """Execute an ad-hoc SQL (SELECT or DML) against a connection.
+    """Execute an ad-hoc SQL (SELECT, DML, or DDL) against a connection.
 
     For SELECT: returns AdhocResult.
     For DML without auto_commit: returns (AdhocResult, db_connection) for manual commit/rollback.
     For DML with auto_commit: returns AdhocResult (committed).
+    For DDL: executes and returns AdhocResult (DDL auto-commits in Oracle).
     For errors: returns AdhocResult with success=False.
     """
     sql = sql.strip().rstrip(";")
@@ -159,7 +171,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             sql_type=sql_type,
             connection_name=conn.name,
             success=False,
-            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE ou DELETE.",
+            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE ou DDL (CREATE/ALTER/DROP...).",
         )
 
     db = None
@@ -191,6 +203,20 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 rows=rows,
                 row_count=len(rows),
                 elapsed=elapsed,
+            )
+        elif sql_type == "DDL":
+            cursor.close()
+            # For DDL on Oracle, check compilation errors if applicable
+            compilation_errors = _fetch_ddl_errors(db, sql, conn.db_type)
+            db.close()
+            db = None
+            return AdhocResult(
+                sql_type=sql_type,
+                connection_name=conn.name,
+                elapsed=elapsed,
+                committed=True,
+                error=compilation_errors,
+                success=not compilation_errors,
             )
         else:
             rows_affected = cursor.rowcount
@@ -228,6 +254,49 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 db.close()
             except Exception:
                 pass
+
+
+def _fetch_ddl_errors(db, sql: str, db_type: str) -> str:
+    """After DDL execution, check for compilation errors (Oracle CREATE/ALTER)."""
+    if db_type != "oracle":
+        return ""
+    upper = sql.upper()
+    if not any(kw in upper for kw in ("CREATE", "ALTER")):
+        return ""
+    # Extract object type and name from DDL
+    m = re.search(
+        r"(?:CREATE\s+(?:OR\s+REPLACE\s+)?|ALTER\s+)"
+        r"(PACKAGE\s+BODY|PACKAGE|PROCEDURE|FUNCTION|TRIGGER|TYPE\s+BODY|TYPE|VIEW)"
+        r"\s+(?:(\w+)\.)?(\w+)",
+        sql, re.IGNORECASE,
+    )
+    if not m:
+        return ""
+    obj_type = m.group(1).upper()
+    owner = m.group(2).upper() if m.group(2) else None
+    obj_name = m.group(3).upper()
+    try:
+        cursor = db.cursor()
+        if owner:
+            cursor.execute(
+                "SELECT line, position, text FROM all_errors "
+                "WHERE name = :n AND type = :t AND owner = :o ORDER BY sequence",
+                {"n": obj_name, "t": obj_type, "o": owner},
+            )
+        else:
+            cursor.execute(
+                "SELECT line, position, text FROM user_errors "
+                "WHERE name = :n AND type = :t ORDER BY sequence",
+                {"n": obj_name, "t": obj_type},
+            )
+        errors = cursor.fetchall()
+        cursor.close()
+        if not errors:
+            return ""
+        lines = [f"Linha {row[0]}, Col {row[1]}: {row[2].strip()}" for row in errors]
+        return "\n".join(lines)
+    except Exception:
+        return ""
 
 
 def parse_sql(sql: str) -> dict:
