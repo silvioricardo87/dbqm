@@ -21,6 +21,17 @@ class TestClassifySql:
         ("CREATE TABLE t (id INT)", "DDL"),
         ("", "UNKNOWN"),
         ("DROP TABLE t", "DDL"),
+        ("ALTER TABLE t ADD col INT", "DDL"),
+        ("TRUNCATE TABLE t", "DDL"),
+        ("GRANT SELECT ON t TO u", "DDL"),
+        ("REVOKE SELECT ON t FROM u", "DDL"),
+        ("CREATE OR REPLACE PACKAGE pkg AS END;", "DDL"),
+        ("CREATE OR REPLACE PROCEDURE p AS BEGIN NULL; END;", "DDL"),
+        ("CREATE OR REPLACE VIEW v AS SELECT 1 FROM dual", "DDL"),
+        ("COMMENT ON TABLE t IS 'desc'", "DDL"),
+        ("RENAME old_t TO new_t", "DDL"),
+        ("PURGE RECYCLEBIN", "DDL"),
+        ("ANALYZE TABLE t COMPUTE STATISTICS", "DDL"),
     ])
     def test_classify(self, sql, expected):
         assert classify_sql(sql) == expected
@@ -187,3 +198,109 @@ class TestExecuteWithSqlite:
         assert result.success
         assert result.rows_affected == 1
         assert result.committed is True
+
+    def test_execute_adhoc_ddl_create_table(self, sqlite_db):
+        """DDL CREATE TABLE should execute and return success."""
+        conn = self._make_conn()
+        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
+            with patch.object(conn, "db_type", "sqlite"):
+                result = execute_adhoc(
+                    "CREATE TABLE test_ddl (id INTEGER, name TEXT)",
+                    conn, {},
+                )
+
+        assert result.success
+        assert result.sql_type == "DDL"
+        assert result.committed is True
+
+    def test_execute_adhoc_ddl_alter_table(self, sqlite_db):
+        """DDL ALTER TABLE should execute and return success."""
+        conn = self._make_conn()
+        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
+            with patch.object(conn, "db_type", "sqlite"):
+                result = execute_adhoc(
+                    "ALTER TABLE employees ADD COLUMN bonus REAL",
+                    conn, {},
+                )
+
+        assert result.success
+        assert result.sql_type == "DDL"
+
+    def test_execute_adhoc_ddl_error(self):
+        """DDL on non-existent table should return error."""
+        conn = self._make_conn()
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = Exception("ORA-00942: table or view does not exist")
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+            with patch.object(conn, "db_type", "oracle"):
+                result = execute_adhoc("DROP TABLE nonexistent_xyz", conn, {})
+
+        assert not result.success
+        assert "ORA-00942" in result.error
+        assert result.sql_type == "DDL"
+
+    def test_execute_adhoc_unknown_rejected(self):
+        """UNKNOWN SQL type should be rejected."""
+        conn = self._make_conn()
+        result = execute_adhoc("MERGE INTO t USING s ON (t.id=s.id)", conn, {})
+        assert not result.success
+        assert "nao suportado" in result.error
+
+
+class TestFetchDdlErrors:
+    """Tests for _fetch_ddl_errors helper."""
+
+    def test_non_oracle_returns_empty(self):
+        from dbqm.core.query_engine import _fetch_ddl_errors
+        assert _fetch_ddl_errors(None, "CREATE TABLE t (id INT)", "sqlite") == ""
+
+    def test_non_create_alter_returns_empty(self):
+        from dbqm.core.query_engine import _fetch_ddl_errors
+        assert _fetch_ddl_errors(None, "DROP TABLE t", "oracle") == ""
+
+    def test_no_matching_object_returns_empty(self):
+        from dbqm.core.query_engine import _fetch_ddl_errors
+        assert _fetch_ddl_errors(None, "CREATE TABLE t (id INT)", "oracle") == ""
+
+    def test_fetches_errors_for_package(self):
+        from dbqm.core.query_engine import _fetch_ddl_errors
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            (5, 10, "PLS-00103: Encountered the symbol 'END'"),
+        ]
+        mock_db.cursor.return_value = mock_cursor
+
+        result = _fetch_ddl_errors(mock_db, "CREATE OR REPLACE PACKAGE pkg_test AS END;", "oracle")
+        assert "Linha 5" in result
+        assert "PLS-00103" in result
+
+    def test_fetches_errors_with_owner(self):
+        from dbqm.core.query_engine import _fetch_ddl_errors
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_db.cursor.return_value = mock_cursor
+
+        result = _fetch_ddl_errors(mock_db, "CREATE OR REPLACE PROCEDURE MYSCHEMA.MY_PROC AS BEGIN NULL; END;", "oracle")
+        assert result == ""
+        # Verify it used all_errors (with owner) not user_errors
+        call_args = mock_cursor.execute.call_args
+        sql_arg = call_args[0][0]
+        params_arg = call_args[0][1]
+        assert "all_errors" in sql_arg
+        assert params_arg["o"] == "MYSCHEMA"
+        assert params_arg["n"] == "MY_PROC"
+
+    def test_no_errors_returns_empty(self):
+        from dbqm.core.query_engine import _fetch_ddl_errors
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_db.cursor.return_value = mock_cursor
+
+        result = _fetch_ddl_errors(mock_db, "CREATE OR REPLACE FUNCTION fn_test RETURN NUMBER AS BEGIN RETURN 1; END;", "oracle")
+        assert result == ""
