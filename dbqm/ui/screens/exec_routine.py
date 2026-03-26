@@ -251,6 +251,7 @@ class ExecRoutineScreen(Vertical):
         self.query_one("#er-detail-phase").display = False
 
         table = self.query_one("#er-obj-table", DataTable)
+        table.cursor_type = "row"
         table.clear(columns=True)
         table.add_column("Nome", key="name")
         for obj in objects:
@@ -333,6 +334,7 @@ class ExecRoutineScreen(Vertical):
 
         # Show routines table
         rtable = self.query_one("#er-routines-table", DataTable)
+        rtable.cursor_type = "row"
         rtable.display = True
         rtable.clear(columns=True)
         rtable.add_column("Rotina", key="name")
