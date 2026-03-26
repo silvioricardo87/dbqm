@@ -117,8 +117,13 @@ class DBQMApp(App):
 
         DataTable, ListView, TextArea, and Sidebar handle arrows internally.
         For other widgets (Button, Switch, Input, Select), arrows move focus.
+        Disabled when a modal is active so modals handle their own navigation.
         """
         if event.key not in ("up", "down"):
+            return
+
+        # Don't intercept keys when a modal is active
+        if len(self.screen_stack) > 1:
             return
 
         from textual.widgets import DataTable, ListView, TextArea, OptionList

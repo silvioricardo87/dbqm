@@ -63,6 +63,10 @@ class ExportPickerModal(ModalScreen[str | None]):
                 yield Button("PNG", variant="primary", id="fmt-png")
             yield Button("Cancelar", variant="default", id="cancel")
 
+    def on_mount(self) -> None:
+        """Focus the first format button."""
+        self.query_one("#fmt-csv", Button).focus()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
         if btn_id and btn_id.startswith("fmt-"):

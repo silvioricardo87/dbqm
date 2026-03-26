@@ -21,6 +21,7 @@ class ResultTable(Vertical, can_focus=False):
     }
     ResultTable DataTable {
         height: 1fr;
+        scrollbar-gutter: stable;
     }
     ResultTable .vertical-view {
         height: 1fr;

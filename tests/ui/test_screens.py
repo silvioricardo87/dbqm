@@ -1333,20 +1333,20 @@ async def test_query_exec_folder_arrow_navigation(tmp_config_dir):
         assert len(screen._folder_buttons) >= 3
         assert screen._active_folder_idx == 0
         # Right arrow should advance
-        screen.key_right()
+        await pilot.press("right")
         assert screen._active_folder_idx == 1
-        screen.key_right()
+        await pilot.press("right")
         assert screen._active_folder_idx == 2
         # Should not go past the end
-        screen.key_right()
+        await pilot.press("right")
         assert screen._active_folder_idx == 2
         # Left arrow should go back
-        screen.key_left()
+        await pilot.press("left")
         assert screen._active_folder_idx == 1
-        screen.key_left()
+        await pilot.press("left")
         assert screen._active_folder_idx == 0
         # Should not go below 0
-        screen.key_left()
+        await pilot.press("left")
         assert screen._active_folder_idx == 0
 
 
@@ -1383,12 +1383,12 @@ async def test_group_exec_folder_arrow_navigation(tmp_config_dir):
         assert len(screen._folder_buttons) >= 3
         assert screen._active_folder_idx == 0
         # Right arrow should advance
-        screen.key_right()
+        await pilot.press("right")
         assert screen._active_folder_idx == 1
-        screen.key_right()
+        await pilot.press("right")
         assert screen._active_folder_idx == 2
         # Left arrow should go back
-        screen.key_left()
+        await pilot.press("left")
         assert screen._active_folder_idx == 1
 
 
@@ -2441,9 +2441,9 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
         await pilot.pause()
         screen = app.query_one(QueryExecScreen)
         assert screen._active_folder_idx == 0
-        screen.key_right()
+        await pilot.press("right")
         assert screen._active_folder_idx == 1
-        screen.key_left()
+        await pilot.press("left")
         assert screen._active_folder_idx == 0
 
 

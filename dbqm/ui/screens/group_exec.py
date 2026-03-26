@@ -250,19 +250,19 @@ class GroupExecScreen(Vertical):
     # Folder keyboard navigation (← →)
     # ------------------------------------------------------------------
 
-    def key_left(self) -> None:
-        """Switch to previous folder (only in selection phase)."""
+    def on_key(self, event) -> None:
+        """Handle left/right for folder switching only in selection phase."""
+        if event.key not in ("left", "right"):
+            return
         if self._current_group_result is not None or not self._folder_buttons:
             return
-        self._active_folder_idx = max(0, self._active_folder_idx - 1)
+        if event.key == "left":
+            self._active_folder_idx = max(0, self._active_folder_idx - 1)
+        else:
+            self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
         self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
-
-    def key_right(self) -> None:
-        """Switch to next folder (only in selection phase)."""
-        if self._current_group_result is not None or not self._folder_buttons:
-            return
-        self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
-        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
+        event.prevent_default()
+        event.stop()
 
     def _activate_folder_button(self, btn: Button) -> None:
         """Activate a folder button and filter the group list."""
