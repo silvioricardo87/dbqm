@@ -2708,6 +2708,201 @@ def test_package_wizard_empty_routines():
 # --- 8. ESC navigation ---
 
 
+# ======================================================================
+# TemplateManageScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.template_manage import TemplateManageScreen
+
+
+class TemplateManageTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield TemplateManageScreen()
+
+
+@pytest.mark.asyncio
+async def test_template_manage_screen_renders(tmp_config_dir):
+    app = TemplateManageTestApp()
+    async with app.run_test() as pilot:
+        assert app.query_one(TemplateManageScreen) is not None
+
+
+@pytest.mark.asyncio
+async def test_template_manage_screen_empty(tmp_config_dir):
+    """With no templates, should show empty message and hide table."""
+    app = TemplateManageTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(TemplateManageScreen)
+        empty = screen.query_one("#tm-empty")
+        assert empty.display is True
+        from textual.widgets import DataTable
+        table = screen.query_one("#tm-table", DataTable)
+        assert table.display is False
+
+
+@pytest.mark.asyncio
+async def test_template_manage_screen_with_data(tmp_config_dir):
+    """With templates configured, should show them in the table."""
+    templates_dir = tmp_config_dir / "templates"
+    templates_data = {
+        "templates": [
+            {
+                "name": "tpl_b",
+                "description": "Second template",
+                "content": "Hello {{name}}",
+            },
+            {
+                "name": "tpl_a",
+                "description": "First template",
+                "content": "{{x}} + {{y}} = {{z}}",
+            },
+        ]
+    }
+    (templates_dir / "templates.json").write_text(
+        json.dumps(templates_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = TemplateManageTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(TemplateManageScreen)
+        empty = screen.query_one("#tm-empty")
+        assert empty.display is False
+        from textual.widgets import DataTable
+        table = screen.query_one("#tm-table", DataTable)
+        assert table.display is True
+        assert table.row_count == 2
+        # Should be sorted alphabetically: tpl_a first, then tpl_b
+        row0 = table.get_row_at(0)
+        assert str(row0[1]) == "tpl_a"
+        row1 = table.get_row_at(1)
+        assert str(row1[1]) == "tpl_b"
+
+
+@pytest.mark.asyncio
+async def test_template_manage_screen_shows_field_count(tmp_config_dir):
+    """Table should show placeholder field names for each template."""
+    templates_dir = tmp_config_dir / "templates"
+    templates_data = {
+        "templates": [
+            {
+                "name": "tpl_fields",
+                "description": "Template with fields",
+                "content": "{{campo_a}}, {{campo_b}}, {{campo_c}}",
+            },
+        ]
+    }
+    (templates_dir / "templates.json").write_text(
+        json.dumps(templates_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = TemplateManageTestApp()
+    async with app.run_test() as pilot:
+        from textual.widgets import DataTable
+        screen = app.query_one(TemplateManageScreen)
+        table = screen.query_one("#tm-table", DataTable)
+        row0 = table.get_row_at(0)
+        fields_col = str(row0[3])  # "Campos" column
+        assert "campo_a" in fields_col
+        assert "campo_b" in fields_col
+        assert "campo_c" in fields_col
+
+
+@pytest.mark.asyncio
+async def test_template_manage_screen_no_fields_template(tmp_config_dir):
+    """Template with no placeholders shows empty fields column."""
+    templates_dir = tmp_config_dir / "templates"
+    templates_data = {
+        "templates": [
+            {
+                "name": "static_tpl",
+                "description": "No placeholders",
+                "content": "Just plain text, no fields.",
+            },
+        ]
+    }
+    (templates_dir / "templates.json").write_text(
+        json.dumps(templates_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = TemplateManageTestApp()
+    async with app.run_test() as pilot:
+        from textual.widgets import DataTable
+        screen = app.query_one(TemplateManageScreen)
+        table = screen.query_one("#tm-table", DataTable)
+        row0 = table.get_row_at(0)
+        fields_col = str(row0[3])
+        assert fields_col == ""
+
+
+# ======================================================================
+# GroupExecScreen template integration
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_group_exec_screen_with_template_group(tmp_config_dir):
+    """Group with template configured should show in the group list."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "grupo_tpl",
+                "description": "Grupo com template",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "template": "meu_template",
+                "template_fields": {"titulo": "param:CORRETOR"},
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        from textual.widgets import ListView
+        group_list = screen.query_one("#ge-group-list", ListView)
+        assert len(group_list.children) == 1
+
+
+@pytest.mark.asyncio
+async def test_group_manage_screen_with_template_data(tmp_config_dir):
+    """Groups with template fields survive loading in management screen."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "grupo_tpl",
+                "description": "Com template",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "template": "inv_tpl",
+                "template_fields": {"x": "param:Y"},
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupManageTestApp()
+    async with app.run_test() as pilot:
+        from textual.widgets import DataTable
+        screen = app.query_one(GroupManageScreen)
+        table = screen.query_one("#gm-table", DataTable)
+        assert table.row_count == 1
+        row0 = table.get_row_at(0)
+        assert str(row0[1]) == "grupo_tpl"
+
+
+# ======================================================================
+# ESC tests (continued)
+# ======================================================================
+
 @pytest.mark.asyncio
 async def test_esc_clears_screen(tmp_config_dir):
     """ESC from a screen returns to empty state."""
