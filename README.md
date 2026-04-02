@@ -7,6 +7,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Fullscreen TUI** — Fixed layout with sidebar navigation, breadcrumb, status bar, and keyboard-driven workflow
 - **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL
 - **Cross-database comparison** — Execute query groups and compare results side-by-side with match/diff/absent status
+- **Report templates** — Define text templates with `{{field}}` placeholders, auto-fill from query results or manual input, export rendered reports
 - **DDL execution** — Execute CREATE, ALTER, DROP statements with compilation error detection from USER_ERRORS
 - **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE)
 - **Execute routines** — Run Oracle packages, procedures, and functions with parameter input and DBMS_OUTPUT capture
@@ -150,7 +151,7 @@ The application is fully keyboard-driven:
 | Section | Options |
 |---------|---------|
 | **Consultas** | Executar, SQL avulso, Gerenciar |
-| **Grupos** | Executar, Gerenciar |
+| **Grupos** | Executar, Gerenciar, Templates |
 | **Ferramentas** | DDL, Packages, Executar Rotina, Objetos, Historico |
 | **Sistema** | Conexoes, Config (inclui Exportar/Importar), Sair |
 
@@ -165,6 +166,7 @@ Groups run the same logical query across multiple databases and compare results:
 - Two display modes: **flat** (one table per column) and **pivoted** (one table per key)
 - Filter results by status (divergent, absent, or combined)
 - Export as HTML report with interactive filters
+- **Report templates**: attach a template to a group, configure field sources (auto from query results or manual input), and render formatted reports after execution
 
 ## Project Structure
 
@@ -187,6 +189,7 @@ dbqm/
 │   │   │   ├── query_manage.py    # Query CRUD, DE-PARA, SQL viewer
 │   │   │   ├── group_exec.py      # Execute group comparison
 │   │   │   ├── group_manage.py    # Group CRUD
+│   │   │   ├── template_manage.py # Template CRUD
 │   │   │   ├── adhoc.py           # Ad-hoc SQL execution
 │   │   │   ├── ddl.py             # DDL extraction
 │   │   │   ├── exec_routine.py     # Execute packages, procedures, functions
@@ -241,7 +244,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (497+ tests)
+└── tests/                         # Test suite (531+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests

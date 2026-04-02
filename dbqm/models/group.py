@@ -20,6 +20,8 @@ class Group:
     normalize: dict = field(default_factory=dict)
     validation_rule: str = "all_equal"
     folder: str = ""
+    template: str = ""  # template name (empty = no template)
+    template_fields: dict = field(default_factory=dict)  # {field_name: source_expression}
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
 
     def to_dict(self) -> dict:
@@ -38,6 +40,8 @@ class Group:
             normalize=data.get("normalize", {}),
             validation_rule=data.get("validation_rule", "all_equal"),
             folder=data.get("folder", ""),
+            template=data.get("template", ""),
+            template_fields=data.get("template_fields", {}),
             created_at=data.get("created_at", datetime.now().isoformat(timespec="seconds")),
         )
 

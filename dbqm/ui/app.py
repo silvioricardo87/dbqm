@@ -22,6 +22,7 @@ ACTION_LABELS: dict[str, str] = {
     "config_query": "Gerenciar Consultas",
     "exec_group": "Executar Grupo",
     "config_group": "Gerenciar Grupos",
+    "config_template": "Gerenciar Templates",
     "extract_ddl": "DDL",
     "package_editor": "Packages",
     "exec_routine": "Executar Rotina",
@@ -303,6 +304,10 @@ class DBQMApp(App):
         elif action == "config_group":
             from dbqm.ui.screens.group_manage import GroupManageScreen
             screen_widget = GroupManageScreen(id="group-manage-screen")
+        elif action == "config_template":
+            from dbqm.ui.screens.template_manage import TemplateManageScreen
+            self.query_one(Breadcrumb).set_path(["Grupos", "Templates"])
+            screen_widget = TemplateManageScreen(id="template-manage-screen")
         elif action == "adhoc_sql":
             from dbqm.ui.screens.adhoc import AdhocScreen
             self.query_one(Breadcrumb).set_path(["Consultas", "SQL avulso"])

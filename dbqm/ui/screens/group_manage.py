@@ -169,6 +169,8 @@ class GroupEditMenuModal(ModalScreen[str | None]):
             yield Button("Consultas", id="edit_queries")
             yield Button("Coluna de juncao", id="edit_join_key")
             yield Button("Colunas de comparacao", id="edit_compare_columns")
+            yield Button("Template", id="edit_template")
+            yield Button("Campos do template", id="edit_template_fields")
             yield Button("Cancelar", variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -331,6 +333,187 @@ class GroupFolderModal(ModalScreen[str | None]):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         self.dismiss(event.value.strip())
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ---------------------------------------------------------------------------
+# Helper modal: Template picker
+# ---------------------------------------------------------------------------
+
+class TemplatePickerModal(ModalScreen[str | None]):
+    """Modal to pick a template for a group."""
+
+    DEFAULT_CSS = """
+    TemplatePickerModal {
+        align: center middle;
+    }
+    TemplatePickerModal #dialog {
+        width: 50;
+        max-height: 80%;
+        background: $surface;
+        border: thick $accent;
+        padding: 1 2;
+    }
+    TemplatePickerModal #title {
+        text-style: bold;
+        width: 100%;
+        content-align: center middle;
+        margin-bottom: 1;
+    }
+    TemplatePickerModal Button {
+        width: 100%;
+        margin-bottom: 1;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancelar", show=False),
+    ]
+
+    def __init__(self, templates: list[str], current: str = "") -> None:
+        super().__init__()
+        self._templates = templates
+        self._current = current
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static("Selecionar Template", id="title")
+            for tname in self._templates:
+                variant = "primary" if tname == self._current else "default"
+                yield Button(tname, id=f"tpl-{tname}", variant=variant)
+            yield Button("Nenhum (remover)", variant="warning", id="tpl--none--")
+            yield Button("Cancelar", variant="default", id="tpl--cancel--")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id or ""
+        if btn_id == "tpl--cancel--":
+            self.dismiss(None)
+        elif btn_id == "tpl--none--":
+            self.dismiss("")
+        elif btn_id.startswith("tpl-"):
+            self.dismiss(btn_id.removeprefix("tpl-"))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ---------------------------------------------------------------------------
+# Helper modal: Template fields mapping editor
+# ---------------------------------------------------------------------------
+
+class TemplateFieldsModal(ModalScreen[dict | None]):
+    """Modal to configure template field source mappings."""
+
+    DEFAULT_CSS = """
+    TemplateFieldsModal {
+        align: center middle;
+    }
+    TemplateFieldsModal #dialog {
+        width: 80;
+        max-height: 90%;
+        background: $surface;
+        border: thick $accent;
+        padding: 1 2;
+        overflow-y: auto;
+    }
+    TemplateFieldsModal #title {
+        text-style: bold;
+        width: 100%;
+        content-align: center middle;
+        margin-bottom: 1;
+    }
+    TemplateFieldsModal #hint {
+        margin-bottom: 1;
+        color: $text-muted;
+    }
+    TemplateFieldsModal .field-row {
+        height: auto;
+        margin-bottom: 1;
+    }
+    TemplateFieldsModal .field-label {
+        width: 20;
+        height: 1;
+        padding: 1 1 0 0;
+    }
+    TemplateFieldsModal .field-input {
+        width: 1fr;
+    }
+    TemplateFieldsModal #buttons {
+        margin-top: 1;
+        width: 100%;
+        height: auto;
+        align: center middle;
+    }
+    TemplateFieldsModal Button {
+        margin: 0 1;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancelar", show=False),
+    ]
+
+    def __init__(
+        self,
+        placeholders: list[str],
+        current_mappings: dict[str, str],
+        query_names: list[str],
+    ) -> None:
+        super().__init__()
+        self._placeholders = placeholders
+        self._current = current_mappings
+        self._query_names = query_names
+
+    def compose(self) -> ComposeResult:
+        from textual.containers import Vertical as V, Horizontal as H
+
+        with V(id="dialog"):
+            yield Static("Configurar Campos do Template", id="title")
+            yield Static(
+                "[dim]Fontes: param:NOME | query:CONSULTA:COLUNA | query:CONSULTA:_count | "
+                "query:CONSULTA:_status | literal:texto\n"
+                "Vazio = campo de preenchimento manual[/dim]",
+                id="hint",
+                markup=True,
+            )
+            for ph in self._placeholders:
+                with H(classes="field-row"):
+                    yield Static(f"[bold]{{{{{ph}}}}}[/bold]", classes="field-label", markup=True)
+                    yield Input(
+                        value=self._current.get(ph, ""),
+                        placeholder="vazio = input manual",
+                        id=f"tf-{ph}",
+                        classes="field-input",
+                    )
+            with H(id="buttons"):
+                yield Button("Salvar", variant="primary", id="save")
+                yield Button("Cancelar", variant="default", id="cancel")
+
+    def on_mount(self) -> None:
+        if self._placeholders:
+            try:
+                self.query_one(f"#tf-{self._placeholders[0]}", Input).focus()
+            except Exception:
+                pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save":
+            self._save()
+        elif event.button.id == "cancel":
+            self.dismiss(None)
+
+    def _save(self) -> None:
+        mappings = {}
+        for ph in self._placeholders:
+            try:
+                value = self.query_one(f"#tf-{ph}", Input).value.strip()
+                if value:
+                    mappings[ph] = value
+            except Exception:
+                pass
+        self.dismiss(mappings)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -562,6 +745,12 @@ class GroupManageScreen(Vertical):
             )
             self.app.push_screen(modal, callback=self._on_edit_compare_columns)
 
+        elif field == "template":
+            self._push_template_picker(group)
+
+        elif field == "template_fields":
+            self._push_template_fields_editor(group)
+
     def _on_edit_description(self, value: str | None) -> None:
         if value is None:
             return
@@ -582,6 +771,59 @@ class GroupManageScreen(Vertical):
             return
         cols = [c.strip() for c in value.split(",") if c.strip()]
         self._update_group_field(self._edit_group_name, "compare_columns", cols)
+
+    def _push_template_picker(self, group) -> None:
+        """Show a picker to select a template for this group."""
+        from dbqm.models.template import load_templates
+
+        templates = load_templates()
+        if not templates:
+            self.notify("Nenhum template disponivel. Crie um primeiro.", severity="warning")
+            return
+
+        modal = TemplatePickerModal(
+            templates=[t.name for t in templates],
+            current=group.template,
+        )
+        self.app.push_screen(modal, callback=self._on_template_selected)
+
+    def _on_template_selected(self, result: str | None) -> None:
+        if result is None:
+            return
+        self._update_group_field(self._edit_group_name, "template", result)
+        if result == "":
+            self._update_group_field(self._edit_group_name, "template_fields", {})
+
+    def _push_template_fields_editor(self, group) -> None:
+        """Show the template field mapping editor."""
+        if not group.template:
+            self.notify("Selecione um template primeiro.", severity="warning")
+            return
+
+        from dbqm.models.template import find_template
+        from dbqm.core.template_engine import extract_placeholders
+
+        template = find_template(group.template)
+        if template is None:
+            self.notify(f'Template "{group.template}" nao encontrado.', severity="error")
+            return
+
+        placeholders = extract_placeholders(template.content)
+        if not placeholders:
+            self.notify("Template nao possui campos {{campo}}.", severity="warning")
+            return
+
+        modal = TemplateFieldsModal(
+            placeholders=placeholders,
+            current_mappings=group.template_fields,
+            query_names=group.queries,
+        )
+        self.app.push_screen(modal, callback=self._on_template_fields_result)
+
+    def _on_template_fields_result(self, result: dict | None) -> None:
+        if result is None:
+            return
+        self._update_group_field(self._edit_group_name, "template_fields", result)
 
     def _update_group_field(self, name: str, field: str, value) -> None:
         from dbqm.models.group import load_groups, save_groups

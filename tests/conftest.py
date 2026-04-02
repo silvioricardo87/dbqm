@@ -20,10 +20,15 @@ def tmp_config_dir(tmp_path, monkeypatch):
     history_dir = config_dir / "history"
     history_dir.mkdir()
 
+    templates_dir = tmp_path / "templates"
+    templates_dir.mkdir()
+
     # Patch the canonical paths module (source of truth)
     monkeypatch.setattr("dbqm.core.paths.CONFIG_DIR", config_dir)
     monkeypatch.setattr("dbqm.core.paths.EXPORTS_DIR", exports_dir)
     monkeypatch.setattr("dbqm.core.paths.HISTORY_DIR", history_dir)
+    monkeypatch.setattr("dbqm.core.paths.TEMPLATES_DIR", templates_dir)
+    monkeypatch.setattr("dbqm.core.paths.TEMPLATES_FILE", templates_dir / "templates.json")
     monkeypatch.setattr("dbqm.core.paths.KEY_FILE", config_dir / ".dbqm_key")
     monkeypatch.setattr("dbqm.core.paths.AUDIT_FILE", config_dir / "audit.log")
     monkeypatch.setattr("dbqm.core.paths.CONNECTIONS_FILE", config_dir / "connections.json")
@@ -36,6 +41,8 @@ def tmp_config_dir(tmp_path, monkeypatch):
         "CONFIG_DIR": config_dir,
         "EXPORTS_DIR": exports_dir,
         "HISTORY_DIR": history_dir,
+        "TEMPLATES_DIR": templates_dir,
+        "TEMPLATES_FILE": templates_dir / "templates.json",
         "KEY_FILE": config_dir / ".dbqm_key",
         "AUDIT_FILE": config_dir / "audit.log",
         "CONNECTIONS_FILE": config_dir / "connections.json",
@@ -59,6 +66,8 @@ def tmp_config_dir(tmp_path, monkeypatch):
         "dbqm.core.crypto.KEY_FILE",
         "dbqm.core.ddl_extractor.EXPORTS_DIR",
         "dbqm.core.config_portability.EXPORTS_DIR",
+        "dbqm.models.template.TEMPLATES_DIR",
+        "dbqm.models.template.TEMPLATES_FILE",
     ]:
         attr = mod_path.rsplit(".", 1)[1]
         monkeypatch.setattr(mod_path, attr_values[attr])

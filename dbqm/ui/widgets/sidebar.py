@@ -17,6 +17,7 @@ MENU_ITEMS: list[tuple[str, list[tuple[str, str, str]]]] = [
     ("GRUPOS", [
         ("exec_group", "\U0001f4ca", "Executar"),
         ("config_group", "\U0001f4c1", "Gerenciar"),
+        ("config_template", "\U0001f4c4", "Templates"),
     ]),
     ("FERRAMENTAS", [
         ("extract_ddl", "\U0001f3d7", "DDL"),

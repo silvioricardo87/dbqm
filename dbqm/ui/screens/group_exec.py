@@ -561,6 +561,8 @@ class GroupExecScreen(Vertical):
         if self._raw_query_rows is not None:
             label = "Original" if self._showing_mapped else "De-Para"
             actions.append(Action(label, "M", "toggle_mapping"))
+        if self._current_group and self._current_group.template:
+            actions.append(Action("Template", "T", "render_template"))
         actions.extend([
             Action("Exportar", "E", "export"),
             Action("HTML", "H", "export_html"),
@@ -579,6 +581,8 @@ class GroupExecScreen(Vertical):
             self._handle_filter_status()
         elif action == "toggle_mapping":
             self._handle_toggle_mapping()
+        elif action == "render_template":
+            self._handle_render_template()
         elif action == "export":
             self._handle_export()
         elif action == "export_html":
@@ -653,6 +657,64 @@ class GroupExecScreen(Vertical):
 
         label = "mapeados (de-para)" if self._showing_mapped else "originais"
         self.notify(f"Exibindo valores {label}", timeout=2)
+
+    def _handle_render_template(self) -> None:
+        """Render the group's template with query results."""
+        if self._current_group is None or self._current_group_result is None:
+            return
+
+        if not self._current_group.template:
+            self.notify("Grupo nao possui template configurado.", severity="warning")
+            return
+
+        from dbqm.models.template import find_template
+        from dbqm.core.template_engine import (
+            extract_placeholders, resolve_auto_fields, get_input_fields,
+            render_template,
+        )
+
+        template = find_template(self._current_group.template)
+        if template is None:
+            self.notify(
+                f'Template "{self._current_group.template}" nao encontrado.',
+                severity="error",
+            )
+            return
+
+        placeholders = extract_placeholders(template.content)
+        auto_values = resolve_auto_fields(
+            self._current_group_result,
+            self._current_params,
+            self._current_group.template_fields,
+        )
+
+        input_fields = get_input_fields(placeholders, auto_values)
+
+        if input_fields:
+            # Need user input for some fields
+            self._template_auto_values = auto_values
+            self._template_content = template.content
+            modal = _TemplateInputModal(input_fields)
+            self.app.push_screen(modal, callback=self._on_template_input)
+        else:
+            # All fields resolved — render immediately
+            rendered = render_template(template.content, auto_values)
+            self._show_rendered_template(rendered)
+
+    def _on_template_input(self, result: dict[str, str] | None) -> None:
+        if result is None:
+            return
+
+        from dbqm.core.template_engine import render_template
+
+        all_values = {**self._template_auto_values, **result}
+        rendered = render_template(self._template_content, all_values)
+        self._show_rendered_template(rendered)
+
+    def _show_rendered_template(self, rendered: str) -> None:
+        """Show the rendered template in a modal and optionally copy/export."""
+        modal = _RenderedTemplateModal(rendered)
+        self.app.push_screen(modal)
 
     def _handle_filter_status(self) -> None:
         """Push a status filter dialog."""
@@ -912,6 +974,201 @@ class _IndividualResultModal(ModalScreen[None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ir-close":
             self.dismiss(None)
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
+class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
+    """Modal for filling template input fields."""
+
+    DEFAULT_CSS = """
+    _TemplateInputModal {
+        align: center middle;
+    }
+    _TemplateInputModal #ti-dialog {
+        width: 80;
+        max-height: 90%;
+        background: $surface;
+        border: thick $accent;
+        padding: 1 2;
+        overflow-y: auto;
+    }
+    _TemplateInputModal #ti-title {
+        text-style: bold;
+        width: 100%;
+        content-align: center middle;
+        margin-bottom: 1;
+    }
+    _TemplateInputModal .ti-field-row {
+        height: auto;
+        margin-bottom: 1;
+    }
+    _TemplateInputModal .ti-field-label {
+        width: 20;
+        height: 1;
+        padding: 1 1 0 0;
+    }
+    _TemplateInputModal .ti-field-input {
+        width: 1fr;
+    }
+    _TemplateInputModal #ti-buttons {
+        margin-top: 1;
+        width: 100%;
+        height: auto;
+        align: center middle;
+    }
+    _TemplateInputModal Button {
+        margin: 0 1;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancelar", show=False),
+    ]
+
+    def __init__(self, fields: list[str]) -> None:
+        super().__init__()
+        self._fields = fields
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Input as TInput
+
+        with Vertical(id="ti-dialog"):
+            yield Static("Preencher campos do template", id="ti-title")
+            for field_name in self._fields:
+                with Horizontal(classes="ti-field-row"):
+                    yield Static(
+                        f"[bold]{{{{{field_name}}}}}[/bold]",
+                        classes="ti-field-label",
+                        markup=True,
+                    )
+                    yield TInput(
+                        placeholder=field_name,
+                        id=f"ti-{field_name}",
+                        classes="ti-field-input",
+                    )
+            with Horizontal(id="ti-buttons"):
+                yield Button("Gerar", variant="primary", id="ti-submit")
+                yield Button("Cancelar", variant="default", id="ti-cancel")
+
+    def on_mount(self) -> None:
+        if self._fields:
+            try:
+                from textual.widgets import Input as TInput
+                self.query_one(f"#ti-{self._fields[0]}", TInput).focus()
+            except Exception:
+                pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "ti-submit":
+            self._submit()
+        elif event.button.id == "ti-cancel":
+            self.dismiss(None)
+
+    def _submit(self) -> None:
+        from textual.widgets import Input as TInput
+
+        values = {}
+        for field_name in self._fields:
+            try:
+                values[field_name] = self.query_one(f"#ti-{field_name}", TInput).value
+            except Exception:
+                values[field_name] = ""
+        self.dismiss(values)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class _RenderedTemplateModal(ModalScreen[None]):
+    """Modal that displays the rendered template text with copy/export options."""
+
+    DEFAULT_CSS = """
+    _RenderedTemplateModal {
+        align: center middle;
+    }
+    _RenderedTemplateModal #rt-dialog {
+        width: 90%;
+        height: 85%;
+        background: $surface;
+        border: thick $accent;
+        padding: 1 2;
+    }
+    _RenderedTemplateModal #rt-title {
+        text-style: bold;
+        width: 100%;
+        content-align: center middle;
+        margin-bottom: 1;
+    }
+    _RenderedTemplateModal TextArea {
+        height: 1fr;
+        margin-bottom: 1;
+    }
+    _RenderedTemplateModal #rt-buttons {
+        height: auto;
+        width: 100%;
+        align: center middle;
+    }
+    _RenderedTemplateModal Button {
+        margin: 0 1;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "close", "Fechar", show=False),
+    ]
+
+    def __init__(self, rendered_text: str) -> None:
+        super().__init__()
+        self._rendered_text = rendered_text
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import TextArea
+
+        with Vertical(id="rt-dialog"):
+            yield Static("Template Gerado", id="rt-title")
+            yield TextArea(self._rendered_text, id="rt-content", read_only=True)
+            with Horizontal(id="rt-buttons"):
+                yield Button("Copiar", variant="primary", id="rt-copy")
+                yield Button("Exportar TXT", variant="default", id="rt-export")
+                yield Button("Fechar", variant="default", id="rt-close")
+
+    def on_mount(self) -> None:
+        from textual.widgets import TextArea
+        self.query_one("#rt-content", TextArea).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "rt-close":
+            self.dismiss(None)
+        elif event.button.id == "rt-copy":
+            self._copy_to_clipboard()
+        elif event.button.id == "rt-export":
+            self._export_txt()
+
+    def _copy_to_clipboard(self) -> None:
+        try:
+            import subprocess
+            process = subprocess.Popen(
+                ["clip"],
+                stdin=subprocess.PIPE,
+                shell=True,
+            )
+            process.communicate(self._rendered_text.encode("utf-8"))
+            self.notify("Copiado para a area de transferencia!", timeout=3)
+        except Exception:
+            self.notify("Erro ao copiar. Selecione e copie manualmente.", severity="warning")
+
+    def _export_txt(self) -> None:
+        from datetime import datetime
+        from dbqm.core.paths import EXPORTS_DIR
+
+        exports_dir = EXPORTS_DIR / "templates"
+        exports_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filepath = exports_dir / f"template_{ts}.txt"
+        filepath.write_text(self._rendered_text, encoding="utf-8")
+        self.notify(f"Exportado: {filepath}", timeout=5)
 
     def action_close(self) -> None:
         self.dismiss(None)

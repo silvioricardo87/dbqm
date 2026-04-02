@@ -21,8 +21,10 @@ CONNECTIONS_FILE = CONFIG_DIR / "connections.json"
 QUERIES_FILE = CONFIG_DIR / "queries.json"
 GROUPS_FILE = CONFIG_DIR / "groups.json"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
+TEMPLATES_DIR = DBQM_HOME / "templates"
+TEMPLATES_FILE = TEMPLATES_DIR / "templates.json"
 
 def ensure_dirs():
     """Create data directories if they don't exist."""
-    for d in [CONFIG_DIR, EXPORTS_DIR, HISTORY_DIR]:
+    for d in [CONFIG_DIR, EXPORTS_DIR, HISTORY_DIR, TEMPLATES_DIR]:
         d.mkdir(parents=True, exist_ok=True)

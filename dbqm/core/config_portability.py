@@ -16,6 +16,7 @@ from dbqm.core.crypto import (
 from dbqm.models.connection import Connection, load_connections, save_connections
 from dbqm.models.query import Query, load_queries, save_queries
 from dbqm.models.group import Group, load_groups, save_groups
+from dbqm.models.template import Template, load_templates, save_templates
 from dbqm.core.paths import EXPORTS_DIR
 BUNDLE_VERSION = 1
 
@@ -25,6 +26,7 @@ def export_configs(
     include_connections: bool = True,
     include_queries: bool = True,
     include_groups: bool = True,
+    include_templates: bool = True,
 ) -> str:
     """Export selected configs to a .dbqm bundle file. Returns the file path."""
     salt = generate_salt()
@@ -50,6 +52,9 @@ def export_configs(
     if include_groups:
         bundle["groups"] = [g.to_dict() for g in load_groups()]
 
+    if include_templates:
+        bundle["templates"] = [t.to_dict() for t in load_templates()]
+
     configs_dir = EXPORTS_DIR / "configs"
     configs_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -72,7 +77,7 @@ def import_configs(filepath: str, password: str) -> dict:
     data = json.loads(bundle_path.read_text(encoding="utf-8"))
     salt = base64.b64decode(data["salt"])
 
-    summary = {"connections": 0, "queries": 0, "groups": 0, "skipped": 0}
+    summary = {"connections": 0, "queries": 0, "groups": 0, "templates": 0, "skipped": 0}
 
     # Connections
     if "connections" in data:
@@ -111,5 +116,17 @@ def import_configs(filepath: str, password: str) -> dict:
             existing.append(Group.from_dict(gd))
             summary["groups"] += 1
         save_groups(existing)
+
+    # Templates
+    if "templates" in data:
+        existing = load_templates()
+        existing_names = {t.name for t in existing}
+        for td in data["templates"]:
+            if td["name"] in existing_names:
+                summary["skipped"] += 1
+                continue
+            existing.append(Template.from_dict(td))
+            summary["templates"] += 1
+        save_templates(existing)
 
     return summary
