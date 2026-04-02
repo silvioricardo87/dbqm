@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Select, Static, TextArea
 from dbqm.ui.utils import NavSelect
@@ -105,10 +104,17 @@ class AdhocScreen(Vertical):
         self._query_params = []  # list of QueryParam
         self._db_connection = None  # for DML commit/rollback
 
-    BINDINGS = [
-        Binding("ctrl+enter", "execute_sql", "Executar", show=False),
-        Binding("ctrl+l", "clear_sql", "Limpar", show=False),
-    ]
+    def on_key(self, event) -> None:
+        """Handle Ctrl+Enter and Ctrl+L shortcuts."""
+        if event.key == "ctrl+enter":
+            event.prevent_default()
+            event.stop()
+            if not self.query_one("#adhoc-execute", Button).disabled:
+                self._handle_execute()
+        elif event.key == "ctrl+l":
+            event.prevent_default()
+            event.stop()
+            self._handle_clear()
 
     def compose(self) -> ComposeResult:
         # Input phase
@@ -203,15 +209,6 @@ class AdhocScreen(Vertical):
     # ------------------------------------------------------------------
     # Button handlers
     # ------------------------------------------------------------------
-
-    def action_execute_sql(self) -> None:
-        """Ctrl+Enter shortcut to execute SQL."""
-        if not self.query_one("#adhoc-execute", Button).disabled:
-            self._handle_execute()
-
-    def action_clear_sql(self) -> None:
-        """Ctrl+L shortcut to clear SQL input with confirmation."""
-        self._handle_clear()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
