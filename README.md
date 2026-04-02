@@ -7,12 +7,15 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Fullscreen TUI** — Fixed layout with sidebar navigation, breadcrumb, status bar, and keyboard-driven workflow
 - **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL
 - **Cross-database comparison** — Execute query groups and compare results side-by-side with match/diff/absent status
+- **DDL execution** — Execute CREATE, ALTER, DROP statements with compilation error detection from USER_ERRORS
 - **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE)
+- **Execute routines** — Run Oracle packages, procedures, and functions with parameter input and DBMS_OUTPUT capture
 - **Package editor** — Create and edit Oracle packages with spec/body tabs, inline compilation errors from ALL_ERRORS, and wizard mode
 - **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages
-- **Ad-hoc SQL** — Paste and execute SQL with automatic parameter detection and bind variable support
+- **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation
 - **Dark/Light themes** — GitHub Dark (default) and GitHub Light, switchable in settings
-- **Data export** — Export results as CSV, JSON, TXT, PNG, HTML reports, and SQL files
+- **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
+- **Data export** — Export results to current directory as CSV, JSON, TXT, PNG, HTML reports, and SQL files
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
 - **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
 - **Favorites & folders** — Organize queries in folders, star favorites for quick access
@@ -130,9 +133,12 @@ The application is fully keyboard-driven:
 | `V` | Vertical view | Query results |
 | `E` | Export | Query/group results |
 | `R` | Re-execute | Query/group results |
+| `M` | Toggle mapped/original values | Query/group results |
 | `F` | Toggle flat/pivoted | Group results |
 | `S` | Filter by status | Group results |
 | `H` | HTML report | Group results |
+| `Ctrl+Enter` | Execute SQL | Ad-hoc SQL |
+| `Ctrl+L` | Clear SQL input | Ad-hoc SQL |
 | `X` | Clear history | History |
 | `N` | New item | Connections, queries |
 | `D` | Delete / Details | Connections, history |
@@ -145,7 +151,7 @@ The application is fully keyboard-driven:
 |---------|---------|
 | **Consultas** | Executar, SQL avulso, Gerenciar |
 | **Grupos** | Executar, Gerenciar |
-| **Ferramentas** | DDL, Packages, Objetos, Historico |
+| **Ferramentas** | DDL, Packages, Executar Rotina, Objetos, Historico |
 | **Sistema** | Conexoes, Config (inclui Exportar/Importar), Sair |
 
 ## Query Groups & Comparison
@@ -168,7 +174,7 @@ dbqm/
 ├── main.py                        # Legacy entry point (delegates to dbqm.main)
 ├── requirements.txt               # Dependencies (alternative to pyproject.toml)
 ├── dbqm/
-│   ├── _version.py                # Package version (1.0.0)
+│   ├── _version.py                # Package version
 │   ├── main.py                    # Entry point (TUI + CLI dispatch)
 │   ├── __main__.py                # python -m dbqm support
 │   ├── cli.py                     # Non-interactive CLI
@@ -183,6 +189,7 @@ dbqm/
 │   │   │   ├── group_manage.py    # Group CRUD
 │   │   │   ├── adhoc.py           # Ad-hoc SQL execution
 │   │   │   ├── ddl.py             # DDL extraction
+│   │   │   ├── exec_routine.py     # Execute packages, procedures, functions
 │   │   │   ├── browser.py         # Object browser (tables, views, packages)
 │   │   │   ├── history.py         # Execution history
 │   │   │   ├── connections.py     # Connection management
@@ -234,7 +241,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (440+ tests)
+└── tests/                         # Test suite (497+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests
