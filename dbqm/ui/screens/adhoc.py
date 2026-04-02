@@ -49,11 +49,10 @@ class AdhocScreen(Vertical):
     }
     AdhocScreen #adhoc-conn-bar Select {
         width: 1fr;
-        height: 3;
-        border: solid $error;
+        border: round $error;
     }
     AdhocScreen #adhoc-conn-bar Select.--conn-selected {
-        border: solid $success;
+        border: round $success;
     }
     AdhocScreen #adhoc-sql-area {
         height: 1fr;
