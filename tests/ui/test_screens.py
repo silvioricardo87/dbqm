@@ -668,17 +668,21 @@ async def test_adhoc_screen_has_sql_area(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_adhoc_screen_has_buttons(tmp_config_dir):
-    """AdhocScreen should have execute, generate, and save buttons."""
+    """AdhocScreen should have execute, clear, generate, and save buttons."""
     app = AdhocTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
         from textual.widgets import Button
         execute_btn = screen.query_one("#adhoc-execute", Button)
+        clear_btn = screen.query_one("#adhoc-clear", Button)
         generate_btn = screen.query_one("#adhoc-generate", Button)
         save_btn = screen.query_one("#adhoc-save", Button)
         assert execute_btn is not None
+        assert clear_btn is not None
         assert generate_btn is not None
         assert save_btn is not None
+        # Execute button should start disabled (no connection or SQL)
+        assert execute_btn.disabled is True
 
 
 @pytest.mark.asyncio
@@ -752,6 +756,84 @@ async def test_adhoc_screen_connection_selector(tmp_config_dir):
         screen = app.query_one(AdhocScreen)
         select_widget = screen.query_one("#adhoc-conn-select", Select)
         assert select_widget is not None
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_select_styling_on_change(tmp_config_dir):
+    """Select should get --conn-selected class when a connection is picked."""
+    config_dir = tmp_config_dir / "config"
+    conn_data = {
+        "connections": [
+            {
+                "name": "test_conn",
+                "db_type": "oracle",
+                "mode": "direct",
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "ORCL",
+                "user": "admin",
+                "password": "pass",
+            },
+        ]
+    }
+    (config_dir / "connections.json").write_text(
+        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        select_widget = screen.query_one("#adhoc-conn-select", Select)
+        # Initially no connection selected — no class
+        assert not select_widget.has_class("--conn-selected")
+        # Simulate selecting a connection
+        select_widget.value = "test_conn"
+        await pilot.pause()
+        assert select_widget.has_class("--conn-selected")
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_execute_enabled_when_conn_and_sql(tmp_config_dir):
+    """Execute button should enable when both connection and SQL are present."""
+    config_dir = tmp_config_dir / "config"
+    conn_data = {
+        "connections": [
+            {
+                "name": "test_conn",
+                "db_type": "oracle",
+                "mode": "direct",
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "ORCL",
+                "user": "admin",
+                "password": "pass",
+            },
+        ]
+    }
+    (config_dir / "connections.json").write_text(
+        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        from textual.widgets import Button, TextArea
+        execute_btn = screen.query_one("#adhoc-execute", Button)
+        sql_area = screen.query_one("#adhoc-sql-area", TextArea)
+        select_widget = screen.query_one("#adhoc-conn-select", Select)
+
+        # Initially disabled
+        assert execute_btn.disabled is True
+
+        # Set SQL but no connection — still disabled
+        sql_area.insert("SELECT 1 FROM DUAL")
+        await pilot.pause()
+        assert execute_btn.disabled is True
+
+        # Set connection — now enabled
+        select_widget.value = "test_conn"
+        await pilot.pause()
+        assert execute_btn.disabled is False
 
 
 # ======================================================================

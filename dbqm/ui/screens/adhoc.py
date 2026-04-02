@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Select, Static, TextArea
 from dbqm.ui.utils import NavSelect
@@ -43,11 +44,15 @@ class AdhocScreen(Vertical):
     }
     AdhocScreen #adhoc-conn-bar {
         height: auto;
-        padding: 0 1;
+        padding: 1 1 0 1;
         background: $surface;
     }
     AdhocScreen #adhoc-conn-bar Select {
         width: 1fr;
+        border: tall $error;
+    }
+    AdhocScreen #adhoc-conn-bar Select.--conn-selected {
+        border: tall $success;
     }
     AdhocScreen #adhoc-sql-area {
         height: 1fr;
@@ -100,6 +105,11 @@ class AdhocScreen(Vertical):
         self._query_params = []  # list of QueryParam
         self._db_connection = None  # for DML commit/rollback
 
+    BINDINGS = [
+        Binding("ctrl+enter", "execute_sql", "Executar", show=False),
+        Binding("ctrl+l", "clear_sql", "Limpar", show=False),
+    ]
+
     def compose(self) -> ComposeResult:
         # Input phase
         with Vertical(id="adhoc-input-phase"):
@@ -107,7 +117,8 @@ class AdhocScreen(Vertical):
                 yield NavSelect([], prompt="Selecione a conexao", id="adhoc-conn-select")
             yield TextArea("", language="sql", id="adhoc-sql-area")
             with Horizontal(id="adhoc-btn-bar"):
-                yield Button("Executar", variant="primary", id="adhoc-execute")
+                yield Button("Executar (Ctrl+Enter)", variant="primary", id="adhoc-execute", disabled=True)
+                yield Button("Limpar (Ctrl+L)", variant="error", id="adhoc-clear")
                 yield Button("Gerar SQL", variant="default", id="adhoc-generate")
                 yield Button("Salvar como consulta", variant="default", id="adhoc-save")
 
@@ -133,6 +144,30 @@ class AdhocScreen(Vertical):
             self.query_one("#adhoc-sql-area", TextArea).focus()
         except Exception:
             pass
+
+    def _has_connection(self) -> bool:
+        """Check if a valid connection is selected."""
+        val = self.query_one("#adhoc-conn-select", Select).value
+        return isinstance(val, str)
+
+    def _update_execute_button(self) -> None:
+        """Enable/disable Execute button based on connection + SQL content."""
+        has_conn = self._has_connection()
+        has_sql = bool(self.query_one("#adhoc-sql-area", TextArea).text.strip())
+        self.query_one("#adhoc-execute", Button).disabled = not (has_conn and has_sql)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """React to connection selection changes."""
+        select_widget = self.query_one("#adhoc-conn-select", Select)
+        if self._has_connection():
+            select_widget.add_class("--conn-selected")
+        else:
+            select_widget.remove_class("--conn-selected")
+        self._update_execute_button()
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """React to SQL text changes."""
+        self._update_execute_button()
 
     def _load_connections(self) -> None:
         """Load connections into the Select widget."""
@@ -169,11 +204,22 @@ class AdhocScreen(Vertical):
     # Button handlers
     # ------------------------------------------------------------------
 
+    def action_execute_sql(self) -> None:
+        """Ctrl+Enter shortcut to execute SQL."""
+        if not self.query_one("#adhoc-execute", Button).disabled:
+            self._handle_execute()
+
+    def action_clear_sql(self) -> None:
+        """Ctrl+L shortcut to clear SQL input with confirmation."""
+        self._handle_clear()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
 
         if btn_id == "adhoc-execute":
             self._handle_execute()
+        elif btn_id == "adhoc-clear":
+            self._handle_clear()
         elif btn_id == "adhoc-generate":
             self._handle_generate()
         elif btn_id == "adhoc-save":
@@ -182,6 +228,28 @@ class AdhocScreen(Vertical):
             self._handle_commit()
         elif btn_id == "adhoc-rollback":
             self._handle_rollback()
+
+    def _handle_clear(self) -> None:
+        """Clear SQL input with confirmation."""
+        sql_area = self.query_one("#adhoc-sql-area", TextArea)
+        if not sql_area.text.strip():
+            return  # nothing to clear
+
+        from dbqm.ui.modals.confirm import ConfirmModal
+
+        modal = ConfirmModal(
+            message="Limpar o conteudo SQL?",
+            title="Confirmar limpeza",
+        )
+        self.app.push_screen(modal, callback=self._on_clear_confirmed)
+
+    def _on_clear_confirmed(self, confirmed: bool | None) -> None:
+        """Callback from ConfirmModal for clearing."""
+        if not confirmed:
+            return
+        sql_area = self.query_one("#adhoc-sql-area", TextArea)
+        sql_area.clear()
+        sql_area.focus()
 
     def _handle_execute(self) -> None:
         """Execute the SQL statement."""
