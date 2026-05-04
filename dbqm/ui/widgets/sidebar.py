@@ -8,28 +8,28 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 
-MENU_ITEMS: list[tuple[str, list[tuple[str, str, str]]]] = [
+MENU_ITEMS: list[tuple[str, list[tuple[str, str]]]] = [
     ("CONSULTAS", [
-        ("exec_query", "\U0001f50d", "Executar"),
-        ("adhoc_sql", "\u2328", "SQL avulso"),
-        ("config_query", "\U0001f4dd", "Gerenciar"),
+        ("exec_query", "Executar"),
+        ("adhoc_sql", "SQL avulso"),
+        ("config_query", "Gerenciar"),
     ]),
     ("GRUPOS", [
-        ("exec_group", "\U0001f4ca", "Executar"),
-        ("config_group", "\U0001f4c1", "Gerenciar"),
-        ("config_template", "\U0001f4c4", "Templates"),
+        ("exec_group", "Executar"),
+        ("config_group", "Gerenciar"),
+        ("config_template", "Templates"),
     ]),
     ("FERRAMENTAS", [
-        ("extract_ddl", "\U0001f3d7", "DDL"),
-        ("package_editor", "\U0001f4e6", "Packages"),
-        ("exec_routine", "\u25b6", "Executar Rotina"),
-        ("browse", "\U0001f5c2", "Objetos"),
-        ("history", "\U0001f4dc", "Historico"),
+        ("extract_ddl", "DDL"),
+        ("package_editor", "Packages"),
+        ("exec_routine", "Executar Rotina"),
+        ("browse", "Objetos"),
+        ("history", "Historico"),
     ]),
     ("SISTEMA", [
-        ("config_conn", "\U0001f50c", "Conexoes"),
-        ("settings", "\u2699", "Config"),
-        ("exit", "\U0001f6aa", "Sair"),
+        ("config_conn", "Conexoes"),
+        ("settings", "Config"),
+        ("exit", "Sair"),
     ]),
 ]
 
@@ -47,11 +47,10 @@ class SidebarItem(Static):
 
     can_focus = False
 
-    def __init__(self, action: str, icon: str, label: str) -> None:
+    def __init__(self, action: str, label: str) -> None:
         self._action = action
-        self._icon = icon
         self._label = label
-        super().__init__(f"{icon} {label}")
+        super().__init__(label)
         self.add_class("sidebar-item")
         self.set_styles("height: 1;")
 
@@ -135,8 +134,8 @@ class Sidebar(Vertical):
             if idx > 0:
                 yield Static("", classes="sidebar-separator")
             yield SidebarSectionLabel(section_name)
-            for action, icon, label in items:
-                yield SidebarItem(action, icon, label)
+            for action, label in items:
+                yield SidebarItem(action, label)
 
     def on_mount(self) -> None:
         """Build the list of focusable item indices after mount."""
