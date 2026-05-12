@@ -1,10 +1,19 @@
 """Tests for database connection manager — dispatcher and test_connection."""
 import os
+import sys
 from unittest.mock import patch, MagicMock
 import pytest
 
 from dbqm.models.connection import Connection
-from dbqm.core.db_manager import get_connection, _ensure_utf8_nls_lang
+from dbqm.core.db_manager import (
+    get_connection,
+    _ensure_utf8_nls_lang,
+    _missing_driver_message,
+    get_oracle_connection,
+    get_postgresql_connection,
+    get_sqlserver_connection,
+    get_mysql_connection,
+)
 from dbqm.core.db_manager import test_connection as db_test_connection
 
 
@@ -104,3 +113,46 @@ class TestEnsureUtf8NlsLang:
         _ensure_utf8_nls_lang()
         # No `.` means no language/territory prefix to preserve.
         assert os.environ["NLS_LANG"] == ".AL32UTF8"
+
+
+class TestMissingDriverMessage:
+    """Hint message must name the database, the package, and the platform."""
+
+    def test_includes_db_label_and_package(self):
+        msg = _missing_driver_message("PostgreSQL", "psycopg[binary]")
+        assert "PostgreSQL" in msg
+        assert "psycopg[binary]" in msg
+        assert "pip install" in msg
+
+    def test_mentions_windows_arm_caveat(self):
+        msg = _missing_driver_message("SQL Server", "pymssql")
+        assert "Windows ARM" in msg
+
+
+class TestDriversRaiseHelpfulErrorWhenAbsent:
+    """When the driver wheel was not installed (e.g. win-arm64), the
+    connect helpers must raise a RuntimeError with a hint instead of
+    bubbling up the bare ImportError."""
+
+    def _conn(self, db_type):
+        return Connection(name="t", db_type=db_type, user="u", password="p", host="h")
+
+    def test_oracle_missing_driver(self):
+        with patch.dict(sys.modules, {"oracledb": None}):
+            with pytest.raises(RuntimeError, match="Oracle"):
+                get_oracle_connection(self._conn("oracle"))
+
+    def test_postgresql_missing_driver(self):
+        with patch.dict(sys.modules, {"psycopg": None}):
+            with pytest.raises(RuntimeError, match="PostgreSQL"):
+                get_postgresql_connection(self._conn("postgresql"))
+
+    def test_sqlserver_missing_driver(self):
+        with patch.dict(sys.modules, {"pymssql": None}):
+            with pytest.raises(RuntimeError, match="SQL Server"):
+                get_sqlserver_connection(self._conn("sqlserver"))
+
+    def test_mysql_missing_driver(self):
+        with patch.dict(sys.modules, {"pymysql": None}):
+            with pytest.raises(RuntimeError, match="MySQL"):
+                get_mysql_connection(self._conn("mysql"))

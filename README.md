@@ -61,6 +61,28 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Windows on ARM (win-arm64)
+
+Several database drivers do not publish wheels for `win-arm64`. dbqm handles each one differently:
+
+| Driver | Status on win-arm64 | Behavior |
+|---|---|---|
+| `oracledb` | No prebuilt wheel | **Recommended:** install dbqm under Python AMD64 (runs fine via Win11 x64 emulation). Alternative: install MSVC Build Tools and let pip compile from source. |
+| `psycopg[binary]` (PostgreSQL) | No prebuilt wheel | Skipped automatically by dependency marker; PostgreSQL connections raise a clear error pointing to manual install. |
+| `pymssql` (SQL Server) | No prebuilt wheel | Skipped automatically by dependency marker; SQL Server connections raise a clear error. |
+| `cryptography`, `PyMySQL`, `rich`, `textual`, `sqlparse` | Wheels available | Install normally. |
+
+So the path of least resistance on Windows ARM is to use Python AMD64 (the regular installer from python.org), then `pip install dbqm` — everything works via x64 emulation.
+
+If you really want native ARM Python and only need MySQL, skip the Oracle features and install dbqm; Oracle/Postgres/SQL Server connection attempts will fail with a clear hint instead of crashing the CLI.
+
+If you need the optional drivers, try:
+
+```bash
+pip install dbqm[postgres]   # PostgreSQL only — requires libpq toolchain on ARM
+pip install dbqm[sqlserver]  # SQL Server only — requires FreeTDS toolchain on ARM
+```
+
 ## Usage
 
 ### Interactive mode (TUI)

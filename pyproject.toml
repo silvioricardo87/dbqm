@@ -22,16 +22,24 @@ classifiers = [
 dependencies = [
     "rich>=13.0",
     "textual>=0.80",
-    "oracledb>=2.0",
-    "pymssql>=2.2",
-    "psycopg[binary]>=3.1",
     "PyMySQL>=1.1",
-    "cryptography>=41.0",
+    "cryptography>=46.0.3",
     "sqlparse>=0.5",
+    # No prebuilt wheels exist for oracledb / psycopg-binary / pymssql on
+    # win-arm64. Skip them on that platform so `pip install dbqm` succeeds;
+    # the recommended route on Windows ARM is to use Python AMD64 via x64
+    # emulation, where every wheel is available. See README for details and
+    # the `oracle`/`postgres`/`sqlserver` extras for opt-in installs.
+    "oracledb>=2.0; sys_platform != 'win32' or platform_machine != 'ARM64'",
+    "psycopg[binary]>=3.1; sys_platform != 'win32' or platform_machine != 'ARM64'",
+    "pymssql>=2.2; sys_platform != 'win32' or platform_machine != 'ARM64'",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.23"]
+oracle = ["oracledb>=2.0"]
+postgres = ["psycopg[binary]>=3.1"]
+sqlserver = ["pymssql>=2.2"]
 
 [project.urls]
 Homepage = "https://github.com/silvioricardo87/dbqm"

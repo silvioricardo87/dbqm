@@ -12,6 +12,23 @@ from dbqm.models.connection import Connection
 _thick_mode_initialized = False
 
 
+def _missing_driver_message(db_label: str, package: str) -> str:
+    """Format a hint when a database driver wheel is unavailable on this platform.
+
+    Triggered notably on Windows ARM64, where psycopg-binary and pymssql have
+    no published wheels.
+    """
+    import platform
+    import sys
+    plat = f"{sys.platform}/{platform.machine()}"
+    return (
+        f"Driver para {db_label} ({package}) nao esta instalado neste ambiente "
+        f"({plat}). Instale manualmente com `pip install {package}` se houver "
+        f"wheel disponivel para sua plataforma; em Windows ARM, este driver "
+        f"nao tem wheel publicada e foi omitido por padrao."
+    )
+
+
 def _parse_tns_entry(tns_path: str, tns_name: str) -> dict | None:
     """Parse tnsnames.ora to extract host/port/service for a given TNS name."""
     path = Path(tns_path)
@@ -145,7 +162,11 @@ def _init_thick_mode(config_dir: str | None = None) -> bool:
     if _thick_mode_initialized:
         return True
     _ensure_utf8_nls_lang()
-    import oracledb
+    try:
+        import oracledb
+    except ImportError as e:
+        _thick_mode_error = str(e)
+        return False
     try:
         kwargs = {}
         if config_dir:
@@ -174,7 +195,10 @@ _init_thick_mode()
 
 def get_oracle_connection(conn: Connection) -> Any:
     """Establish Oracle connection. Initializes thick mode eagerly to avoid DPY-3015."""
-    import oracledb
+    try:
+        import oracledb
+    except ImportError as e:
+        raise RuntimeError(_missing_driver_message("Oracle", "oracledb")) from e
 
     password = decrypt(conn.password)
     config_dir = str(Path(conn.tns_path).parent) if conn.tns_path else None
@@ -221,7 +245,10 @@ def get_oracle_connection(conn: Connection) -> Any:
 
 def get_sqlserver_connection(conn: Connection) -> Any:
     """Establish SQL Server connection."""
-    import pymssql
+    try:
+        import pymssql
+    except ImportError as e:
+        raise RuntimeError(_missing_driver_message("SQL Server", "pymssql")) from e
 
     password = decrypt(conn.password)
     return pymssql.connect(
@@ -235,7 +262,10 @@ def get_sqlserver_connection(conn: Connection) -> Any:
 
 def get_postgresql_connection(conn: Connection) -> Any:
     """Establish PostgreSQL connection."""
-    import psycopg
+    try:
+        import psycopg
+    except ImportError as e:
+        raise RuntimeError(_missing_driver_message("PostgreSQL", "psycopg[binary]")) from e
 
     password = decrypt(conn.password)
     return psycopg.connect(
@@ -249,7 +279,10 @@ def get_postgresql_connection(conn: Connection) -> Any:
 
 def get_mysql_connection(conn: Connection) -> Any:
     """Establish MySQL connection."""
-    import pymysql
+    try:
+        import pymysql
+    except ImportError as e:
+        raise RuntimeError(_missing_driver_message("MySQL", "PyMySQL")) from e
 
     password = decrypt(conn.password)
     return pymysql.connect(
