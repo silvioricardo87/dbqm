@@ -119,11 +119,32 @@ def _find_oracle_client_dir() -> str | None:
 _thick_mode_error: str | None = None
 
 
+def _ensure_utf8_nls_lang() -> None:
+    """Force NLS_LANG to UTF-8 so the Oracle client returns messages in UTF-8.
+
+    Without this, on Windows the thick client typically returns server messages
+    in WE8MSWIN1252/WE8ISO8859P1, which Python then mis-decodes as UTF-8 and
+    renders accents as `�` (e.g. `s�mbolo` instead of `símbolo`).
+    """
+    current = os.environ.get("NLS_LANG", "")
+    # Preserve user-set NLS_LANG that already targets a UTF-8 charset.
+    if "UTF8" in current.upper() or "AL32UTF8" in current.upper():
+        return
+    # Preserve language/territory if present (`LANG_TERRITORY.CHARSET` form),
+    # only swap the charset.
+    if "." in current:
+        prefix = current.rsplit(".", 1)[0]
+        os.environ["NLS_LANG"] = f"{prefix}.AL32UTF8"
+    else:
+        os.environ["NLS_LANG"] = ".AL32UTF8"
+
+
 def _init_thick_mode(config_dir: str | None = None) -> bool:
     """Initialize Oracle thick mode. Returns True if successful."""
     global _thick_mode_initialized, _thick_mode_error
     if _thick_mode_initialized:
         return True
+    _ensure_utf8_nls_lang()
     import oracledb
     try:
         kwargs = {}
