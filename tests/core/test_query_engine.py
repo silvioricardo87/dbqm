@@ -250,6 +250,105 @@ class TestExecuteWithSqlite:
         assert "nao suportado" in result.error
 
 
+class TestDdlTrailingSemicolonPreservation:
+    """Trailing `;` must be preserved for DDL (esp. PL/SQL bodies).
+
+    Regression test for the bug where CREATE OR REPLACE PACKAGE BODY ending in
+    `END pkg;` had its final `;` stripped before being sent to Oracle, causing
+    PLS-00103 and leaving the object INVALID.
+    """
+
+    def _make_conn(self):
+        return Connection(name="test", db_type="oracle", user="", password="")
+
+    def _capture_executed_sql(self, sql: str, sql_type_for_classify: str = "DDL"):
+        """Run execute_adhoc with mocks and return the SQL actually sent to the driver."""
+        conn = self._make_conn()
+        captured = {}
+
+        with patch("dbqm.core.query_engine.get_connection") as mock_get, \
+             patch("dbqm.core.query_engine._fetch_ddl_errors", return_value=""):
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+
+            def _capture(executed_sql, *args, **kwargs):
+                captured["sql"] = executed_sql
+
+            mock_cursor.execute.side_effect = _capture
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            execute_adhoc(sql, conn, {})
+
+        return captured.get("sql")
+
+    def test_ddl_package_body_preserves_trailing_semicolon(self):
+        sql = (
+            "CREATE OR REPLACE PACKAGE BODY ASDADM.MEU_PACKAGE IS\n"
+            "  PROCEDURE P IS BEGIN NULL; END P;\n"
+            "END MEU_PACKAGE;"
+        )
+        sent = self._capture_executed_sql(sql)
+        assert sent.endswith("END MEU_PACKAGE;"), \
+            f"Expected DDL to end with `END MEU_PACKAGE;`, got: {sent[-40:]!r}"
+
+    def test_ddl_create_trigger_preserves_semicolon(self):
+        sql = (
+            "CREATE OR REPLACE TRIGGER trg_audit\n"
+            "  BEFORE INSERT ON t\n"
+            "  FOR EACH ROW\n"
+            "BEGIN NULL; END;"
+        )
+        sent = self._capture_executed_sql(sql)
+        assert sent.endswith("END;")
+
+    def test_ddl_simple_alter_preserves_semicolon(self):
+        sql = "ALTER TABLE t ADD col NUMBER;"
+        sent = self._capture_executed_sql(sql)
+        assert sent.endswith("ADD col NUMBER;")
+
+    def test_select_still_strips_trailing_semicolon(self):
+        """SELECT must continue to have trailing `;` stripped (Oracle rejects it)."""
+        conn = self._make_conn()
+        captured = {}
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("ID",)]
+            mock_cursor.fetchmany.return_value = [(1,)]
+
+            def _capture(executed_sql, *args, **kwargs):
+                captured["sql"] = executed_sql
+
+            mock_cursor.execute.side_effect = _capture
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            execute_adhoc("SELECT 1 FROM dual;", conn, {})
+
+        assert not captured["sql"].endswith(";"), \
+            f"SELECT should have trailing `;` stripped, got: {captured['sql']!r}"
+
+    def test_dml_update_strips_trailing_semicolon(self):
+        conn = self._make_conn()
+        captured = {}
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.rowcount = 1
+
+            def _capture(executed_sql, *args, **kwargs):
+                captured["sql"] = executed_sql
+
+            mock_cursor.execute.side_effect = _capture
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            execute_adhoc("UPDATE t SET x = 1 WHERE id = 2;", conn, {}, auto_commit=True)
+
+        assert not captured["sql"].endswith(";")
+
+
 class TestFetchDdlErrors:
     """Tests for _fetch_ddl_errors helper."""
 

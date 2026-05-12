@@ -163,8 +163,14 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     For DDL: executes and returns AdhocResult (DDL auto-commits in Oracle).
     For errors: returns AdhocResult with success=False.
     """
-    sql = sql.strip().rstrip(";")
+    sql = sql.strip()
     sql_type = classify_sql(sql)
+    # Strip trailing `;` only for SELECT/DML — Oracle rejects it there.
+    # DDL with embedded PL/SQL (CREATE PACKAGE BODY, TRIGGER, FUNCTION, ...)
+    # requires the final `;` to be preserved or compilation fails (PLS-00103),
+    # leaving the object INVALID.
+    if sql_type in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+        sql = sql.rstrip(";")
 
     if sql_type == "UNKNOWN":
         return AdhocResult(
