@@ -560,8 +560,19 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Usar formato flat (um bloco por coluna)")
 
     # --- sql ---
-    p_sql = subparsers.add_parser("sql", help="Executar SQL ad-hoc")
-    p_sql.add_argument("sql", help="SQL a executar (ou caminho para arquivo .sql)")
+    p_sql = subparsers.add_parser(
+        "sql",
+        help="Executar SQL ad-hoc (SELECT, DML, DDL, ou bloco PL/SQL anonimo)",
+    )
+    p_sql.add_argument(
+        "sql",
+        help=(
+            "SQL a executar (ou caminho para arquivo .sql). "
+            "Aceita SELECT, INSERT/UPDATE/DELETE (com --commit), DDL "
+            "(CREATE/ALTER/DROP/...), blocos PL/SQL anonimos "
+            "(DECLARE/BEGIN/END;) e os atalhos EXEC/EXECUTE/CALL <proc>."
+        ),
+    )
     p_sql.add_argument("connection", help="Nome da conexao")
     p_sql.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
                        help="Parametro (pode repetir)")

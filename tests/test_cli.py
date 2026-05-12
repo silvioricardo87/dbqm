@@ -762,6 +762,19 @@ class TestRawFormatChoiceAccepted:
         assert args.format == "raw"
 
 
+class TestSqlSubcommandHelpMentionsPlsql:
+    """The `sql` subcommand help must advertise PL/SQL/EXEC support so users
+    discover it without reading the changelog."""
+
+    def test_sql_help_mentions_plsql(self, capsys):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["sql", "--help"])
+        out = capsys.readouterr().out
+        assert "PL/SQL" in out
+        assert "EXEC" in out
+
+
 # ---------------------------------------------------------------------------
 # main.py integration
 # ---------------------------------------------------------------------------
