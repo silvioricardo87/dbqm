@@ -694,6 +694,73 @@ class TestPrintQueryResult:
         with pytest.raises(SystemExit):
             _print_query_result(result, "table")
 
+    def test_raw_format_single_column_no_decoration(self, capsys):
+        """`--format raw` with one column prints bare values, one per row."""
+        from dbqm.cli import _print_query_result
+        result = _make_query_result(
+            columns=["text"],
+            rows=[["line one"], ["line two"], ["line three"]],
+        )
+        _print_query_result(result, "raw")
+        out = capsys.readouterr().out
+        assert out == "line one\nline two\nline three\n"
+        assert "text" not in out  # no header
+        assert "registros em" not in out  # no footer
+
+    def test_raw_format_multi_column_tab_separated(self, capsys):
+        from dbqm.cli import _print_query_result
+        result = _make_query_result(
+            columns=["id", "name"],
+            rows=[[1, "Alice"], [2, "Bob"]],
+        )
+        _print_query_result(result, "raw")
+        out = capsys.readouterr().out
+        assert out == "1\tAlice\n2\tBob\n"
+
+    def test_raw_format_materializes_clob_like_objects(self, capsys):
+        """Objects exposing .read() (CLOB/LONG) are materialized to text."""
+        from dbqm.cli import _print_query_result
+
+        class FakeClob:
+            def __init__(self, text):
+                self._text = text
+
+            def read(self):
+                return self._text
+
+        result = _make_query_result(
+            columns=["body"],
+            rows=[[FakeClob("CREATE OR REPLACE VIEW v AS SELECT 1 FROM dual")]],
+        )
+        _print_query_result(result, "raw")
+        out = capsys.readouterr().out
+        assert "CREATE OR REPLACE VIEW" in out
+        assert "FakeClob" not in out
+
+    def test_raw_format_handles_none(self, capsys):
+        from dbqm.cli import _print_query_result
+        result = _make_query_result(
+            columns=["v"],
+            rows=[[None], ["x"]],
+        )
+        _print_query_result(result, "raw")
+        out = capsys.readouterr().out
+        assert out == "\nx\n"
+
+
+class TestRawFormatChoiceAccepted:
+    """argparse must accept `raw` for both `run` and `sql` subcommands."""
+
+    def test_run_accepts_raw(self):
+        parser = build_parser()
+        args = parser.parse_args(["run", "myq", "-f", "raw"])
+        assert args.format == "raw"
+
+    def test_sql_accepts_raw(self):
+        parser = build_parser()
+        args = parser.parse_args(["sql", "SELECT 1", "myconn", "-f", "raw"])
+        assert args.format == "raw"
+
 
 # ---------------------------------------------------------------------------
 # main.py integration

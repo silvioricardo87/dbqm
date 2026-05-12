@@ -105,7 +105,7 @@ dbqm import-config <file.dbqm>
 dbqm history
 ```
 
-Output format options: `--format table|json|csv` and `--export csv|json|txt`.
+Output format options: `--format table|json|csv|raw` and `--export csv|json|txt`. Use `raw` to print plain values (CLOB/LONG materialized, no headers/decoration) — handy for piping the body of a view, package, or procedure to another tool.
 
 ### Data directory
 

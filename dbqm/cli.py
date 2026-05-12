@@ -45,6 +45,19 @@ def _parse_params(param_list: list[str] | None) -> dict:
     return params
 
 
+def _materialize(value: Any) -> str:
+    """Materialize CLOB/LONG/etc. to plain text for `--format raw`."""
+    if value is None:
+        return ""
+    read = getattr(value, "read", None)
+    if callable(read):
+        try:
+            return str(read())
+        except Exception:
+            return str(value)
+    return str(value)
+
+
 def _print_query_result(result: Any, output_format: str = "table") -> None:
     """Print query result in the specified format."""
     from dbqm.core.query_engine import QueryResult
@@ -70,6 +83,15 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
         writer.writerow(result.columns)
         writer.writerows(result.rows)
         print(out.getvalue(), end="")
+    elif output_format == "raw":
+        # No headers, no decoration. CLOB/LONG materialized to text.
+        # 1 column → bare value per row. >1 column → tab-separated.
+        for row in result.rows:
+            values = [_materialize(v) for v in row]
+            if len(values) == 1:
+                print(values[0])
+            else:
+                print("\t".join(values))
     else:
         table = Table(show_lines=False)
         for col in result.columns:
@@ -512,8 +534,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("-c", "--connection", help="Conexao (sobrescreve a padrao da consulta)")
     p_run.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
                        help="Parametro (pode repetir)")
-    p_run.add_argument("-f", "--format", choices=["table", "json", "csv"], default="table",
-                       help="Formato de saida (padrao: table)")
+    p_run.add_argument("-f", "--format", choices=["table", "json", "csv", "raw"], default="table",
+                       help="Formato de saida (padrao: table). 'raw' imprime valores sem decoracao.")
     p_run.add_argument("-e", "--export", choices=["csv", "json", "txt"],
                        help="Exportar resultado para arquivo")
 
@@ -535,8 +557,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_sql.add_argument("connection", help="Nome da conexao")
     p_sql.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
                        help="Parametro (pode repetir)")
-    p_sql.add_argument("-f", "--format", choices=["table", "json", "csv"], default="table",
-                       help="Formato de saida")
+    p_sql.add_argument("-f", "--format", choices=["table", "json", "csv", "raw"], default="table",
+                       help="Formato de saida. 'raw' imprime valores sem decoracao.")
     p_sql.add_argument("-e", "--export", choices=["csv", "json", "txt"],
                        help="Exportar resultado para arquivo")
     p_sql.add_argument("--commit", action="store_true",
