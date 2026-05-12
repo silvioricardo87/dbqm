@@ -32,6 +32,12 @@ class TestClassifySql:
         ("RENAME old_t TO new_t", "DDL"),
         ("PURGE RECYCLEBIN", "DDL"),
         ("ANALYZE TABLE t COMPUTE STATISTICS", "DDL"),
+        ("BEGIN NULL; END;", "PLSQL"),
+        ("DECLARE v NUMBER; BEGIN v := 1; END;", "PLSQL"),
+        ("declare v number; begin null; end;", "PLSQL"),
+        ("EXEC pkg.proc('x')", "PLSQL"),
+        ("EXECUTE pkg.proc", "PLSQL"),
+        ("CALL pkg.proc(1)", "PLSQL"),
     ])
     def test_classify(self, sql, expected):
         assert classify_sql(sql) == expected
@@ -347,6 +353,114 @@ class TestDdlTrailingSemicolonPreservation:
             execute_adhoc("UPDATE t SET x = 1 WHERE id = 2;", conn, {}, auto_commit=True)
 
         assert not captured["sql"].endswith(";")
+
+
+class TestNormalizePlsql:
+    """_normalize_plsql expands EXEC/CALL shortcuts and strips SQL*Plus `/`."""
+
+    def test_strips_trailing_slash_terminator(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        sql = "BEGIN NULL; END;\n/"
+        assert _normalize_plsql(sql) == "BEGIN NULL; END;"
+
+    def test_strips_trailing_slash_with_whitespace(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        sql = "BEGIN NULL; END;\n  /  "
+        assert _normalize_plsql(sql) == "BEGIN NULL; END;"
+
+    def test_exec_shortcut_wrapped(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        assert _normalize_plsql("EXEC pkg.proc('x')") == "BEGIN pkg.proc('x'); END;"
+
+    def test_execute_shortcut_wrapped(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        assert _normalize_plsql("EXECUTE pkg.proc") == "BEGIN pkg.proc; END;"
+
+    def test_call_shortcut_wrapped(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        assert _normalize_plsql("CALL pkg.proc(1)") == "BEGIN pkg.proc(1); END;"
+
+    def test_exec_with_trailing_semicolon_normalized(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        assert _normalize_plsql("EXEC pkg.proc;") == "BEGIN pkg.proc; END;"
+
+    def test_declare_block_unchanged(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        sql = "DECLARE v NUMBER; BEGIN v := 1; END;"
+        assert _normalize_plsql(sql) == sql
+
+    def test_begin_block_unchanged(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        sql = "BEGIN DBMS_OUTPUT.PUT_LINE('hi'); END;"
+        assert _normalize_plsql(sql) == sql
+
+
+class TestPlsqlExecution:
+    """End-to-end PL/SQL execution via execute_adhoc with mocks."""
+
+    def _make_conn(self):
+        return Connection(name="test", db_type="oracle", user="", password="")
+
+    def _capture_executed_sql(self, sql: str):
+        conn = self._make_conn()
+        captured = {}
+
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+
+            def _capture(executed_sql, *args, **kwargs):
+                captured["sql"] = executed_sql
+
+            mock_cursor.execute.side_effect = _capture
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            result = execute_adhoc(sql, conn, {})
+
+        return captured.get("sql"), result
+
+    def test_anonymous_block_no_longer_rejected(self):
+        sent, result = self._capture_executed_sql("BEGIN NULL; END;")
+        assert result.success
+        assert result.sql_type == "PLSQL"
+        assert sent == "BEGIN NULL; END;"
+
+    def test_declare_block_executes(self):
+        sql = "DECLARE v NUMBER; BEGIN v := 1; END;"
+        sent, result = self._capture_executed_sql(sql)
+        assert result.success
+        assert sent == sql
+
+    def test_exec_shortcut_expanded_before_send(self):
+        sent, result = self._capture_executed_sql("EXEC MEU_PKG.MINHA_PROC('p1')")
+        assert result.success
+        assert sent == "BEGIN MEU_PKG.MINHA_PROC('p1'); END;"
+
+    def test_sqlplus_slash_terminator_stripped(self):
+        sent, result = self._capture_executed_sql("BEGIN NULL; END;\n/")
+        assert result.success
+        assert sent == "BEGIN NULL; END;"
+        assert "/" not in sent
+
+    def test_plsql_returns_committed(self):
+        _, result = self._capture_executed_sql("BEGIN NULL; END;")
+        assert result.committed is True
+
+    def test_plsql_error_propagates(self):
+        conn = self._make_conn()
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = Exception(
+                "ORA-06550: line 1, column 7: PLS-00201: identifier 'X' must be declared"
+            )
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+            result = execute_adhoc("BEGIN x := 1; END;", conn, {})
+        assert not result.success
+        assert "ORA-06550" in result.error
+        assert result.sql_type == "PLSQL"
 
 
 class TestFetchDdlErrors:

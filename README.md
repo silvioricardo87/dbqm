@@ -13,7 +13,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execute routines** — Run Oracle packages, procedures, and functions with parameter input and DBMS_OUTPUT capture
 - **Package editor** — Create and edit Oracle packages with spec/body tabs, inline compilation errors from ALL_ERRORS, and wizard mode
 - **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages
-- **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation
+- **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation. Anonymous PL/SQL blocks (`DECLARE`/`BEGIN`/`END;`) and the `EXEC`/`EXECUTE`/`CALL <proc>` shortcuts are supported on Oracle.
 - **Dark/Light themes** — GitHub Dark (default) and GitHub Light, switchable in settings
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
 - **Data export** — Export results to current directory as CSV, JSON, TXT, PNG, HTML reports, and SQL files

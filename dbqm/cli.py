@@ -293,6 +293,14 @@ def cmd_sql(args: argparse.Namespace) -> None:
             sys.exit(1)
         return
 
+    # PL/SQL anonymous block results
+    if not isinstance(result, tuple) and result.sql_type == "PLSQL":
+        if not result.success:
+            console.print(f"[red]Erro: {result.error}[/red]")
+            sys.exit(1)
+        console.print(f"[green]Bloco PL/SQL executado ({result.elapsed:.2f}s)[/green]")
+        return
+
     if not result.success:
         console.print(f"[red]Erro: {result.error}[/red]")
         sys.exit(1)

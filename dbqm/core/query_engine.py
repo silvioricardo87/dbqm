@@ -42,23 +42,48 @@ _DDL_KEYWORDS = frozenset({
 })
 
 
+_PLSQL_KEYWORDS = frozenset({"DECLARE", "BEGIN", "EXEC", "EXECUTE", "CALL"})
+
+
 def classify_sql(sql: str) -> str:
     """Classify SQL statement type.
 
-    Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DDL', or 'UNKNOWN'.
+    Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DDL', 'PLSQL', or 'UNKNOWN'.
     """
     parsed = sqlparse.parse(sql.strip())
+    stripped = sql.strip()
+    first_word = stripped.split()[0].upper() if stripped else ""
+    # PL/SQL keywords take priority over sqlparse — sqlparse classifies BEGIN
+    # as a transaction boundary, not a PL/SQL block.
+    if first_word in _PLSQL_KEYWORDS:
+        return "PLSQL"
     if not parsed:
         return "UNKNOWN"
     stmt_type = parsed[0].get_type()
     if stmt_type in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         return stmt_type
-    first_word = sql.strip().split()[0].upper() if sql.strip() else ""
     if first_word in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         return first_word
     if first_word in _DDL_KEYWORDS:
         return "DDL"
     return "UNKNOWN"
+
+
+def _normalize_plsql(sql: str) -> str:
+    """Normalize PL/SQL ad-hoc input.
+
+    - Strips the SQL*Plus block terminator (`/` on its own line).
+    - Expands `EXEC`/`EXECUTE`/`CALL <body>` to `BEGIN <body>; END;`.
+    - Leaves DECLARE/BEGIN blocks untouched (driver accepts them as-is).
+    """
+    s = sql.strip()
+    s = re.sub(r"\s*\n\s*/\s*$", "", s)
+    first = s.split()[0].upper() if s.split() else ""
+    if first in ("EXEC", "EXECUTE", "CALL"):
+        body = s.split(None, 1)[1] if len(s.split(None, 1)) > 1 else ""
+        body = body.rstrip(";").strip()
+        s = f"BEGIN {body}; END;"
+    return s
 
 
 def _bind_params_oracle(sql: str, params: dict) -> tuple[str, dict]:
@@ -166,11 +191,12 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     sql = sql.strip()
     sql_type = classify_sql(sql)
     # Strip trailing `;` only for SELECT/DML — Oracle rejects it there.
-    # DDL with embedded PL/SQL (CREATE PACKAGE BODY, TRIGGER, FUNCTION, ...)
-    # requires the final `;` to be preserved or compilation fails (PLS-00103),
-    # leaving the object INVALID.
+    # DDL and PL/SQL blocks must keep their internal/final `;` to compile
+    # correctly (otherwise PLS-00103, leaving the object INVALID).
     if sql_type in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         sql = sql.rstrip(";")
+    elif sql_type == "PLSQL":
+        sql = _normalize_plsql(sql)
 
     if sql_type == "UNKNOWN":
         return AdhocResult(
@@ -223,6 +249,17 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 committed=True,
                 error=compilation_errors,
                 success=not compilation_errors,
+            )
+        elif sql_type == "PLSQL":
+            cursor.close()
+            db.close()
+            db = None
+            return AdhocResult(
+                sql_type=sql_type,
+                connection_name=conn.name,
+                elapsed=elapsed,
+                committed=True,
+                success=True,
             )
         else:
             rows_affected = cursor.rowcount
