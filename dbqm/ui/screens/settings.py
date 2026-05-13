@@ -85,6 +85,17 @@ class SettingsScreen(NavVerticalScroll):
                 yield Button("Exportar", variant="primary", id="btn-export")
                 yield Button("Importar", variant="warning", id="btn-import")
 
+        # Oracle Instant Client manager
+        with Vertical(classes="settings-section"):
+            yield Static("Oracle Instant Client", classes="settings-label")
+            yield Static(
+                "[dim]Baixe, extraia e instale o Oracle Instant Client compativel "
+                "com seu sistema operacional[/]",
+                markup=True,
+            )
+            with Horizontal(classes="port-buttons"):
+                yield Button("Gerenciar clients", variant="primary", id="btn-oracle-clients")
+
     def on_mount(self) -> None:
         from dbqm.models.settings import load_settings
 
@@ -141,6 +152,8 @@ class SettingsScreen(NavVerticalScroll):
             self._open_portability("export")
         elif event.button.id == "btn-import":
             self._open_portability("import")
+        elif event.button.id == "btn-oracle-clients":
+            self._open_oracle_clients()
 
     def _open_portability(self, mode: str) -> None:
         """Load ConfigPortScreen directly in the chosen mode (skip mode selection)."""
@@ -155,5 +168,19 @@ class SettingsScreen(NavVerticalScroll):
 
             port_screen = ConfigPortScreen(initial_mode=mode, id="config-port-screen")
             screen_area.mount(port_screen)
+        except Exception as e:
+            self.notify(f"Erro: {e}", severity="error")
+
+    def _open_oracle_clients(self) -> None:
+        """Open the Oracle Instant Client manager screen."""
+        from dbqm.ui.screens.oracle_clients import OracleClientsScreen
+        try:
+            from textual.containers import Container
+            from dbqm.ui.widgets.breadcrumb import Breadcrumb
+
+            screen_area = self.app.query_one("#screen-area", Container)
+            screen_area.remove_children()
+            self.app.query_one(Breadcrumb).set_path(["Sistema", "Config", "Oracle Clients"])
+            screen_area.mount(OracleClientsScreen(id="oracle-clients-screen"))
         except Exception as e:
             self.notify(f"Erro: {e}", severity="error")

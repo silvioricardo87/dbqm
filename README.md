@@ -24,6 +24,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execution history** — Browse recent executions with timing, row counts, and status
 - **Error handling** — Global error modal displays details instead of crashing the app
 - **Audit logging** — Opt-in append-only JSON log of all executions
+- **Oracle Instant Client manager** — In-app downloader/installer that detects the host OS/arch and offers compatible Basic packages (Windows x64/x86, macOS ARM64/Intel, Linux x86_64/ARM64) — installed into `~/.dbqm/clients/` and auto-picked up by the thick-mode loader
 
 ## Requirements
 
@@ -220,7 +221,8 @@ dbqm/
 │   │   │   ├── connections.py     # Connection management
 │   │   │   ├── package_editor.py   # Oracle package editor (spec/body, compile)
 │   │   │   ├── settings.py        # Theme, audit toggle, export/import
-│   │   │   └── config_port.py     # Config export/import (used by settings)
+│   │   │   ├── config_port.py     # Config export/import (used by settings)
+│   │   │   └── oracle_clients.py  # Download/extract/remove Oracle Instant Clients
 │   │   ├── widgets/               # Reusable UI components
 │   │   │   ├── sidebar.py         # Collapsible sidebar with keyboard nav
 │   │   │   ├── breadcrumb.py      # Navigation breadcrumb
@@ -258,6 +260,7 @@ dbqm/
 │   │   ├── crypto.py              # Password encryption
 │   │   ├── config_portability.py  # Config import/export
 │   │   ├── history.py             # Execution history
+│   │   ├── oracle_client_installer.py  # Detect host + download/extract Oracle Instant Client
 │   │   └── audit.py               # Audit logging
 │   └── models/                    # Data models (JSON persistence)
 │       ├── connection.py          # Connection config
@@ -266,7 +269,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (573+ tests)
+└── tests/                         # Test suite (636+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests

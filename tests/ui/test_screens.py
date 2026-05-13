@@ -8,6 +8,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Input, Select
 
 from dbqm.ui.screens.connections import ConnectionsScreen
+from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
 
 
@@ -2902,6 +2903,29 @@ async def test_group_manage_screen_with_template_data(tmp_config_dir):
 # ======================================================================
 # ESC tests (continued)
 # ======================================================================
+
+class OracleClientsTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield OracleClientsScreen()
+
+
+@pytest.mark.asyncio
+async def test_oracle_clients_screen_renders_platform_and_tables(tmp_config_dir):
+    """OracleClientsScreen must show platform info plus both tables."""
+    from textual.widgets import DataTable, Static
+
+    app = OracleClientsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(OracleClientsScreen)
+        platform_static = screen.query_one("#oc-platform", Static)
+        rendered = platform_static.render().plain
+        assert any(s in rendered for s in ("macOS", "Windows", "Linux"))
+        # Available table has 3 columns (Versao, Arquitetura, Formato)
+        available = screen.query_one("#oc-available-table", DataTable)
+        assert len(available.columns) == 3
+        installed = screen.query_one("#oc-installed-table", DataTable)
+        assert len(installed.columns) == 2
+
 
 @pytest.mark.asyncio
 async def test_esc_clears_screen(tmp_config_dir):
