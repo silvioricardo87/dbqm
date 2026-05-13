@@ -8,6 +8,7 @@ from dbqm.models.connection import Connection
 from dbqm.core.db_manager import (
     get_connection,
     _ensure_utf8_nls_lang,
+    _find_oracle_client_dir,
     _missing_driver_message,
     get_oracle_connection,
     get_postgresql_connection,
@@ -127,6 +128,49 @@ class TestMissingDriverMessage:
     def test_mentions_windows_arm_caveat(self):
         msg = _missing_driver_message("SQL Server", "pymssql")
         assert "Windows ARM" in msg
+
+
+class TestFindOracleClientDir:
+    """Auto-detection of Oracle Instant Client must match the running platform.
+
+    Older installs only had `instantclient_19_x64`/`_x86` (Windows-only naming);
+    macOS/Linux ARM builds introduce `arm64`/`aarch64` tags. The detector must
+    not return a Windows directory when running on macOS/Linux and vice versa.
+    """
+
+    def _make_dirs(self, tmp_path, names):
+        for n in names:
+            (tmp_path / n).mkdir()
+        return tmp_path
+
+    def test_macos_arm_prefers_arm64_dir(self, tmp_path, monkeypatch):
+        base = self._make_dirs(tmp_path, ["instantclient_19_x64", "instantclient_23_arm64"])
+        monkeypatch.setattr("dbqm.core.db_manager.CLIENTS_DIR", base)
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("platform.machine", lambda: "arm64")
+        result = _find_oracle_client_dir()
+        assert result is not None
+        assert result.endswith("instantclient_23_arm64")
+
+    def test_macos_arm_skips_windows_only_dirs(self, tmp_path, monkeypatch):
+        base = self._make_dirs(tmp_path, ["instantclient_19_x64", "instantclient_19_x86"])
+        monkeypatch.setattr("dbqm.core.db_manager.CLIENTS_DIR", base)
+        monkeypatch.setenv("ORACLE_HOME", "")
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("platform.machine", lambda: "arm64")
+        # Force the package-local fallback to also miss.
+        monkeypatch.setattr("pathlib.Path.exists", lambda self: self == base)
+        result = _find_oracle_client_dir()
+        assert result is None
+
+    def test_windows_picks_x64_when_present(self, tmp_path, monkeypatch):
+        base = self._make_dirs(tmp_path, ["instantclient_19_x64", "instantclient_23_arm64"])
+        monkeypatch.setattr("dbqm.core.db_manager.CLIENTS_DIR", base)
+        monkeypatch.setattr("sys.platform", "win32")
+        monkeypatch.setattr("platform.machine", lambda: "AMD64")
+        result = _find_oracle_client_dir()
+        assert result is not None
+        assert result.endswith("instantclient_19_x64")
 
 
 class TestDriversRaiseHelpfulErrorWhenAbsent:

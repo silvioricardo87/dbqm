@@ -72,20 +72,34 @@ from dbqm.core.paths import CLIENTS_DIR
 
 
 def _find_oracle_client_dir() -> str | None:
-    """Auto-detect Oracle Instant Client directory matching Python architecture."""
+    """Auto-detect Oracle Instant Client directory matching the current platform."""
+    import platform
     import struct
-    arch = "x64" if struct.calcsize("P") * 8 == 64 else "x86"
+    import sys
+
+    machine = platform.machine().lower()
+    if sys.platform == "darwin":
+        platform_tags = ("arm64", "aarch64") if machine in ("arm64", "aarch64") else ("x86_64", "x64", "intel")
+    elif sys.platform.startswith("linux"):
+        platform_tags = ("arm64", "aarch64") if machine in ("aarch64", "arm64") else ("x86_64", "x64")
+    else:
+        platform_tags = ("x64",) if struct.calcsize("P") * 8 == 64 else ("x86",)
 
     def _best_instantclient(base_dir: Path) -> str | None:
         """Find best matching instantclient subdirectory in base_dir."""
         if not base_dir.exists():
             return None
-        candidates = sorted(
-            [e for e in base_dir.iterdir() if e.is_dir() and "instantclient" in e.name.lower()],
-            key=lambda e: (arch in e.name.lower(), e.name),
-            reverse=True,
-        )
-        return str(candidates[0]) if candidates else None
+        candidates = [e for e in base_dir.iterdir() if e.is_dir() and "instantclient" in e.name.lower()]
+        if not candidates:
+            return None
+        matching = [e for e in candidates if any(tag in e.name.lower() for tag in platform_tags)]
+        if matching:
+            return str(sorted(matching, key=lambda e: e.name, reverse=True)[0])
+        # On Windows, legacy directories like `instantclient_19_x64` predate platform tags;
+        # accept any candidate so existing installs keep working.
+        if sys.platform == "win32":
+            return str(sorted(candidates, key=lambda e: e.name, reverse=True)[0])
+        return None
 
     # 1. Check DBQM_HOME clients/ directory
     result = _best_instantclient(CLIENTS_DIR)
