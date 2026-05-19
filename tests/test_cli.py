@@ -774,6 +774,65 @@ class TestSqlSubcommandHelpMentionsPlsql:
         assert "PL/SQL" in out
         assert "EXEC" in out
 
+    def test_sql_help_mentions_explain_and_cte(self, capsys):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["sql", "--help"])
+        out = capsys.readouterr().out
+        assert "--explain" in out
+        assert "CTE" in out
+        assert "EXPLAIN PLAN" in out
+
+
+class TestCmdSqlExplain:
+    """--explain dispatches to execute_explain and prints the plan."""
+
+    def test_explain_prints_plan_lines_and_skips_execute_adhoc(self, capsys):
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        plan = AdhocResult(
+            sql_type="EXPLAIN", connection_name="test_conn",
+            columns=["plan"],
+            rows=[["Plan hash value: 999"], ["FULL TABLE SCAN T"]],
+            row_count=2, elapsed=0.01,
+        )
+        with patch("dbqm.cli.find_connection", return_value=conn), \
+             patch("dbqm.cli.execute_explain", return_value=plan) as mock_explain, \
+             patch("dbqm.cli.execute_adhoc") as mock_adhoc:
+            run_cli(["sql", "SELECT * FROM t", "test_conn", "--explain"])
+
+        assert mock_explain.called
+        assert not mock_adhoc.called
+        out = capsys.readouterr().out
+        assert "Plan hash value: 999" in out
+        assert "FULL TABLE SCAN T" in out
+
+    def test_explain_failure_exits(self):
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        plan = AdhocResult(
+            sql_type="EXPLAIN", connection_name="test_conn",
+            success=False, error="ORA-00942: table or view does not exist",
+        )
+        with patch("dbqm.cli.find_connection", return_value=conn), \
+             patch("dbqm.cli.execute_explain", return_value=plan):
+            with pytest.raises(SystemExit):
+                run_cli(["sql", "SELECT * FROM bogus", "test_conn", "--explain"])
+
+    def test_explain_passes_param_values(self):
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        plan = AdhocResult(
+            sql_type="EXPLAIN", connection_name="test_conn",
+            columns=["plan"], rows=[], row_count=0, elapsed=0.0,
+        )
+        with patch("dbqm.cli.find_connection", return_value=conn), \
+             patch("dbqm.cli.execute_explain", return_value=plan) as mock_explain:
+            run_cli(["sql", "SELECT * FROM t WHERE id = :id", "test_conn",
+                     "--explain", "-p", "id=42"])
+        # call signature: execute_explain(sql, conn, param_values)
+        assert mock_explain.call_args[0][2] == {"id": "42"}
+
 
 # ---------------------------------------------------------------------------
 # main.py integration

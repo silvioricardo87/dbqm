@@ -3,7 +3,8 @@ import pytest
 from dbqm.core.query_engine import (
     classify_sql, parse_sql, detect_params, replace_literals_with_params,
     generate_sql_text, _is_select_only, _bind_params_oracle, _bind_params_pyformat,
-    _extract_alias, parse_dml_literals, execute_query, execute_adhoc, QueryResult,
+    _extract_alias, parse_dml_literals, execute_query, execute_adhoc,
+    execute_explain, QueryResult,
 )
 from dbqm.models.query import Query
 from dbqm.models.connection import Connection
@@ -38,6 +39,14 @@ class TestClassifySql:
         ("EXEC pkg.proc('x')", "PLSQL"),
         ("EXECUTE pkg.proc", "PLSQL"),
         ("CALL pkg.proc(1)", "PLSQL"),
+        # CTE (WITH ... SELECT) — sqlparse classifies as SELECT
+        ("WITH x AS (SELECT 1 AS n FROM dual) SELECT n FROM x", "SELECT"),
+        ("with x as (select 1 from dual) select * from x", "SELECT"),
+        ("WITH a AS (SELECT 1 FROM dual), b AS (SELECT 2 FROM dual) SELECT * FROM a, b", "SELECT"),
+        # EXPLAIN PLAN
+        ("EXPLAIN PLAN FOR SELECT 1 FROM dual", "EXPLAIN"),
+        ("explain plan for select * from t", "EXPLAIN"),
+        ("EXPLAIN PLAN SET STATEMENT_ID = 'x' FOR SELECT 1 FROM dual", "EXPLAIN"),
     ])
     def test_classify(self, sql, expected):
         assert classify_sql(sql) == expected
@@ -517,3 +526,115 @@ class TestFetchDdlErrors:
 
         result = _fetch_ddl_errors(mock_db, "CREATE OR REPLACE FUNCTION fn_test RETURN NUMBER AS BEGIN RETURN 1; END;", "oracle")
         assert result == ""
+
+
+class TestExecuteExplain:
+    """Tests for execute_explain — wraps user query in EXPLAIN PLAN + DBMS_XPLAN.DISPLAY."""
+
+    def _make_conn(self, db_type="oracle"):
+        return Connection(name="test", db_type=db_type, user="", password="")
+
+    def test_oracle_runs_explain_and_returns_plan_lines(self):
+        conn = self._make_conn("oracle")
+        executed = []
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = lambda sql, *a, **kw: executed.append(sql)
+            mock_cursor.fetchmany.return_value = [
+                ("Plan hash value: 123",),
+                ("--------------------",),
+                ("| Id | Operation     |",),
+            ]
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            result = execute_explain("SELECT 1 FROM dual", conn, {})
+
+        assert result.success
+        assert result.sql_type == "EXPLAIN"
+        assert result.columns == ["plan"]
+        assert result.row_count == 3
+        assert result.rows[0] == ["Plan hash value: 123"]
+        # First execute is EXPLAIN PLAN FOR, second is DBMS_XPLAN.DISPLAY
+        assert len(executed) == 2
+        assert executed[0].startswith("EXPLAIN PLAN SET STATEMENT_ID = 'dbqm_")
+        assert executed[0].endswith("FOR SELECT 1 FROM dual")
+        assert "DBMS_XPLAN.DISPLAY" in executed[1]
+        # Statement ID is consistent between the two calls
+        import re as _re
+        m = _re.search(r"dbqm_\d+", executed[0])
+        assert m and m.group(0) in executed[1]
+
+    def test_oracle_strips_trailing_semicolon_before_wrapping(self):
+        conn = self._make_conn("oracle")
+        executed = []
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = lambda sql, *a, **kw: executed.append(sql)
+            mock_cursor.fetchmany.return_value = []
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            execute_explain("SELECT 1 FROM dual;", conn, {})
+
+        # Wrapped query must not have the trailing ; (otherwise ORA-00911)
+        assert executed[0].endswith("FOR SELECT 1 FROM dual")
+
+    def test_oracle_passes_param_values_to_explain_plan(self):
+        conn = self._make_conn("oracle")
+        captured = []
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+
+            def _capture(sql, params=None, *a, **kw):
+                captured.append((sql, params))
+
+            mock_cursor.execute.side_effect = _capture
+            mock_cursor.fetchmany.return_value = []
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            execute_explain("SELECT * FROM t WHERE id = :id", conn, {"id": 42})
+
+        # First call is the EXPLAIN PLAN and must carry the binds.
+        assert captured[0][1] == {"id": 42}
+
+    def test_already_explain_query_is_rejected(self):
+        conn = self._make_conn("oracle")
+        result = execute_explain("EXPLAIN PLAN FOR SELECT 1 FROM dual", conn, {})
+        assert not result.success
+        assert "EXPLAIN PLAN FOR" in result.error
+
+    def test_oracle_propagates_driver_errors(self):
+        conn = self._make_conn("oracle")
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = Exception("ORA-00942: table or view does not exist")
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+
+            result = execute_explain("SELECT * FROM bogus_table", conn, {})
+
+        assert not result.success
+        assert "ORA-00942" in result.error
+
+    def test_postgresql_delegates_to_execute_adhoc_with_explain_prefix(self):
+        conn = self._make_conn("postgresql")
+        with patch("dbqm.core.query_engine.execute_adhoc") as mock_adhoc:
+            mock_adhoc.return_value = "delegated"
+            result = execute_explain("SELECT 1", conn, {"x": 1})
+
+        assert result == "delegated"
+        called_sql = mock_adhoc.call_args[0][0]
+        assert called_sql == "EXPLAIN SELECT 1"
+        assert mock_adhoc.call_args[0][2] == {"x": 1}
+
+    def test_unsupported_db_returns_clear_error(self):
+        conn = self._make_conn("sqlserver")
+        result = execute_explain("SELECT 1", conn, {})
+        assert not result.success
+        assert "sqlserver" in result.error

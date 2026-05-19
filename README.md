@@ -13,7 +13,8 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execute routines** — Run Oracle packages, procedures, and functions with parameter input and DBMS_OUTPUT capture
 - **Package editor** — Create and edit Oracle packages with spec/body tabs, inline compilation errors from ALL_ERRORS, and wizard mode
 - **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages
-- **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation. Anonymous PL/SQL blocks (`DECLARE`/`BEGIN`/`END;`) and the `EXEC`/`EXECUTE`/`CALL <proc>` shortcuts are supported on Oracle.
+- **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation. Supports CTEs (`WITH ... SELECT`), anonymous PL/SQL blocks (`DECLARE`/`BEGIN`/`END;`) and the `EXEC`/`EXECUTE`/`CALL <proc>` shortcuts on Oracle.
+- **Execution plan (`--explain`)** — From the CLI: `dbqm sql "<query>" <conn> --explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` on Oracle (or native `EXPLAIN` on PostgreSQL/MySQL) and prints the plan in one step.
 - **Dark/Light themes** — GitHub Dark (default) and GitHub Light, switchable in settings
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
 - **Data export** — Export results to current directory as CSV, JSON, TXT, PNG, HTML reports, and SQL files
@@ -108,8 +109,12 @@ dbqm run <query-name> --param1 value1
 # Execute a query group
 dbqm run-group <group-name> --param1 value1
 
-# Execute ad-hoc SQL
+# Execute ad-hoc SQL (SELECT/CTE, DML with --commit, DDL, PL/SQL anonymous blocks)
 dbqm sql "SELECT * FROM table" <connection>
+dbqm sql "WITH x AS (SELECT 1 FROM dual) SELECT * FROM x" <connection>
+
+# Show execution plan (Oracle: EXPLAIN PLAN + DBMS_XPLAN.DISPLAY; PostgreSQL/MySQL: native EXPLAIN)
+dbqm sql "SELECT * FROM table WHERE col = :v" <connection> --explain -p v=42
 
 # Test connections
 dbqm test [connection]

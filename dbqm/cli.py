@@ -15,7 +15,7 @@ from rich.table import Table
 from dbqm.models.query import find_query, load_queries
 from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
-from dbqm.core.query_engine import execute_query, execute_adhoc, classify_sql, QueryResult
+from dbqm.core.query_engine import execute_query, execute_adhoc, execute_explain, classify_sql, QueryResult
 from dbqm.core.group_engine import build_group_result
 from dbqm.core.exporter import (
     export_query_csv, export_query_json, export_query_txt,
@@ -265,6 +265,16 @@ def cmd_sql(args: argparse.Namespace) -> None:
         sql = sql_path.read_text(encoding="utf-8")
 
     param_values = _parse_params(args.param)
+
+    if args.explain:
+        result = execute_explain(sql, conn, param_values)
+        if not result.success:
+            console.print(f"[red]Erro: {result.error}[/red]")
+            sys.exit(1)
+        for row in result.rows:
+            print(row[0] if row else "")
+        console.print(f"[dim]({result.elapsed:.2f}s)[/dim]")
+        return
 
     sql_type = classify_sql(sql)
 
@@ -562,15 +572,16 @@ def build_parser() -> argparse.ArgumentParser:
     # --- sql ---
     p_sql = subparsers.add_parser(
         "sql",
-        help="Executar SQL ad-hoc (SELECT, DML, DDL, ou bloco PL/SQL anonimo)",
+        help="Executar SQL ad-hoc (SELECT, CTE, DML, DDL, PL/SQL ou EXPLAIN PLAN)",
     )
     p_sql.add_argument(
         "sql",
         help=(
             "SQL a executar (ou caminho para arquivo .sql). "
-            "Aceita SELECT, INSERT/UPDATE/DELETE (com --commit), DDL "
-            "(CREATE/ALTER/DROP/...), blocos PL/SQL anonimos "
-            "(DECLARE/BEGIN/END;) e os atalhos EXEC/EXECUTE/CALL <proc>."
+            "Aceita SELECT (incluindo CTE WITH ... SELECT), INSERT/UPDATE/DELETE "
+            "(com --commit), DDL (CREATE/ALTER/DROP/...), blocos PL/SQL anonimos "
+            "(DECLARE/BEGIN/END;), os atalhos EXEC/EXECUTE/CALL <proc>, e "
+            "EXPLAIN PLAN. Use --explain para obter o plano automaticamente."
         ),
     )
     p_sql.add_argument("connection", help="Nome da conexao")
@@ -582,6 +593,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Exportar resultado para arquivo")
     p_sql.add_argument("--commit", action="store_true",
                        help="Auto-commit para DML (INSERT/UPDATE/DELETE)")
+    p_sql.add_argument("--explain", action="store_true",
+                       help=(
+                           "Mostra o plano de execucao da query (EXPLAIN PLAN + DBMS_XPLAN.DISPLAY no Oracle, "
+                           "EXPLAIN nativo em PostgreSQL/MySQL). Passe apenas a query, sem EXPLAIN PLAN FOR."
+                       ))
 
     # --- test ---
     p_test = subparsers.add_parser("test", help="Testar conexao com banco de dados")

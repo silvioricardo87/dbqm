@@ -48,7 +48,7 @@ _PLSQL_KEYWORDS = frozenset({"DECLARE", "BEGIN", "EXEC", "EXECUTE", "CALL"})
 def classify_sql(sql: str) -> str:
     """Classify SQL statement type.
 
-    Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DDL', 'PLSQL', or 'UNKNOWN'.
+    Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DDL', 'PLSQL', 'EXPLAIN', or 'UNKNOWN'.
     """
     parsed = sqlparse.parse(sql.strip())
     stripped = sql.strip()
@@ -57,6 +57,8 @@ def classify_sql(sql: str) -> str:
     # as a transaction boundary, not a PL/SQL block.
     if first_word in _PLSQL_KEYWORDS:
         return "PLSQL"
+    if first_word == "EXPLAIN":
+        return "EXPLAIN"
     if not parsed:
         return "UNKNOWN"
     stmt_type = parsed[0].get_type()
@@ -193,7 +195,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     # Strip trailing `;` only for SELECT/DML — Oracle rejects it there.
     # DDL and PL/SQL blocks must keep their internal/final `;` to compile
     # correctly (otherwise PLS-00103, leaving the object INVALID).
-    if sql_type in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+    if sql_type in ("SELECT", "INSERT", "UPDATE", "DELETE", "EXPLAIN"):
         sql = sql.rstrip(";")
     elif sql_type == "PLSQL":
         sql = _normalize_plsql(sql)
@@ -203,7 +205,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             sql_type=sql_type,
             connection_name=conn.name,
             success=False,
-            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE ou DDL (CREATE/ALTER/DROP...).",
+            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL (CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
         )
 
     db = None
@@ -261,6 +263,33 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 committed=True,
                 success=True,
             )
+        elif sql_type == "EXPLAIN":
+            # Oracle EXPLAIN PLAN inserts into PLAN_TABLE — no result set.
+            # PostgreSQL/MySQL EXPLAIN returns the plan as rows.
+            if cursor.description:
+                columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description)]
+                rows = [list(row) for row in cursor.fetchmany(MAX_ROWS)]
+                cursor.close()
+                return AdhocResult(
+                    sql_type=sql_type,
+                    connection_name=conn.name,
+                    columns=columns,
+                    rows=rows,
+                    row_count=len(rows),
+                    elapsed=elapsed,
+                )
+            cursor.close()
+            if conn.db_type == "oracle":
+                db.commit()
+            db.close()
+            db = None
+            return AdhocResult(
+                sql_type=sql_type,
+                connection_name=conn.name,
+                elapsed=elapsed,
+                committed=True,
+                success=True,
+            )
         else:
             rows_affected = cursor.rowcount
             if auto_commit:
@@ -297,6 +326,83 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 db.close()
             except Exception:
                 pass
+
+
+def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResult:
+    """Run EXPLAIN PLAN against `sql` and return the execution plan as text.
+
+    Oracle: wraps the query in `EXPLAIN PLAN SET STATEMENT_ID = ... FOR <sql>`,
+    then queries `DBMS_XPLAN.DISPLAY` and returns the plan rows.
+
+    PostgreSQL/MySQL: prepends `EXPLAIN` and returns the plan rows directly.
+
+    SQL Server is not yet supported.
+
+    The returned AdhocResult has sql_type='EXPLAIN', columns=['plan'], and
+    rows=[[line], ...] (one row per plan line).
+    """
+    sql = sql.strip().rstrip(";")
+    # Refuse if the user already passed an EXPLAIN — we'd double-wrap.
+    first_word = sql.split()[0].upper() if sql.split() else ""
+    if first_word == "EXPLAIN":
+        return AdhocResult(
+            sql_type="EXPLAIN",
+            connection_name=conn.name,
+            success=False,
+            error="Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
+        )
+
+    if conn.db_type == "oracle":
+        statement_id = f"dbqm_{int(time.time() * 1_000_000)}"
+        explain_sql = f"EXPLAIN PLAN SET STATEMENT_ID = '{statement_id}' FOR {sql}"
+        display_sql = (
+            "SELECT PLAN_TABLE_OUTPUT FROM TABLE("
+            f"DBMS_XPLAN.DISPLAY(NULL, '{statement_id}', 'TYPICAL'))"
+        )
+        db = None
+        try:
+            start = time.time()
+            db = get_connection(conn)
+            cursor = db.cursor()
+            if param_values:
+                cursor.execute(explain_sql, param_values)
+            else:
+                cursor.execute(explain_sql)
+            cursor.execute(display_sql)
+            rows = [list(row) for row in cursor.fetchmany(MAX_ROWS)]
+            cursor.close()
+            elapsed = time.time() - start
+            return AdhocResult(
+                sql_type="EXPLAIN",
+                connection_name=conn.name,
+                columns=["plan"],
+                rows=rows,
+                row_count=len(rows),
+                elapsed=elapsed,
+            )
+        except Exception as e:
+            return AdhocResult(
+                sql_type="EXPLAIN",
+                connection_name=conn.name,
+                success=False,
+                error=str(e).split("\n")[0][:500],
+            )
+        finally:
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+    if conn.db_type in ("postgresql", "mysql"):
+        return execute_adhoc(f"EXPLAIN {sql}", conn, param_values)  # type: ignore[return-value]
+
+    return AdhocResult(
+        sql_type="EXPLAIN",
+        connection_name=conn.name,
+        success=False,
+        error=f"--explain ainda nao e suportado para {conn.db_type}.",
+    )
 
 
 def _fetch_ddl_errors(db, sql: str, db_type: str) -> str:
