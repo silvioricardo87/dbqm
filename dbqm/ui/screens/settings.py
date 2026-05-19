@@ -49,6 +49,16 @@ class SettingsScreen(NavVerticalScroll):
     SettingsScreen .port-buttons Button {
         margin: 0 1 0 0;
     }
+    SettingsScreen .export-subgroup {
+        height: auto;
+        margin-bottom: 1;
+    }
+    SettingsScreen .export-subgroup-label {
+        height: auto;
+        text-style: italic;
+        color: $text-muted;
+        margin-bottom: 1;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -78,21 +88,28 @@ class SettingsScreen(NavVerticalScroll):
         # Export directory section
         with Vertical(classes="settings-section"):
             yield Static("Exportacao", classes="settings-label")
-            yield Static(
-                "[dim]Local onde os arquivos exportados sao salvos. "
-                "Por padrao, o diretorio atual de execucao.[/]",
-                markup=True,
-            )
-            yield Static("", id="settings-export-dir-current", markup=True)
-            with Vertical(classes="audit-row"):
-                yield Switch(id="settings-export-subdirs-switch")
+
+            # Group 1: directory path + change button
+            with Vertical(classes="export-subgroup"):
                 yield Static(
-                    "[dim]Criar subdiretorios por tipo (grupos, DDL, SQL). "
-                    "Consultas sempre vao direto no diretorio configurado.[/]",
+                    "[dim]Local onde os arquivos exportados sao salvos. "
+                    "Por padrao, o diretorio atual de execucao.[/]",
                     markup=True,
                 )
-            with Horizontal(classes="port-buttons"):
-                yield Button("Alterar diretorio", variant="primary", id="btn-export-dir")
+                yield Static("", id="settings-export-dir-current", markup=True)
+                with Horizontal(classes="port-buttons"):
+                    yield Button("Alterar diretorio", variant="primary", id="btn-export-dir")
+
+            # Group 2: subdirectory toggle (independent option)
+            with Vertical(classes="export-subgroup"):
+                yield Static("Estrutura de pastas", classes="export-subgroup-label")
+                with Vertical(classes="audit-row"):
+                    yield Switch(id="settings-export-subdirs-switch")
+                    yield Static(
+                        "[dim]Criar subdiretorios por tipo (grupos, DDL, SQL). "
+                        "Consultas sempre vao direto no diretorio configurado.[/]",
+                        markup=True,
+                    )
 
         # Export/Import section
         with Vertical(classes="settings-section"):
