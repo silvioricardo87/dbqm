@@ -11,6 +11,10 @@ from dbqm.core.paths import CONFIG_DIR, SETTINGS_FILE
 class Settings:
     audit_log_enabled: bool = False
     theme: str = "github-dark"
+    # Export configuration
+    default_export_dir: str = ""  # empty = use current working directory
+    export_dir_prompted: bool = False  # has the user been asked about the dir?
+    create_export_subdirs: bool = True  # create category subdirs for groups/DDL/SQL (queries are always flat)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -20,6 +24,9 @@ class Settings:
         return cls(
             audit_log_enabled=data.get("audit_log_enabled", False),
             theme=data.get("theme", "github-dark"),
+            default_export_dir=data.get("default_export_dir", ""),
+            export_dir_prompted=data.get("export_dir_prompted", False),
+            create_export_subdirs=data.get("create_export_subdirs", True),
         )
 
 

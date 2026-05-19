@@ -1,6 +1,8 @@
 """Modal screen for selecting an export format."""
 from __future__ import annotations
 
+from typing import Callable
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -77,3 +79,44 @@ class ExportPickerModal(ModalScreen[str | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+def request_export(
+    app,
+    include_png: bool = False,
+    callback: Callable[[str | None], None] | None = None,
+) -> None:
+    """Public entry point for the export flow.
+
+    On the first export ever, prompts the user to choose an export directory
+    (via ExportDirSetupModal) and only then shows the format picker. If the
+    user cancels the setup modal, the export is aborted — settings are left
+    untouched so the prompt fires again next time.
+
+    After the first successful setup (or whenever the setting has already been
+    persisted), goes directly to the format picker.
+    """
+    from dbqm.models.settings import load_settings
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+
+    def _show_picker() -> None:
+        app.push_screen(ExportPickerModal(include_png=include_png), callback=callback)
+
+    settings = load_settings()
+    if settings.export_dir_prompted:
+        _show_picker()
+        return
+
+    def _after_setup(saved: bool | None) -> None:
+        if saved:
+            _show_picker()
+        elif callback is not None:
+            callback(None)
+
+    app.push_screen(
+        ExportDirSetupModal(
+            initial_use_cwd=not settings.default_export_dir,
+            initial_path=settings.default_export_dir,
+        ),
+        callback=_after_setup,
+    )

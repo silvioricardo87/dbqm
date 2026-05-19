@@ -123,3 +123,113 @@ class TestGroupExports:
         path = export_group_flat_txt(sample_group_result)
         content = Path(path).read_text()
         assert "status" in content
+
+
+class TestExportDirResolution:
+    """Path resolution honors settings (and the EXPORTS_DIR override for tests)."""
+
+    def test_query_exports_go_directly_in_base_dir(self, tmp_config_dir, sample_query_result):
+        """Queries never get a category subfolder, even when EXPORTS_DIR override is active."""
+        path = Path(export_query_csv(sample_query_result, "employees"))
+        # parent should be EXPORTS_DIR itself, not EXPORTS_DIR/consultas/employees
+        assert path.parent == tmp_config_dir / "exports"
+
+    def test_query_export_resolves_default_export_dir_from_settings(
+        self, tmp_config_dir, sample_query_result, monkeypatch
+    ):
+        """Without the EXPORTS_DIR test override, exports use Settings.default_export_dir."""
+        from dbqm.core import exporter as exporter_module
+        from dbqm.models.settings import Settings, save_settings
+
+        target = tmp_config_dir / "custom-exports"
+        target.mkdir()
+        save_settings(Settings(default_export_dir=str(target), export_dir_prompted=True))
+        monkeypatch.setattr(exporter_module, "EXPORTS_DIR", None)
+
+        path = Path(export_query_csv(sample_query_result, "employees"))
+        assert path.parent == target
+
+    def test_query_export_falls_back_to_cwd_when_unset(
+        self, tmp_path, sample_query_result, monkeypatch
+    ):
+        """Without any setting and without EXPORTS_DIR override, queries land in CWD."""
+        from dbqm.core import exporter as exporter_module
+        from dbqm.models.settings import Settings, save_settings
+
+        cwd_dir = tmp_path / "cwd"
+        cwd_dir.mkdir()
+        config_dir = tmp_path / "cfg"
+        config_dir.mkdir()
+        settings_file = config_dir / "settings.json"
+
+        monkeypatch.setattr(exporter_module, "EXPORTS_DIR", None)
+        monkeypatch.setattr("dbqm.core.paths.CONFIG_DIR", config_dir)
+        monkeypatch.setattr("dbqm.core.paths.SETTINGS_FILE", settings_file)
+        monkeypatch.setattr("dbqm.models.settings.CONFIG_DIR", config_dir)
+        monkeypatch.setattr("dbqm.models.settings.SETTINGS_FILE", settings_file)
+        save_settings(Settings())  # explicit empty default_export_dir
+        monkeypatch.chdir(cwd_dir)
+
+        path = Path(export_query_csv(sample_query_result, "employees"))
+        assert path.parent == cwd_dir
+
+    def test_group_export_creates_subfolder_when_subdirs_enabled(
+        self, tmp_config_dir, sample_group_result
+    ):
+        """Groups respect create_export_subdirs setting; with EXPORTS_DIR override it is forced True."""
+        path = Path(export_group_csv(sample_group_result))
+        # Should be nested under grupos/{normalized_label}/
+        assert "grupos" in path.parts
+        assert path.parent.parent == tmp_config_dir / "exports" / "grupos"
+
+    def test_group_export_flat_when_subdirs_disabled(
+        self, tmp_path, sample_group_result, monkeypatch
+    ):
+        """When create_export_subdirs is OFF (and no test override is active), groups go flat."""
+        from dbqm.core import exporter as exporter_module
+        from dbqm.models.settings import Settings, save_settings
+
+        target = tmp_path / "flat"
+        target.mkdir()
+        config_dir = tmp_path / "cfg"
+        config_dir.mkdir()
+        settings_file = config_dir / "settings.json"
+
+        monkeypatch.setattr(exporter_module, "EXPORTS_DIR", None)
+        monkeypatch.setattr("dbqm.core.paths.CONFIG_DIR", config_dir)
+        monkeypatch.setattr("dbqm.core.paths.SETTINGS_FILE", settings_file)
+        monkeypatch.setattr("dbqm.models.settings.CONFIG_DIR", config_dir)
+        monkeypatch.setattr("dbqm.models.settings.SETTINGS_FILE", settings_file)
+        save_settings(Settings(
+            default_export_dir=str(target),
+            export_dir_prompted=True,
+            create_export_subdirs=False,
+        ))
+
+        path = Path(export_group_csv(sample_group_result))
+        # No "grupos" or label subfolder — flat in target.
+        assert path.parent == target
+
+
+class TestFilenameTruncation:
+    """Long filenames must be truncated to stay under MAX_PATH on Windows."""
+
+    def test_long_params_do_not_overflow_max_path(self, tmp_config_dir, sample_query_result):
+        """Massive parameter values produce a path well under the conservative cap."""
+        from dbqm.core.exporter import _MAX_PATH_LEN
+
+        huge = {"key" + str(i): "x" * 200 for i in range(20)}
+        path = Path(export_query_csv(sample_query_result, "employees", params=huge))
+        assert len(str(path)) <= _MAX_PATH_LEN
+        # Extension must survive truncation.
+        assert path.suffix == ".csv"
+        assert path.exists()
+
+    def test_extension_preserved_after_truncation(self, tmp_path):
+        """`_fit_path` keeps the file extension intact when shortening the body."""
+        from dbqm.core.exporter import _fit_path, _MAX_PATH_LEN
+
+        long_name = "x" * (_MAX_PATH_LEN + 50) + ".json"
+        out = _fit_path(tmp_path, long_name)
+        assert out.suffix == ".json"
+        assert len(str(out)) <= _MAX_PATH_LEN

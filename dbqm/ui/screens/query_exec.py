@@ -450,10 +450,9 @@ class QueryExecScreen(Vertical):
         self._set_result_actions(result_table)
 
     def _handle_export(self) -> None:
-        from dbqm.ui.modals.export_picker import ExportPickerModal
+        from dbqm.ui.modals.export_picker import request_export
 
-        modal = ExportPickerModal(include_png=False)
-        self.app.push_screen(modal, callback=self._on_export_format_selected)
+        request_export(self.app, include_png=False, callback=self._on_export_format_selected)
 
     def _on_export_format_selected(self, fmt: str | None) -> None:
         """Callback from ExportPickerModal."""

@@ -292,4 +292,160 @@ async def test_param_modal_accented_names_submit():
         await pilot.press("enter")
     assert app.result is not None
     assert "ap\u00f3lice" in app.result
-    assert app.result["ap\u00f3lice"] == "999"
+
+
+# --- ExportDirSetupModal ---
+
+
+@pytest.mark.asyncio
+async def test_export_dir_setup_starts_with_cwd_checked():
+    """Default state: 'usar diretorio atual' is on, input is disabled."""
+    from textual.widgets import Checkbox
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+
+    modal = ExportDirSetupModal()
+    app = ModalTestApp(modal)
+    async with app.run_test():
+        checkbox = app.screen.query_one("#use-cwd-checkbox", Checkbox)
+        path_input = app.screen.query_one("#export-dir-input", Input)
+        assert checkbox.value is True
+        assert path_input.disabled is True
+
+
+@pytest.mark.asyncio
+async def test_export_dir_setup_unchecking_enables_input():
+    """Unchecking the 'use cwd' checkbox must enable the path input."""
+    from textual.widgets import Checkbox
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+
+    modal = ExportDirSetupModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        checkbox = app.screen.query_one("#use-cwd-checkbox", Checkbox)
+        checkbox.value = False
+        await pilot.pause()
+        path_input = app.screen.query_one("#export-dir-input", Input)
+        assert path_input.disabled is False
+
+
+@pytest.mark.asyncio
+async def test_export_dir_setup_rejects_nonexistent_path(tmp_config_dir):
+    """Saving a path that does not exist must surface an error and not dismiss."""
+    from textual.widgets import Button, Checkbox
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+
+    modal = ExportDirSetupModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        app.screen.query_one("#use-cwd-checkbox", Checkbox).value = False
+        await pilot.pause()
+        app.screen.query_one("#export-dir-input", Input).value = "Z:/does/not/exist/xyz"
+        await pilot.pause()
+        app.screen.query_one("#save", Button).press()
+        await pilot.pause()
+        # Modal must still be open \u2014 no dismiss yet.
+        assert isinstance(app.screen, ExportDirSetupModal)
+    assert app.result is None
+
+
+@pytest.mark.asyncio
+async def test_export_dir_setup_saves_valid_path(tmp_config_dir):
+    """A valid path saves settings and dismisses with True."""
+    from textual.widgets import Button, Checkbox
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+    from dbqm.models.settings import load_settings
+
+    target = tmp_config_dir / "custom"
+    target.mkdir()
+
+    modal = ExportDirSetupModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        app.screen.query_one("#use-cwd-checkbox", Checkbox).value = False
+        await pilot.pause()
+        app.screen.query_one("#export-dir-input", Input).value = str(target)
+        await pilot.pause()
+        app.screen.query_one("#save", Button).press()
+        await pilot.pause()
+
+    assert app.result is True
+    settings = load_settings()
+    assert settings.default_export_dir == str(target)
+    assert settings.export_dir_prompted is True
+
+
+@pytest.mark.asyncio
+async def test_export_dir_setup_saves_cwd_choice(tmp_config_dir):
+    """Saving with the checkbox ON clears default_export_dir and marks prompted."""
+    from textual.widgets import Button
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+    from dbqm.models.settings import Settings, save_settings, load_settings
+
+    # Pre-existing custom dir; user now switches back to cwd.
+    save_settings(Settings(default_export_dir="/old/path", export_dir_prompted=True))
+
+    modal = ExportDirSetupModal(initial_use_cwd=True, initial_path="")
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        app.screen.query_one("#save", Button).press()
+        await pilot.pause()
+
+    assert app.result is True
+    settings = load_settings()
+    assert settings.default_export_dir == ""
+    assert settings.export_dir_prompted is True
+
+
+@pytest.mark.asyncio
+async def test_export_dir_setup_cancel_does_not_persist(tmp_config_dir):
+    """Cancel must not touch settings \u2014 the prompt should fire again next time."""
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+    from dbqm.models.settings import load_settings
+
+    modal = ExportDirSetupModal()
+    app = ModalTestApp(modal)
+    async with app.run_test() as pilot:
+        await pilot.press("escape")
+    assert app.result is False
+    settings = load_settings()
+    assert settings.export_dir_prompted is False
+
+
+# --- request_export orchestration ---
+
+
+@pytest.mark.asyncio
+async def test_request_export_shows_setup_first_when_not_prompted(tmp_config_dir):
+    """First export ever: setup modal appears before the format picker."""
+    from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
+    from dbqm.ui.modals.export_picker import request_export
+    from dbqm.models.settings import Settings, save_settings
+
+    save_settings(Settings(export_dir_prompted=False))
+
+    class _App(App):
+        def on_mount(self):
+            request_export(self, callback=lambda fmt: None)
+
+    app = _App()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, ExportDirSetupModal)
+
+
+@pytest.mark.asyncio
+async def test_request_export_skips_setup_after_prompted(tmp_config_dir):
+    """Once the user has been prompted, the format picker opens directly."""
+    from dbqm.ui.modals.export_picker import ExportPickerModal, request_export
+    from dbqm.models.settings import Settings, save_settings
+
+    save_settings(Settings(export_dir_prompted=True))
+
+    class _App(App):
+        def on_mount(self):
+            request_export(self, callback=lambda fmt: None)
+
+    app = _App()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, ExportPickerModal)

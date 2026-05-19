@@ -17,7 +17,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execution plan (`--explain`)** — From the CLI: `dbqm sql "<query>" <conn> --explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` on Oracle (or native `EXPLAIN` on PostgreSQL/MySQL) and prints the plan in one step.
 - **Dark/Light themes** — GitHub Dark (default) and GitHub Light, switchable in settings
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
-- **Data export** — Export results to current directory as CSV, JSON, TXT, PNG, HTML reports, and SQL files
+- **Data export** — Export results to CSV, JSON, TXT, PNG, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
 - **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
 - **Favorites & folders** — Organize queries in folders, star favorites for quick access
@@ -134,6 +134,15 @@ dbqm history
 ```
 
 Output format options: `--format table|json|csv|raw` and `--export csv|json|txt`. Use `raw` to print plain values (CLOB/LONG materialized, no headers/decoration) — handy for piping the body of a view, package, or procedure to another tool.
+
+### Export destination
+
+Exports go to the current working directory by default. The first time you press `Exportar` in the UI, dbqm shows a setup modal so you can pick a fixed default directory or keep using the CWD. You can change it later in Settings → Exportacao. Two options live there:
+
+- **Diretorio de exportacao** — empty means "use CWD"; any custom path must already exist.
+- **Criar subdiretorios por tipo** (ON by default) — controls whether group/DDL/SQL exports nest under `grupos/`, `ddl/`, etc. Query results (`consultas`) always go flat in the resolved directory.
+
+The CLI uses the same setting (no modal).
 
 ### Data directory
 

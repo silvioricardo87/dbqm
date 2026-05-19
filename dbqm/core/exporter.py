@@ -16,14 +16,22 @@ from dbqm.core.group_engine import GroupResult
 # Path helpers
 # ---------------------------------------------------------------------------
 
-# Base directory for exports. None means CWD (current working directory).
-# Can be overridden (e.g. by tests) to redirect export output.
+# Base directory override for exports. None means resolve from settings (or CWD fallback).
+# Tests set this to a tmp dir to redirect output deterministically.
 EXPORTS_DIR: Path | None = None
+
+# Query exports go directly into the resolved base dir (no category subfolder).
+_QUERY_CATEGORY = "consultas"
 
 # Max length for the params portion of a filename
 _MAX_PARAMS_LEN = 60
 # Max length for normalized directory/label names
 _MAX_LABEL_LEN = 40
+# Conservative max length for the full path. Windows default MAX_PATH is 260;
+# this leaves headroom for `.png`/`.html` extensions and any caller-added suffix.
+_MAX_PATH_LEN = 240
+# Hard floor for the filename body when truncating — keeps timestamp readable.
+_MIN_FILENAME_BODY = 8
 
 
 def _sanitize(name: str) -> str:
@@ -44,10 +52,48 @@ def _normalize_label(name: str) -> str:
     return s or "export"
 
 
+def _resolve_base_dir() -> Path:
+    """Resolve the export base directory.
+
+    Order: EXPORTS_DIR override (tests) → Settings.default_export_dir → CWD.
+    """
+    if EXPORTS_DIR is not None:
+        return EXPORTS_DIR
+    try:
+        from dbqm.models.settings import load_settings
+        configured = load_settings().default_export_dir
+        if configured:
+            return Path(configured)
+    except Exception:
+        pass
+    return Path.cwd()
+
+
+def _should_create_subdirs() -> bool:
+    """Whether non-query categories should be nested under category/label subfolders."""
+    if EXPORTS_DIR is not None:
+        # Tests historically expect the nested layout when overriding EXPORTS_DIR.
+        return True
+    try:
+        from dbqm.models.settings import load_settings
+        return load_settings().create_export_subdirs
+    except Exception:
+        return True
+
+
 def _ensure_dir(category: str, label: str) -> Path:
-    """Create and return exports/{category}/{normalized_label}/ under CWD or EXPORTS_DIR."""
-    base = EXPORTS_DIR if EXPORTS_DIR is not None else Path.cwd() / "exports"
-    d = base / category / _normalize_label(label)
+    """Resolve and create the target directory for an export.
+
+    Queries (consultas) always go directly into the resolved base — no subfolder.
+    Other categories nest under {category}/{label}/ when create_export_subdirs is on.
+    """
+    base = _resolve_base_dir()
+    if category == _QUERY_CATEGORY:
+        d = base
+    elif _should_create_subdirs():
+        d = base / category / _normalize_label(label)
+    else:
+        d = base
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -74,19 +120,47 @@ def _params_suffix(params: dict | None) -> str:
     return suffix
 
 
+def _fit_path(directory: Path, filename: str) -> Path:
+    """Truncate filename body if `directory / filename` would exceed _MAX_PATH_LEN.
+
+    Preserves the extension so file-type association stays valid. If even the
+    minimal filename (extension + floor body) cannot fit under the cap, returns
+    the path anyway — the OS will surface the real error rather than dbqm
+    silently corrupting the name.
+    """
+    full = directory / filename
+    excess = len(str(full)) - _MAX_PATH_LEN
+    if excess <= 0:
+        return full
+    base, dot, ext = filename.rpartition(".")
+    if not dot:
+        base, ext = filename, ""
+        dot = ""
+    target_base_len = max(len(base) - excess, _MIN_FILENAME_BODY)
+    new_base = base[:target_base_len].rstrip("_.")
+    if not new_base:
+        new_base = base[:_MIN_FILENAME_BODY] or "export"
+    return directory / f"{new_base}{dot}{ext}"
+
+
 def _build_filepath(category: str, label: str, conn_name: str = "",
                     params: dict | None = None, ext: str = "txt",
                     extra: str = "") -> Path:
     """Build a standard export file path.
 
-    Structure: exports/{category}/{normalized_label}/{conn}_{params}{extra}_{timestamp}.{ext}
+    Layout (after the export-dir refactor):
+      - Queries: {base}/{conn}_{params}{extra}_{timestamp}.{ext}
+      - Other categories (when subdirs enabled): {base}/{category}/{label}/{conn}_{params}{extra}_{timestamp}.{ext}
+      - Other categories (when subdirs disabled): {base}/{conn}_{params}{extra}_{timestamp}.{ext}
+
+    The final path is truncated if it would exceed _MAX_PATH_LEN (Windows safety).
     """
     d = _ensure_dir(category, label)
     conn_part = _sanitize(conn_name) if conn_name else ""
     filename = f"{conn_part}{_params_suffix(params)}{extra}_{_timestamp()}.{ext}"
     # Remove leading underscore if no conn_part
     filename = filename.lstrip("_")
-    return d / filename
+    return _fit_path(d, filename)
 
 
 # ---------------------------------------------------------------------------

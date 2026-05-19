@@ -813,10 +813,9 @@ class BrowserScreen(Vertical):
 
         from dbqm.core.exporter import export_query_csv, export_query_json, export_query_txt
         from dbqm.core.query_engine import QueryResult
-        from dbqm.ui.modals.export_picker import ExportPickerModal
+        from dbqm.ui.modals.export_picker import request_export
 
-        modal = ExportPickerModal(include_png=False)
-        self.app.push_screen(modal, callback=self._on_structure_export_format)
+        request_export(self.app, include_png=False, callback=self._on_structure_export_format)
 
     def _on_structure_export_format(self, fmt: str | None) -> None:
         if fmt is None:
@@ -931,10 +930,9 @@ class BrowserScreen(Vertical):
         if not hasattr(self, '_current_data_qr'):
             return
 
-        from dbqm.ui.modals.export_picker import ExportPickerModal
+        from dbqm.ui.modals.export_picker import request_export
 
-        modal = ExportPickerModal(include_png=False)
-        self.app.push_screen(modal, callback=self._on_data_export_format)
+        request_export(self.app, include_png=False, callback=self._on_data_export_format)
 
     def _on_data_export_format(self, fmt: str | None) -> None:
         if fmt is None or not hasattr(self, '_current_data_qr'):

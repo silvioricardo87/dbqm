@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dbqm.ui.modals.confirm import ConfirmModal
 from dbqm.ui.modals.connection_form import ConnectionFormModal
+from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
 from dbqm.ui.modals.export_picker import ExportPickerModal
 from dbqm.ui.modals.help import HelpModal
 from dbqm.ui.modals.param_input import ParamModal
@@ -15,6 +16,7 @@ __all__ = [
     "ConfirmModal",
     "ConnectionFormModal",
     "ErrorModal",
+    "ExportDirSetupModal",
     "ExportPickerModal",
     "HelpModal",
     "ParamModal",
