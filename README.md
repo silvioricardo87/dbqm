@@ -19,6 +19,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
 - **Data export** — Export results to CSV, JSON, TXT, PNG, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
+- **Connection descriptions** — Attach free-form notes to each connection (purpose, schema, contacts); a one-line preview is shown alongside type and destination in the connections list
 - **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
 - **Favorites & folders** — Organize queries in folders, star favorites for quick access
 - **Paginated results** — Navigate large result sets with next/prev page controls

@@ -74,3 +74,39 @@ class TestConnectionPersistence:
         assert delete_connection("x") is True
         assert load_connections() == []
         assert delete_connection("x") is False
+
+
+class TestConnectionDescription:
+    def test_default_description_is_empty(self):
+        c = Connection(name="t", db_type="oracle", user="u", password="p")
+        assert c.description == ""
+
+    def test_description_round_trip(self):
+        c = Connection(
+            name="t", db_type="oracle", user="u", password="p",
+            description="Banco de homologacao\nContato: dba@example.com",
+        )
+        c2 = Connection.from_dict(c.to_dict())
+        assert c2.description == c.description
+
+    def test_description_persists_to_disk(self, tmp_config_dir):
+        save_connections([Connection(
+            name="prod", db_type="postgresql", user="u", password="p",
+            host="db.example.com", port=5432, database="app",
+            description="Producao - cuidado com DML",
+        )])
+        loaded = load_connections()
+        assert loaded[0].description == "Producao - cuidado com DML"
+
+    def test_loading_legacy_connection_without_description_uses_empty(self, tmp_config_dir):
+        """Connections saved before the field existed must still load."""
+        import json
+        from dbqm.core.paths import CONNECTIONS_FILE
+        CONNECTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CONNECTIONS_FILE.write_text(json.dumps({
+            "connections": [{
+                "name": "legacy", "db_type": "oracle", "user": "u", "password": "p",
+            }],
+        }), encoding="utf-8")
+        loaded = load_connections()
+        assert loaded[0].description == ""

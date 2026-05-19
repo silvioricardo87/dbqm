@@ -16,6 +16,19 @@ DB_TYPE_LABELS = {
     "mysql": "MySQL",
 }
 
+_DESCRIPTION_PREVIEW_LEN = 60
+
+
+def _format_description(description: str) -> str:
+    """One-line preview of a connection description for table display."""
+    if not description:
+        return ""
+    # Collapse newlines so the description fits in a single row.
+    flat = " ".join(description.split())
+    if len(flat) > _DESCRIPTION_PREVIEW_LEN:
+        flat = flat[: _DESCRIPTION_PREVIEW_LEN - 3].rstrip() + "..."
+    return flat
+
 
 class ConnectionsScreen(Vertical):
     """Screen widget for managing database connections."""
@@ -61,7 +74,7 @@ class ConnectionsScreen(Vertical):
     def _setup_table(self) -> None:
         table = self.query_one("#conn-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("#", "Nome", "Tipo", "Destino")
+        table.add_columns("#", "Nome", "Tipo", "Destino", "Descricao")
 
     def _load_connections(self) -> None:
         from dbqm.models.connection import load_connections
@@ -84,7 +97,13 @@ class ConnectionsScreen(Vertical):
             db_label = DB_TYPE_LABELS.get(conn.db_type, conn.db_type)
             if conn.db_type == "oracle" and conn.mode == "tns":
                 db_label = "Oracle/TNS"
-            table.add_row(str(i), str(conn.name), str(db_label), str(conn.display_target()))
+            table.add_row(
+                str(i),
+                str(conn.name),
+                str(db_label),
+                str(conn.display_target()),
+                _format_description(conn.description),
+            )
 
     def _set_actions(self) -> None:
         try:
@@ -167,6 +186,7 @@ class ConnectionsScreen(Vertical):
             database=result.get("database"),
             tns_path=result.get("tns_path"),
             tns_name=result.get("tns_name"),
+            description=result.get("description", ""),
         )
         connections.append(conn)
         save_connections(connections)
@@ -246,6 +266,7 @@ class ConnectionsScreen(Vertical):
                 conn.database = result.get("database")
                 conn.tns_path = result.get("tns_path")
                 conn.tns_name = result.get("tns_name")
+                conn.description = result.get("description", "")
 
                 password = result.get("password", "")
                 if password:

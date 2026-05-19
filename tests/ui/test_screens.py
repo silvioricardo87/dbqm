@@ -256,6 +256,59 @@ async def test_connections_screen_with_data(tmp_config_dir):
         assert table.row_count == 2
 
 
+@pytest.mark.asyncio
+async def test_connections_screen_shows_description_column(tmp_config_dir):
+    """The connections table should expose the description for each row."""
+    config_dir = tmp_config_dir / "config"
+    long_desc = "Producao - " + "x" * 200
+    (config_dir / "connections.json").write_text(
+        json.dumps({
+            "connections": [
+                {
+                    "name": "prod", "db_type": "postgresql",
+                    "host": "h", "port": 5432, "database": "db",
+                    "user": "u", "password": "p",
+                    "description": long_desc,
+                },
+                {
+                    "name": "no_desc", "db_type": "mysql",
+                    "host": "h", "port": 3306, "database": "db",
+                    "user": "u", "password": "p",
+                },
+            ],
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    app = ConnectionsTestApp()
+    async with app.run_test():
+        from textual.widgets import DataTable
+        screen = app.query_one(ConnectionsScreen)
+        table = screen.query_one("#conn-table", DataTable)
+        assert len(table.columns) == 5
+        row0 = table.get_row_at(0)
+        # Description is truncated; assert ellipsis and length cap.
+        assert row0[4].endswith("...")
+        assert len(row0[4]) <= 60
+        row1 = table.get_row_at(1)
+        assert row1[4] == ""
+
+
+def test_format_description_helper():
+    """Unit test the table formatter for descriptions."""
+    from dbqm.ui.screens.connections import _format_description
+
+    assert _format_description("") == ""
+    assert _format_description("short note") == "short note"
+    # Newlines collapse to single spaces.
+    assert _format_description("line1\nline2") == "line1 line2"
+    # Long content is truncated with an ellipsis.
+    long = "x" * 200
+    out = _format_description(long)
+    assert out.endswith("...")
+    assert len(out) <= 60
+
+
 # ======================================================================
 # QueryManageScreen tests
 # ======================================================================
@@ -2117,6 +2170,55 @@ async def test_connection_form_modal_closes_on_esc(tmp_config_dir):
             if isinstance(s, ConnectionFormModal)
         ]
         assert len(modal_screens) == 0
+
+
+@pytest.mark.asyncio
+async def test_connection_form_collects_description(tmp_config_dir):
+    """ConnectionFormModal should expose a description TextArea and round-trip it."""
+    from textual.app import App, ComposeResult
+    from textual.widgets import TextArea, Select
+    from dbqm.ui.modals.connection_form import ConnectionFormModal
+
+    captured = {}
+
+    class _App(App):
+        def on_mount(self):
+            modal = ConnectionFormModal(connection={
+                "name": "edit_target",
+                "db_type": "postgresql",
+                "host": "h", "port": 5432, "database": "db",
+                "user": "u", "password": "encrypted",
+                "description": "Banco de homologacao\nContato: dba@example.com",
+            })
+
+            def on_dismiss(value):
+                captured["result"] = value
+                self.exit()
+
+            self.push_screen(modal, callback=on_dismiss)
+
+    app = _App()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal = next(s for s in app.screen_stack if isinstance(s, ConnectionFormModal))
+
+        # TextArea exists and is pre-filled from the input dict.
+        desc = modal.query_one("#field-description", TextArea)
+        assert "homologacao" in desc.text
+        assert "dba@example.com" in desc.text
+
+        # Replace the contents to verify the form captures the new value on save.
+        desc.text = "Apenas leitura - cuidado com DML"
+        await pilot.pause()
+
+        modal._collect_values()  # smoke check it runs without error
+        # Trigger Save via the public path.
+        from textual.widgets import Button
+        modal.query_one("#btn-save", Button).press()
+        await pilot.pause()
+
+    assert captured["result"] is not None
+    assert captured["result"]["description"] == "Apenas leitura - cuidado com DML"
 
 
 @pytest.mark.asyncio

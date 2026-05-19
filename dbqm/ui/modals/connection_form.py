@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Static, Select
+from textual.widgets import Button, Input, Static, Select, TextArea
 from textual import work
 
 
@@ -84,6 +84,11 @@ class ConnectionFormModal(ModalScreen[dict | None]):
     ConnectionFormModal #dynamic-fields {
         height: auto;
     }
+    ConnectionFormModal #field-description {
+        height: 5;
+        width: 100%;
+        border: round $accent;
+    }
     """
 
     BINDINGS = [
@@ -124,6 +129,14 @@ class ConnectionFormModal(ModalScreen[dict | None]):
 
                 yield Vertical(id="dynamic-fields")
 
+                yield Static("Descricao (opcional):", classes="field-label")
+                description_area = TextArea(
+                    text=conn.get("description", ""),
+                    id="field-description",
+                )
+                self._fields["description"] = description_area
+                yield description_area
+
             yield Static("", id="test-result")
             with Horizontal(id="buttons"):
                 yield Button("Salvar", variant="primary", id="btn-save")
@@ -155,9 +168,9 @@ class ConnectionFormModal(ModalScreen[dict | None]):
         self._current_oracle_mode = ""
 
         container = self.query_one("#dynamic-fields", Vertical)
-        # Remove old field references
+        # Remove old field references (preserve top-level fields that live outside the dynamic container)
         for key in list(self._fields):
-            if key not in ("name", "db_type"):
+            if key not in ("name", "db_type", "description"):
                 self._fields.pop(key, None)
         container.remove_children()
 
@@ -304,12 +317,22 @@ class ConnectionFormModal(ModalScreen[dict | None]):
 
         result["user"] = self._field_val("user")
         result["password"] = self._field_val("password")
+        result["description"] = self._field_text("description")
 
         return result
 
     def _field_val(self, key: str) -> str:
         inp = self._fields.get(key)
         return inp.value.strip() if inp else ""
+
+    def _field_text(self, key: str) -> str:
+        """Read a multi-line TextArea field, stripped of trailing whitespace."""
+        widget = self._fields.get(key)
+        if widget is None:
+            return ""
+        # TextArea exposes its content via .text, not .value
+        text = getattr(widget, "text", getattr(widget, "value", ""))
+        return text.strip()
 
     def _field_int(self, key: str, default: int) -> int:
         val = self._field_val(key)
