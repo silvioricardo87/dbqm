@@ -309,6 +309,8 @@ def cmd_sql(args: argparse.Namespace) -> None:
             console.print(f"[red]Erro: {result.error}[/red]")
             sys.exit(1)
         console.print(f"[green]Bloco PL/SQL executado ({result.elapsed:.2f}s)[/green]")
+        for line in result.output_lines:
+            console.print(line, markup=False, highlight=False)
         return
 
     if not result.success:
@@ -580,8 +582,9 @@ def build_parser() -> argparse.ArgumentParser:
             "SQL a executar (ou caminho para arquivo .sql). "
             "Aceita SELECT (incluindo CTE WITH ... SELECT), INSERT/UPDATE/DELETE "
             "(com --commit), DDL (CREATE/ALTER/DROP/...), blocos PL/SQL anonimos "
-            "(DECLARE/BEGIN/END;), os atalhos EXEC/EXECUTE/CALL <proc>, e "
-            "EXPLAIN PLAN. Use --explain para obter o plano automaticamente."
+            "(DECLARE/BEGIN/END;) com captura de DBMS_OUTPUT, os atalhos "
+            "EXEC/EXECUTE/CALL <proc>, e EXPLAIN PLAN. Use --explain para "
+            "obter o plano automaticamente."
         ),
     )
     p_sql.add_argument("connection", help="Nome da conexao")

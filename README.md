@@ -13,7 +13,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execute routines** — Run Oracle packages, procedures, and functions with parameter input and DBMS_OUTPUT capture
 - **Package editor** — Create and edit Oracle packages with spec/body tabs, inline compilation errors from ALL_ERRORS, and wizard mode
 - **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages
-- **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation. Supports CTEs (`WITH ... SELECT`), anonymous PL/SQL blocks (`DECLARE`/`BEGIN`/`END;`) and the `EXEC`/`EXECUTE`/`CALL <proc>` shortcuts on Oracle.
+- **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation. Supports CTEs (`WITH ... SELECT`), anonymous PL/SQL blocks (`DECLARE`/`BEGIN`/`END;`) and the `EXEC`/`EXECUTE`/`CALL <proc>` shortcuts on Oracle, with DBMS_OUTPUT capture displayed after execution (TUI and CLI).
 - **Execution plan (`--explain`)** — From the CLI: `dbqm sql "<query>" <conn> --explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` on Oracle (or native `EXPLAIN` on PostgreSQL/MySQL) and prints the plan in one step.
 - **Dark/Light themes** — GitHub Dark (default) and GitHub Light, switchable in settings
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
@@ -110,7 +110,7 @@ dbqm run <query-name> --param1 value1
 # Execute a query group
 dbqm run-group <group-name> --param1 value1
 
-# Execute ad-hoc SQL (SELECT/CTE, DML with --commit, DDL, PL/SQL anonymous blocks)
+# Execute ad-hoc SQL (SELECT/CTE, DML with --commit, DDL, PL/SQL anonymous blocks with DBMS_OUTPUT)
 dbqm sql "SELECT * FROM table" <connection>
 dbqm sql "WITH x AS (SELECT 1 FROM dual) SELECT * FROM x" <connection>
 
@@ -284,7 +284,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (636+ tests)
+└── tests/                         # Test suite (689+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests

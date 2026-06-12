@@ -834,6 +834,39 @@ class TestCmdSqlExplain:
         assert mock_explain.call_args[0][2] == {"id": "42"}
 
 
+class TestCmdSqlPlsqlOutput:
+    """PL/SQL via CLI prints captured DBMS_OUTPUT lines."""
+
+    def test_prints_dbms_output_lines(self, capsys):
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        res = AdhocResult(
+            sql_type="PLSQL", connection_name="test_conn",
+            elapsed=0.01, committed=True,
+            output_lines=["processando 1", "processando 2"],
+        )
+        with patch("dbqm.cli.find_connection", return_value=conn), \
+             patch("dbqm.cli.execute_adhoc", return_value=res):
+            run_cli(["sql", "BEGIN NULL; END;", "test_conn"])
+        out = capsys.readouterr().out
+        assert "processando 1" in out
+        assert "processando 2" in out
+        assert "Bloco PL/SQL executado" in out
+
+    def test_no_output_lines_prints_only_status(self, capsys):
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        res = AdhocResult(
+            sql_type="PLSQL", connection_name="test_conn",
+            elapsed=0.01, committed=True,
+        )
+        with patch("dbqm.cli.find_connection", return_value=conn), \
+             patch("dbqm.cli.execute_adhoc", return_value=res):
+            run_cli(["sql", "BEGIN NULL; END;", "test_conn"])
+        out = capsys.readouterr().out
+        assert "Bloco PL/SQL executado" in out
+
+
 # ---------------------------------------------------------------------------
 # main.py integration
 # ---------------------------------------------------------------------------

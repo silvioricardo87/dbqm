@@ -987,26 +987,17 @@ def execute_routine(
         cursor.execute(block, bind_vars)
 
         # Read DBMS_OUTPUT lines
+        from dbqm.core.query_engine import _read_dbms_output
+
         output_lines: list[str] = []
         return_value: Any = None
 
-        status_var = cursor.var(int)
-        line_var = cursor.var(str, 32767)
-
-        while True:
-            cursor.execute(
-                "BEGIN DBMS_OUTPUT.GET_LINE(:line, :status); END;",
-                {"line": line_var, "status": status_var},
-            )
-            if status_var.getvalue() != 0:
-                break
-            line_val = line_var.getvalue()
-            if line_val is not None:
-                # Check for return value
-                if line_val.startswith("RETURN="):
-                    return_value = line_val[7:]
-                else:
-                    output_lines.append(line_val)
+        for line_val in _read_dbms_output(cursor):
+            # Check for return value
+            if line_val.startswith("RETURN="):
+                return_value = line_val[7:]
+            else:
+                output_lines.append(line_val)
 
         elapsed = time.time() - start
         return RoutineExecutionResult(

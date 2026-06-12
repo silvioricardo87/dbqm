@@ -419,6 +419,10 @@ class TestPlsqlExecution:
             mock_cursor = MagicMock()
 
             def _capture(executed_sql, *args, **kwargs):
+                # Skip the DBMS_OUTPUT enable/drain statements that wrap
+                # every PL/SQL execution — we want the user block itself.
+                if "DBMS_OUTPUT.ENABLE" in executed_sql or "DBMS_OUTPUT.GET_LINE" in executed_sql:
+                    return
                 captured["sql"] = executed_sql
 
             mock_cursor.execute.side_effect = _capture
@@ -470,6 +474,80 @@ class TestPlsqlExecution:
         assert not result.success
         assert "ORA-06550" in result.error
         assert result.sql_type == "PLSQL"
+
+
+class TestPlsqlDbmsOutput:
+    """DBMS_OUTPUT capture for ad-hoc PL/SQL blocks via execute_adhoc."""
+
+    def _run_plsql(self, sql: str, output_lines=None, db_type="oracle"):
+        """Execute `sql` against a mocked connection simulating DBMS_OUTPUT
+        lines buffered on the server. Returns (executed_sqls, result)."""
+        conn = Connection(name="test", db_type=db_type, user="", password="")
+        executed: list[str] = []
+        lines = list(output_lines or [])
+
+        status_var = MagicMock()
+        line_var = MagicMock()
+        status_var.getvalue.side_effect = [0] * len(lines) + [1]
+        line_var.getvalue.side_effect = lines
+
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = (
+                lambda s, *a, **k: executed.append(s)
+            )
+            mock_cursor.var.side_effect = (
+                lambda typ, *a, **k: status_var if typ is int else line_var
+            )
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+            result = execute_adhoc(sql, conn, {})
+        return executed, result
+
+    def test_enable_called_before_block(self):
+        executed, result = self._run_plsql("BEGIN NULL; END;")
+        assert result.success
+        assert "DBMS_OUTPUT.ENABLE" in executed[0]
+        assert executed[1] == "BEGIN NULL; END;"
+
+    def test_output_lines_captured(self):
+        _, result = self._run_plsql(
+            "BEGIN DBMS_OUTPUT.PUT_LINE('oi'); END;",
+            output_lines=["linha 1", "linha 2"],
+        )
+        assert result.success
+        assert result.output_lines == ["linha 1", "linha 2"]
+
+    def test_no_output_returns_empty_list(self):
+        _, result = self._run_plsql("BEGIN NULL; END;")
+        assert result.success
+        assert result.output_lines == []
+
+    def test_non_oracle_plsql_does_not_enable(self):
+        executed, result = self._run_plsql(
+            "BEGIN NULL; END;", db_type="postgres"
+        )
+        assert result.success
+        assert all("DBMS_OUTPUT" not in s for s in executed)
+        assert result.output_lines == []
+
+    def test_select_does_not_enable_dbms_output(self):
+        conn = Connection(name="test", db_type="oracle", user="", password="")
+        executed: list[str] = []
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = (
+                lambda s, *a, **k: executed.append(s)
+            )
+            mock_cursor.description = [("X", None)]
+            mock_cursor.fetchmany.return_value = []
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+            result = execute_adhoc("SELECT 1 FROM dual", conn, {})
+        assert result.success
+        assert all("DBMS_OUTPUT" not in s for s in executed)
 
 
 class TestFetchDdlErrors:

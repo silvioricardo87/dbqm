@@ -179,6 +179,25 @@ class AdhocResult:
     success: bool = True
     error: str = ""
     committed: bool = False
+    output_lines: list[str] = field(default_factory=list)
+
+
+def _read_dbms_output(cursor) -> list[str]:
+    """Drain buffered DBMS_OUTPUT lines from an Oracle session."""
+    lines: list[str] = []
+    status_var = cursor.var(int)
+    line_var = cursor.var(str, 32767)
+    while True:
+        cursor.execute(
+            "BEGIN DBMS_OUTPUT.GET_LINE(:line, :status); END;",
+            {"line": line_var, "status": status_var},
+        )
+        if status_var.getvalue() != 0:
+            break
+        line_val = line_var.getvalue()
+        if line_val is not None:
+            lines.append(line_val)
+    return lines
 
 
 def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: bool = False) -> AdhocResult | tuple[AdhocResult, Any]:
@@ -219,6 +238,10 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
         else:
             bound_sql, param_values = _bind_params_pyformat(sql, param_values)
 
+        capture_dbms_output = sql_type == "PLSQL" and conn.db_type == "oracle"
+        if capture_dbms_output:
+            cursor.execute("BEGIN DBMS_OUTPUT.ENABLE(1000000); END;")
+
         if param_values:
             cursor.execute(bound_sql, param_values)
         else:
@@ -253,6 +276,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 success=not compilation_errors,
             )
         elif sql_type == "PLSQL":
+            output_lines = _read_dbms_output(cursor) if capture_dbms_output else []
             cursor.close()
             db.close()
             db = None
@@ -262,6 +286,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 elapsed=elapsed,
                 committed=True,
                 success=True,
+                output_lines=output_lines,
             )
         elif sql_type == "EXPLAIN":
             # Oracle EXPLAIN PLAN inserts into PLAN_TABLE — no result set.

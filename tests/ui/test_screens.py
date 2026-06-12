@@ -783,6 +783,53 @@ async def test_adhoc_screen_go_back_cleans_connection(tmp_config_dir):
         assert screen._db_connection is None
 
 
+def test_format_plsql_message_with_output_lines():
+    """Formatter includes DBMS_OUTPUT lines below the success header."""
+    from dbqm.core.query_engine import AdhocResult
+    from dbqm.ui.screens.adhoc import _format_plsql_message
+
+    result = AdhocResult(
+        sql_type="PLSQL", connection_name="c1", elapsed=0.01,
+        committed=True, output_lines=["linha um", "linha dois"],
+    )
+    msg = _format_plsql_message(result)
+    assert "Bloco PL/SQL executado" in msg
+    assert "linha um" in msg
+    assert "linha dois" in msg
+
+
+def test_format_plsql_message_without_output_lines():
+    """Formatter shows a placeholder when no DBMS_OUTPUT was produced."""
+    from dbqm.core.query_engine import AdhocResult
+    from dbqm.ui.screens.adhoc import _format_plsql_message
+
+    result = AdhocResult(
+        sql_type="PLSQL", connection_name="c1", elapsed=0.01, committed=True,
+    )
+    msg = _format_plsql_message(result)
+    assert "Bloco PL/SQL executado" in msg
+    assert "Sem output DBMS_OUTPUT" in msg
+
+
+@pytest.mark.asyncio
+async def test_adhoc_plsql_result_shows_static(tmp_config_dir):
+    """PLSQL results route to the result static, without the DML warning."""
+    from dbqm.core.query_engine import AdhocResult
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        screen._sql_type = "PLSQL"
+        result = AdhocResult(
+            sql_type="PLSQL", connection_name="c1", elapsed=0.01,
+            committed=True, output_lines=["linha um"],
+        )
+        screen._on_sql_result(result)
+
+        assert screen.query_one("#adhoc-results-phase").display is True
+        assert screen.query_one("#adhoc-dml-result").display is True
+        assert screen.query_one("#adhoc-result-table").display is False
+
+
 @pytest.mark.asyncio
 async def test_adhoc_screen_connection_selector(tmp_config_dir):
     """AdhocScreen should have a connection selector."""

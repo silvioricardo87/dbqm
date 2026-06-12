@@ -27,6 +27,18 @@ from dbqm.core.query_engine import (
 )
 
 
+def _format_plsql_message(result: AdhocResult) -> str:
+    """Build the Rich markup shown after a PL/SQL block executes."""
+    msg = f"[green bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"
+    if result.output_lines:
+        from rich.markup import escape
+        output = "\n".join(escape(line) for line in result.output_lines)
+        msg += f"\n\n[bold]DBMS_OUTPUT:[/]\n{output}"
+    else:
+        msg += "\n\n[dim]Sem output DBMS_OUTPUT[/]"
+    return msg
+
+
 class AdhocScreen(Vertical):
     """Screen widget for executing ad-hoc SQL statements.
 
@@ -374,6 +386,8 @@ class AdhocScreen(Vertical):
             self._show_select_result(adhoc_result)
         elif self._sql_type == "DDL":
             self._show_ddl_result(adhoc_result)
+        elif self._sql_type == "PLSQL":
+            self._show_plsql_result(adhoc_result)
         else:
             self._show_dml_result(adhoc_result, db_connection)
 
@@ -501,6 +515,25 @@ class AdhocScreen(Vertical):
                 f"[yellow bold]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
                 f"[red]{errors}[/]"
             )
+
+        try:
+            action_bar = self.app.query_one(ActionBar)
+            action_bar.set_actions([
+                Action("Reexecutar", "R", "reexecute"),
+            ])
+        except Exception:
+            pass
+
+    def _show_plsql_result(self, result: AdhocResult) -> None:
+        """Display PL/SQL block result with captured DBMS_OUTPUT lines."""
+        # Hide SELECT elements
+        self.query_one("#adhoc-result-info").display = False
+        self.query_one("#adhoc-result-table").display = False
+        self.query_one("#adhoc-sql-viewer").display = False
+
+        dml_static = self.query_one("#adhoc-dml-result", Static)
+        dml_static.display = True
+        dml_static.update(_format_plsql_message(result))
 
         try:
             action_bar = self.app.query_one(ActionBar)
