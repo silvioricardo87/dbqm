@@ -184,6 +184,110 @@ async def test_query_exec_go_back_to_selection(tmp_config_dir):
         assert screen.query_one("#results-phase").display is False
 
 
+def _write_filter_queries(config_dir):
+    queries_data = {
+        "queries": [
+            {"name": "Clientes ativos", "connection": "prod", "sql": "S",
+             "description": "lista de clientes"},
+            {"name": "Pedidos", "connection": "prod", "sql": "S",
+             "description": "faturados hoje"},
+            {"name": "Estoque", "connection": "homolog", "sql": "S",
+             "description": "saldo por deposito"},
+        ]
+    }
+    (config_dir / "queries.json").write_text(
+        json.dumps(queries_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+@pytest.mark.asyncio
+async def test_query_exec_has_filter_bar(tmp_config_dir):
+    """With queries, the selection phase shows a text filter + connection select."""
+    _write_filter_queries(tmp_config_dir / "config")
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        text = screen.query_one("#qe-filter-text", Input)
+        conn = screen.query_one("#qe-filter-conn", Select)
+        assert text.display is True
+        assert conn.display is True
+
+
+@pytest.mark.asyncio
+async def test_query_exec_text_filter_narrows_list(tmp_config_dir):
+    """Typing in the text filter narrows the list by name/description."""
+    from dbqm.ui.widgets.query_list import _QueryListItem
+    _write_filter_queries(tmp_config_dir / "config")
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        assert len(app.query(_QueryListItem)) == 3
+        screen.query_one("#qe-filter-text", Input).value = "estoque"
+        await pilot.pause()
+        items = app.query(_QueryListItem)
+        assert len(items) == 1
+        assert items[0].query_name == "Estoque"
+
+
+@pytest.mark.asyncio
+async def test_query_exec_text_filter_matches_description(tmp_config_dir):
+    """The text filter also matches the query description."""
+    from dbqm.ui.widgets.query_list import _QueryListItem
+    _write_filter_queries(tmp_config_dir / "config")
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        screen.query_one("#qe-filter-text", Input).value = "faturados"
+        await pilot.pause()
+        items = app.query(_QueryListItem)
+        assert [i.query_name for i in items] == ["Pedidos"]
+
+
+@pytest.mark.asyncio
+async def test_query_exec_connection_filter_narrows_list(tmp_config_dir):
+    """Selecting a connection narrows the list to that connection's queries."""
+    from dbqm.ui.widgets.query_list import _QueryListItem
+    _write_filter_queries(tmp_config_dir / "config")
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        screen.query_one("#qe-filter-conn", Select).value = "homolog"
+        await pilot.pause()
+        items = app.query(_QueryListItem)
+        assert [i.query_name for i in items] == ["Estoque"]
+
+
+@pytest.mark.asyncio
+async def test_query_exec_text_and_connection_combined(tmp_config_dir):
+    """Text + connection filters AND together."""
+    from dbqm.ui.widgets.query_list import _QueryListItem
+    _write_filter_queries(tmp_config_dir / "config")
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        # prod alone → 2 queries
+        screen.query_one("#qe-filter-conn", Select).value = "prod"
+        await pilot.pause()
+        assert len(app.query(_QueryListItem)) == 2
+        # narrow with text
+        screen.query_one("#qe-filter-text", Input).value = "ped"
+        await pilot.pause()
+        items = app.query(_QueryListItem)
+        assert [i.query_name for i in items] == ["Pedidos"]
+
+
+@pytest.mark.asyncio
+async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
+    """No queries → no filter bar (empty message instead)."""
+    from textual.css.query import NoMatches
+    app = QueryExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        assert screen.query_one("#empty-message").display is True
+        with pytest.raises(NoMatches):
+            screen.query_one("#qe-filter-text", Input)
+
+
 # ======================================================================
 # ConnectionsScreen tests
 # ======================================================================

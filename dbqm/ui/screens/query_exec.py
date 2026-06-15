@@ -5,10 +5,10 @@ from datetime import datetime
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, HorizontalScroll, Vertical
-from textual.widgets import Button, Static
+from textual.widgets import Button, Input, Select, Static
 from textual import work
 
-from dbqm.ui.utils import sanitize_id, escape_markup
+from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.query_list import QueryListWidget, QuerySelected
@@ -62,6 +62,18 @@ class QueryExecScreen(Vertical):
         color: $text-muted;
         text-style: dim italic;
     }
+    QueryExecScreen #qe-filter-bar {
+        height: auto;
+        padding: 1 1 0 1;
+        background: $surface;
+    }
+    QueryExecScreen #qe-filter-bar Input {
+        width: 1fr;
+    }
+    QueryExecScreen #qe-filter-bar Select {
+        width: 34;
+        margin: 0 0 0 1;
+    }
     """
 
     def __init__(
@@ -81,6 +93,7 @@ class QueryExecScreen(Vertical):
         self._folder_map: dict[str, str] = {}
         self._folder_buttons: list[Button] = []
         self._active_folder_idx: int = 0
+        self._active_folder_safe_id: str = "todas"
 
     def compose(self) -> ComposeResult:
         # Selection phase
@@ -127,12 +140,27 @@ class QueryExecScreen(Vertical):
 
         empty_msg.display = False
         self._queries = queries
+        self._all_queries = queries
+
+        # Filter bar — text (name/description) + connection select
+        conn_options = [
+            (c, c) for c in sorted({q.connection for q in queries if q.connection})
+        ]
+        selection.mount(
+            Horizontal(
+                Input(
+                    placeholder="Filtrar por nome ou descricao...",
+                    id="qe-filter-text",
+                ),
+                NavSelect(conn_options, prompt="Todas as conexoes", id="qe-filter-conn"),
+                id="qe-filter-bar",
+            )
+        )
 
         # Determine folders
         folders = sorted({q.folder for q in queries if q.folder})
 
         ql = QueryListWidget(id="ql-main")
-        self._all_queries = queries
 
         if folders:
             folder_bar = HorizontalScroll(id="folder-bar")
@@ -197,19 +225,51 @@ class QueryExecScreen(Vertical):
         for b in self._folder_buttons:
             b.variant = "default"
         btn.variant = "primary"
-        # Trigger the filter
         btn_id = btn.id or ""
-        safe_id = btn_id.removeprefix("folder-")
-        ql = self.query_one("#ql-main", QueryListWidget)
-        if safe_id == "todas":
-            ql.load_queries(self._all_queries)
-        elif safe_id == "sem-pasta":
-            ql.load_queries([q for q in self._all_queries if not q.folder])
-        else:
-            folder_label = self._folder_map.get(safe_id, "")
-            ql.load_queries([q for q in self._all_queries if q.folder == folder_label])
+        self._active_folder_safe_id = btn_id.removeprefix("folder-")
+        self._apply_filters()
         # Keep focus on the list
-        ql.focus()
+        self.query_one("#ql-main", QueryListWidget).focus()
+
+    # ------------------------------------------------------------------
+    # Text + connection filtering
+    # ------------------------------------------------------------------
+
+    def _folder_subset(self) -> list:
+        """Queries within the currently selected folder tab."""
+        safe_id = self._active_folder_safe_id
+        if safe_id == "sem-pasta":
+            return [q for q in self._all_queries if not q.folder]
+        if safe_id and safe_id != "todas":
+            label = self._folder_map.get(safe_id, "")
+            return [q for q in self._all_queries if q.folder == label]
+        return list(self._all_queries)
+
+    def _apply_filters(self) -> None:
+        """Recompute the visible list from folder + text + connection filters."""
+        from dbqm.models.query import filter_queries
+
+        try:
+            ql = self.query_one("#ql-main", QueryListWidget)
+        except Exception:
+            return  # list not mounted yet (early Select.Changed on mount)
+
+        text = self.query_one("#qe-filter-text", Input).value
+        conn_val = self.query_one("#qe-filter-conn", Select).value
+        conn = conn_val if isinstance(conn_val, str) else ""
+
+        filtered = filter_queries(self._folder_subset(), text=text, connection=conn)
+        ql.load_queries(filtered)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """React to the text filter as the user types."""
+        if event.input.id == "qe-filter-text":
+            self._apply_filters()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """React to the connection filter selection."""
+        if event.select.id == "qe-filter-conn":
+            self._apply_filters()
 
     # ------------------------------------------------------------------
     # Query selected → parameterize & execute

@@ -1,5 +1,8 @@
 """Tests for query model."""
-from dbqm.models.query import Query, QueryParam, load_queries, save_queries, find_query, delete_query
+from dbqm.models.query import (
+    Query, QueryParam, load_queries, save_queries, find_query, delete_query,
+    filter_queries,
+)
 
 
 class TestQueryParam:
@@ -35,6 +38,62 @@ class TestQuery:
         assert result[0][1] == "active"
         assert result[1][1] == "inactive"
         assert result[2][1] == "2"  # unmapped stays
+
+
+class TestFilterQueries:
+    """filter_queries: text matches name OR description; connection matches
+    exactly; all filters AND together and each is optional."""
+
+    def _sample(self):
+        return [
+            Query(name="Clientes ativos", connection="prod", sql="S",
+                  description="lista de clientes ativos"),
+            Query(name="Pedidos do dia", connection="prod", sql="S",
+                  description="pedidos faturados hoje"),
+            Query(name="Estoque", connection="homolog", sql="S",
+                  description="saldo de estoque por deposito"),
+        ]
+
+    def test_no_filters_returns_all(self):
+        qs = self._sample()
+        assert filter_queries(qs) == qs
+
+    def test_text_matches_name(self):
+        result = filter_queries(self._sample(), text="estoque")
+        assert [q.name for q in result] == ["Estoque"]
+
+    def test_text_matches_description(self):
+        result = filter_queries(self._sample(), text="faturados")
+        assert [q.name for q in result] == ["Pedidos do dia"]
+
+    def test_text_case_insensitive(self):
+        result = filter_queries(self._sample(), text="CLIENTES")
+        assert [q.name for q in result] == ["Clientes ativos"]
+
+    def test_connection_only(self):
+        result = filter_queries(self._sample(), connection="homolog")
+        assert [q.name for q in result] == ["Estoque"]
+
+    def test_text_and_connection_combined(self):
+        result = filter_queries(self._sample(), text="ativos", connection="prod")
+        assert [q.name for q in result] == ["Clientes ativos"]
+
+    def test_text_and_connection_no_match(self):
+        # "estoque" only exists on homolog, so prod yields nothing.
+        result = filter_queries(self._sample(), text="estoque", connection="prod")
+        assert result == []
+
+    def test_blank_connection_ignored(self):
+        result = filter_queries(self._sample(), connection="")
+        assert len(result) == 3
+
+    def test_whitespace_text_ignored(self):
+        result = filter_queries(self._sample(), text="   ")
+        assert len(result) == 3
+
+    def test_preserves_input_order(self):
+        result = filter_queries(self._sample(), connection="prod")
+        assert [q.name for q in result] == ["Clientes ativos", "Pedidos do dia"]
 
 
 class TestQueryPersistence:

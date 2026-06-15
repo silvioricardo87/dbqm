@@ -84,6 +84,26 @@ class Query:
         )
 
 
+def filter_queries(queries: list[Query], text: str = "", connection: str = "") -> list[Query]:
+    """Filter queries by free text and/or connection (AND between filters).
+
+    - `text` (case-insensitive substring) matches the query name OR description.
+    - `connection` matches the query's connection exactly.
+    - Empty/whitespace-only filters are ignored. Input order is preserved.
+    """
+    term = (text or "").strip().lower()
+    conn = (connection or "").strip()
+    result = queries
+    if conn:
+        result = [q for q in result if q.connection == conn]
+    if term:
+        result = [
+            q for q in result
+            if term in q.name.lower() or term in q.description.lower()
+        ]
+    return result
+
+
 def load_queries() -> list[Query]:
     if not QUERIES_FILE.exists():
         return []

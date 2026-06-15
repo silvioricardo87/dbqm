@@ -22,6 +22,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Connection descriptions** — Attach free-form notes to each connection (purpose, schema, contacts); a one-line preview is shown alongside type and destination in the connections list
 - **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
 - **Favorites & folders** — Organize queries in folders, star favorites for quick access
+- **Query filtering** — On the "Executar consulta" screen, an always-visible filter bar narrows saved queries by free text (name or description) and/or by connection; filters combine (AND) and stack on top of the folder tabs
 - **Paginated results** — Navigate large result sets with next/prev page controls
 - **Execution history** — Browse recent executions with timing, row counts, and status
 - **Error handling** — Global error modal displays details instead of crashing the app
@@ -284,7 +285,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (702+ tests)
+└── tests/                         # Test suite (719+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests
