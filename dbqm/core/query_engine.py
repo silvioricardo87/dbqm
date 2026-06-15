@@ -200,7 +200,7 @@ def _read_dbms_output(cursor) -> list[str]:
     return lines
 
 
-def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: bool = False) -> AdhocResult | tuple[AdhocResult, Any]:
+def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: bool = False, capture_output: bool = False) -> AdhocResult | tuple[AdhocResult, Any]:
     """Execute an ad-hoc SQL (SELECT, DML, or DDL) against a connection.
 
     For SELECT: returns AdhocResult.
@@ -208,6 +208,10 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     For DML with auto_commit: returns AdhocResult (committed).
     For DDL: executes and returns AdhocResult (DDL auto-commits in Oracle).
     For errors: returns AdhocResult with success=False.
+
+    When `capture_output` is True (Oracle only), DBMS_OUTPUT is enabled and the
+    buffered lines are drained into AdhocResult.output_lines for SELECT/DML too.
+    Anonymous PL/SQL blocks always capture DBMS_OUTPUT regardless of the flag.
     """
     sql = sql.strip()
     sql_type = classify_sql(sql)
@@ -238,7 +242,9 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
         else:
             bound_sql, param_values = _bind_params_pyformat(sql, param_values)
 
-        capture_dbms_output = sql_type == "PLSQL" and conn.db_type == "oracle"
+        capture_dbms_output = conn.db_type == "oracle" and (
+            capture_output or sql_type == "PLSQL"
+        )
         if capture_dbms_output:
             cursor.execute("BEGIN DBMS_OUTPUT.ENABLE(1000000); END;")
 
@@ -252,6 +258,8 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
         if sql_type == "SELECT":
             columns = [desc[0].lower() if desc[0] else f"col_{i}" for i, desc in enumerate(cursor.description or [])]
             rows = [list(row) for row in cursor.fetchmany(MAX_ROWS)]
+            # Drain after fetching rows — GET_LINE reuses the cursor.
+            output_lines = _read_dbms_output(cursor) if capture_dbms_output else []
             cursor.close()
             return AdhocResult(
                 sql_type=sql_type,
@@ -260,6 +268,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 rows=rows,
                 row_count=len(rows),
                 elapsed=elapsed,
+                output_lines=output_lines,
             )
         elif sql_type == "DDL":
             cursor.close()
@@ -317,6 +326,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             )
         else:
             rows_affected = cursor.rowcount
+            output_lines = _read_dbms_output(cursor) if capture_dbms_output else []
             if auto_commit:
                 db.commit()
                 cursor.close()
@@ -326,6 +336,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                     rows_affected=rows_affected,
                     elapsed=elapsed,
                     committed=True,
+                    output_lines=output_lines,
                 )
             else:
                 # Caller owns the connection for commit/rollback
@@ -336,6 +347,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                     connection_name=conn.name,
                     rows_affected=rows_affected,
                     elapsed=elapsed,
+                    output_lines=output_lines,
                 ), owned_db
 
     except Exception as e:

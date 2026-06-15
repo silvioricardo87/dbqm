@@ -783,8 +783,8 @@ async def test_adhoc_screen_go_back_cleans_connection(tmp_config_dir):
         assert screen._db_connection is None
 
 
-def test_format_plsql_message_with_output_lines():
-    """Formatter includes DBMS_OUTPUT lines below the success header."""
+def test_format_plsql_message_header_only():
+    """Formatter shows only the success header; DBMS_OUTPUT goes to the panel."""
     from dbqm.core.query_engine import AdhocResult
     from dbqm.ui.screens.adhoc import _format_plsql_message
 
@@ -794,21 +794,8 @@ def test_format_plsql_message_with_output_lines():
     )
     msg = _format_plsql_message(result)
     assert "Bloco PL/SQL executado" in msg
-    assert "linha um" in msg
-    assert "linha dois" in msg
-
-
-def test_format_plsql_message_without_output_lines():
-    """Formatter shows a placeholder when no DBMS_OUTPUT was produced."""
-    from dbqm.core.query_engine import AdhocResult
-    from dbqm.ui.screens.adhoc import _format_plsql_message
-
-    result = AdhocResult(
-        sql_type="PLSQL", connection_name="c1", elapsed=0.01, committed=True,
-    )
-    msg = _format_plsql_message(result)
-    assert "Bloco PL/SQL executado" in msg
-    assert "Sem output DBMS_OUTPUT" in msg
+    # Output lines are rendered in the dedicated panel, not the header static.
+    assert "linha um" not in msg
 
 
 @pytest.mark.asyncio
@@ -828,6 +815,129 @@ async def test_adhoc_plsql_result_shows_static(tmp_config_dir):
         assert screen.query_one("#adhoc-results-phase").display is True
         assert screen.query_one("#adhoc-dml-result").display is True
         assert screen.query_one("#adhoc-result-table").display is False
+
+
+@pytest.mark.asyncio
+async def test_adhoc_has_dbms_toggle(tmp_config_dir):
+    """Input phase exposes a checkbox to opt into DBMS_OUTPUT capture."""
+    from textual.widgets import Checkbox
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        toggle = screen.query_one("#adhoc-dbms-toggle", Checkbox)
+        assert toggle.value is False
+
+
+@pytest.mark.asyncio
+async def test_adhoc_dbms_panel_hidden_initially(tmp_config_dir):
+    """The DBMS_OUTPUT panel is hidden until a captured execution renders it."""
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        assert screen.query_one("#adhoc-dbms-panel").display is False
+
+
+@pytest.mark.asyncio
+async def test_adhoc_select_shows_dbms_panel_when_capture_enabled(tmp_config_dir):
+    """A SELECT with capture on shows the result table AND the DBMS panel."""
+    from textual.widgets import TextArea
+    from dbqm.core.query_engine import AdhocResult
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        screen._sql_type = "SELECT"
+        screen._capture_output = True
+        result = AdhocResult(
+            sql_type="SELECT", connection_name="c1", elapsed=0.01,
+            columns=["x"], rows=[[1]], row_count=1,
+            output_lines=["log A", "log B"],
+        )
+        screen._on_sql_result(result)
+        await pilot.pause()
+
+        assert screen.query_one("#adhoc-result-table").display is True
+        panel = screen.query_one("#adhoc-dbms-panel")
+        assert panel.display is True
+        view = screen.query_one("#adhoc-dbms-view", TextArea)
+        assert "log A" in view.text
+        assert "log B" in view.text
+
+
+@pytest.mark.asyncio
+async def test_adhoc_select_hides_dbms_panel_when_capture_disabled(tmp_config_dir):
+    """A SELECT with capture off does not show the DBMS panel."""
+    from dbqm.core.query_engine import AdhocResult
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        screen._sql_type = "SELECT"
+        screen._capture_output = False
+        result = AdhocResult(
+            sql_type="SELECT", connection_name="c1", elapsed=0.01,
+            columns=["x"], rows=[[1]], row_count=1,
+        )
+        screen._on_sql_result(result)
+        await pilot.pause()
+
+        assert screen.query_one("#adhoc-dbms-panel").display is False
+
+
+@pytest.mark.asyncio
+async def test_adhoc_plsql_always_shows_dbms_panel(tmp_config_dir):
+    """PL/SQL output always renders in the panel, regardless of the checkbox."""
+    from textual.widgets import TextArea
+    from dbqm.core.query_engine import AdhocResult
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        screen._sql_type = "PLSQL"
+        screen._capture_output = False
+        result = AdhocResult(
+            sql_type="PLSQL", connection_name="c1", elapsed=0.01,
+            committed=True, output_lines=["bloco rodou"],
+        )
+        screen._on_sql_result(result)
+        await pilot.pause()
+
+        panel = screen.query_one("#adhoc-dbms-panel")
+        assert panel.display is True
+        view = screen.query_one("#adhoc-dbms-view", TextArea)
+        assert "bloco rodou" in view.text
+
+
+@pytest.mark.asyncio
+async def test_adhoc_dbms_panel_empty_shows_placeholder(tmp_config_dir):
+    """Capture on but no output lines still shows the panel with a placeholder."""
+    from textual.widgets import TextArea
+    from dbqm.core.query_engine import AdhocResult
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        screen._sql_type = "SELECT"
+        screen._capture_output = True
+        result = AdhocResult(
+            sql_type="SELECT", connection_name="c1", elapsed=0.01,
+            columns=["x"], rows=[[1]], row_count=1, output_lines=[],
+        )
+        screen._on_sql_result(result)
+        await pilot.pause()
+
+        assert screen.query_one("#adhoc-dbms-panel").display is True
+        view = screen.query_one("#adhoc-dbms-view", TextArea)
+        assert view.text.strip() != ""  # placeholder, not blank
+
+
+@pytest.mark.asyncio
+async def test_adhoc_dbms_toggle_read_by_execute(tmp_config_dir):
+    """_dbms_output_enabled reflects the checkbox state."""
+    from textual.widgets import Checkbox
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        assert screen._dbms_output_enabled() is False
+        screen.query_one("#adhoc-dbms-toggle", Checkbox).value = True
+        await pilot.pause()
+        assert screen._dbms_output_enabled() is True
 
 
 @pytest.mark.asyncio

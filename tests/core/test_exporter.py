@@ -89,6 +89,23 @@ class TestQueryExports:
         assert "SELECT * FROM t" in content
         assert "id" in content
 
+    def test_dbms_output(self, tmp_config_dir):
+        from dbqm.core.exporter import export_dbms_output
+        path = export_dbms_output(
+            ["processando registro 1", "processando registro 2"],
+            label="meu_bloco", conn_name="prod",
+        )
+        assert path.endswith(".txt")
+        content = Path(path).read_text(encoding="utf-8")
+        assert "processando registro 1" in content
+        assert "processando registro 2" in content
+
+    def test_dbms_output_empty_lines(self, tmp_config_dir):
+        from dbqm.core.exporter import export_dbms_output
+        path = export_dbms_output([], label="vazio", conn_name="prod")
+        assert Path(path).exists()
+        assert Path(path).read_text(encoding="utf-8") == ""
+
 
 class TestGroupExports:
     def test_group_csv(self, tmp_config_dir, sample_group_result):

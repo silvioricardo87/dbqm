@@ -550,6 +550,87 @@ class TestPlsqlDbmsOutput:
         assert all("DBMS_OUTPUT" not in s for s in executed)
 
 
+class TestCaptureOutputParam:
+    """capture_output=True enables DBMS_OUTPUT capture for SELECT/DML too,
+    not only anonymous PL/SQL blocks."""
+
+    def _run(self, sql, *, output_lines=None, db_type="oracle",
+             capture_output=False, auto_commit=False, description=None,
+             rows=None, rowcount=0):
+        conn = Connection(name="test", db_type=db_type, user="", password="")
+        executed: list[str] = []
+        lines = list(output_lines or [])
+
+        status_var = MagicMock()
+        line_var = MagicMock()
+        status_var.getvalue.side_effect = [0] * len(lines) + [1]
+        line_var.getvalue.side_effect = lines
+
+        with patch("dbqm.core.query_engine.get_connection") as mock_get:
+            mock_db = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.execute.side_effect = (
+                lambda s, *a, **k: executed.append(s)
+            )
+            mock_cursor.var.side_effect = (
+                lambda typ, *a, **k: status_var if typ is int else line_var
+            )
+            mock_cursor.description = description
+            mock_cursor.fetchmany.return_value = rows or []
+            mock_cursor.rowcount = rowcount
+            mock_db.cursor.return_value = mock_cursor
+            mock_get.return_value = mock_db
+            result = execute_adhoc(
+                sql, conn, {}, auto_commit=auto_commit,
+                capture_output=capture_output,
+            )
+        return executed, result
+
+    def test_select_with_capture_enables_and_drains(self):
+        executed, result = self._run(
+            "SELECT 1 FROM dual", output_lines=["a", "b"],
+            capture_output=True, description=[("x", None)], rows=[[1]],
+        )
+        assert result.success
+        assert any("DBMS_OUTPUT.ENABLE" in s for s in executed)
+        assert result.output_lines == ["a", "b"]
+
+    def test_select_without_capture_has_no_output(self):
+        executed, result = self._run(
+            "SELECT 1 FROM dual", output_lines=["a"],
+            capture_output=False, description=[("x", None)], rows=[[1]],
+        )
+        assert result.success
+        assert all("DBMS_OUTPUT" not in s for s in executed)
+        assert result.output_lines == []
+
+    def test_dml_with_capture_drains_output(self):
+        _, result = self._run(
+            "UPDATE t SET x = 1", output_lines=["log1", "log2"],
+            capture_output=True, auto_commit=True, rowcount=3,
+        )
+        assert result.success
+        assert result.rows_affected == 3
+        assert result.output_lines == ["log1", "log2"]
+
+    def test_capture_output_ignored_for_non_oracle(self):
+        executed, result = self._run(
+            "SELECT 1", output_lines=["a"], capture_output=True,
+            db_type="postgres", description=[("x", None)], rows=[[1]],
+        )
+        assert result.success
+        assert all("DBMS_OUTPUT" not in s for s in executed)
+        assert result.output_lines == []
+
+    def test_plsql_still_captures_with_default_param(self):
+        # Backward-compat: PL/SQL auto-captures even without capture_output.
+        _, result = self._run(
+            "BEGIN NULL; END;", output_lines=["x"], capture_output=False,
+        )
+        assert result.success
+        assert result.output_lines == ["x"]
+
+
 class TestFetchDdlErrors:
     """Tests for _fetch_ddl_errors helper."""
 

@@ -174,6 +174,14 @@ def export_sql_file(sql_text: str, label: str = "adhoc", params: dict | None = N
     return str(filepath)
 
 
+def export_dbms_output(lines: list[str], label: str = "adhoc",
+                       conn_name: str = "", params: dict | None = None) -> str:
+    """Export captured DBMS_OUTPUT lines to a .txt file. Returns the file path."""
+    filepath = _build_filepath("dbms_output", label, conn_name, params, "txt")
+    filepath.write_text("\n".join(lines), encoding="utf-8")
+    return str(filepath)
+
+
 def export_query_csv(result: QueryResult, table: str = "", params: dict | None = None) -> str:
     """Export a single query result to CSV. Returns the file path."""
     label = table or result.query_name

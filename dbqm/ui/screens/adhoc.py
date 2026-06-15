@@ -5,7 +5,7 @@ import re
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Select, Static, TextArea
+from textual.widgets import Button, Checkbox, Select, Static, TextArea
 from dbqm.ui.utils import NavSelect
 from textual import work
 
@@ -28,15 +28,11 @@ from dbqm.core.query_engine import (
 
 
 def _format_plsql_message(result: AdhocResult) -> str:
-    """Build the Rich markup shown after a PL/SQL block executes."""
-    msg = f"[green bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"
-    if result.output_lines:
-        from rich.markup import escape
-        output = "\n".join(escape(line) for line in result.output_lines)
-        msg += f"\n\n[bold]DBMS_OUTPUT:[/]\n{output}"
-    else:
-        msg += "\n\n[dim]Sem output DBMS_OUTPUT[/]"
-    return msg
+    """Build the Rich markup shown after a PL/SQL block executes.
+
+    Only the success header — DBMS_OUTPUT lines render in the dedicated panel.
+    """
+    return f"[green bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"
 
 
 class AdhocScreen(Vertical):
@@ -96,6 +92,31 @@ class AdhocScreen(Vertical):
         height: 1fr;
         padding: 0 1;
     }
+    AdhocScreen #adhoc-dbms-toggle {
+        width: auto;
+        margin: 0 0 0 1;
+    }
+    AdhocScreen #adhoc-dbms-panel {
+        height: auto;
+        border-top: heavy $primary;
+        padding: 0 1;
+    }
+    AdhocScreen #adhoc-dbms-label {
+        height: auto;
+        color: $text-muted;
+    }
+    AdhocScreen #adhoc-dbms-view {
+        height: 10;
+        margin: 0;
+    }
+    AdhocScreen #adhoc-dbms-btns {
+        height: auto;
+        padding: 1 0;
+        align: left middle;
+    }
+    AdhocScreen #adhoc-dbms-btns Button {
+        margin: 0 1 0 0;
+    }
     """
 
     def __init__(
@@ -115,6 +136,8 @@ class AdhocScreen(Vertical):
         self._table_name = ""
         self._query_params = []  # list of QueryParam
         self._db_connection = None  # for DML commit/rollback
+        self._capture_output = False  # DBMS_OUTPUT opt-in for this execution
+        self._dbms_output_lines: list[str] = []
 
     def on_key(self, event) -> None:
         """Handle Ctrl+Enter and Ctrl+L shortcuts."""
@@ -133,6 +156,7 @@ class AdhocScreen(Vertical):
         with Vertical(id="adhoc-input-phase"):
             with Horizontal(id="adhoc-conn-bar"):
                 yield NavSelect([], prompt="Selecione a conexao", id="adhoc-conn-select")
+                yield Checkbox("Capturar DBMS_OUTPUT", id="adhoc-dbms-toggle", value=False)
             yield TextArea("", language="sql", id="adhoc-sql-area")
             with Horizontal(id="adhoc-btn-bar"):
                 yield Button("Executar (Ctrl+Enter)", variant="primary", id="adhoc-execute", disabled=True)
@@ -149,13 +173,27 @@ class AdhocScreen(Vertical):
             yield ResultTable(id="adhoc-result-table")
             yield Static("", id="adhoc-dml-result")
             yield SqlViewer("", id="adhoc-sql-viewer")
+            with Vertical(id="adhoc-dbms-panel"):
+                yield Static("DBMS_OUTPUT", id="adhoc-dbms-label")
+                yield TextArea("", read_only=True, id="adhoc-dbms-view")
+                with Horizontal(id="adhoc-dbms-btns"):
+                    yield Button("Salvar em arquivo", id="adhoc-dbms-save")
+                    yield Button("Copiar", id="adhoc-dbms-copy")
 
     def on_mount(self) -> None:
         self.query_one("#adhoc-results-phase").display = False
         self.query_one("#adhoc-dml-result").display = False
         self.query_one("#adhoc-sql-viewer").display = False
+        self.query_one("#adhoc-dbms-panel").display = False
         self._load_connections()
         self.call_after_refresh(self._set_initial_focus)
+
+    def _dbms_output_enabled(self) -> bool:
+        """Whether the user opted into DBMS_OUTPUT capture via the checkbox."""
+        try:
+            return bool(self.query_one("#adhoc-dbms-toggle", Checkbox).value)
+        except Exception:
+            return False
 
     def _set_initial_focus(self) -> None:
         try:
@@ -237,6 +275,10 @@ class AdhocScreen(Vertical):
             self._handle_commit()
         elif btn_id == "adhoc-rollback":
             self._handle_rollback()
+        elif btn_id == "adhoc-dbms-save":
+            self._handle_dbms_save()
+        elif btn_id == "adhoc-dbms-copy":
+            self._copy_dbms_output()
 
     def _handle_clear(self) -> None:
         """Clear SQL input with confirmation."""
@@ -282,6 +324,7 @@ class AdhocScreen(Vertical):
         self._sql_type = sql_type
         self._current_conn = conn
         self._current_sql = raw_sql
+        self._capture_output = self._dbms_output_enabled()
         self._table_name = self._extract_table_name(raw_sql, sql_type)
 
         # Check for existing bind params
@@ -346,7 +389,7 @@ class AdhocScreen(Vertical):
     def _run_sql(self, sql: str, conn, params: dict[str, str]) -> None:
         """Execute SQL in a background thread."""
         try:
-            result = execute_adhoc(sql, conn, params)
+            result = execute_adhoc(sql, conn, params, capture_output=self._capture_output)
             self.app.call_from_thread(self._on_sql_result, result)
         except Exception as e:
             self.app.call_from_thread(self._show_error, str(e))
@@ -390,6 +433,25 @@ class AdhocScreen(Vertical):
             self._show_plsql_result(adhoc_result)
         else:
             self._show_dml_result(adhoc_result, db_connection)
+
+        self._update_dbms_panel(adhoc_result)
+
+    def _update_dbms_panel(self, result: AdhocResult) -> None:
+        """Show/hide the DBMS_OUTPUT panel and load its captured lines."""
+        panel = self.query_one("#adhoc-dbms-panel")
+        # PL/SQL always surfaces its output; other types only when opted-in.
+        show = self._capture_output or self._sql_type == "PLSQL"
+        if not show:
+            panel.display = False
+            return
+
+        self._dbms_output_lines = list(result.output_lines)
+        view = self.query_one("#adhoc-dbms-view", TextArea)
+        if result.output_lines:
+            view.text = "\n".join(result.output_lines)
+        else:
+            view.text = "(sem saida DBMS_OUTPUT)"
+        panel.display = True
 
     def _log_audit(self, result: AdhocResult) -> None:
         """Log execution to audit."""
@@ -544,6 +606,41 @@ class AdhocScreen(Vertical):
             pass
 
     # ------------------------------------------------------------------
+    # DBMS_OUTPUT panel actions
+    # ------------------------------------------------------------------
+
+    def _handle_dbms_save(self) -> None:
+        """Save the captured DBMS_OUTPUT lines to a .txt file."""
+        if not self._dbms_output_lines:
+            self.notify("Sem saida DBMS_OUTPUT para salvar.", severity="warning")
+            return
+        from dbqm.core.exporter import export_dbms_output
+
+        try:
+            conn_name = self._current_conn.name if self._current_conn else ""
+            label = self._table_name or "adhoc"
+            path = export_dbms_output(
+                self._dbms_output_lines, label, conn_name, self._current_params
+            )
+            self.notify(f"DBMS_OUTPUT salvo: {path}", timeout=5)
+        except Exception as e:
+            self.notify(f"Erro ao salvar: {e}", severity="error")
+
+    def _copy_dbms_output(self) -> None:
+        """Copy the captured DBMS_OUTPUT lines to the clipboard."""
+        if not self._dbms_output_lines:
+            self.notify("Sem saida DBMS_OUTPUT para copiar.", severity="warning")
+            return
+        text = "\n".join(self._dbms_output_lines)
+        try:
+            import subprocess
+            process = subprocess.Popen(["clip"], stdin=subprocess.PIPE)
+            process.communicate(text.encode("utf-8"))
+            self.notify("DBMS_OUTPUT copiado para a area de transferencia!", timeout=3)
+        except Exception:
+            self.notify("Erro ao copiar. Selecione e copie manualmente.", severity="warning")
+
+    # ------------------------------------------------------------------
     # Generate SQL
     # ------------------------------------------------------------------
 
@@ -592,6 +689,7 @@ class AdhocScreen(Vertical):
         self.query_one("#adhoc-result-info").display = False
         self.query_one("#adhoc-result-table").display = False
         self.query_one("#adhoc-dml-result").display = False
+        self.query_one("#adhoc-dbms-panel").display = False
 
         # Show SQL viewer
         sql_viewer = self.query_one("#adhoc-sql-viewer", SqlViewer)
@@ -809,8 +907,10 @@ class AdhocScreen(Vertical):
             self._db_connection = None
         self.query_one("#adhoc-input-phase").display = True
         self.query_one("#adhoc-results-phase").display = False
+        self.query_one("#adhoc-dbms-panel").display = False
         self._current_result = None
         self._current_adhoc_result = None
+        self._dbms_output_lines = []
         self._clear_action_bar()
 
         # Restore focus to TextArea
