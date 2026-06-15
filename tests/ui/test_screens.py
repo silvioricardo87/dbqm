@@ -826,6 +826,26 @@ async def test_adhoc_has_dbms_toggle(tmp_config_dir):
         screen = app.query_one(AdhocScreen)
         toggle = screen.query_one("#adhoc-dbms-toggle", Checkbox)
         assert toggle.value is False
+        assert str(toggle.label) == "Saida DBMS"
+
+
+@pytest.mark.asyncio
+async def test_adhoc_dbms_toggle_aligns_with_select(tmp_config_dir):
+    """The DBMS toggle matches the connection select height and stays within
+    the SQL editor width (no header overflow past the box below)."""
+    from textual.widgets import Checkbox, Select, TextArea
+    app = AdhocTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        screen = app.query_one(AdhocScreen)
+        toggle = screen.query_one("#adhoc-dbms-toggle", Checkbox)
+        select = screen.query_one("#adhoc-conn-select", Select)
+        sql_area = screen.query_one("#adhoc-sql-area", TextArea)
+
+        # Same height as the connection select next to it.
+        assert toggle.region.height == select.region.height
+        # Right edge must not extend past the SQL editor below it.
+        assert toggle.region.right <= sql_area.region.right
 
 
 @pytest.mark.asyncio

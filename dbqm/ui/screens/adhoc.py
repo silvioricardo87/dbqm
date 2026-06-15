@@ -92,9 +92,15 @@ class AdhocScreen(Vertical):
         height: 1fr;
         padding: 0 1;
     }
-    AdhocScreen #adhoc-dbms-toggle {
+    AdhocScreen #adhoc-conn-bar Checkbox {
         width: auto;
+        max-width: 32;
+        height: 5;
         margin: 0 0 0 1;
+        padding: 0 1;
+        border: round $primary;
+        background: $surface;
+        content-align: left middle;
     }
     AdhocScreen #adhoc-dbms-panel {
         height: auto;
@@ -156,7 +162,7 @@ class AdhocScreen(Vertical):
         with Vertical(id="adhoc-input-phase"):
             with Horizontal(id="adhoc-conn-bar"):
                 yield NavSelect([], prompt="Selecione a conexao", id="adhoc-conn-select")
-                yield Checkbox("Capturar DBMS_OUTPUT", id="adhoc-dbms-toggle", value=False)
+                yield Checkbox("Saida DBMS", id="adhoc-dbms-toggle", value=False)
             yield TextArea("", language="sql", id="adhoc-sql-area")
             with Horizontal(id="adhoc-btn-bar"):
                 yield Button("Executar (Ctrl+Enter)", variant="primary", id="adhoc-execute", disabled=True)
