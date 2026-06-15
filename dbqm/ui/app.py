@@ -503,5 +503,13 @@ class DBQMApp(App):
             breadcrumb.set_path([])
             screen_area = self.query_one("#screen-area", Container)
             screen_area.remove_children()
-            self.query_one(Sidebar).set_active("")
+            sidebar = self.query_one(Sidebar)
+            sidebar.set_active("")
             self.query_one(ActionBar).set_actions([])
+            # Removing the screen leaves focus unset; hand it back to the
+            # sidebar so the user can keep navigating with the keyboard.
+            sidebar.focus()
+        else:
+            # Already at the top level — make sure the sidebar has focus so
+            # the keyboard is never left dead after an action.
+            self.query_one(Sidebar).focus()

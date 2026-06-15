@@ -541,5 +541,13 @@ class ExecRoutineScreen(Vertical):
                 self.app.query_one(ActionBar).set_actions([])
             except Exception:
                 pass
+            # Hand focus back to the connection select so the keyboard keeps
+            # working in the select phase (otherwise it stays on the now-hidden
+            # object table).
+            try:
+                from textual.widgets import Select
+                self.query_one("#er-conn-select", Select).focus()
+            except Exception:
+                pass
             return True
         return False

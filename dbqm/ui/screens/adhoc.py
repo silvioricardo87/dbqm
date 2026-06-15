@@ -919,9 +919,10 @@ class AdhocScreen(Vertical):
         self._dbms_output_lines = []
         self._clear_action_bar()
 
-        # Restore focus to TextArea
+        # Restore focus to the SQL editor (explicit id — a second, read-only
+        # TextArea exists in the DBMS_OUTPUT panel).
         try:
             from textual.widgets import TextArea
-            self.query_one(TextArea).focus()
+            self.query_one("#adhoc-sql-area", TextArea).focus()
         except Exception:
             pass

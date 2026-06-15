@@ -3329,3 +3329,117 @@ async def test_esc_clears_screen(tmp_config_dir):
         await pilot.pause()
         area = app.query_one("#screen-area")
         # Should be cleared or back to previous state
+        assert len(list(area.children)) == 0
+
+
+# ======================================================================
+# Navigation / focus regression tests
+# ======================================================================
+
+
+async def _open_via_sidebar(app, pilot, action):
+    sidebar = app.query_one("Sidebar")
+    for i, item in enumerate(sidebar._focusable_items):
+        if item._action == action:
+            sidebar._selected_index = i
+            break
+    sidebar.key_enter()
+    await pilot.pause()
+    await pilot.pause()
+    return sidebar
+
+
+@pytest.mark.asyncio
+async def test_escape_from_query_list_returns_to_sidebar(tmp_config_dir):
+    """Esc while the query list is focused must NOT be swallowed: it should
+    clear the screen and move focus back to the sidebar so the user can
+    navigate again."""
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.query_list import QueryListWidget
+    from dbqm.ui.widgets.sidebar import Sidebar
+
+    save_queries([Query(name="q1", connection="c1", sql="SELECT 1")])
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        sidebar = await _open_via_sidebar(app, pilot, "exec_query")
+        # Deterministically put focus on the query list (the swallow path).
+        app.query_one("#ql-main", QueryListWidget).focus()
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+
+        area = app.query_one("#screen-area")
+        assert len(list(area.children)) == 0
+        assert app.focused is app.query_one(Sidebar)
+
+
+@pytest.mark.asyncio
+async def test_query_list_escape_dismisses_search_without_clearing(tmp_config_dir):
+    """When the list search is open, Esc closes the search and keeps the
+    screen (does not bubble to the app-level go-back)."""
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.query_list import QueryListWidget
+
+    save_queries([Query(name="q1", connection="c1", sql="SELECT 1")])
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _open_via_sidebar(app, pilot, "exec_query")
+        ql = app.query_one("#ql-main", QueryListWidget)
+        ql.action_start_search()
+        await pilot.pause()
+        assert ql.query_one("#ql-search").has_class("visible")
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        # Search closed, screen still present (not cleared).
+        assert not ql.query_one("#ql-search").has_class("visible")
+        assert len(list(app.query_one("#screen-area").children)) == 1
+
+
+@pytest.mark.asyncio
+async def test_exec_routine_back_to_select_focuses_connection(tmp_config_dir):
+    """Going back from the routine list to the select phase must focus the
+    connection select (not leave focus on the hidden object table)."""
+    from textual.app import App, ComposeResult
+    from textual.widgets import Select
+    from dbqm.ui.screens.exec_routine import ExecRoutineScreen
+
+    class _App(App):
+        def compose(self) -> ComposeResult:
+            yield ExecRoutineScreen()
+
+    app = _App()
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.query_one(ExecRoutineScreen)
+        # Simulate being in the list phase.
+        screen.query_one("#er-select-phase").display = False
+        screen.query_one("#er-list-phase").display = True
+        screen.query_one("#er-detail-phase").display = False
+        await pilot.pause()
+
+        handled = screen.go_back()
+        await pilot.pause()
+
+        assert handled is True
+        assert screen.query_one("#er-select-phase").display is True
+        assert app.focused is app.query_one("#er-conn-select", Select)
+
+
+@pytest.mark.asyncio
+async def test_action_go_back_focuses_sidebar_after_clear(tmp_config_dir):
+    """app.action_go_back, when it clears the top-level screen, must focus
+    the sidebar."""
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.sidebar import Sidebar
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _open_via_sidebar(app, pilot, "history")
+        app.action_go_back()
+        await pilot.pause()
+
+        assert len(list(app.query_one("#screen-area").children)) == 0
+        assert app.focused is app.query_one(Sidebar)

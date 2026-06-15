@@ -197,8 +197,20 @@ class QueryListWidget(Vertical, can_focus=False):
             self._search_text = event.value
             self._refresh_items()
 
-    def key_escape(self) -> None:
-        """Dismiss search on ESC if visible."""
+    def on_key(self, event) -> None:
+        """Dismiss the search on ESC when it is open.
+
+        Uses on_key (not key_escape) so the event can be stopped only when the
+        search bar is actually visible. Otherwise ESC must bubble up to the
+        app-level go-back binding — swallowing it here would trap the user in
+        the screen, and a bare key_escape would let ESC both close the search
+        AND clear the whole screen.
+        """
+        if event.key != "escape":
+            return
         search_bar = self.query_one("#ql-search", Horizontal)
         if search_bar.has_class("visible"):
             self._dismiss_search()
+            self.query_one("#ql-listview", ListView).focus()
+            event.stop()
+            event.prevent_default()
