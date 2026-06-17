@@ -27,9 +27,34 @@ class QueryResult:
     error: str = ""
 
 
+def _strip_leading_comments(sql: str) -> str:
+    """Drop leading line (``--``) and block (``/* */``) comments plus blank
+    lines, returning the SQL from its first significant token.
+
+    Used only to *classify* a statement. The original text (comments intact)
+    is what actually runs — Oracle accepts comments before a block, so there
+    is no need to strip them from the executed SQL.
+    """
+    s = sql.lstrip()
+    while s:
+        if s.startswith("--"):
+            nl = s.find("\n")
+            if nl == -1:
+                return ""
+            s = s[nl + 1:].lstrip()
+        elif s.startswith("/*"):
+            end = s.find("*/")
+            if end == -1:
+                return ""
+            s = s[end + 2:].lstrip()
+        else:
+            break
+    return s
+
+
 def _is_select_only(sql: str) -> bool:
     """Ensure the SQL is a SELECT statement (no DML/DDL)."""
-    parsed = sqlparse.parse(sql.strip())
+    parsed = sqlparse.parse(_strip_leading_comments(sql))
     if not parsed:
         return False
     stmt_type = parsed[0].get_type()
@@ -50,8 +75,8 @@ def classify_sql(sql: str) -> str:
 
     Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DDL', 'PLSQL', 'EXPLAIN', or 'UNKNOWN'.
     """
-    parsed = sqlparse.parse(sql.strip())
-    stripped = sql.strip()
+    stripped = _strip_leading_comments(sql)
+    parsed = sqlparse.parse(stripped)
     first_word = stripped.split()[0].upper() if stripped else ""
     # PL/SQL keywords take priority over sqlparse — sqlparse classifies BEGIN
     # as a transaction boundary, not a PL/SQL block.
@@ -80,9 +105,13 @@ def _normalize_plsql(sql: str) -> str:
     """
     s = sql.strip()
     s = re.sub(r"\s*\n\s*/\s*$", "", s)
-    first = s.split()[0].upper() if s.split() else ""
+    # Detect the verb on the comment-stripped text so a leading `-- note`
+    # before EXEC/EXECUTE/CALL still expands correctly.
+    significant = _strip_leading_comments(s)
+    first = significant.split()[0].upper() if significant.split() else ""
     if first in ("EXEC", "EXECUTE", "CALL"):
-        body = s.split(None, 1)[1] if len(s.split(None, 1)) > 1 else ""
+        parts = significant.split(None, 1)
+        body = parts[1] if len(parts) > 1 else ""
         body = body.rstrip(";").strip()
         s = f"BEGIN {body}; END;"
     return s

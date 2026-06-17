@@ -322,7 +322,8 @@ class AdhocScreen(Vertical):
         sql_type = classify_sql(raw_sql)
         if sql_type == "UNKNOWN":
             self.notify(
-                "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE ou DDL.",
+                "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, "
+                "DDL ou blocos PL/SQL (BEGIN/DECLARE, EXEC).",
                 severity="error",
             )
             return

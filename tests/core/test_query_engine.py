@@ -47,6 +47,14 @@ class TestClassifySql:
         ("EXPLAIN PLAN FOR SELECT 1 FROM dual", "EXPLAIN"),
         ("explain plan for select * from t", "EXPLAIN"),
         ("EXPLAIN PLAN SET STATEMENT_ID = 'x' FOR SELECT 1 FROM dual", "EXPLAIN"),
+        # Leading comments must not change the classification
+        ("-- [CORRECAO]\nBEGIN NULL; END;", "PLSQL"),
+        ("-- note\n-- second line\nUPDATE t SET x=1", "UPDATE"),
+        ("/* block */ SELECT 1 FROM dual", "SELECT"),
+        ("/* multi\nline */\nDELETE FROM t WHERE id=1", "DELETE"),
+        ("-- only a comment", "UNKNOWN"),
+        ("  --lead\n  EXEC pkg.proc('x')", "PLSQL"),
+        ("/* c */ CREATE TABLE t (id INT)", "DDL"),
     ])
     def test_classify(self, sql, expected):
         assert classify_sql(sql) == expected
@@ -402,6 +410,15 @@ class TestNormalizePlsql:
         from dbqm.core.query_engine import _normalize_plsql
         sql = "BEGIN DBMS_OUTPUT.PUT_LINE('hi'); END;"
         assert _normalize_plsql(sql) == sql
+
+    def test_leading_comment_block_keeps_comment_strips_slash(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        sql = "-- [CORRECAO]\nBEGIN NULL; END;\n/"
+        assert _normalize_plsql(sql) == "-- [CORRECAO]\nBEGIN NULL; END;"
+
+    def test_leading_comment_before_exec_expands(self):
+        from dbqm.core.query_engine import _normalize_plsql
+        assert _normalize_plsql("-- run it\nEXEC pkg.proc('x')") == "BEGIN pkg.proc('x'); END;"
 
 
 class TestPlsqlExecution:
