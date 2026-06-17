@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -144,6 +145,8 @@ class AdhocScreen(Vertical):
         self._db_connection = None  # for DML commit/rollback
         self._capture_output = False  # DBMS_OUTPUT opt-in for this execution
         self._dbms_output_lines: list[str] = []
+        self._current_sql = ""  # raw SQL of the last execution (for evidence)
+        self._last_exec_at = ""  # timestamp of the last execution (for evidence)
 
     def on_key(self, event) -> None:
         """Handle Ctrl+Enter and Ctrl+L shortcuts."""
@@ -423,6 +426,7 @@ class AdhocScreen(Vertical):
 
         self._current_adhoc_result = adhoc_result
         self._db_connection = db_connection
+        self._last_exec_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Log execution
         self._log_audit(adhoc_result)
@@ -617,33 +621,37 @@ class AdhocScreen(Vertical):
     # ------------------------------------------------------------------
 
     def _handle_dbms_save(self) -> None:
-        """Save the captured DBMS_OUTPUT lines to a .txt file."""
-        if not self._dbms_output_lines:
-            self.notify("Sem saida DBMS_OUTPUT para salvar.", severity="warning")
+        """Save the execution evidence (SQL + date/time + DBMS_OUTPUT) to a .txt file."""
+        result = self._current_adhoc_result
+        if result is None:
+            self.notify("Nada para salvar.", severity="warning")
             return
         from dbqm.core.exporter import export_dbms_output
 
         try:
-            conn_name = self._current_conn.name if self._current_conn else ""
             label = self._table_name or "adhoc"
             path = export_dbms_output(
-                self._dbms_output_lines, label, conn_name, self._current_params
+                result, self._current_sql, self._last_exec_at,
+                label, self._current_params,
             )
-            self.notify(f"DBMS_OUTPUT salvo: {path}", timeout=5)
+            self.notify(f"Evidencia salva: {path}", timeout=5)
         except Exception as e:
             self.notify(f"Erro ao salvar: {e}", severity="error")
 
     def _copy_dbms_output(self) -> None:
-        """Copy the captured DBMS_OUTPUT lines to the clipboard."""
-        if not self._dbms_output_lines:
-            self.notify("Sem saida DBMS_OUTPUT para copiar.", severity="warning")
+        """Copy the execution evidence (SQL + date/time + DBMS_OUTPUT) to the clipboard."""
+        result = self._current_adhoc_result
+        if result is None:
+            self.notify("Nada para copiar.", severity="warning")
             return
-        text = "\n".join(self._dbms_output_lines)
+        from dbqm.core.exporter import format_dbms_evidence
+
+        text = format_dbms_evidence(result, self._current_sql, self._last_exec_at)
         try:
             import subprocess
             process = subprocess.Popen(["clip"], stdin=subprocess.PIPE)
             process.communicate(text.encode("utf-8"))
-            self.notify("DBMS_OUTPUT copiado para a area de transferencia!", timeout=3)
+            self.notify("Evidencia copiada para a area de transferencia!", timeout=3)
         except Exception:
             self.notify("Erro ao copiar. Selecione e copie manualmente.", severity="warning")
 

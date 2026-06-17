@@ -91,20 +91,56 @@ class TestQueryExports:
 
     def test_dbms_output(self, tmp_config_dir):
         from dbqm.core.exporter import export_dbms_output
+        from dbqm.core.query_engine import AdhocResult
+        result = AdhocResult(
+            sql_type="PLSQL", connection_name="prod", elapsed=0.12,
+            committed=True,
+            output_lines=["processando registro 1", "processando registro 2"],
+        )
         path = export_dbms_output(
-            ["processando registro 1", "processando registro 2"],
-            label="meu_bloco", conn_name="prod",
+            result, "BEGIN NULL; END;", "2026-06-17 10:00:00", label="meu_bloco",
         )
         assert path.endswith(".txt")
         content = Path(path).read_text(encoding="utf-8")
+        # Evidence carries SQL, date/time, output and outcome
+        assert "BEGIN NULL; END;" in content
+        assert "2026-06-17 10:00:00" in content
         assert "processando registro 1" in content
         assert "processando registro 2" in content
+        assert "EVIDENCIA DE EXECUCAO" in content
+        assert "Bloco PL/SQL executado" in content
 
     def test_dbms_output_empty_lines(self, tmp_config_dir):
         from dbqm.core.exporter import export_dbms_output
-        path = export_dbms_output([], label="vazio", conn_name="prod")
+        from dbqm.core.query_engine import AdhocResult
+        result = AdhocResult(sql_type="PLSQL", connection_name="prod")
+        path = export_dbms_output(result, "BEGIN NULL; END;", "2026-06-17 10:00:00", label="vazio")
         assert Path(path).exists()
-        assert Path(path).read_text(encoding="utf-8") == ""
+        content = Path(path).read_text(encoding="utf-8")
+        assert "(sem saida DBMS_OUTPUT)" in content
+
+    def test_format_dbms_evidence_dml(self):
+        from dbqm.core.exporter import format_dbms_evidence
+        from dbqm.core.query_engine import AdhocResult
+        result = AdhocResult(
+            sql_type="UPDATE", connection_name="prod", rows_affected=6,
+            committed=True, elapsed=0.04, output_lines=["UPDATE OK"],
+        )
+        text = format_dbms_evidence(result, "UPDATE t SET x=1", "2026-06-17 11:30:00")
+        assert "UPDATE t SET x=1" in text
+        assert "2026-06-17 11:30:00" in text
+        assert "6 registro(s) afetado(s) - COMMIT" in text
+        assert "UPDATE OK" in text
+
+    def test_format_dbms_evidence_error(self):
+        from dbqm.core.exporter import format_dbms_evidence
+        from dbqm.core.query_engine import AdhocResult
+        result = AdhocResult(
+            sql_type="PLSQL", connection_name="prod", success=False,
+            error="ORA-00001: unique constraint",
+        )
+        text = format_dbms_evidence(result, "BEGIN NULL; END;", "2026-06-17 12:00:00")
+        assert "ERRO: ORA-00001" in text
 
 
 class TestGroupExports:

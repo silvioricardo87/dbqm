@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from dbqm.core.query_engine import QueryResult
+from dbqm.core.query_engine import AdhocResult, QueryResult
 from dbqm.core.group_engine import GroupResult
 
 # ---------------------------------------------------------------------------
@@ -174,11 +174,67 @@ def export_sql_file(sql_text: str, label: str = "adhoc", params: dict | None = N
     return str(filepath)
 
 
-def export_dbms_output(lines: list[str], label: str = "adhoc",
-                       conn_name: str = "", params: dict | None = None) -> str:
-    """Export captured DBMS_OUTPUT lines to a .txt file. Returns the file path."""
-    filepath = _build_filepath("dbms_output", label, conn_name, params, "txt")
-    filepath.write_text("\n".join(lines), encoding="utf-8")
+_EVIDENCE_RULE = "=" * 70
+_EVIDENCE_SUB = "-" * 70
+
+
+def _evidence_status(result: AdhocResult) -> str:
+    """One-line outcome summary for the evidence footer."""
+    if not result.success:
+        return f"ERRO: {result.error}"
+    t = result.sql_type
+    if t == "PLSQL":
+        return "Bloco PL/SQL executado com sucesso (commit gerenciado pelo bloco)"
+    if t in ("INSERT", "UPDATE", "DELETE"):
+        commit = "COMMIT" if result.committed else "pendente (sem commit)"
+        return f"{result.rows_affected} registro(s) afetado(s) - {commit}"
+    if t == "SELECT":
+        return f"{result.row_count} linha(s) retornada(s)"
+    if t == "DDL":
+        return "DDL executado (auto-commit)"
+    return "Executado com sucesso"
+
+
+def format_dbms_evidence(result: AdhocResult, sql: str, timestamp: str) -> str:
+    """Build IDE-style execution evidence: the SQL, when it ran, and its return.
+
+    Mirrors how SQL IDEs render script output so the saved/copied text is a
+    self-contained record — executed query + date/time + DBMS_OUTPUT + outcome.
+    """
+    out = result.output_lines or []
+    lines = [
+        _EVIDENCE_RULE,
+        " EVIDENCIA DE EXECUCAO - dbqm",
+        _EVIDENCE_RULE,
+        f" Conexao  : {result.connection_name}",
+        f" Data/Hora: {timestamp}",
+        f" Tipo     : {result.sql_type}",
+        _EVIDENCE_SUB,
+        " SQL executado:",
+        _EVIDENCE_SUB,
+        sql.strip(),
+        _EVIDENCE_SUB,
+        " Saida (DBMS_OUTPUT):",
+        _EVIDENCE_SUB,
+    ]
+    lines.extend(out if out else ["(sem saida DBMS_OUTPUT)"])
+    lines.extend([
+        _EVIDENCE_SUB,
+        f" Resultado: {_evidence_status(result)}",
+        f" Tempo    : {result.elapsed:.3f}s",
+        _EVIDENCE_RULE,
+    ])
+    return "\n".join(lines)
+
+
+def export_dbms_output(result: AdhocResult, sql: str, timestamp: str,
+                       label: str = "adhoc", params: dict | None = None) -> str:
+    """Export the execution evidence (SQL + date/time + DBMS_OUTPUT + outcome).
+
+    Writes an IDE-style record to a .txt file and returns its path.
+    """
+    filepath = _build_filepath("dbms_output", label, result.connection_name, params, "txt")
+    filepath.write_text(format_dbms_evidence(result, sql, timestamp), encoding="utf-8")
     return str(filepath)
 
 
