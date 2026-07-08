@@ -76,14 +76,23 @@ def classify_sql(sql: str) -> str:
     Returns 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DDL', 'PLSQL', 'EXPLAIN', or 'UNKNOWN'.
     """
     stripped = _strip_leading_comments(sql)
-    parsed = sqlparse.parse(stripped)
     first_word = stripped.split()[0].upper() if stripped else ""
-    # PL/SQL keywords take priority over sqlparse — sqlparse classifies BEGIN
-    # as a transaction boundary, not a PL/SQL block.
+    # Classify by leading keyword first, before tokenizing. This avoids running
+    # sqlparse over the entire statement for named-object DDL (e.g. a
+    # multi-thousand-line PACKAGE BODY) — wasteful, and historically fragile
+    # against sqlparse token caps. PL/SQL keywords also take priority because
+    # sqlparse reads BEGIN as a transaction boundary, not a PL/SQL block.
     if first_word in _PLSQL_KEYWORDS:
         return "PLSQL"
     if first_word == "EXPLAIN":
         return "EXPLAIN"
+    if first_word in _DDL_KEYWORDS:
+        return "DDL"
+    if not stripped:
+        return "UNKNOWN"
+    # Only now fall back to sqlparse — needed to disambiguate SELECT vs DML and
+    # to resolve leading keywords like WITH (CTE) that map to a SELECT.
+    parsed = sqlparse.parse(stripped)
     if not parsed:
         return "UNKNOWN"
     stmt_type = parsed[0].get_type()
@@ -91,8 +100,6 @@ def classify_sql(sql: str) -> str:
         return stmt_type
     if first_word in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         return first_word
-    if first_word in _DDL_KEYWORDS:
-        return "DDL"
     return "UNKNOWN"
 
 

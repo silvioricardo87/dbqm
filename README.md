@@ -285,7 +285,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (734+ tests)
+└── tests/                         # Test suite (738+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests

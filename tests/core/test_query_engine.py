@@ -60,6 +60,57 @@ class TestClassifySql:
         assert classify_sql(sql) == expected
 
 
+class TestClassifyLargeDdlBypassesTokenizer:
+    """Named-object DDL must classify from the leading keyword alone, without
+    tokenizing the whole body — guards against sqlparse token caps on large
+    PACKAGE BODY / PROCEDURE sources (backlog item 003, change C00785338)."""
+
+    def _huge_package_body(self) -> str:
+        body = "\n".join(f"  v_{i} NUMBER := {i}; -- linha {i}" for i in range(20000))
+        return f"CREATE OR REPLACE PACKAGE BODY pck_carga IS\n{body}\nEND pck_carga;"
+
+    def test_huge_package_body_classifies_as_ddl(self):
+        assert classify_sql(self._huge_package_body()) == "DDL"
+
+    def test_ddl_does_not_invoke_sqlparse(self, monkeypatch):
+        import dbqm.core.query_engine as qe
+
+        calls = []
+        original = qe.sqlparse.parse
+        monkeypatch.setattr(
+            qe.sqlparse, "parse",
+            lambda *a, **k: calls.append(a) or original(*a, **k),
+        )
+        assert classify_sql(self._huge_package_body()) == "DDL"
+        assert calls == [], "sqlparse.parse should not run for named-object DDL"
+
+    def test_ddl_bypass_survives_leading_comment(self, monkeypatch):
+        import dbqm.core.query_engine as qe
+
+        calls = []
+        original = qe.sqlparse.parse
+        monkeypatch.setattr(
+            qe.sqlparse, "parse",
+            lambda *a, **k: calls.append(a) or original(*a, **k),
+        )
+        sql = "-- change C00785338\n" + self._huge_package_body()
+        assert classify_sql(sql) == "DDL"
+        assert calls == []
+
+    def test_select_still_uses_sqlparse(self, monkeypatch):
+        """SELECT/DML disambiguation still relies on sqlparse — WITH must resolve."""
+        import dbqm.core.query_engine as qe
+
+        calls = []
+        original = qe.sqlparse.parse
+        monkeypatch.setattr(
+            qe.sqlparse, "parse",
+            lambda *a, **k: calls.append(a) or original(*a, **k),
+        )
+        assert classify_sql("WITH x AS (SELECT 1 FROM dual) SELECT * FROM x") == "SELECT"
+        assert calls, "sqlparse.parse should run to resolve a CTE/SELECT"
+
+
 class TestIsSelectOnly:
     def test_select(self):
         assert _is_select_only("SELECT * FROM t") is True
