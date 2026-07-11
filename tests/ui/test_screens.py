@@ -1720,6 +1720,125 @@ async def test_browser_select_object_fills_columns_and_preview(
 
 
 @pytest.mark.asyncio
+async def test_browser_select_package_shows_source_no_error(
+    tmp_config_dir, monkeypatch
+):
+    """Selecting a PACKAGE fetches SOURCE text (via the ddl_extractor core
+    used by "Extrair DDL") and shows it inline — no browse_table ORA-00942,
+    no error toast."""
+    from types import SimpleNamespace
+    from dbqm.ui.widgets.sql_viewer import SqlViewer
+    from dbqm.ui.widgets.result_table import ResultTable
+    from dbqm.core.ddl_extractor import ExtractedObject, ExtractionResult
+
+    fake_result = ExtractionResult(
+        object_name="PKG_CLIENTE", object_type="PACKAGE",
+        owner="APP", connection_name="c1",
+        objects=[
+            ExtractedObject("PKG_CLIENTE", "PACKAGE SPEC", "CREATE OR REPLACE PACKAGE pkg_cliente IS ..."),
+            ExtractedObject("PKG_CLIENTE", "PACKAGE BODY", "CREATE OR REPLACE PACKAGE BODY pkg_cliente IS ..."),
+        ],
+    )
+
+    def _fake_browse_table(*args, **kwargs):
+        raise AssertionError("browse_table must not be called for PACKAGE objects")
+
+    monkeypatch.setattr(
+        "dbqm.core.ddl_extractor.extract_ddl",
+        lambda conn, name, owner_filter=None, on_progress=None: fake_result,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.list_package_routines",
+        lambda db, db_type, package: SimpleNamespace(
+            name="PKG_CLIENTE", owner="APP",
+            routines=[
+                SimpleNamespace(name="GET_NOME", routine_type="FUNCTION", signature="(p_id NUMBER) RETURN VARCHAR2"),
+            ],
+        ),
+    )
+    monkeypatch.setattr("dbqm.core.table_browser.browse_table", _fake_browse_table)
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "PACKAGE"
+
+        worker = screen._load_object("PKG_CLIENTE")
+        await worker.wait()
+        await pilot.pause()
+
+        source_view = screen.query_one("#obj-source", SqlViewer)
+        assert "pkg_cliente" in source_view._sql
+        assert source_view.display is True
+        preview = screen.query_one("#obj-preview", ResultTable)
+        assert preview.display is False
+
+        error_notifications = [
+            n for n in app._notifications if n.severity == "error"
+        ]
+        assert error_notifications == []
+
+
+@pytest.mark.asyncio
+async def test_browser_select_table_shows_table_view(tmp_config_dir, monkeypatch):
+    """The table view (#obj-preview) is used for TABLE, and toggling back
+    from a previous PACKAGE selection hides the source view again."""
+    from types import SimpleNamespace
+    from dbqm.core.table_browser import BrowseResult
+    from dbqm.ui.widgets.sql_viewer import SqlViewer
+    from dbqm.ui.widgets.result_table import ResultTable
+
+    fake_structure = SimpleNamespace(
+        table="CLIENTE", elapsed=0.01, indexes=[],
+        columns=[
+            SimpleNamespace(
+                name="ID", data_type="NUMBER", data_precision=10, data_scale=0,
+                data_length=None, nullable=False, is_pk=True, fk_ref=None,
+            ),
+        ],
+    )
+    fake_browse = BrowseResult(
+        table="CLIENTE", connection_name="c1", columns=["ID"],
+        rows=[[1]], row_count=1, total_count=1, elapsed=0.01,
+        limit=100, offset=0,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.get_table_structure",
+        lambda db, db_type, table: fake_structure,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.table_browser.browse_table",
+        lambda db, db_type, table, conn_name, limit, offset: fake_browse,
+    )
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "TABLE"
+
+        worker = screen._load_object("CLIENTE")
+        await worker.wait()
+        await pilot.pause()
+
+        preview = screen.query_one("#obj-preview", ResultTable)
+        source_view = screen.query_one("#obj-source", SqlViewer)
+        assert preview.display is True
+        assert source_view.display is False
+
+
+@pytest.mark.asyncio
 async def test_browser_screen_unmount_closes_db(tmp_config_dir):
     """Unmounting BrowserScreen should close the DB connection."""
     app = BrowserTestApp()

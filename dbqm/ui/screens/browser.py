@@ -16,8 +16,12 @@ from textual import work
 
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.result_table import ResultTable
+from dbqm.ui.widgets.sql_viewer import SqlViewer
 
 DEFAULT_LIMIT = 100
+
+# Object types that are shown as inline SOURCE text (no tabular DADOS).
+SOURCE_TYPES = ("PACKAGE", "ROUTINE")
 
 TYPE_OPTIONS = [
     ("Tabelas", "TABLE"),
@@ -79,6 +83,10 @@ class BrowserScreen(Vertical):
     BrowserScreen #obj-preview {
         height: 1fr;
     }
+    BrowserScreen #obj-source {
+        height: 1fr;
+        max-height: 100%;
+    }
     BrowserScreen #obj-preview-buttons {
         height: auto;
         align: center middle;
@@ -123,6 +131,7 @@ class BrowserScreen(Vertical):
 
             with Panel("🔍  DADOS", accent=True, id="obj-preview-panel"):
                 yield ResultTable(id="obj-preview")
+                yield SqlViewer("", id="obj-source")
                 with Horizontal(id="obj-preview-buttons"):
                     yield Button("Extrair DDL", id="obj-ddl")
                     yield Button("Carregar mais", id="obj-more")
@@ -130,6 +139,7 @@ class BrowserScreen(Vertical):
     def on_mount(self) -> None:
         columns = self.query_one("#obj-columns", DataTable)
         columns.cursor_type = "row"
+        self._show_table_view()
         self._load_connections()
         self.call_after_refresh(self._set_initial_focus)
 
@@ -256,15 +266,27 @@ class BrowserScreen(Vertical):
 
     @work(thread=True, exclusive=True, group="obj-load")
     def _load_object(self, name: str):
-        """Fill COLUNAS (structure) and DADOS (first page) in one worker."""
-        from dbqm.core.object_browser import get_table_structure
-        from dbqm.core.table_browser import browse_table
+        """Fill COLUNAS (structure) and DADOS (first page) in one worker.
 
+        TABLE/VIEW keep the tabular structure + preview flow. PACKAGE/ROUTINE
+        have no rows to preview, so DADOS shows the object SOURCE instead —
+        calling browse_table on them is a guaranteed ORA-00942.
+        """
         conn = self._current_conn
+        obj_type = self._obj_type
         if conn is None or self._db is None:
             return
 
         self._selected_object = name
+
+        if obj_type in SOURCE_TYPES:
+            self._load_object_source(conn, name, obj_type)
+            return
+
+        from dbqm.core.object_browser import get_table_structure
+        from dbqm.core.table_browser import browse_table
+
+        self.app.call_from_thread(self._show_table_view)
 
         # Structure -> COLUNAS
         try:
@@ -283,6 +305,60 @@ class BrowserScreen(Vertical):
             self.app.call_from_thread(self._on_preview_loaded, result, False)
         except Exception as e:  # pragma: no cover - depends on live DB
             self.app.call_from_thread(self._on_error, f"Dados: {e}")
+
+    def _load_object_source(self, conn, name: str, obj_type: str) -> None:
+        """Fetch SOURCE text for a PACKAGE/ROUTINE and show it in DADOS.
+
+        Reuses the same extraction core the "Extrair DDL" button calls
+        (dbqm.core.ddl_extractor), capturing the DDL text instead of only
+        saving it to disk.
+        """
+        self.app.call_from_thread(self._show_source_view)
+
+        if conn.db_type != "oracle":
+            self.app.call_from_thread(
+                self._on_source_unavailable,
+                f"Source nao disponivel para o tipo de banco '{conn.db_type}'.",
+            )
+            return
+
+        from dbqm.core.ddl_extractor import extract_ddl, extract_routine
+
+        try:
+            errors: list[str] = []
+            if obj_type == "ROUTINE" and "." in name:
+                pkg_name, routine_name = name.upper().split(".", 1)
+                result = extract_routine(conn, pkg_name, routine_name)
+                objs = list(result.spec_headers) + list(result.body_routines)
+                errors = result.errors
+            else:
+                result = extract_ddl(conn, name)
+                objs = list(result.objects)
+                errors = result.errors
+
+            if not objs:
+                message = "; ".join(errors) if errors else "Source nao encontrado."
+                self.app.call_from_thread(self._on_source_unavailable, message)
+            else:
+                source_text = "\n\n".join(o.ddl for o in objs)
+                self.app.call_from_thread(self._on_source_loaded, source_text)
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, f"Source: {e}")
+
+        # COLUNAS: non-tabular objects get a routine list (PACKAGE) or a note.
+        try:
+            if obj_type == "PACKAGE":
+                from dbqm.core.object_browser import list_package_routines
+
+                pkg_info = list_package_routines(self._db, conn.db_type, name)
+                self.app.call_from_thread(self._on_package_routines_loaded, pkg_info)
+            else:
+                self.app.call_from_thread(
+                    self._on_columns_note,
+                    "Objeto nao tabular — veja o source ao lado",
+                )
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, f"Estrutura: {e}")
 
     def _on_structure_loaded(self, structure) -> None:
         table = self.query_one("#obj-columns", DataTable)
@@ -335,6 +411,46 @@ class BrowserScreen(Vertical):
             elapsed=result.elapsed,
         )
         self.query_one("#obj-preview", ResultTable).load_result(qr)
+
+    def _on_source_loaded(self, source_text: str) -> None:
+        self.query_one("#obj-source", SqlViewer).set_sql(source_text)
+
+    def _on_source_unavailable(self, message: str) -> None:
+        self.query_one("#obj-source", SqlViewer).set_sql(f"-- {message}")
+        self.notify(message, severity="warning")
+
+    def _on_package_routines_loaded(self, pkg_info) -> None:
+        table = self.query_one("#obj-columns", DataTable)
+        table.clear(columns=True)
+        table.cursor_type = "row"
+        table.add_column("Rotina", key="name")
+        table.add_column("Tipo", key="rtype")
+        table.add_column("Assinatura", key="sig")
+
+        for routine in pkg_info.routines:
+            table.add_row(str(routine.name), str(routine.routine_type), routine.signature)
+
+        if not pkg_info.routines:
+            self.notify("Nenhuma rotina encontrada no pacote.", severity="warning")
+
+    def _on_columns_note(self, note: str) -> None:
+        table = self.query_one("#obj-columns", DataTable)
+        table.clear(columns=True)
+        table.cursor_type = "row"
+        table.add_column("Info", key="info")
+        table.add_row(note)
+
+    def _show_table_view(self) -> None:
+        """Show the tabular DADOS preview (TABLE/VIEW) and hide the source view."""
+        self.query_one("#obj-preview", ResultTable).display = True
+        self.query_one("#obj-source", SqlViewer).display = False
+        self.query_one("#obj-more", Button).display = True
+
+    def _show_source_view(self) -> None:
+        """Show the read-only SOURCE view (PACKAGE/ROUTINE) and hide the table."""
+        self.query_one("#obj-preview", ResultTable).display = False
+        self.query_one("#obj-source", SqlViewer).display = True
+        self.query_one("#obj-more", Button).display = False
 
     def _on_error(self, error: str) -> None:
         self.notify(f"Erro: {error}", severity="error", timeout=8)
