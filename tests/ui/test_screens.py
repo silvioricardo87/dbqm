@@ -753,34 +753,54 @@ async def test_group_exec_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_group_exec_screen_shows_empty_message(tmp_config_dir):
-    """With no groups configured, should show empty state."""
+async def test_group_exec_screen_has_option3_widgets(tmp_config_dir):
+    """Multi-Exec (Option 3) exposes the target checklist, SQL editor,
+    comparison display and the saved-group Select."""
+    from textual.widgets import SelectionList, TextArea, Select
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        empty = screen.query_one("#ge-empty-message")
-        assert empty.display is True
+        assert screen.query_one("#conn-checklist", SelectionList) is not None
+        assert screen.query_one("#group-sql", TextArea) is not None
+        assert screen.query_one("#group-results", GroupResultWidget) is not None
+        assert screen.query_one("#group-saved-select", Select) is not None
 
 
 @pytest.mark.asyncio
-async def test_group_exec_screen_shows_group_list(tmp_config_dir):
-    """With groups configured, should show the group list."""
+async def test_group_exec_checklist_lists_connections(tmp_config_dir):
+    """The connection checklist is populated from the saved connections."""
+    from textual.widgets import SelectionList
+    _seed_connections(tmp_config_dir / "config")
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        checklist = screen.query_one("#conn-checklist", SelectionList)
+        values = {opt.value for opt in checklist.options}
+        assert {"dev_oracle", "prod_pg"} <= values
+
+
+@pytest.mark.asyncio
+async def test_group_exec_saved_select_lists_only_adhoc_groups(tmp_config_dir):
+    """Only groups with adhoc_sql appear in the saved-group Select."""
+    from textual.widgets import Select
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
             {
-                "name": "group_a",
-                "description": "Test group A",
+                "name": "legacy_query_group",
+                "description": "old query-based",
                 "queries": ["q1", "q2"],
                 "join_key": "id",
                 "compare_columns": ["status"],
             },
             {
-                "name": "group_b",
-                "description": "Test group B",
-                "queries": ["q1", "q3"],
-                "join_key": "code",
-                "compare_columns": ["value"],
+                "name": "adhoc_group",
+                "description": "",
+                "queries": [],
+                "join_key": "ID",
+                "adhoc_sql": "SELECT ID, STATUS FROM t",
+                "connections": ["dev_oracle"],
             },
         ]
     }
@@ -791,38 +811,28 @@ async def test_group_exec_screen_shows_group_list(tmp_config_dir):
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        empty = screen.query_one("#ge-empty-message")
-        assert empty.display is False
-        # Selection phase should be visible
-        sel = screen.query_one("#ge-selection-phase")
-        assert sel.display is True
-        # Results phase should be hidden
-        res = screen.query_one("#ge-results-phase")
-        assert res.display is False
+        select = screen.query_one("#group-saved-select", Select)
+        labels = {label.plain if hasattr(label, "plain") else str(label)
+                  for label, _ in select._options}
+        assert "adhoc_group" in labels
+        assert "legacy_query_group" not in labels
 
 
 @pytest.mark.asyncio
-async def test_group_exec_results_phase_hidden_initially(tmp_config_dir):
-    """Results phase should be hidden on mount."""
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        results = screen.query_one("#ge-results-phase")
-        assert results.display is False
-
-
-@pytest.mark.asyncio
-async def test_group_exec_go_back_to_selection(tmp_config_dir):
-    """go_back_to_selection should show selection and hide results."""
+async def test_group_exec_load_group_checks_conns_and_fills_sql(tmp_config_dir):
+    """Carregar an ad-hoc group checks its connections and fills the SQL."""
+    from textual.widgets import SelectionList, TextArea, Select, Button
     config_dir = tmp_config_dir / "config"
+    _seed_connections(config_dir)
     groups_data = {
         "groups": [
             {
-                "name": "g1",
-                "description": "Test",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
+                "name": "adhoc_group",
+                "description": "",
+                "queries": [],
+                "join_key": "ID",
+                "adhoc_sql": "SELECT ID, STATUS FROM apolice",
+                "connections": ["prod_pg"],
             },
         ]
     }
@@ -833,91 +843,16 @@ async def test_group_exec_go_back_to_selection(tmp_config_dir):
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        # Simulate being in results phase
-        screen.query_one("#ge-selection-phase").display = False
-        screen.query_one("#ge-results-phase").display = True
+        screen.query_one("#group-saved-select", Select).value = "adhoc_group"
+        await pilot.pause()
 
-        screen.go_back_to_selection()
+        screen._load_group()
+        await pilot.pause()
 
-        assert screen.query_one("#ge-selection-phase").display is True
-        assert screen.query_one("#ge-results-phase").display is False
-
-
-@pytest.mark.asyncio
-async def test_group_exec_screen_with_accented_folders(tmp_config_dir):
-    """Groups with accented folders should not crash the app."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g_acc_a",
-                "description": "",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "Produ\u00e7\u00e3o",
-            },
-            {
-                "name": "g_acc_b",
-                "description": "",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["val"],
-                "folder": "Homologa\u00e7\u00e3o",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        folder_bar = screen.query_one("#ge-folder-bar")
-        assert folder_bar is not None
-        from textual.widgets import Button
-        buttons = folder_bar.query(Button)
-        assert len(buttons) >= 3
-
-
-@pytest.mark.asyncio
-async def test_group_exec_screen_with_folders(tmp_config_dir):
-    """Groups with folders should produce folder filter bar."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g_folder_a",
-                "description": "",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "Folder A",
-            },
-            {
-                "name": "g_folder_b",
-                "description": "",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["val"],
-                "folder": "Folder B",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        folder_bar = screen.query_one("#ge-folder-bar")
-        assert folder_bar is not None
-        from textual.widgets import Button
-        buttons = folder_bar.query(Button)
-        # "Todas" + "Folder A" + "Folder B" = 3
-        assert len(buttons) >= 3
+        sql = screen.query_one("#group-sql", TextArea).text
+        assert "SELECT ID, STATUS FROM apolice" in sql
+        checklist = screen.query_one("#conn-checklist", SelectionList)
+        assert list(checklist.selected) == ["prod_pg"]
 
 
 @pytest.mark.asyncio
@@ -2046,48 +1981,6 @@ async def test_query_exec_folder_arrow_navigation(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_group_exec_folder_arrow_navigation(tmp_config_dir):
-    """Left/Right arrows should switch folder tabs in group exec."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g1",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "F1",
-            },
-            {
-                "name": "g2",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "F2",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        # Should have folder buttons: Todas + F1 + F2
-        assert len(screen._folder_buttons) >= 3
-        assert screen._active_folder_idx == 0
-        # Right arrow should advance
-        await pilot.press("right")
-        assert screen._active_folder_idx == 1
-        await pilot.press("right")
-        assert screen._active_folder_idx == 2
-        # Left arrow should go back
-        await pilot.press("left")
-        assert screen._active_folder_idx == 1
-
-
-@pytest.mark.asyncio
 async def test_query_list_shows_all_items(tmp_config_dir):
     """All queries should render in the list, not just one."""
     config_dir = tmp_config_dir / "config"
@@ -2110,32 +2003,6 @@ async def test_query_list_shows_all_items(tmp_config_dir):
         from dbqm.ui.widgets.query_list import _QueryListItem
         items = app.query(_QueryListItem)
         assert len(items) == 10
-
-
-@pytest.mark.asyncio
-async def test_group_list_shows_all_items(tmp_config_dir):
-    """All groups should render in the list, not just one."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": f"g{i}",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-            }
-            for i in range(8)
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        from dbqm.ui.screens.group_exec import _GroupListItem
-        items = app.query(_GroupListItem)
-        assert len(items) == 8
 
 
 # ======================================================================
@@ -2578,85 +2445,42 @@ async def test_settings_theme_change_saves(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_group_exec_show_result_does_not_crash(tmp_config_dir):
-    """_show_result should display group results without AttributeError."""
-    from dbqm.ui.widgets.action_bar import ActionBar
+async def test_group_exec_show_result_renders_comparison(tmp_config_dir):
+    """_show_result feeds a GroupResult (built from AdhocResults) into the
+    comparison widget without crashing."""
+    from dbqm.core.query_engine import AdhocResult
 
-    qr1 = QR(
-        query_name="q1", connection_name="c1",
-        columns=["id", "status"], rows=[[1, "ok"], [2, "fail"]],
-        row_count=2, elapsed=0.1,
+    r1 = AdhocResult(
+        sql_type="SELECT", connection_name="c1",
+        columns=["id", "status"], rows=[[1, "ok"], [2, "fail"]], row_count=2,
     )
-    qr2 = QR(
-        query_name="q2", connection_name="c2",
-        columns=["id", "status"], rows=[[1, "ok"], [2, "ok"]],
-        row_count=2, elapsed=0.1,
+    r2 = AdhocResult(
+        sql_type="SELECT", connection_name="c2",
+        columns=["id", "status"], rows=[[1, "ok"], [2, "ok"]], row_count=2,
     )
     comp = ComparisonResult(
         column="status",
         rows=[
-            ComparisonRow(key_value=1, values={"q1": "ok", "q2": "ok"}, status="OK"),
-            ComparisonRow(key_value=2, values={"q1": "fail", "q2": "ok"}, status="DIFF"),
+            ComparisonRow(key_value=1, values={"c1": "ok", "c2": "ok"}, status="OK"),
+            ComparisonRow(key_value=2, values={"c1": "fail", "c2": "ok"}, status="DIFF"),
         ],
         total_keys=2, equal_count=1, diff_count=1, absent_count=0, normalized_count=0,
     )
     gr = GR(
-        group_name="test_group",
-        query_results={"q1": qr1, "q2": qr2},
+        group_name="(ad-hoc)",
+        query_results={"c1": r1, "c2": r2},
         comparisons=[comp],
         all_match=False,
-        summary_lines=["Coluna: status", "  Iguais: 1", "  Diferentes: 1"],
-    )
-
-    class TestApp(App):
-        def compose(self_):
-            yield ActionBar()
-            yield GroupExecScreen()
-
-    app = TestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        # Directly call _show_result — this is where the bug was
-        screen._show_result(gr, {"param1": "value1"})
-        await pilot.pause()
-
-        # Results phase should be visible
-        assert screen.query_one("#ge-results-phase").display is True
-        assert screen.query_one("#ge-selection-phase").display is False
-
-
-@pytest.mark.asyncio
-async def test_group_exec_folder_bar_is_horizontal_scroll(tmp_config_dir):
-    """Group exec folder bar should use HorizontalScroll for scrollability."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g1",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["s"],
-                "folder": "A",
-            },
-            {
-                "name": "g2",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["s"],
-                "folder": "B",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
     )
 
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
-        from textual.containers import HorizontalScroll
         screen = app.query_one(GroupExecScreen)
-        folder_bar = screen.query_one("#ge-folder-bar")
-        assert isinstance(folder_bar, HorizontalScroll)
+        screen._show_result(gr)
+        await pilot.pause()
+
+        grw = screen.query_one("#group-results", GroupResultWidget)
+        assert grw.group_result is gr
 
 
 # ======================================================================
@@ -3377,40 +3201,6 @@ async def test_template_manage_screen_no_fields_template(tmp_config_dir):
         assert fields_col == ""
 
 
-# ======================================================================
-# GroupExecScreen template integration
-# ======================================================================
-
-
-@pytest.mark.asyncio
-async def test_group_exec_screen_with_template_group(tmp_config_dir):
-    """Group with template configured should show in the group list."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "grupo_tpl",
-                "description": "Grupo com template",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "template": "meu_template",
-                "template_fields": {"titulo": "param:CORRETOR"},
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        from textual.widgets import ListView
-        group_list = screen.query_one("#ge-group-list", ListView)
-        assert len(group_list.children) == 1
-
-
 @pytest.mark.asyncio
 async def test_group_manage_screen_with_template_data(tmp_config_dir):
     """Groups with template fields survive loading in management screen."""
@@ -3725,8 +3515,7 @@ class GroupRunTestApp(App):
 
 @pytest.mark.asyncio
 async def test_group_run_screen_renders_standalone(tmp_config_dir):
-    """GroupRunScreen renders standalone with its own #gr-group-list id,
-    distinct from GroupExecScreen's #ge-group-list."""
+    """GroupRunScreen renders standalone with its own #gr-group-list id."""
     from textual.widgets import ListView
 
     config_dir = tmp_config_dir / "config"

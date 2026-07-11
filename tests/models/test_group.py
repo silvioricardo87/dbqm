@@ -48,6 +48,28 @@ class TestGroup:
         assert g.template == ""
         assert g.template_fields == {}
 
+    def test_adhoc_round_trip(self):
+        """Ad-hoc (Multi-Exec) groups round-trip adhoc_sql + connections."""
+        g = Group(
+            name="multi", description="", queries=[], join_key="ID",
+            adhoc_sql="SELECT ID, STATUS FROM t",
+            connections=["conn_a", "conn_b", "conn_c"],
+        )
+        d = g.to_dict()
+        assert d["adhoc_sql"] == "SELECT ID, STATUS FROM t"
+        assert d["connections"] == ["conn_a", "conn_b", "conn_c"]
+
+        g2 = Group.from_dict(d)
+        assert g2.adhoc_sql == "SELECT ID, STATUS FROM t"
+        assert g2.connections == ["conn_a", "conn_b", "conn_c"]
+
+    def test_adhoc_defaults_from_old_data(self):
+        """Groups saved before the ad-hoc feature load with empty defaults."""
+        data = {"name": "old", "description": "", "queries": ["q1", "q2"], "join_key": "id"}
+        g = Group.from_dict(data)
+        assert g.adhoc_sql == ""
+        assert g.connections == []
+
 
 class TestGroupPersistence:
     def test_save_load_find_delete(self, tmp_config_dir):
