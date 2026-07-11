@@ -1,10 +1,10 @@
 # DB Query Manager (dbqm)
 
-Fullscreen terminal application for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, and **MySQL**. Built with [Textual](https://textual.textualize.io/) for a modern TUI experience with sidebar navigation, keyboard shortcuts, and theme support.
+Fullscreen terminal application for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, and **MySQL**. Built with [Textual](https://textual.textualize.io/) for a modern TUI experience with a single tabbed dashboard, keyboard shortcuts, and theme support.
 
 ## Features
 
-- **Fullscreen TUI** — Fixed layout with sidebar navigation, breadcrumb, status bar, and keyboard-driven workflow
+- **Fullscreen TUI** — Single tabbed dashboard (8 tabs, `F1`–`F8`), collapsible Templates sidebar, status bar, and keyboard-driven workflow
 - **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL
 - **Cross-database comparison** — Execute query groups and compare results side-by-side with match/diff/absent status
 - **Report templates** — Define text templates with `{{field}}` placeholders, auto-fill from query results or manual input, export rendered reports
@@ -161,11 +161,12 @@ The application is fully keyboard-driven:
 
 | Key | Action | Context |
 |-----|--------|---------|
-| `↑` `↓` | Navigate items / widgets | Sidebar, lists, tables, forms |
+| `F1`–`F8` | Switch dashboard tab | Global |
+| `↑` `↓` | Navigate items / widgets | Lists, tables, forms |
 | `←` `→` | Switch folder tabs | Query/group lists |
 | `Enter` | Select / Confirm | Global |
 | `Escape` | Go back | Global |
-| `Ctrl+B` | Toggle sidebar | Global |
+| `Ctrl+B` | Toggle Templates sidebar | Global |
 | `Ctrl+Q` | Quit | Global |
 | `/` | Search / filter | Lists |
 | `?` | Help (shortcuts) | Global |
@@ -185,14 +186,22 @@ The application is fully keyboard-driven:
 | `C` | Compile Spec | Package editor |
 | `B` | Compile Body | Package editor |
 
-## Sidebar
+## Dashboard tabs
 
-| Section | Options |
-|---------|---------|
-| **Consultas** | Executar, SQL avulso, Gerenciar |
-| **Grupos** | Executar, Gerenciar, Templates |
-| **Ferramentas** | DDL, Packages, Executar Rotina, Objetos, Historico |
-| **Sistema** | Conexoes, Config (inclui Exportar/Importar), Sair |
+The app is a single tabbed dashboard. Switch tabs with `F1`–`F8`:
+
+| Key | Tab | Content |
+|-----|-----|---------|
+| `F1` | 🔍  Coleta | Ad-hoc SQL |
+| `F2` | 🔌  Conexoes | Manage database connections |
+| `F3` | 📂  Objetos | Object browser |
+| `F4` | 📊  Multi-Exec | Query groups & comparison |
+| `F5` | 📜  Historico | Execution history |
+| `F6` | ⚙️  Configuracoes | Settings (inclui Exportar/Importar) |
+| `F7` | 📝  Consultas | Run saved queries |
+| `F8` | 🧰  Ferramentas | Gerenciar Grupos/Templates, Package editor, Executar Rotina |
+
+A collapsible **Templates** sidebar (`Ctrl+B`) lists saved SQL templates; choosing one injects its SQL into the active tab's editor.
 
 ## Query Groups & Comparison
 

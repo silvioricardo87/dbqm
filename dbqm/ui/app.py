@@ -5,36 +5,29 @@ import traceback
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, Container
-from textual.widgets import Header, Static
+from textual.containers import Horizontal
+from textual.widgets import Header, TabbedContent, TabPane
 
 from dbqm.ui.theme import GITHUB_DARK, GITHUB_LIGHT
-from dbqm.ui.widgets.sidebar import Sidebar, SidebarItemSelected
-from dbqm.ui.widgets.breadcrumb import Breadcrumb
 from dbqm.ui.widgets.status_bar import StatusBar
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
-
-
-# Map sidebar actions to breadcrumb labels
-ACTION_LABELS: dict[str, str] = {
-    "exec_query": "Executar Consulta",
-    "adhoc_sql": "SQL Avulso",
-    "config_query": "Gerenciar Consultas",
-    "exec_group": "Executar Grupo",
-    "config_group": "Gerenciar Grupos",
-    "config_template": "Gerenciar Templates",
-    "extract_ddl": "DDL",
-    "package_editor": "Packages",
-    "exec_routine": "Executar Rotina",
-    "browse": "Objetos",
-    "history": "Histórico",
-    "config_conn": "Conexões",
-    "settings": "Configurações",
-}
+from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
 
 class DBQMApp(App):
-    """DB Query Manager — main application."""
+    """DB Query Manager — single tabbed dashboard shell."""
+
+    #: Maps each tab id to the id of the screen widget it hosts.
+    TAB_TO_SCREEN: dict[str, str] = {
+        "tab-coleta": "adhoc-screen",
+        "tab-conexoes": "connections-screen",
+        "tab-objetos": "browser-screen",
+        "tab-multiexec": "group-exec-screen",
+        "tab-historico": "history-screen",
+        "tab-config": "settings-screen",
+        "tab-consultas": "query-exec-screen",
+        "tab-ferramentas": "ferramentas-screen",
+    }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -42,7 +35,15 @@ class DBQMApp(App):
         self.title = f"DB Query Manager v{__version__}"
 
     BINDINGS = [
-        Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar"),
+        Binding("f1", "switch_tab('tab-coleta')", "Coleta", show=False),
+        Binding("f2", "switch_tab('tab-conexoes')", "Conexoes", show=False),
+        Binding("f3", "switch_tab('tab-objetos')", "Objetos", show=False),
+        Binding("f4", "switch_tab('tab-multiexec')", "Multi-Exec", show=False),
+        Binding("f5", "switch_tab('tab-historico')", "Historico", show=False),
+        Binding("f6", "switch_tab('tab-config')", "Configuracoes", show=False),
+        Binding("f7", "switch_tab('tab-consultas')", "Consultas", show=False),
+        Binding("f8", "switch_tab('tab-ferramentas')", "Ferramentas", show=False),
+        Binding("ctrl+b", "toggle_sidebar", "Templates"),
         Binding("ctrl+q", "quit", "Quit"),
         Binding("escape", "go_back", "Back"),
         Binding("question_mark", "show_help", "Ajuda", show=False),
@@ -69,13 +70,44 @@ class DBQMApp(App):
     ]
 
     def compose(self) -> ComposeResult:
+        # First-run (no connections) opens on the Conexoes tab. Decided here so
+        # TabbedContent starts on the right tab with no deferred switch that
+        # could race with early user input.
+        from dbqm.models.connection import load_connections
+        try:
+            initial_tab = "tab-coleta" if load_connections() else "tab-conexoes"
+        except Exception:
+            initial_tab = "tab-coleta"
+
         yield Header()
-        with Horizontal():
-            yield Sidebar()
-            with Vertical(id="content"):
-                yield Breadcrumb()
-                yield Container(id="screen-area")
-                yield ActionBar()
+        with Horizontal(id="body"):
+            yield TemplatesSidebar(id="templates-sidebar")
+            with TabbedContent(id="main-tabs", initial=initial_tab):
+                with TabPane("🔍  Coleta", id="tab-coleta"):
+                    from dbqm.ui.screens.adhoc import AdhocScreen
+                    yield AdhocScreen(id="adhoc-screen")
+                with TabPane("🔌  Conexoes", id="tab-conexoes"):
+                    from dbqm.ui.screens.connections import ConnectionsScreen
+                    yield ConnectionsScreen(id="connections-screen")
+                with TabPane("📂  Objetos", id="tab-objetos"):
+                    from dbqm.ui.screens.browser import BrowserScreen
+                    yield BrowserScreen(id="browser-screen")
+                with TabPane("📊  Multi-Exec", id="tab-multiexec"):
+                    from dbqm.ui.screens.group_exec import GroupExecScreen
+                    yield GroupExecScreen(id="group-exec-screen")
+                with TabPane("📜  Historico", id="tab-historico"):
+                    from dbqm.ui.screens.history import HistoryScreen
+                    yield HistoryScreen(id="history-screen")
+                with TabPane("⚙️  Configuracoes", id="tab-config"):
+                    from dbqm.ui.screens.settings import SettingsScreen
+                    yield SettingsScreen(id="settings-screen")
+                with TabPane("📝  Consultas", id="tab-consultas"):
+                    from dbqm.ui.screens.query_exec import QueryExecScreen
+                    yield QueryExecScreen(id="query-exec-screen")
+                with TabPane("🧰  Ferramentas", id="tab-ferramentas"):
+                    from dbqm.ui.screens.ferramentas import FerramentasScreen
+                    yield FerramentasScreen(id="ferramentas-screen")
+        yield ActionBar()
         yield StatusBar()
 
     def on_mount(self) -> None:
@@ -102,46 +134,181 @@ class DBQMApp(App):
             groups=len(groups),
         )
 
-        # First-run: no connections configured
+        # Disable every pane except the initially-active one. The hosted
+        # phase-based screens focus a widget on mount, and focusing a widget
+        # inside an inactive pane would otherwise activate that pane. Disabling
+        # the inactive panes makes their descendants non-focusable, so only the
+        # active screen can take focus and the intended tab always wins.
+        try:
+            self._sync_panes(self.query_one("#main-tabs", TabbedContent).active)
+        except Exception:
+            pass
+
+        # First-run: no connections configured. The Conexoes tab is already
+        # active (chosen in compose); just welcome the user.
         if not connections:
-            screen_area = self.query_one("#screen-area", Container)
-            screen_area.mount(
-                Static(
-                    "[bold]Bem-vindo ao DB Query Manager![/bold]\n\n"
-                    "Nenhuma conexão configurada.\n"
-                    "Use o menu [bold]Conexões[/bold] para começar.",
-                    id="welcome-message",
-                )
+            self.notify(
+                "Bem-vindo! Nenhuma conexao configurada. "
+                "Crie uma conexao para comecar.",
+                severity="warning",
+                timeout=10,
             )
 
-    def on_key(self, event) -> None:
-        """Use arrow keys to navigate between widgets in content area.
+    def _sync_panes(self, active_id: str) -> None:
+        """Enable the active pane and disable the rest.
 
-        DataTable, ListView, TextArea, and Sidebar handle arrows internally.
-        For other widgets (Button, Switch, Input, Select), arrows move focus.
-        Disabled when a modal is active so modals handle their own navigation.
+        Disabled panes hold hidden, non-focusable content so their screens
+        cannot steal focus (and thereby hijack the active tab).
+        """
+        try:
+            tabbed = self.query_one("#main-tabs", TabbedContent)
+            for pane in tabbed.query(TabPane):
+                pane.disabled = (pane.id != active_id)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Tab navigation
+    # ------------------------------------------------------------------
+
+    def action_switch_tab(self, tab_id: str) -> None:
+        """Switch to the given tab.
+
+        Blur focus first, then enable the target pane (and disable the rest)
+        before activating it. Textual reactivates the tab that owns the
+        currently focused descendant; clearing focus and disabling the other
+        panes keeps a programmatic switch from being reverted. The
+        tab-activated handler restores focus into the newly active pane.
+        """
+        try:
+            self.set_focus(None)
+            self._sync_panes(tab_id)
+            self.query_one("#main-tabs", TabbedContent).active = tab_id
+        except Exception:
+            pass
+
+    def _active_screen(self):
+        """Return the screen widget hosted in the currently active tab."""
+        try:
+            tabbed = self.query_one("#main-tabs", TabbedContent)
+            screen_id = self.TAB_TO_SCREEN.get(tabbed.active)
+            if screen_id:
+                return self.query_one(f"#{screen_id}")
+        except Exception:
+            pass
+        return None
+
+    def on_tabbed_content_tab_activated(self, event) -> None:
+        """When a tab becomes active, normalize the action bar to that screen
+        and focus its first focusable widget.
+
+        Screens that expose an initial action-setter (``_set_actions`` or
+        ``_set_list_actions``) get it re-invoked so their contextual actions
+        are restored when switching back. Everything else clears the bar.
+        This is best-effort and never hard-codes phase ids.
+        """
+        # Keep pane enabled-state in sync with whatever became active (covers
+        # activation via a tab click, not just action_switch_tab).
+        try:
+            self._sync_panes(self.query_one("#main-tabs", TabbedContent).active)
+        except Exception:
+            pass
+
+        screen = self._active_screen()
+        if screen is None:
+            try:
+                self.query_one(ActionBar).set_actions([])
+            except Exception:
+                pass
+            return
+
+        setter = None
+        for name in ("_set_actions", "_set_list_actions"):
+            candidate = getattr(screen, name, None)
+            if callable(candidate):
+                setter = candidate
+                break
+        try:
+            if setter is not None:
+                setter()
+            else:
+                self.query_one(ActionBar).set_actions([])
+        except Exception:
+            try:
+                self.query_one(ActionBar).set_actions([])
+            except Exception:
+                pass
+
+        try:
+            target = self.query_one("#main-tabs", TabbedContent).active
+        except Exception:
+            return
+        self.call_after_refresh(lambda: self._focus_active_screen(target))
+
+    def _focus_active_screen(self, tab_id: str) -> None:
+        """Focus the first widget of ``tab_id``'s screen, but only if that tab
+        is still the active one — prevents a stale scheduled focus from a
+        previously active pane reverting a fresh tab switch.
+        """
+        try:
+            tabbed = self.query_one("#main-tabs", TabbedContent)
+            if tabbed.active != tab_id:
+                return
+            screen_id = self.TAB_TO_SCREEN.get(tab_id)
+            if not screen_id:
+                return
+            screen = self.query_one(f"#{screen_id}")
+        except Exception:
+            return
+        self._focus_screen_widget(screen)
+
+    def action_toggle_sidebar(self) -> None:
+        """Collapse or expand the Templates sidebar."""
+        try:
+            self.query_one(TemplatesSidebar).toggle()
+        except Exception:
+            pass
+
+    def on_templates_sidebar_template_chosen(self, message) -> None:
+        """Inject template SQL into the active tab's editor if it has one."""
+        from textual.widgets import TextArea
+
+        screen = self._active_screen()
+        try:
+            editor = screen.query(TextArea).first()
+            editor.text = message.sql
+        except Exception:
+            self.notify("Aba atual nao aceita template.", severity="warning")
+
+    # ------------------------------------------------------------------
+    # Keyboard navigation
+    # ------------------------------------------------------------------
+
+    def on_key(self, event) -> None:
+        """Use arrow keys to navigate between widgets in the active tab.
+
+        DataTable, ListView, TextArea, and OptionList handle arrows
+        internally. For other widgets (Button, Switch, Input, Select),
+        arrows move focus. Disabled when a modal is active so modals
+        handle their own navigation.
         """
         if event.key not in ("up", "down"):
             return
 
-        # Don't intercept keys when a modal is active
         if len(self.screen_stack) > 1:
             return
 
         from textual.widgets import DataTable, ListView, TextArea, OptionList
-        from dbqm.ui.widgets.sidebar import Sidebar
 
         focused = self.focused
         if focused is None:
             return
 
-        # Check the focused widget AND its ancestors for types that use arrows
         widget_chain = [focused] + list(focused.ancestors)
         for w in widget_chain:
-            if isinstance(w, (DataTable, ListView, TextArea, OptionList, Sidebar)):
+            if isinstance(w, (DataTable, ListView, TextArea, OptionList)):
                 return
 
-        # Navigate within the content section only
         self._focus_within_section(forward=(event.key == "down"))
         event.prevent_default()
         event.stop()
@@ -169,38 +336,35 @@ class DBQMApp(App):
         return True
 
     def _focus_within_section(self, forward: bool) -> None:
-        """Navigate focus only within the current section (sidebar or content area)."""
+        """Navigate focus within the widgets of the active tab pane only."""
         focused = self.focused
         if focused is None:
             return
 
+        from textual.widgets import Select
+
         try:
-            sidebar = self.query_one(Sidebar)
-            content = self.query_one("#content", Vertical)
+            tabbed = self.query_one("#main-tabs", TabbedContent)
+            pane = tabbed.get_pane(tabbed.active)
         except Exception:
             return
-
-        # Check if focused widget is inside sidebar
-        in_sidebar = focused is sidebar or sidebar in focused.ancestors
-        if in_sidebar:
+        if pane is None:
             return
 
-        # Get all focusable widgets inside the content area only
-        # Exclude pure layout containers that shouldn't receive focus
-        from textual.widgets import Select
+        # Get all focusable widgets inside the active pane only.
+        # Exclude pure layout containers that shouldn't receive focus.
         focusable = []
-        for w in content.query("*"):
+        for w in pane.query("*"):
             if not w.can_focus or not w.display:
                 continue
-            # Include interactive widgets: Select, Button, Switch, Input, etc.
-            # Exclude layout containers (Vertical, Horizontal, Container, ScrollView)
-            # Select inherits from Vertical, so check it explicitly first
+            # Select inherits from Vertical, so include it explicitly first.
             if isinstance(w, Select):
                 focusable.append(w)
             elif w.__class__.__name__ in (
                 "Vertical", "Horizontal", "Container",
                 "VerticalScroll", "HorizontalScroll",
                 "NavVerticalScroll", "SettingsScreen",
+                "TabPane", "ContentSwitcher",
             ):
                 continue
             else:
@@ -209,8 +373,6 @@ class DBQMApp(App):
         if not focusable:
             return
 
-        # Find current index — focused might be a child of a focusable widget
-        # (e.g. SelectCurrent inside Select), so check ancestors too
         current_idx = -1
         for i, w in enumerate(focusable):
             if w is focused or w in focused.ancestors:
@@ -218,7 +380,6 @@ class DBQMApp(App):
                 break
 
         if current_idx < 0:
-            # Not found — focus first or last
             focusable[0 if forward else -1].focus()
             return
 
@@ -229,6 +390,10 @@ class DBQMApp(App):
 
         focusable[next_idx].focus()
 
+    # ------------------------------------------------------------------
+    # Action bar routing
+    # ------------------------------------------------------------------
+
     def action_shortcut(self, key: str) -> None:
         """Handle action bar shortcut keys (N, T, E, R, etc.)."""
         try:
@@ -238,11 +403,10 @@ class DBQMApp(App):
 
         for action in action_bar._actions:
             if action.key and action.key.lower() == key.lower():
-                # Post to the active screen widget so it receives the message
-                screen_area = self.query_one("#screen-area", Container)
-                children = list(screen_area.children)
-                if children:
-                    children[0].post_message(ActionSelected(action.action_id))
+                # Post to the active tab's screen so it receives the message.
+                screen = self._active_screen()
+                if screen is not None:
+                    screen.post_message(ActionSelected(action.action_id))
                 else:
                     action_bar.post_message(ActionSelected(action.action_id))
                 return
@@ -254,110 +418,73 @@ class DBQMApp(App):
         Shortcut-based actions already post directly to the screen widget.
         """
         # Only forward if this came from the ActionBar (bubbled up),
-        # not from a screen (would cause infinite loop)
+        # not from a screen (would cause infinite loop).
         if isinstance(message._sender, ActionBar):
-            screen_area = self.query_one("#screen-area", Container)
-            children = list(screen_area.children)
-            if children:
-                children[0].post_message(ActionSelected(message.action_id))
+            screen = self._active_screen()
+            if screen is not None:
+                screen.post_message(ActionSelected(message.action_id))
             message.stop()
-
-    def on_sidebar_item_selected(self, message: SidebarItemSelected) -> None:
-        """Handle sidebar navigation."""
-        action = message.action
-
-        if action == "exit":
-            self.exit()
-            return
-
-        # Update sidebar active state
-        self.query_one(Sidebar).set_active(action)
-
-        # Update breadcrumb
-        label = ACTION_LABELS.get(action, action)
-        # System items get "Sistema" as parent breadcrumb
-        system_actions = {"config_conn", "settings"}
-        if action in system_actions:
-            self.query_one(Breadcrumb).set_path(["Sistema", label])
-        elif action == "config_query":
-            self.query_one(Breadcrumb).set_path(["Consultas", "Gerenciar"])
-        elif action == "config_group":
-            self.query_one(Breadcrumb).set_path(["Grupos", "Gerenciar"])
-        else:
-            self.query_one(Breadcrumb).set_path(["Início", label])
-
-        # Load appropriate screen into the content area
-        screen_area = self.query_one("#screen-area", Container)
-        screen_area.remove_children()
-
-        screen_widget = None
-        if action == "exec_query":
-            from dbqm.ui.screens.query_exec import QueryExecScreen
-            screen_widget = QueryExecScreen(id="query-exec-screen")
-        elif action == "exec_group":
-            from dbqm.ui.screens.group_exec import GroupExecScreen
-            self.query_one(Breadcrumb).set_path(["Grupos", "Executar"])
-            screen_widget = GroupExecScreen(id="group-exec-screen")
-        elif action == "config_query":
-            from dbqm.ui.screens.query_manage import QueryManageScreen
-            screen_widget = QueryManageScreen(id="query-manage-screen")
-        elif action == "config_group":
-            from dbqm.ui.screens.group_manage import GroupManageScreen
-            screen_widget = GroupManageScreen(id="group-manage-screen")
-        elif action == "config_template":
-            from dbqm.ui.screens.template_manage import TemplateManageScreen
-            self.query_one(Breadcrumb).set_path(["Grupos", "Templates"])
-            screen_widget = TemplateManageScreen(id="template-manage-screen")
-        elif action == "adhoc_sql":
-            from dbqm.ui.screens.adhoc import AdhocScreen
-            self.query_one(Breadcrumb).set_path(["Consultas", "SQL avulso"])
-            screen_widget = AdhocScreen(id="adhoc-screen")
-        elif action == "extract_ddl":
-            from dbqm.ui.screens.ddl import DDLScreen
-            self.query_one(Breadcrumb).set_path(["Ferramentas", "DDL"])
-            screen_widget = DDLScreen(id="ddl-screen")
-        elif action == "package_editor":
-            from dbqm.ui.screens.package_editor import PackageEditorScreen
-            self.query_one(Breadcrumb).set_path(["Ferramentas", "Packages"])
-            screen_widget = PackageEditorScreen(id="package-editor-screen")
-        elif action == "exec_routine":
-            from dbqm.ui.screens.exec_routine import ExecRoutineScreen
-            self.query_one(Breadcrumb).set_path(["Ferramentas", "Executar Rotina"])
-            screen_widget = ExecRoutineScreen(id="exec-routine-screen")
-        elif action == "browse":
-            from dbqm.ui.screens.browser import BrowserScreen
-            self.query_one(Breadcrumb).set_path(["Ferramentas", "Objetos"])
-            screen_widget = BrowserScreen(id="browser-screen")
-        elif action == "history":
-            from dbqm.ui.screens.history import HistoryScreen
-            self.query_one(Breadcrumb).set_path(["Ferramentas", "Historico"])
-            screen_widget = HistoryScreen(id="history-screen")
-        elif action == "config_conn":
-            from dbqm.ui.screens.connections import ConnectionsScreen
-            screen_widget = ConnectionsScreen(id="connections-screen")
-        elif action == "settings":
-            from dbqm.ui.screens.settings import SettingsScreen
-            self.query_one(Breadcrumb).set_path(["Sistema", "Config"])
-            screen_widget = SettingsScreen(id="settings-screen")
-        else:
-            screen_widget = Static(f"[dim]{label}[/dim] (em construção)", id="placeholder")
-
-        if screen_widget is not None:
-            screen_area.mount(screen_widget)
-            self.call_after_refresh(lambda: self._focus_screen_widget(screen_widget))
 
     def _focus_screen_widget(self, screen_widget) -> None:
         """Set focus to the first interactive widget within a screen."""
         try:
-            # Find the first focusable child widget in the screen
             for widget in screen_widget.query("*"):
-                if widget.can_focus:
+                if widget.can_focus and widget.display:
                     widget.focus()
                     return
-            # Fallback: focus the screen container itself
             screen_widget.focus()
         except Exception:
             pass
+
+    # ------------------------------------------------------------------
+    # Back navigation
+    # ------------------------------------------------------------------
+
+    def action_go_back(self) -> None:
+        """Go back within the active tab's screen, if it has a deeper phase.
+
+        Compact dispatch keyed on the active screen id — each screen that
+        supports drill-down exposes a matching ``go_back_*`` method. Guarded
+        end to end; a no-op when nothing applies.
+        """
+        try:
+            tabbed = self.query_one("#main-tabs", TabbedContent)
+            screen_id = self.TAB_TO_SCREEN.get(tabbed.active)
+            if not screen_id:
+                return
+            screen = self.query_one(f"#{screen_id}")
+        except Exception:
+            return
+
+        try:
+            if screen_id == "adhoc-screen":
+                if screen.query_one("#adhoc-results-phase").display:
+                    screen.go_back_to_input()
+                    self.query_one(ActionBar).set_actions([])
+            elif screen_id == "query-exec-screen":
+                if screen.query_one("#results-phase").display:
+                    screen.go_back_to_selection()
+                    self.query_one(ActionBar).set_actions([])
+            elif screen_id == "group-exec-screen":
+                if screen.query_one("#ge-results-phase").display:
+                    screen.go_back_to_selection()
+                    self.query_one(ActionBar).set_actions([])
+            elif screen_id == "browser-screen":
+                if screen.query_one("#br-data-phase").display:
+                    screen.go_back_to_detail()
+                elif screen.query_one("#br-detail-phase").display:
+                    screen.go_back_to_list()
+                elif screen.query_one("#br-list-phase").display:
+                    screen.go_back_to_select()
+            elif screen_id == "history-screen":
+                if screen.query_one("#hist-detail-phase").display:
+                    screen.go_back_to_list()
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Global handlers / overlays
+    # ------------------------------------------------------------------
 
     def _handle_exception(self, error: Exception) -> None:
         """Global error handler — show error modal instead of crashing."""
@@ -393,123 +520,3 @@ class DBQMApp(App):
             ql.action_start_search()
         except Exception:
             pass
-
-    def action_toggle_sidebar(self) -> None:
-        """Toggle sidebar collapse state."""
-        self.query_one(Sidebar).toggle_collapse()
-
-    def action_go_back(self) -> None:
-        """Go back — if showing results, return to selection; otherwise clear screen."""
-        from dbqm.ui.screens.query_exec import QueryExecScreen
-
-        # Check if a QueryExecScreen is in results phase
-        try:
-            exec_screen = self.query_one(QueryExecScreen)
-            results_phase = exec_screen.query_one("#results-phase")
-            if results_phase.display:
-                exec_screen.go_back_to_selection()
-                self.query_one(ActionBar).set_actions([])
-                return
-        except Exception:
-            pass
-
-        # Check if a GroupExecScreen is in results phase
-        try:
-            from dbqm.ui.screens.group_exec import GroupExecScreen
-            group_screen = self.query_one(GroupExecScreen)
-            results_phase = group_screen.query_one("#ge-results-phase")
-            if results_phase.display:
-                group_screen.go_back_to_selection()
-                self.query_one(ActionBar).set_actions([])
-                return
-        except Exception:
-            pass
-
-        # Check if an AdhocScreen is in results phase
-        try:
-            from dbqm.ui.screens.adhoc import AdhocScreen
-            adhoc_screen = self.query_one(AdhocScreen)
-            results_phase = adhoc_screen.query_one("#adhoc-results-phase")
-            if results_phase.display:
-                adhoc_screen.go_back_to_input()
-                self.query_one(ActionBar).set_actions([])
-                return
-        except Exception:
-            pass
-
-        # Check if a DDLScreen is in results phase
-        try:
-            from dbqm.ui.screens.ddl import DDLScreen
-            ddl_screen = self.query_one(DDLScreen)
-            results_phase = ddl_screen.query_one("#ddl-results-phase")
-            if results_phase.display:
-                ddl_screen.go_back_to_input()
-                self.query_one(ActionBar).set_actions([])
-                return
-        except Exception:
-            pass
-
-        # Check if ExecRoutineScreen has back navigation
-        try:
-            from dbqm.ui.screens.exec_routine import ExecRoutineScreen
-            er_screen = self.query_one(ExecRoutineScreen)
-            if er_screen.go_back():
-                return
-        except Exception:
-            pass
-
-        # Check if a BrowserScreen is in a non-select phase
-        try:
-            from dbqm.ui.screens.browser import BrowserScreen
-            browser_screen = self.query_one(BrowserScreen)
-            data_phase = browser_screen.query_one("#br-data-phase")
-            if data_phase.display:
-                browser_screen.go_back_to_detail()
-                return
-            detail_phase = browser_screen.query_one("#br-detail-phase")
-            if detail_phase.display:
-                browser_screen.go_back_to_list()
-                return
-            list_phase = browser_screen.query_one("#br-list-phase")
-            if list_phase.display:
-                browser_screen.go_back_to_select()
-                return
-        except Exception:
-            pass
-
-        # Check if a HistoryScreen is in detail phase
-        try:
-            from dbqm.ui.screens.history import HistoryScreen
-            history_screen = self.query_one(HistoryScreen)
-            detail_phase = history_screen.query_one("#hist-detail-phase")
-            if detail_phase.display:
-                history_screen.go_back_to_list()
-                return
-        except Exception:
-            pass
-
-        # Check if ConfigPortScreen is displayed (go back to Settings)
-        try:
-            from dbqm.ui.screens.config_port import ConfigPortScreen
-            config_port = self.query_one(ConfigPortScreen)
-            if config_port._initial_mode:
-                config_port._go_back_to_settings()
-                return
-        except Exception:
-            pass
-
-        breadcrumb = self.query_one(Breadcrumb)
-        if breadcrumb.path:
-            breadcrumb.set_path([])
-            screen_area = self.query_one("#screen-area", Container)
-            screen_area.remove_children()
-            sidebar = self.query_one(Sidebar)
-            sidebar.set_active("")
-            self.query_one(ActionBar).set_actions([])
-            # Removing the screen leaves focus unset; hand it back to the
-            # sidebar so the user can keep navigating with the keyboard.
-            sidebar.focus()
-        else:
-            # Already at the top level — make sure the sidebar has focus so
-            # the keyboard is never left dead after an action.
-            self.query_one(Sidebar).focus()

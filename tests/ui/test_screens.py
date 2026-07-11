@@ -2394,12 +2394,7 @@ async def test_connection_form_modal_opens(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         # Navigate to connections
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f2")
         await pilot.pause()
         await pilot.pause()
 
@@ -2426,12 +2421,7 @@ async def test_connection_form_modal_closes_on_esc(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f2")
         await pilot.pause()
         await pilot.pause()
 
@@ -2511,12 +2501,7 @@ async def test_connection_form_db_type_selection(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f2")
         await pilot.pause()
         await pilot.pause()
 
@@ -2554,12 +2539,7 @@ async def test_query_exec_shortcut_keys(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "exec_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f7")
         await pilot.pause()
         await pilot.pause()
 
@@ -2575,12 +2555,7 @@ async def test_settings_screen_theme_selector(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "settings":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f6")
         await pilot.pause()
         await pilot.pause()
 
@@ -2590,52 +2565,43 @@ async def test_settings_screen_theme_selector(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_all_sidebar_items_open_without_crash(tmp_config_dir):
-    """Every sidebar item should load its screen without crashing."""
+async def test_all_tabs_open_without_crash(tmp_config_dir):
+    """Switching to every tab should host its screen without crashing."""
     from dbqm.ui.app import DBQMApp
 
-    actions_to_test = [
-        "exec_query", "adhoc_sql", "config_query",
-        "exec_group", "config_group",
-        "extract_ddl", "browse", "history",
-        "config_conn", "settings",
+    tabs_to_test = [
+        "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8",
     ]
 
-    for action in actions_to_test:
-        app = DBQMApp()
-        async with app.run_test(size=(120, 40)) as pilot:
-            sidebar = app.query_one("Sidebar")
-            for i, item in enumerate(sidebar._focusable_items):
-                if item._action == action:
-                    sidebar._selected_index = i
-                    break
-            sidebar.key_enter()
-            await pilot.pause()
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        for key in tabs_to_test:
+            await pilot.press(key)
             await pilot.pause()
             # Just verify no crash
 
 
 @pytest.mark.asyncio
 async def test_query_manage_view_sql(tmp_config_dir):
-    """View SQL shortcut should work on query manage screen."""
+    """View SQL action should open a modal on the query manage screen.
+
+    QueryManageScreen is no longer a top-level tab, so it is exercised
+    directly inside a tiny host App.
+    """
     from dbqm.models.query import Query, save_queries
-    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.action_bar import ActionSelected
 
     save_queries([
         Query(name="test_q", connection="c1", sql="SELECT 1 FROM dual", table="dual"),
     ])
 
-    app = DBQMApp()
+    app = QueryManageTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        screen = app.query_one(QueryManageScreen)
+        screen.on_action_selected(ActionSelected("qm_view_sql"))
         await pilot.pause()
         await pilot.pause()
-        # No crash = success
+        assert len(app.screen_stack) > 1  # Modal opened
 
 
 @pytest.mark.asyncio
@@ -2655,12 +2621,7 @@ async def test_edit_connection_opens(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f2")
         await pilot.pause()
         await pilot.pause()
 
@@ -2786,53 +2747,37 @@ def test_generate_wizard_template_no_params():
 # ======================================================================
 
 
-# --- 1. Sidebar keyboard navigation ---
+# --- 1. Tab navigation ---
 
 
 @pytest.mark.asyncio
-async def test_sidebar_up_down_navigation(tmp_config_dir):
-    """Arrow keys navigate sidebar items."""
+async def test_f_keys_switch_between_tabs(tmp_config_dir):
+    """F-keys switch the active tab."""
     from dbqm.ui.app import DBQMApp
+    from textual.widgets import TabbedContent
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        sidebar.focus()
-        initial = sidebar._selected_index
-        sidebar.key_down()
-        assert sidebar._selected_index == initial + 1
-        sidebar.key_up()
-        assert sidebar._selected_index == initial
+        await pilot.press("f1")
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-coleta"
+        await pilot.press("f5")
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
 
 
 @pytest.mark.asyncio
-async def test_sidebar_home_end(tmp_config_dir):
-    """Home/End jump to first/last item."""
+async def test_templates_sidebar_collapse_toggle_via_shortcut(tmp_config_dir):
+    """Ctrl+B toggles the Templates sidebar."""
     from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        sidebar.focus()
-        sidebar.key_end()
-        assert sidebar._selected_index == len(sidebar._focusable_items) - 1
-        sidebar.key_home()
-        assert sidebar._selected_index == 0
-
-
-@pytest.mark.asyncio
-async def test_sidebar_collapse_toggle_via_shortcut(tmp_config_dir):
-    """Ctrl+B toggles sidebar collapse."""
-    from dbqm.ui.app import DBQMApp
-
-    app = DBQMApp()
-    async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        assert not sidebar.collapsed
+        sidebar = app.query_one(TemplatesSidebar)
+        assert not sidebar.has_class("-collapsed")
         await pilot.press("ctrl+b")
-        assert sidebar.collapsed
+        assert sidebar.has_class("-collapsed")
         await pilot.press("ctrl+b")
-        assert not sidebar.collapsed
+        assert not sidebar.has_class("-collapsed")
 
 
 # --- 2. Help modal ---
@@ -2871,12 +2816,7 @@ async def test_query_exec_loads_queries(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "exec_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f7")
         await pilot.pause()
         await pilot.pause()
         items = app.query(_QueryListItem)
@@ -2897,12 +2837,7 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "exec_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f7")
         await pilot.pause()
         await pilot.pause()
         screen = app.query_one(QueryExecScreen)
@@ -2918,23 +2853,19 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_manage_view_sql_shortcut(tmp_config_dir):
-    """V shortcut opens SQL viewer modal."""
+    """View SQL action opens the SQL viewer modal.
+
+    QueryManageScreen is no longer a top-level tab; drive it directly.
+    """
     from dbqm.models.query import Query, save_queries
-    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.action_bar import ActionSelected
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1 FROM dual", table="dual")])
 
-    app = DBQMApp()
+    app = QueryManageTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
-        await pilot.pause()
-        await pilot.press("v")
+        screen = app.query_one(QueryManageScreen)
+        screen.on_action_selected(ActionSelected("qm_view_sql"))
         await pilot.pause()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # Modal opened
@@ -2942,23 +2873,19 @@ async def test_query_manage_view_sql_shortcut(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_manage_rename_shortcut(tmp_config_dir):
-    """R shortcut opens rename modal."""
+    """Rename action opens the rename modal.
+
+    QueryManageScreen is no longer a top-level tab; drive it directly.
+    """
     from dbqm.models.query import Query, save_queries
-    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.action_bar import ActionSelected
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1", table="t1")])
 
-    app = DBQMApp()
+    app = QueryManageTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
-        await pilot.pause()
-        await pilot.press("r")
+        screen = app.query_one(QueryManageScreen)
+        screen.on_action_selected(ActionSelected("qm_rename"))
         await pilot.pause()
         await pilot.pause()
         assert len(app.screen_stack) > 1
@@ -2982,12 +2909,7 @@ async def test_history_shows_entries(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "history":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f5")
         await pilot.pause()
         await pilot.pause()
         screen = app.query_one(HistoryScreen)
@@ -3009,12 +2931,7 @@ async def test_history_detail_view(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "history":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f5")
         await pilot.pause()
         await pilot.pause()
         await pilot.press("enter")
@@ -3035,12 +2952,7 @@ async def test_settings_has_theme_and_audit(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "settings":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f6")
         await pilot.pause()
         await pilot.pause()
         selects = app.query(Select)
@@ -3311,25 +3223,19 @@ async def test_oracle_clients_screen_renders_platform_and_tables(tmp_config_dir)
 
 
 @pytest.mark.asyncio
-async def test_esc_clears_screen(tmp_config_dir):
-    """ESC from a screen returns to empty state."""
+async def test_esc_at_top_level_is_harmless(tmp_config_dir):
+    """ESC on a tab whose screen has no deeper phase is a harmless no-op:
+    the tab stays active and nothing crashes."""
     from dbqm.ui.app import DBQMApp
+    from textual.widgets import TabbedContent
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "history":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
+        await pilot.press("f5")
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        area = app.query_one("#screen-area")
-        # Should be cleared or back to previous state
-        assert len(list(area.children)) == 0
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
 
 
 # ======================================================================
@@ -3337,41 +3243,35 @@ async def test_esc_clears_screen(tmp_config_dir):
 # ======================================================================
 
 
-async def _open_via_sidebar(app, pilot, action):
-    sidebar = app.query_one("Sidebar")
-    for i, item in enumerate(sidebar._focusable_items):
-        if item._action == action:
-            sidebar._selected_index = i
-            break
-    sidebar.key_enter()
+async def _open_tab(app, pilot, fkey):
+    await pilot.press(fkey)
     await pilot.pause()
     await pilot.pause()
-    return sidebar
 
 
 @pytest.mark.asyncio
-async def test_escape_from_query_list_returns_to_sidebar(tmp_config_dir):
-    """Esc while the query list is focused must NOT be swallowed: it should
-    clear the screen and move focus back to the sidebar so the user can
-    navigate again."""
+async def test_escape_from_query_list_at_selection_is_noop(tmp_config_dir):
+    """Esc while the query list is focused at the selection phase must not
+    crash and must keep the QueryExec tab/screen in place (there is no
+    results phase to go back from)."""
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.query_exec import QueryExecScreen
     from dbqm.ui.widgets.query_list import QueryListWidget
-    from dbqm.ui.widgets.sidebar import Sidebar
+    from textual.widgets import TabbedContent
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1")])
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = await _open_via_sidebar(app, pilot, "exec_query")
-        # Deterministically put focus on the query list (the swallow path).
+        await _open_tab(app, pilot, "f7")
+        # Deterministically put focus on the query list.
         app.query_one("#ql-main", QueryListWidget).focus()
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
 
-        area = app.query_one("#screen-area")
-        assert len(list(area.children)) == 0
-        assert app.focused is app.query_one(Sidebar)
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-consultas"
+        assert app.query_one(QueryExecScreen) is not None
 
 
 @pytest.mark.asyncio
@@ -3380,12 +3280,13 @@ async def test_query_list_escape_dismisses_search_without_clearing(tmp_config_di
     screen (does not bubble to the app-level go-back)."""
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.query_exec import QueryExecScreen
     from dbqm.ui.widgets.query_list import QueryListWidget
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1")])
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_via_sidebar(app, pilot, "exec_query")
+        await _open_tab(app, pilot, "f7")
         ql = app.query_one("#ql-main", QueryListWidget)
         ql.action_start_search()
         await pilot.pause()
@@ -3396,7 +3297,7 @@ async def test_query_list_escape_dismisses_search_without_clearing(tmp_config_di
 
         # Search closed, screen still present (not cleared).
         assert not ql.query_one("#ql-search").has_class("visible")
-        assert len(list(app.query_one("#screen-area").children)) == 1
+        assert app.query_one(QueryExecScreen) is not None
 
 
 @pytest.mark.asyncio
@@ -3429,20 +3330,21 @@ async def test_exec_routine_back_to_select_focuses_connection(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_action_go_back_focuses_sidebar_after_clear(tmp_config_dir):
-    """app.action_go_back, when it clears the top-level screen, must focus
-    the sidebar."""
+async def test_action_go_back_at_top_level_is_noop(tmp_config_dir):
+    """app.action_go_back on a tab with no deeper phase is a harmless no-op:
+    the tab remains active and the screen stays mounted."""
     from dbqm.ui.app import DBQMApp
-    from dbqm.ui.widgets.sidebar import Sidebar
+    from dbqm.ui.screens.history import HistoryScreen
+    from textual.widgets import TabbedContent
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_via_sidebar(app, pilot, "history")
+        await _open_tab(app, pilot, "f5")
         app.action_go_back()
         await pilot.pause()
 
-        assert len(list(app.query_one("#screen-area").children)) == 0
-        assert app.focused is app.query_one(Sidebar)
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one(HistoryScreen) is not None
 
 
 # ======================================================================
