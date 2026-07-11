@@ -687,3 +687,54 @@ async def test_panel_renders_title_and_body():
         assert title_content.startswith("⚙️  PARAMETROS")
         assert panel.has_class("accent-focus")
         assert app.query_one("#inner", Static) in panel.query_one("#panel-body").children
+
+
+# ---------------------------------------------------------------------------
+# TemplatesSidebar tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
+
+
+class _TemplatesSidebarApp(App):
+    def compose(self) -> ComposeResult:
+        yield TemplatesSidebar(id="tpl")
+
+
+@pytest.mark.asyncio
+async def test_templates_sidebar_toggle():
+    app = _TemplatesSidebarApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one("#tpl", TemplatesSidebar)
+        assert not sb.has_class("-collapsed")
+        sb.toggle()
+        assert sb.has_class("-collapsed")
+        sb.toggle()
+        assert not sb.has_class("-collapsed")
+
+
+@pytest.mark.asyncio
+async def test_templates_sidebar_option_selected_posts_message():
+    from textual.widgets import OptionList
+    from textual.widgets.option_list import Option
+
+    messages = []
+
+    class CapturingApp(App):
+        def compose(self) -> ComposeResult:
+            yield TemplatesSidebar(id="tpl")
+
+        def on_templates_sidebar_template_chosen(self, event: TemplatesSidebar.TemplateChosen) -> None:
+            messages.append(event.sql)
+
+    app = CapturingApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one("#tpl", TemplatesSidebar)
+        ol = sb.query_one("#tpl-list", OptionList)
+        ol.clear_options()
+        sb._sqls = {"demo": "SELECT 1 FROM DUAL"}
+        ol.add_option(Option("demo", id="demo"))
+        await pilot.pause()
+        ol.highlighted = 0
+        await pilot.press("enter")
+        await pilot.pause()
+        assert messages == ["SELECT 1 FROM DUAL"]
