@@ -3443,3 +3443,60 @@ async def test_action_go_back_focuses_sidebar_after_clear(tmp_config_dir):
 
         assert len(list(app.query_one("#screen-area").children)) == 0
         assert app.focused is app.query_one(Sidebar)
+
+
+# ======================================================================
+# FerramentasScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.ferramentas import FerramentasScreen
+
+
+class FerramentasTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield FerramentasScreen()
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_renders_menu(tmp_config_dir):
+    """FerramentasScreen shows a menu with four launcher buttons, starting
+    on the menu view."""
+    from textual.widgets import Button, ContentSwitcher
+    app = FerramentasTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(FerramentasScreen)
+        assert screen.query_one("#ferr-open-grupos", Button) is not None
+        assert screen.query_one("#ferr-open-templates", Button) is not None
+        assert screen.query_one("#ferr-open-packages", Button) is not None
+        assert screen.query_one("#ferr-open-rotina", Button) is not None
+        switcher = screen.query_one(ContentSwitcher)
+        assert switcher.current == "ferr-menu"
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_open_and_back(tmp_config_dir):
+    """Pressing a launcher button switches to that tool; Voltar returns to
+    the menu.
+
+    Uses Button.press() rather than pilot.click(): PackageEditorScreen's
+    on_mount() eagerly pushes a modal screen (_PackageChoiceModal) the
+    moment it is mounted (see dbqm/ui/screens/package_editor.py). Since all
+    four tool screens are mounted up front inside the ContentSwitcher (only
+    hidden, not deferred), that modal becomes the app's active screen
+    before any interaction happens at all, which breaks coordinate-based
+    pilot.click() lookups (they resolve against the topmost screen).
+    Button.press() posts the Pressed message directly and is unaffected,
+    and is explicit provision for this in the task."""
+    from textual.widgets import Button, ContentSwitcher
+    app = FerramentasTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.query_one(FerramentasScreen)
+        switcher = screen.query_one(ContentSwitcher)
+
+        screen.query_one("#ferr-open-packages", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-packages"
+
+        screen.query_one("#ferr-back-packages", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-menu"
