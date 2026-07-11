@@ -6,22 +6,22 @@ from textual.containers import Vertical
 from textual.widgets import DataTable, Static
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.panel import Panel
 
 
 class HistoryScreen(Vertical):
     """Screen widget for browsing execution history.
 
-    Shows a DataTable with the last 50 history entries and
-    allows viewing details or clearing history.
+    Shows a DataTable with the last 50 history entries and a docked
+    detail panel below it that updates live as the row highlight moves.
     """
 
     DEFAULT_CSS = """
     HistoryScreen {
         height: 1fr;
     }
-    HistoryScreen #hist-list-phase {
-        height: 1fr;
-        padding: 1;
+    HistoryScreen #hist-list-panel {
+        height: 2fr;
     }
     HistoryScreen #hist-empty {
         height: auto;
@@ -33,15 +33,12 @@ class HistoryScreen(Vertical):
     HistoryScreen #hist-table {
         height: 1fr;
     }
-    HistoryScreen #hist-detail-phase {
+    HistoryScreen #hist-detail-panel {
         height: 1fr;
-        padding: 1;
+        min-height: 8;
     }
-    HistoryScreen #hist-detail-info {
-        height: auto;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
+    HistoryScreen #hist-detail {
+        height: 1fr;
     }
     """
 
@@ -56,21 +53,18 @@ class HistoryScreen(Vertical):
         self._entries = []
 
     def compose(self) -> ComposeResult:
-        # List phase
-        with Vertical(id="hist-list-phase"):
+        with Panel("📜  HISTORICO", id="hist-list-panel"):
             yield Static(
                 "[dim]Nenhum historico de execucao.[/dim]",
                 id="hist-empty",
             )
             yield DataTable(id="hist-table")
 
-        # Detail phase
-        with Vertical(id="hist-detail-phase"):
-            yield Static("", id="hist-detail-info")
+        with Panel("📋  DETALHES", id="hist-detail-panel"):
+            yield Static("", id="hist-detail")
 
     def on_mount(self) -> None:
-        self.query_one("#hist-detail-phase").display = False
-        self._load_history()
+        self._reload()
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
@@ -78,7 +72,7 @@ class HistoryScreen(Vertical):
         if table.display:
             table.focus()
 
-    def _load_history(self) -> None:
+    def _reload(self) -> None:
         """Load and display history entries."""
         from dbqm.core.history import load_history
 
@@ -88,57 +82,54 @@ class HistoryScreen(Vertical):
         empty = self.query_one("#hist-empty", Static)
         table = self.query_one("#hist-table", DataTable)
 
+        table.clear(columns=True)
+        table.cursor_type = "row"
+        table.add_column("Data", key="timestamp", width=20)
+        table.add_column("Conexao", key="conn")
+        table.add_column("Tipo", key="type", width=8)
+        table.add_column("SQL", key="sql")
+        table.add_column("Tempo", key="time", width=8)
+        table.add_column("Status", key="status", width=10)
+
         if not self._entries:
             empty.display = True
-            table.display = False
+            self._show_detail(None)
+            self._set_list_actions()
             return
 
         empty.display = False
-        table.display = True
-
-        table.clear(columns=True)
-        table.cursor_type = "row"
-        table.add_column("#", key="num", width=4)
-        table.add_column("Data/Hora", key="timestamp", width=20)
-        table.add_column("Tipo", key="type", width=8)
-        table.add_column("Nome", key="name")
-        table.add_column("Conexao", key="conn")
-        table.add_column("Resultado", key="result")
-        table.add_column("Tempo", key="time", width=8)
 
         for i, e in enumerate(self._entries, 1):
             if e.entry_type == "group":
                 tipo = "grupo"
                 if e.all_match is True:
-                    resultado = "OK"
+                    status = "[green]OK[/green]"
                 elif e.all_match is False:
-                    resultado = "DIFF"
+                    status = "[red]DIFF[/red]"
                 else:
-                    resultado = "-"
+                    status = "-"
             else:
                 tipo = "query"
                 if e.success:
-                    resultado = f"{e.row_count} rows"
+                    status = "[green]OK[/green]"
                 else:
-                    resultado = "ERRO"
+                    status = "[red]ERRO[/red]"
 
             table.add_row(
-                str(i),
                 str(e.timestamp) if e.timestamp else "",
+                str(e.connection) if e.connection else "-",
                 tipo,
                 str(e.name) if e.name else "",
-                str(e.connection) if e.connection else "-",
-                resultado,
                 f"{e.elapsed:.1f}s",
+                status,
                 key=str(i),
             )
 
-        # Set up action bar
         self._set_list_actions()
+        self._show_detail(self._entries[0])
 
     def _set_list_actions(self) -> None:
         actions = [
-            Action("Ver detalhes", "D", "hist_detail"),
             Action("Limpar historico", "X", "hist_clear"),
         ]
         try:
@@ -147,25 +138,28 @@ class HistoryScreen(Vertical):
             pass
 
     # ------------------------------------------------------------------
-    # Row selection — show detail
+    # Row highlight — live-update the docked detail panel
     # ------------------------------------------------------------------
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if event.data_table.id != "hist-table":
             return
-        key = event.row_key.value
+        if event.row_key is None or event.row_key.value is None:
+            return
         try:
-            idx = int(key) - 1
+            idx = int(event.row_key.value) - 1
         except (ValueError, TypeError):
             return
         if 0 <= idx < len(self._entries):
             self._show_detail(self._entries[idx])
 
     def _show_detail(self, entry) -> None:
-        """Show details of a history entry."""
-        self.query_one("#hist-list-phase").display = False
-        detail_phase = self.query_one("#hist-detail-phase")
-        detail_phase.display = True
+        """Render details of a history entry into the docked detail panel."""
+        detail = self.query_one("#hist-detail", Static)
+
+        if entry is None:
+            detail.update("[dim]Nenhum registro selecionado.[/dim]")
+            return
 
         lines = []
         lines.append(f"[bold]Tipo:[/bold] {entry.entry_type}")
@@ -196,17 +190,7 @@ class HistoryScreen(Vertical):
             if entry.summary:
                 lines.append(f"[bold]Resumo:[/bold] {str(entry.summary)}")
 
-        detail_info = self.query_one("#hist-detail-info", Static)
-        detail_info.update("\n".join(lines))
-
-        # Action bar
-        actions = [
-            Action("Voltar", "Esc", "hist_back"),
-        ]
-        try:
-            self.app.query_one(ActionBar).set_actions(actions)
-        except Exception:
-            pass
+        detail.update("\n".join(lines))
 
     # ------------------------------------------------------------------
     # Clear history
@@ -234,8 +218,7 @@ class HistoryScreen(Vertical):
 
         clear_history()
         self.notify("Historico limpo!", timeout=5)
-        self._load_history()
-        self._set_list_actions()
+        self._reload()
 
     # ------------------------------------------------------------------
     # Action bar handlers
@@ -244,28 +227,5 @@ class HistoryScreen(Vertical):
     def on_action_selected(self, message: ActionSelected) -> None:
         action = message.action_id
 
-        if action == "hist_detail":
-            # Use cursor position from table
-            table = self.query_one("#hist-table", DataTable)
-            if table.cursor_row is not None and table.row_count > 0:
-                idx = table.cursor_row
-                if 0 <= idx < len(self._entries):
-                    self._show_detail(self._entries[idx])
-        elif action == "hist_clear":
+        if action == "hist_clear":
             self._handle_clear()
-        elif action == "hist_back":
-            self.go_back_to_list()
-
-    # ------------------------------------------------------------------
-    # Navigation
-    # ------------------------------------------------------------------
-
-    def go_back_to_list(self) -> None:
-        """Return to the history list and restore focus."""
-        self.query_one("#hist-list-phase").display = True
-        self.query_one("#hist-detail-phase").display = False
-        self._set_list_actions()
-        # Restore focus to the table
-        table = self.query_one("#hist-table", DataTable)
-        if table.display:
-            table.focus()

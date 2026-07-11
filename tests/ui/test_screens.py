@@ -1427,8 +1427,32 @@ async def test_history_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_history_shows_table_and_detail_together(tmp_config_dir):
+    """Table and detail panel are both visible at once — no phase swap."""
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        assert screen.query_one("#hist-table").display
+        assert screen.query_one("#hist-detail").display
+
+
+@pytest.mark.asyncio
+async def test_history_panels_have_titles(tmp_config_dir):
+    """HISTORICO and DETALHES panels both exist."""
+    from dbqm.ui.widgets.panel import Panel
+
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        panels = screen.query(Panel)
+        titles = [p.query_one("#panel-title").render().plain for p in panels]
+        assert any("HISTORICO" in t for t in titles)
+        assert any("DETALHES" in t for t in titles)
+
+
+@pytest.mark.asyncio
 async def test_history_screen_empty(tmp_config_dir):
-    """With no history, should show empty message and hide table."""
+    """With no history, should show empty message; table stays docked/visible."""
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
@@ -1436,7 +1460,8 @@ async def test_history_screen_empty(tmp_config_dir):
         assert empty.display is True
         from textual.widgets import DataTable
         table = screen.query_one("#hist-table", DataTable)
-        assert table.display is False
+        assert table.display is True
+        assert table.row_count == 0
 
 
 @pytest.mark.asyncio
@@ -1480,29 +1505,13 @@ async def test_history_screen_with_data(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_history_screen_detail_hidden_initially(tmp_config_dir):
-    """Detail phase should be hidden on mount."""
+async def test_history_screen_detail_visible_initially(tmp_config_dir):
+    """Detail panel is docked and visible on mount (no phase swap)."""
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
-        detail = screen.query_one("#hist-detail-phase")
-        assert detail.display is False
-
-
-@pytest.mark.asyncio
-async def test_history_screen_go_back_to_list(tmp_config_dir):
-    """go_back_to_list should show list and hide detail."""
-    app = HistoryTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(HistoryScreen)
-        # Simulate being in detail phase
-        screen.query_one("#hist-list-phase").display = False
-        screen.query_one("#hist-detail-phase").display = True
-
-        screen.go_back_to_list()
-
-        assert screen.query_one("#hist-list-phase").display is True
-        assert screen.query_one("#hist-detail-phase").display is False
+        detail = screen.query_one("#hist-detail")
+        assert detail.display is True
 
 
 # ======================================================================
@@ -2240,8 +2249,9 @@ async def test_history_detail_view_with_params(tmp_config_dir):
         assert table.row_count == 1
         # Show detail for the entry
         screen._show_detail(entries[0])
-        detail = screen.query_one("#hist-detail-phase")
+        detail = screen.query_one("#hist-detail")
         assert detail.display is True
+        assert "param_query" in detail.render().plain
 
 
 @pytest.mark.asyncio
@@ -2267,8 +2277,9 @@ async def test_history_detail_view_group_entry(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
         screen._show_detail(entries[0])
-        detail = screen.query_one("#hist-detail-phase")
+        detail = screen.query_one("#hist-detail")
         assert detail.display is True
+        assert "comparison_group" in detail.render().plain
 
 
 # ======================================================================
@@ -2919,7 +2930,7 @@ async def test_history_shows_entries(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_detail_view(tmp_config_dir):
-    """Enter on history row shows detail."""
+    """Highlighting a history row updates the docked detail panel."""
     from dbqm.core.history import record_query_execution
     from dbqm.ui.app import DBQMApp
     from dbqm.ui.screens.history import HistoryScreen
@@ -2934,11 +2945,10 @@ async def test_history_detail_view(tmp_config_dir):
         await pilot.press("f5")
         await pilot.pause()
         await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
         screen = app.query_one(HistoryScreen)
-        detail = screen.query_one("#hist-detail-phase")
+        detail = screen.query_one("#hist-detail")
         assert detail.display is True
+        assert "test_q" in detail.render().plain
 
 
 # --- 6. Settings ---
