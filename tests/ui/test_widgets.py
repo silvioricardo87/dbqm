@@ -650,3 +650,27 @@ async def test_group_result_summary_shows(sample_group_result):
         rendered = str(summary._Static__content)
         assert "DIVERGENTE" in rendered
         assert "status" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Panel tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.panel import Panel
+from textual.widgets import Static
+
+
+class _PanelApp(App):
+    def compose(self) -> ComposeResult:
+        with Panel("⚙️  PARAMETROS", accent=True, id="p1"):
+            yield Static("body", id="inner")
+
+
+@pytest.mark.asyncio
+async def test_panel_renders_title_and_body():
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        panel = app.query_one("#p1", Panel)
+        title_content = str(panel.query_one("#panel-title")._Static__content)
+        assert title_content.startswith("⚙️  PARAMETROS")
+        assert panel.has_class("accent-focus")
+        assert app.query_one("#inner", Static) in panel.query_one("#panel-body").children
