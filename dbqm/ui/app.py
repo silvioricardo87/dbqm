@@ -507,28 +507,10 @@ class DBQMApp(App):
             return
 
         try:
-            if screen_id == "adhoc-screen":
-                if screen.query_one("#adhoc-results-phase").display:
-                    screen.go_back_to_input()
-                    self.query_one(ActionBar).set_actions([])
-            elif screen_id == "query-exec-screen":
+            if screen_id == "query-exec-screen":
                 if screen.query_one("#results-phase").display:
                     screen.go_back_to_selection()
                     self.query_one(ActionBar).set_actions([])
-            elif screen_id == "group-exec-screen":
-                if screen.query_one("#ge-results-phase").display:
-                    screen.go_back_to_selection()
-                    self.query_one(ActionBar).set_actions([])
-            elif screen_id == "browser-screen":
-                if screen.query_one("#br-data-phase").display:
-                    screen.go_back_to_detail()
-                elif screen.query_one("#br-detail-phase").display:
-                    screen.go_back_to_list()
-                elif screen.query_one("#br-list-phase").display:
-                    screen.go_back_to_select()
-            elif screen_id == "history-screen":
-                if screen.query_one("#hist-detail-phase").display:
-                    screen.go_back_to_list()
         except Exception:
             pass
 
