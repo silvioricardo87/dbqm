@@ -1587,94 +1587,136 @@ async def test_browser_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_has_select_phase(tmp_config_dir):
-    """BrowserScreen should show select phase on mount."""
+async def test_browser_three_live_panels(tmp_config_dir):
+    """BrowserScreen renders three simultaneous panels + the live surfaces."""
+    from dbqm.ui.widgets.panel import Panel
+
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        select_phase = screen.query_one("#br-select-phase")
-        assert select_phase.display is True
-        list_phase = screen.query_one("#br-list-phase")
-        assert list_phase.display is False
-        detail_phase = screen.query_one("#br-detail-phase")
-        assert detail_phase.display is False
-        data_phase = screen.query_one("#br-data-phase")
-        assert data_phase.display is False
+        titles = [
+            p.query_one("#panel-title").render().plain for p in screen.query(Panel)
+        ]
+        assert any("OBJETOS" in t for t in titles)
+        assert any("COLUNAS" in t for t in titles)
+        assert any("DADOS" in t for t in titles)
+        assert screen.query_one("#obj-list") is not None
+        assert screen.query_one("#obj-columns") is not None
+        assert screen.query_one("#obj-preview") is not None
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_has_type_buttons(tmp_config_dir):
-    """BrowserScreen should have type selection buttons."""
+async def test_browser_has_conn_type_filter_and_buttons(tmp_config_dir):
+    """OBJETOS panel exposes conn + type selects, a filter input, and the
+    DADOS panel carries the Extrair DDL / Carregar mais buttons."""
     from textual.widgets import Button
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        table_btn = screen.query_one("#br-type-table", Button)
-        view_btn = screen.query_one("#br-type-view", Button)
-        assert table_btn is not None
-        assert view_btn is not None
+        assert screen.query_one("#obj-conn", Select) is not None
+        assert screen.query_one("#obj-type", Select) is not None
+        assert screen.query_one("#obj-filter", Input) is not None
+        assert screen.query_one("#obj-ddl", Button) is not None
+        assert screen.query_one("#obj-more", Button) is not None
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_has_connection_selector(tmp_config_dir):
-    """BrowserScreen should have a connection selector."""
-    config_dir = tmp_config_dir / "config"
-    conn_data = {
-        "connections": [
-            {
-                "name": "test_conn",
-                "db_type": "oracle",
-                "mode": "direct",
-                "host": "localhost",
-                "port": 1521,
-                "service_name": "ORCL",
-                "user": "admin",
-                "password": "pass",
-            },
-        ]
-    }
-    (config_dir / "connections.json").write_text(
-        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+async def test_browser_reload_populates_object_list(tmp_config_dir, monkeypatch):
+    """Reloading objects (via list_objects) fills the OptionList."""
+    from textual.widgets import OptionList
+
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.list_objects",
+        lambda db, db_type, obj_type: ["CLIENTE", "PEDIDO", "PRODUTO"],
     )
 
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        select_widget = screen.query_one("#br-conn-select", Select)
-        assert select_widget is not None
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "TABLE"
+
+        worker = screen._reload_objects()
+        await worker.wait()
+        await pilot.pause()
+
+        option_list = screen.query_one("#obj-list", OptionList)
+        assert option_list.option_count == 3
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_go_back_to_select(tmp_config_dir):
-    """go_back_to_select should show select and hide other phases."""
+async def test_browser_select_object_fills_columns_and_preview(
+    tmp_config_dir, monkeypatch
+):
+    """Selecting an object fires ONE worker that fills BOTH the COLUNAS table
+    (structure) and the DADOS preview (first page) — the live-update contract."""
+    from types import SimpleNamespace
+    from textual.widgets import DataTable
+    from dbqm.ui.widgets.result_table import ResultTable
+    from dbqm.core.table_browser import BrowseResult
+
+    fake_structure = SimpleNamespace(
+        table="CLIENTE",
+        elapsed=0.01,
+        indexes=[],
+        columns=[
+            SimpleNamespace(
+                name="ID", data_type="NUMBER", data_precision=10, data_scale=0,
+                data_length=None, nullable=False, is_pk=True, fk_ref=None,
+            ),
+            SimpleNamespace(
+                name="NOME", data_type="VARCHAR2", data_precision=None,
+                data_scale=None, data_length=100, nullable=True, is_pk=False,
+                fk_ref=None,
+            ),
+        ],
+    )
+    fake_browse = BrowseResult(
+        table="CLIENTE",
+        connection_name="c1",
+        columns=["ID", "NOME"],
+        rows=[[1, "Ana"], [2, "Bruno"]],
+        row_count=2,
+        total_count=2,
+        elapsed=0.02,
+        limit=100,
+        offset=0,
+    )
+
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.get_table_structure",
+        lambda db, db_type, table: fake_structure,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.table_browser.browse_table",
+        lambda db, db_type, table, conn_name, limit, offset: fake_browse,
+    )
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        # Simulate being in list phase
-        screen.query_one("#br-select-phase").display = False
-        screen.query_one("#br-list-phase").display = True
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "TABLE"
 
-        screen.go_back_to_select()
+        worker = screen._load_object("CLIENTE")
+        await worker.wait()
+        await pilot.pause()
 
-        assert screen.query_one("#br-select-phase").display is True
-        assert screen.query_one("#br-list-phase").display is False
-
-
-@pytest.mark.asyncio
-async def test_browser_screen_go_back_to_list(tmp_config_dir):
-    """go_back_to_list should show list and hide detail."""
-    app = BrowserTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(BrowserScreen)
-        # Simulate being in detail phase
-        screen.query_one("#br-select-phase").display = False
-        screen.query_one("#br-list-phase").display = False
-        screen.query_one("#br-detail-phase").display = True
-
-        screen.go_back_to_list()
-
-        assert screen.query_one("#br-list-phase").display is True
-        assert screen.query_one("#br-detail-phase").display is False
+        columns_table = screen.query_one("#obj-columns", DataTable)
+        assert columns_table.row_count == 2  # two columns of CLIENTE
+        preview = screen.query_one("#obj-preview", ResultTable)
+        assert preview is not None
+        assert screen._selected_object == "CLIENTE"
 
 
 @pytest.mark.asyncio
