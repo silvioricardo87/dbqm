@@ -289,13 +289,44 @@ async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
 
 
 # ======================================================================
-# ConnectionsScreen tests
+# ConnectionsScreen tests — master list (CONEXOES) + embedded form (EDICAO)
 # ======================================================================
 
 
 class ConnectionsTestApp(App):
     def compose(self) -> ComposeResult:
         yield ConnectionsScreen()
+
+
+def _seed_connections(config_dir):
+    from dbqm.core.crypto import encrypt
+
+    conn_data = {
+        "connections": [
+            {
+                "name": "dev_oracle",
+                "db_type": "oracle",
+                "mode": "direct",
+                "host": "db.example.com",
+                "port": 1521,
+                "service_name": "ORCL",
+                "user": "admin",
+                "password": encrypt("s3cret"),
+            },
+            {
+                "name": "prod_pg",
+                "db_type": "postgresql",
+                "host": "localhost",
+                "port": 5432,
+                "database": "mydb",
+                "user": "pguser",
+                "password": encrypt("pgpass"),
+            },
+        ]
+    }
+    (config_dir / "connections.json").write_text(
+        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+    )
 
 
 @pytest.mark.asyncio
@@ -307,62 +338,59 @@ async def test_connections_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_connections_screen_empty(tmp_config_dir):
-    """With no connections, should show empty message and hide table."""
+async def test_connections_has_list_and_form_panels(tmp_config_dir):
+    """CONEXOES + EDICAO panels exist, with the list and form field ids."""
+    from dbqm.ui.widgets.panel import Panel
+
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ConnectionsScreen)
+        titles = [p.query_one("#panel-title").render().plain for p in screen.query(Panel)]
+        assert any("CONEXOES" in t for t in titles)
+        assert any("EDICAO" in t for t in titles)
+        assert screen.query_one("#conn-list") is not None
+        assert screen.query_one("#conn-form-name") is not None
+        assert screen.query_one("#conn-form-type") is not None
+        assert screen.query_one("#conn-form-host") is not None
+        assert screen.query_one("#conn-form-port") is not None
+        assert screen.query_one("#conn-form-user") is not None
+        assert screen.query_one("#conn-form-pass") is not None
+        assert screen.query_one("#conn-form-service") is not None
+        assert screen.query_one("#conn-form-mode") is not None
+
+
+@pytest.mark.asyncio
+async def test_connections_screen_empty(tmp_config_dir):
+    """With no connections, should show empty message and hide the list."""
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        from textual.widgets import OptionList
+        screen = app.query_one(ConnectionsScreen)
         empty = screen.query_one("#conn-empty")
         assert empty.display is True
-        table = screen.query_one("#conn-table")
-        assert table.display is False
+        option_list = screen.query_one("#conn-list", OptionList)
+        assert option_list.display is False
 
 
 @pytest.mark.asyncio
 async def test_connections_screen_with_data(tmp_config_dir):
-    """With connections configured, should show them in the table."""
-    config_dir = tmp_config_dir / "config"
-    conn_data = {
-        "connections": [
-            {
-                "name": "dev_oracle",
-                "db_type": "oracle",
-                "mode": "direct",
-                "host": "db.example.com",
-                "port": 1521,
-                "service_name": "ORCL",
-                "user": "admin",
-                "password": "encrypted_pass",
-            },
-            {
-                "name": "prod_pg",
-                "db_type": "postgresql",
-                "host": "localhost",
-                "port": 5432,
-                "database": "mydb",
-                "user": "pguser",
-                "password": "encrypted_pass2",
-            },
-        ]
-    }
-    (config_dir / "connections.json").write_text(
-        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
-    )
+    """With connections configured, should list them in the OptionList."""
+    _seed_connections(tmp_config_dir / "config")
 
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
+        from textual.widgets import OptionList
         screen = app.query_one(ConnectionsScreen)
         empty = screen.query_one("#conn-empty")
         assert empty.display is False
-        from textual.widgets import DataTable
-        table = screen.query_one("#conn-table", DataTable)
-        assert table.display is True
-        assert table.row_count == 2
+        option_list = screen.query_one("#conn-list", OptionList)
+        assert option_list.display is True
+        assert option_list.option_count == 2
 
 
 @pytest.mark.asyncio
-async def test_connections_screen_shows_description_column(tmp_config_dir):
-    """The connections table should expose the description for each row."""
+async def test_connections_list_shows_description_preview(tmp_config_dir):
+    """Long descriptions are truncated with an ellipsis in the list preview."""
     config_dir = tmp_config_dir / "config"
     long_desc = "Producao - " + "x" * 200
     (config_dir / "connections.json").write_text(
@@ -386,20 +414,17 @@ async def test_connections_screen_shows_description_column(tmp_config_dir):
 
     app = ConnectionsTestApp()
     async with app.run_test():
-        from textual.widgets import DataTable
+        from textual.widgets import OptionList
         screen = app.query_one(ConnectionsScreen)
-        table = screen.query_one("#conn-table", DataTable)
-        assert len(table.columns) == 5
-        row0 = table.get_row_at(0)
-        # Description is truncated; assert ellipsis and length cap.
-        assert row0[4].endswith("...")
-        assert len(row0[4]) <= 60
-        row1 = table.get_row_at(1)
-        assert row1[4] == ""
+        option_list = screen.query_one("#conn-list", OptionList)
+        prompt0 = str(option_list.get_option_at_index(0).prompt)
+        assert "..." in prompt0
+        prompt1 = str(option_list.get_option_at_index(1).prompt)
+        assert "prod" not in prompt1  # no_desc row has no description leak
 
 
 def test_format_description_helper():
-    """Unit test the table formatter for descriptions."""
+    """Unit test the list preview formatter for descriptions."""
     from dbqm.ui.screens.connections import _format_description
 
     assert _format_description("") == ""
@@ -411,6 +436,163 @@ def test_format_description_helper():
     out = _format_description(long)
     assert out.endswith("...")
     assert len(out) <= 60
+
+
+@pytest.mark.asyncio
+async def test_connections_select_loads_into_form(tmp_config_dir):
+    """Selecting a seeded connection populates the embedded form, with the
+    password decrypted for display."""
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        assert screen.query_one("#conn-form-name", Input).value == "dev_oracle"
+        assert screen.query_one("#conn-form-type", Select).value == "oracle"
+        assert screen.query_one("#conn-form-host", Input).value == "db.example.com"
+        assert screen.query_one("#conn-form-port", Input).value == "1521"
+        assert screen.query_one("#conn-form-service", Input).value == "ORCL"
+        assert screen.query_one("#conn-form-user", Input).value == "admin"
+        assert screen.query_one("#conn-form-pass", Input).value == "s3cret"
+
+
+@pytest.mark.asyncio
+async def test_connections_nova_clears_form(tmp_config_dir):
+    """The 'Nova' action/button clears the form for a new entry."""
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+        assert screen.query_one("#conn-form-name", Input).value == "dev_oracle"
+
+        from dbqm.ui.widgets.action_bar import ActionSelected
+        screen.on_action_selected(ActionSelected("conn_new"))
+        await pilot.pause()
+
+        assert screen.query_one("#conn-form-name", Input).value == ""
+        assert screen.query_one("#conn-form-name", Input).disabled is False
+        assert screen.query_one("#conn-form-type", Select).value == Select.NULL
+
+
+@pytest.mark.asyncio
+async def test_connections_save_creates_new_connection(tmp_config_dir):
+    """Filling the form and pressing Salvar creates a new connection."""
+    from dbqm.models.connection import load_connections
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+
+        screen.query_one("#conn-form-name", Input).value = "new_conn"
+        screen.query_one("#conn-form-type", Select).value = "postgresql"
+        await pilot.pause()
+        screen.query_one("#conn-form-host", Input).value = "pg.example.com"
+        screen.query_one("#conn-form-port", Input).value = "5432"
+        screen.query_one("#conn-form-database", Input).value = "mydb"
+        screen.query_one("#conn-form-user", Input).value = "pguser"
+        screen.query_one("#conn-form-pass", Input).value = "secretpw"
+
+        screen._handle_save()
+        await pilot.pause()
+
+        conns = load_connections()
+        assert any(c.name == "new_conn" for c in conns)
+        saved = next(c for c in conns if c.name == "new_conn")
+        assert saved.host == "pg.example.com"
+        assert saved.database == "mydb"
+
+        from dbqm.core.crypto import decrypt
+        assert decrypt(saved.password) == "secretpw"
+
+
+@pytest.mark.asyncio
+async def test_connections_save_updates_existing_connection(tmp_config_dir):
+    """Editing a loaded connection and pressing Salvar persists the change."""
+    _seed_connections(tmp_config_dir / "config")
+    from dbqm.models.connection import find_connection
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        screen.query_one("#conn-form-host", Input).value = "new-host.example.com"
+        screen._handle_save()
+        await pilot.pause()
+
+        updated = find_connection("dev_oracle")
+        assert updated is not None
+        assert updated.host == "new-host.example.com"
+
+        # Password re-encrypted from the (unchanged) decrypted display value.
+        from dbqm.core.crypto import decrypt
+        assert decrypt(updated.password) == "s3cret"
+
+
+@pytest.mark.asyncio
+async def test_connections_excluir_removes_connection(tmp_config_dir):
+    """Excluir, after confirming, deletes the highlighted connection."""
+    _seed_connections(tmp_config_dir / "config")
+    from dbqm.models.connection import load_connections
+    from dbqm.ui.modals.confirm import ConfirmModal
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        from dbqm.ui.widgets.action_bar import ActionSelected
+        screen.on_action_selected(ActionSelected("conn_remove"))
+        await pilot.pause()
+
+        modal = next(s for s in app.screen_stack if isinstance(s, ConfirmModal))
+        assert "dev_oracle" in modal._message
+
+        screen._on_remove_result(True)
+        await pilot.pause()
+
+        conns = load_connections()
+        assert all(c.name != "dev_oracle" for c in conns)
+        # Form is cleared since the deleted connection was loaded.
+        assert screen.query_one("#conn-form-name", Input).value == ""
+
+
+@pytest.mark.asyncio
+async def test_connections_testar_warns_without_name(tmp_config_dir):
+    """Testar with an empty form name shows a warning, not a crash."""
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._handle_test()
+        await pilot.pause()
+        messages = [str(n.message) for n in app._notifications]
+        assert any("nome" in m.lower() for m in messages)
+
+
+@pytest.mark.asyncio
+async def test_connections_testar_starts_worker_for_named_connection(tmp_config_dir):
+    """Testar with a name in the form kicks off the existing test worker."""
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        screen._handle_test()
+        await pilot.pause()
+
+        messages = [str(n.message) for n in app._notifications]
+        assert any("Testando" in m for m in messages)
 
 
 # ======================================================================
@@ -2483,62 +2665,37 @@ async def test_group_exec_folder_bar_is_horizontal_scroll(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_connection_form_modal_opens(tmp_config_dir):
-    """Pressing N on connections screen should open the connection form modal."""
+async def test_connections_n_shortcut_clears_embedded_form(tmp_config_dir):
+    """The Nova action (bound to the 'N' shortcut) clears the embedded
+    EDICAO form (the master-detail layout handles 'new' inline, not via a
+    modal). Drives the action through the same message the app-level 'n'
+    keybinding posts, since headless pilot key-routing doesn't switch tabs."""
+    from dbqm.models.connection import Connection, save_connections
+    from dbqm.core.crypto import encrypt
     from dbqm.ui.app import DBQMApp
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
     from dbqm.ui.screens.connections import ConnectionsScreen
+    from dbqm.ui.widgets.action_bar import ActionSelected
+
+    save_connections([
+        Connection(name="test_conn", db_type="oracle", mode="direct",
+                   host="localhost", port=1521, service_name="ORCL",
+                   user="admin", password=encrypt("pass")),
+    ])
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        # Navigate to connections
-        await pilot.press("f2")
-        await pilot.pause()
         await pilot.pause()
 
-        # Trigger the "new" action directly (simulates the N shortcut)
         conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_new()
+        conn_screen._select_in_list("test_conn")
         await pilot.pause()
-        await pilot.pause()
+        assert conn_screen.query_one("#conn-form-name", Input).value == "test_conn"
 
-        # Modal should be on the screen stack
-        modal_screens = [
-            s for s in app.screen_stack
-            if isinstance(s, ConnectionFormModal)
-        ]
-        assert len(modal_screens) > 0, "ConnectionFormModal should have opened"
-
-
-@pytest.mark.asyncio
-async def test_connection_form_modal_closes_on_esc(tmp_config_dir):
-    """ESC should close the connection form modal."""
-    from dbqm.ui.app import DBQMApp
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
-    from dbqm.ui.screens.connections import ConnectionsScreen
-
-    app = DBQMApp()
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("f2")
-        await pilot.pause()
+        conn_screen.on_action_selected(ActionSelected("conn_new"))
         await pilot.pause()
 
-        # Open the modal via direct call
-        conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_new()
-        await pilot.pause()
-        await pilot.pause()
-
-        # Press ESC to close
-        await pilot.press("escape")
-        await pilot.pause()
-
-        # Modal should be gone from the screen stack
-        modal_screens = [
-            s for s in app.screen_stack
-            if isinstance(s, ConnectionFormModal)
-        ]
-        assert len(modal_screens) == 0
+        assert conn_screen.query_one("#conn-form-name", Input).value == ""
+        assert conn_screen.query_one("#conn-form-type", Select).value == Select.NULL
 
 
 @pytest.mark.asyncio
@@ -2592,30 +2749,23 @@ async def test_connection_form_collects_description(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_connection_form_db_type_selection(tmp_config_dir):
-    """Selecting a db type should populate dynamic fields without crash."""
-    from dbqm.ui.app import DBQMApp
+    """Selecting a db type should populate dynamic fields without crash.
+
+    ConnectionFormModal itself is unchanged (still importable); this
+    exercises it directly rather than via the ConnectionsScreen, whose
+    'Nova' flow now clears the embedded form instead of pushing a modal.
+    """
+    from textual.app import App, ComposeResult
     from dbqm.ui.modals.connection_form import ConnectionFormModal
-    from dbqm.ui.screens.connections import ConnectionsScreen
 
-    app = DBQMApp()
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("f2")
-        await pilot.pause()
-        await pilot.pause()
+    class _App(App):
+        pass
 
-        # Open the modal via direct call
-        conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_new()
+    app = _App()
+    async with app.run_test() as pilot:
+        modal = ConnectionFormModal()
+        await app.push_screen(modal)
         await pilot.pause()
-        await pilot.pause()
-
-        # Find the modal on the screen stack
-        modal = None
-        for s in app.screen_stack:
-            if isinstance(s, ConnectionFormModal):
-                modal = s
-                break
-        assert modal is not None, "ConnectionFormModal should be open"
 
         # Select postgresql type
         db_select = modal.query_one("#field-db-type", Select)
@@ -2704,11 +2854,11 @@ async def test_query_manage_view_sql(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_edit_connection_opens(tmp_config_dir):
-    """Editing an existing connection should open modal without crash."""
+    """Editing an existing connection loads it into the embedded EDICAO
+    form (no modal — the whole point of the master-detail redesign)."""
     from dbqm.models.connection import Connection, save_connections
     from dbqm.core.crypto import encrypt
     from dbqm.ui.app import DBQMApp
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
     from dbqm.ui.screens.connections import ConnectionsScreen
 
     save_connections([
@@ -2719,22 +2869,22 @@ async def test_edit_connection_opens(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("f2")
-        await pilot.pause()
         await pilot.pause()
 
-        # Trigger edit directly (simulates the E shortcut)
+        # Select the connection in the list (simulates clicking/Enter on it)
         conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_edit()
+        option_list = conn_screen.query_one("#conn-list")
+        option_list.focus()
+        option_list.highlighted = 0
+        await pilot.pause()
+        await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
 
-        # Modal should be on the screen stack with pre-filled fields
-        modal_screens = [
-            s for s in app.screen_stack
-            if isinstance(s, ConnectionFormModal)
-        ]
-        assert len(modal_screens) > 0
+        # No modal pushed — the embedded form is pre-filled in place.
+        assert len(app.screen_stack) == 1
+        assert conn_screen.query_one("#conn-form-name", Input).value == "test_conn"
+        assert conn_screen.query_one("#conn-form-host", Input).value == "localhost"
 
 
 # ======================================================================
