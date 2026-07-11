@@ -36,98 +36,12 @@ ACTION_LABELS: dict[str, str] = {
 class DBQMApp(App):
     """DB Query Manager — main application."""
 
-    DEFAULT_CSS = """
-    /* Global TUI styles for the redesign */
-    Input, Select, TextArea {
-        border: none !important;
-        background: $surface;
-        height: 1;
-        padding: 0 1;
-        margin-bottom: 1;
-    }
-
-    Input:focus, Select:focus, TextArea:focus {
-        background: $boost;
-        border: none !important;
-    }
-
-    /* Panel continuous borders & focus-within lighting */
-    .panel {
-        border: solid $border;
-        background: $panel;
-        padding: 0;
-        margin: 1;
-        border-radius: 4px;
-    }
-
-    .panel:focus-within {
-        border: solid $primary;
-    }
-
-    .panel.accent-focus:focus-within {
-        border: solid $accent;
-    }
-
-    /* Panel internal headers */
-    .panel-header {
-        background: $surface;
-        border-bottom: solid $border;
-        padding: 0 1;
-        height: 1;
-        width: 100%;
-    }
-
-    .panel-title {
-        text-style: bold;
-        color: $primary;
-    }
-
-    .panel.accent-focus .panel-title {
-        color: $accent;
-    }
-
-    /* Elimination of nested borders */
-    .panel DataTable, .panel ListView, .panel OptionList, .panel TextArea {
-        border: none !important;
-    }
-
-    /* Minimalist Tables */
-    DataTable {
-        grid-border: horizontal $border;
-    }
-
-    /* TabbedContent custom styling */
-    TabbedContent {
-        background: $background;
-    }
-
-    TabPane {
-        background: $background;
-        padding: 0;
-    }
-
-    Tabs {
-        background: $surface;
-        border-bottom: solid $border;
-    }
-
-    Tab {
-        padding: 0 2;
-    }
-
-    Tab.active {
-        color: $primary;
-        text-style: bold;
-    }
-    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        from dbqm._version import __version__
+        self.title = f"DB Query Manager v{__version__}"
 
     BINDINGS = [
-        Binding("f1", "switch_tab('tab-coleta')", "Coleta"),
-        Binding("f2", "switch_tab('tab-conexoes')", "Conexoes"),
-        Binding("f3", "switch_tab('tab-objetos')", "Objetos"),
-        Binding("f4", "switch_tab('tab-multiexec')", "Multi-Exec"),
-        Binding("f5", "switch_tab('tab-historico')", "Historico"),
-        Binding("f6", "switch_tab('tab-configuracoes')", "Config"),
         Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar"),
         Binding("ctrl+q", "quit", "Quit"),
         Binding("escape", "go_back", "Back"),
@@ -154,57 +68,14 @@ class DBQMApp(App):
         Binding("q", "shortcut('q')", "", show=False, priority=True),
     ]
 
-    TAB_TO_SCREEN = {
-        "tab-coleta": "adhoc-screen",
-        "tab-conexoes": "connections-screen",
-        "tab-objetos": "browser-screen",
-        "tab-multiexec": "group-exec-screen",
-        "tab-historico": "history-screen",
-        "tab-configuracoes": "settings-screen",
-    }
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        from dbqm._version import __version__
-        self.title = f"DB Query Manager v{__version__}"
-
     def compose(self) -> ComposeResult:
-        import sys
-        from textual.widgets import TabbedContent, TabPane
         yield Header()
-        
-        if "pytest" in sys.modules:
-            # Legacy layout to make automated tests pass 100%
-            with Horizontal():
-                yield Sidebar()
-                with Vertical(id="content"):
-                    yield Breadcrumb()
-                    yield Container(id="screen-area")
-                    yield ActionBar()
-        else:
-            # Redesigned single-screen layout with horizontal tabs
-            with TabbedContent(id="main-tabs"):
-                with TabPane("🔍  Coleta", id="tab-coleta"):
-                    from dbqm.ui.screens.adhoc import AdhocScreen
-                    yield AdhocScreen(id="adhoc-screen")
-                with TabPane("🔌  Conexoes", id="tab-conexoes"):
-                    from dbqm.ui.screens.connections import ConnectionsScreen
-                    yield ConnectionsScreen(id="connections-screen")
-                with TabPane("📂  Objetos", id="tab-objetos"):
-                    from dbqm.ui.screens.browser import BrowserScreen
-                    yield BrowserScreen(id="browser-screen")
-                with TabPane("📊  Multi-Exec", id="tab-multiexec"):
-                    from dbqm.ui.screens.group_exec import GroupExecScreen
-                    yield GroupExecScreen(id="group-exec-screen")
-                with TabPane("📜  Historico", id="tab-historico"):
-                    from dbqm.ui.screens.history import HistoryScreen
-                    yield HistoryScreen(id="history-screen")
-                with TabPane("⚙️  Configuracoes", id="tab-configuracoes"):
-                    from dbqm.ui.screens.settings import SettingsScreen
-                    yield SettingsScreen(id="settings-screen")
-
-            yield ActionBar()
-        
+        with Horizontal():
+            yield Sidebar()
+            with Vertical(id="content"):
+                yield Breadcrumb()
+                yield Container(id="screen-area")
+                yield ActionBar()
         yield StatusBar()
 
     def on_mount(self) -> None:
@@ -233,25 +104,15 @@ class DBQMApp(App):
 
         # First-run: no connections configured
         if not connections:
-            import sys
-            if "pytest" in sys.modules:
-                screen_area = self.query_one("#screen-area", Container)
-                screen_area.mount(
-                    Static(
-                        "[bold]Bem-vindo ao DB Query Manager![/bold]\n\n"
-                        "Nenhuma conexão configurada.\n"
-                        "Use o menu [bold]Conexões[/bold] para começar.",
-                        id="welcome-message",
-                    )
+            screen_area = self.query_one("#screen-area", Container)
+            screen_area.mount(
+                Static(
+                    "[bold]Bem-vindo ao DB Query Manager![/bold]\n\n"
+                    "Nenhuma conexão configurada.\n"
+                    "Use o menu [bold]Conexões[/bold] para começar.",
+                    id="welcome-message",
                 )
-            else:
-                # Auto switch to Connections tab on first run in the new TUI
-                self.call_after_refresh(lambda: self.action_switch_tab("tab-conexoes"))
-                self.notify(
-                    "Bem-vindo! Nenhuma conexao configurada. Crie uma conexao para comecar.",
-                    severity="warning",
-                    timeout=10,
-                )
+            )
 
     def on_key(self, event) -> None:
         """Use arrow keys to navigate between widgets in content area.
@@ -377,24 +238,13 @@ class DBQMApp(App):
 
         for action in action_bar._actions:
             if action.key and action.key.lower() == key.lower():
+                # Post to the active screen widget so it receives the message
                 screen_area = self.query_one("#screen-area", Container)
-                if screen_area.display:
-                    # Legacy routing (tests)
-                    children = list(screen_area.children)
-                    if children:
-                        children[0].post_message(ActionSelected(action.action_id))
-                    else:
-                        action_bar.post_message(ActionSelected(action.action_id))
+                children = list(screen_area.children)
+                if children:
+                    children[0].post_message(ActionSelected(action.action_id))
                 else:
-                    # Tabbed layout routing
-                    from textual.widgets import TabbedContent
-                    tabbed = self.query_one("#main-tabs", TabbedContent)
-                    screen_id = self.TAB_TO_SCREEN.get(tabbed.active)
-                    if screen_id:
-                        screen = self.query_one(f"#{screen_id}")
-                        screen.post_message(ActionSelected(action.action_id))
-                    else:
-                        action_bar.post_message(ActionSelected(action.action_id))
+                    action_bar.post_message(ActionSelected(action.action_id))
                 return
 
     def on_action_selected(self, message: ActionSelected) -> None:
@@ -403,34 +253,29 @@ class DBQMApp(App):
         This is only needed for CLICK-based actions on the ActionBar markup.
         Shortcut-based actions already post directly to the screen widget.
         """
+        # Only forward if this came from the ActionBar (bubbled up),
+        # not from a screen (would cause infinite loop)
         if isinstance(message._sender, ActionBar):
             screen_area = self.query_one("#screen-area", Container)
-            if screen_area.display:
-                # Legacy routing (tests)
-                children = list(screen_area.children)
-                if children:
-                    children[0].post_message(ActionSelected(message.action_id))
-            else:
-                # Tabbed layout routing
-                from textual.widgets import TabbedContent
-                tabbed = self.query_one("#main-tabs", TabbedContent)
-                screen_id = self.TAB_TO_SCREEN.get(tabbed.active)
-                if screen_id:
-                    screen = self.query_one(f"#{screen_id}")
-                    screen.post_message(ActionSelected(message.action_id))
+            children = list(screen_area.children)
+            if children:
+                children[0].post_message(ActionSelected(message.action_id))
             message.stop()
 
     def on_sidebar_item_selected(self, message: SidebarItemSelected) -> None:
-        """Handle sidebar navigation (used primarily by legacy tests)."""
+        """Handle sidebar navigation."""
         action = message.action
 
         if action == "exit":
             self.exit()
             return
 
+        # Update sidebar active state
         self.query_one(Sidebar).set_active(action)
 
+        # Update breadcrumb
         label = ACTION_LABELS.get(action, action)
+        # System items get "Sistema" as parent breadcrumb
         system_actions = {"config_conn", "settings"}
         if action in system_actions:
             self.query_one(Breadcrumb).set_path(["Sistema", label])
@@ -441,10 +286,8 @@ class DBQMApp(App):
         else:
             self.query_one(Breadcrumb).set_path(["Início", label])
 
-        # Hide main tabs and show screen-area for legacy tests
-        self.query_one("#main-tabs").display = False
+        # Load appropriate screen into the content area
         screen_area = self.query_one("#screen-area", Container)
-        screen_area.display = True
         screen_area.remove_children()
 
         screen_widget = None
@@ -506,10 +349,12 @@ class DBQMApp(App):
     def _focus_screen_widget(self, screen_widget) -> None:
         """Set focus to the first interactive widget within a screen."""
         try:
+            # Find the first focusable child widget in the screen
             for widget in screen_widget.query("*"):
-                if widget.can_focus and widget.display:
+                if widget.can_focus:
                     widget.focus()
                     return
+            # Fallback: focus the screen container itself
             screen_widget.focus()
         except Exception:
             pass
@@ -519,13 +364,15 @@ class DBQMApp(App):
         from dbqm.ui.modals.error import ErrorModal
         tb = traceback.format_exception(type(error), error, error.__traceback__)
         detail = "".join(tb)
+        # Escape Rich markup in the traceback
         detail = detail.replace("[", "\\[")
         title = f"Erro: {type(error).__name__}"
         try:
             self.push_screen(ErrorModal(title, detail))
         except Exception:
+            # Last resort: use notification
             self.notify(f"{title}: {error}", severity="error", timeout=10)
-        return
+        return  # Don't re-raise — app stays alive
 
     def on_worker_state_changed(self, event) -> None:
         """Catch worker thread errors and show them in a modal."""
@@ -551,200 +398,118 @@ class DBQMApp(App):
         """Toggle sidebar collapse state."""
         self.query_one(Sidebar).toggle_collapse()
 
-    def action_switch_tab(self, tab_id: str) -> None:
-        """Switch active tab in TabbedContent."""
-        try:
-            from textual.widgets import TabbedContent
-            tabbed_content = self.query_one("#main-tabs", TabbedContent)
-            tabbed_content.active = tab_id
-        except Exception:
-            pass
-
-    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        """Handle active tab activation, update focus and actions."""
-        tab_id = event.tab.id
-        screen_id = self.TAB_TO_SCREEN.get(tab_id)
-        if not screen_id:
-            return
-
-        try:
-            screen = self.query_one(f"#{screen_id}")
-            self.call_after_refresh(lambda: self._focus_screen_widget(screen))
-
-            # Set the screen actions
-            if hasattr(screen, "_set_actions"):
-                screen._set_actions()
-            elif hasattr(screen, "_set_input_actions") and getattr(screen, "_phase", None) == "input":
-                screen._set_input_actions()
-            elif hasattr(screen, "_set_results_actions") and getattr(screen, "_phase", None) == "results":
-                screen._set_results_actions()
-            elif screen_id == "browser-screen":
-                if screen.query_one("#br-data-phase").display:
-                    if hasattr(screen, "_current_browse_result"):
-                        screen._set_data_actions(screen._current_browse_result)
-                elif screen.query_one("#br-detail-phase").display:
-                    if getattr(screen, "_obj_type", "") == "TABLE":
-                        screen._set_table_detail_actions()
-                elif screen.query_one("#br-list-phase").display:
-                    screen._set_list_actions()
-                else:
-                    self.query_one(ActionBar).set_actions([])
-            elif screen_id == "history-screen":
-                if screen.query_one("#hist-detail-phase").display:
-                    screen._set_detail_actions()
-                else:
-                    screen._set_list_actions()
-            else:
-                self.query_one(ActionBar).set_actions([])
-        except Exception:
-            pass
-
     def action_go_back(self) -> None:
         """Go back — if showing results, return to selection; otherwise clear screen."""
-        screen_area = self.query_one("#screen-area", Container)
-        if screen_area.display:
-            # Legacy routing (tests)
-            from dbqm.ui.screens.query_exec import QueryExecScreen
+        from dbqm.ui.screens.query_exec import QueryExecScreen
 
-            try:
-                exec_screen = self.query_one(QueryExecScreen)
-                results_phase = exec_screen.query_one("#results-phase")
-                if results_phase.display:
-                    exec_screen.go_back_to_selection()
-                    self.query_one(ActionBar).set_actions([])
-                    return
-            except Exception:
-                pass
-
-            try:
-                from dbqm.ui.screens.group_exec import GroupExecScreen
-                group_screen = self.query_one(GroupExecScreen)
-                results_phase = group_screen.query_one("#ge-results-phase")
-                if results_phase.display:
-                    group_screen.go_back_to_selection()
-                    self.query_one(ActionBar).set_actions([])
-                    return
-            except Exception:
-                pass
-
-            try:
-                from dbqm.ui.screens.adhoc import AdhocScreen
-                adhoc_screen = self.query_one(AdhocScreen)
-                results_phase = adhoc_screen.query_one("#adhoc-results-phase")
-                if results_phase.display:
-                    adhoc_screen.go_back_to_input()
-                    self.query_one(ActionBar).set_actions([])
-                    return
-            except Exception:
-                pass
-
-            try:
-                from dbqm.ui.screens.ddl import DDLScreen
-                ddl_screen = self.query_one(DDLScreen)
-                results_phase = ddl_screen.query_one("#ddl-results-phase")
-                if results_phase.display:
-                    ddl_screen.go_back_to_input()
-                    self.query_one(ActionBar).set_actions([])
-                    return
-            except Exception:
-                pass
-
-            try:
-                from dbqm.ui.screens.exec_routine import ExecRoutineScreen
-                er_screen = self.query_one(ExecRoutineScreen)
-                if er_screen.go_back():
-                    return
-            except Exception:
-                pass
-
-            try:
-                from dbqm.ui.screens.browser import BrowserScreen
-                browser_screen = self.query_one(BrowserScreen)
-                data_phase = browser_screen.query_one("#br-data-phase")
-                if data_phase.display:
-                    browser_screen.go_back_to_detail()
-                    return
-                detail_phase = browser_screen.query_one("#br-detail-phase")
-                if detail_phase.display:
-                    browser_screen.go_back_to_list()
-                    return
-                list_phase = browser_screen.query_one("#br-list-phase")
-                if list_phase.display:
-                    browser_screen.go_back_to_select()
-                    return
-            except Exception:
-                pass
-
-            try:
-                from dbqm.ui.screens.history import HistoryScreen
-                history_screen = self.query_one(HistoryScreen)
-                detail_phase = history_screen.query_one("#hist-detail-phase")
-                if detail_phase.display:
-                    history_screen.go_back_to_list()
-                    return
-            except Exception:
-                pass
-
-            try:
-                from dbqm.ui.screens.config_port import ConfigPortScreen
-                config_port = self.query_one(ConfigPortScreen)
-                if config_port._initial_mode:
-                    config_port._go_back_to_settings()
-                    return
-            except Exception:
-                pass
-
-            breadcrumb = self.query_one(Breadcrumb)
-            if breadcrumb.path:
-                breadcrumb.set_path([])
-                screen_area.remove_children()
-                sidebar = self.query_one(Sidebar)
-                sidebar.set_active("")
+        # Check if a QueryExecScreen is in results phase
+        try:
+            exec_screen = self.query_one(QueryExecScreen)
+            results_phase = exec_screen.query_one("#results-phase")
+            if results_phase.display:
+                exec_screen.go_back_to_selection()
                 self.query_one(ActionBar).set_actions([])
-                screen_area.display = False
-                self.query_one("#main-tabs").display = True
-                sidebar.focus()
-            else:
-                screen_area.display = False
-                self.query_one("#main-tabs").display = True
-                self.query_one(Sidebar).focus()
-            return
+                return
+        except Exception:
+            pass
 
-        # Tabs mode back navigation
-        from textual.widgets import TabbedContent
-        tabbed = self.query_one("#main-tabs", TabbedContent)
-        screen_id = self.TAB_TO_SCREEN.get(tabbed.active)
-        if screen_id:
-            try:
-                if screen_id == "adhoc-screen":
-                    from dbqm.ui.screens.adhoc import AdhocScreen
-                    scr = self.query_one(AdhocScreen)
-                    res = scr.query_one("#adhoc-results-phase")
-                    if res.display:
-                        scr.go_back_to_input()
-                        return
-                elif screen_id == "browser-screen":
-                    from dbqm.ui.screens.browser import BrowserScreen
-                    scr = self.query_one(BrowserScreen)
-                    data_phase = scr.query_one("#br-data-phase")
-                    if data_phase.display:
-                        scr.go_back_to_detail()
-                        return
-                    detail_phase = scr.query_one("#br-detail-phase")
-                    if detail_phase.display:
-                        scr.go_back_to_list()
-                        return
-                    list_phase = scr.query_one("#br-list-phase")
-                    if list_phase.display:
-                        scr.go_back_to_select()
-                        return
-                elif screen_id == "history-screen":
-                    from dbqm.ui.screens.history import HistoryScreen
-                    scr = self.query_one(HistoryScreen)
-                    detail_phase = scr.query_one("#hist-detail-phase")
-                    if detail_phase.display:
-                        scr.go_back_to_list()
-                        return
-            except Exception:
-                pass
+        # Check if a GroupExecScreen is in results phase
+        try:
+            from dbqm.ui.screens.group_exec import GroupExecScreen
+            group_screen = self.query_one(GroupExecScreen)
+            results_phase = group_screen.query_one("#ge-results-phase")
+            if results_phase.display:
+                group_screen.go_back_to_selection()
+                self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
 
+        # Check if an AdhocScreen is in results phase
+        try:
+            from dbqm.ui.screens.adhoc import AdhocScreen
+            adhoc_screen = self.query_one(AdhocScreen)
+            results_phase = adhoc_screen.query_one("#adhoc-results-phase")
+            if results_phase.display:
+                adhoc_screen.go_back_to_input()
+                self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
+        # Check if a DDLScreen is in results phase
+        try:
+            from dbqm.ui.screens.ddl import DDLScreen
+            ddl_screen = self.query_one(DDLScreen)
+            results_phase = ddl_screen.query_one("#ddl-results-phase")
+            if results_phase.display:
+                ddl_screen.go_back_to_input()
+                self.query_one(ActionBar).set_actions([])
+                return
+        except Exception:
+            pass
+
+        # Check if ExecRoutineScreen has back navigation
+        try:
+            from dbqm.ui.screens.exec_routine import ExecRoutineScreen
+            er_screen = self.query_one(ExecRoutineScreen)
+            if er_screen.go_back():
+                return
+        except Exception:
+            pass
+
+        # Check if a BrowserScreen is in a non-select phase
+        try:
+            from dbqm.ui.screens.browser import BrowserScreen
+            browser_screen = self.query_one(BrowserScreen)
+            data_phase = browser_screen.query_one("#br-data-phase")
+            if data_phase.display:
+                browser_screen.go_back_to_detail()
+                return
+            detail_phase = browser_screen.query_one("#br-detail-phase")
+            if detail_phase.display:
+                browser_screen.go_back_to_list()
+                return
+            list_phase = browser_screen.query_one("#br-list-phase")
+            if list_phase.display:
+                browser_screen.go_back_to_select()
+                return
+        except Exception:
+            pass
+
+        # Check if a HistoryScreen is in detail phase
+        try:
+            from dbqm.ui.screens.history import HistoryScreen
+            history_screen = self.query_one(HistoryScreen)
+            detail_phase = history_screen.query_one("#hist-detail-phase")
+            if detail_phase.display:
+                history_screen.go_back_to_list()
+                return
+        except Exception:
+            pass
+
+        # Check if ConfigPortScreen is displayed (go back to Settings)
+        try:
+            from dbqm.ui.screens.config_port import ConfigPortScreen
+            config_port = self.query_one(ConfigPortScreen)
+            if config_port._initial_mode:
+                config_port._go_back_to_settings()
+                return
+        except Exception:
+            pass
+
+        breadcrumb = self.query_one(Breadcrumb)
+        if breadcrumb.path:
+            breadcrumb.set_path([])
+            screen_area = self.query_one("#screen-area", Container)
+            screen_area.remove_children()
+            sidebar = self.query_one(Sidebar)
+            sidebar.set_active("")
+            self.query_one(ActionBar).set_actions([])
+            # Removing the screen leaves focus unset; hand it back to the
+            # sidebar so the user can keep navigating with the keyboard.
+            sidebar.focus()
+        else:
+            # Already at the top level — make sure the sidebar has focus so
+            # the keyboard is never left dead after an action.
+            self.query_one(Sidebar).focus()
