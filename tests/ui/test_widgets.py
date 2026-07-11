@@ -176,6 +176,10 @@ async def test_status_bar_shows_counts():
         assert "2" in rendered
 
 
+def test_status_bar_inverted_primary_background():
+    assert "background: $primary" in StatusBar.DEFAULT_CSS
+
+
 # ---------------------------------------------------------------------------
 # ActionBar tests
 # ---------------------------------------------------------------------------
