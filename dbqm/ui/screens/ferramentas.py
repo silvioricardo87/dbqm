@@ -7,7 +7,7 @@ from textual.widgets import Button, ContentSwitcher, Label
 
 
 class FerramentasScreen(Vertical):
-    """Launcher that hosts four existing tool screens behind a menu."""
+    """Launcher that hosts five existing tool screens behind a menu."""
 
     DEFAULT_CSS = """
     FerramentasScreen {
@@ -49,8 +49,9 @@ class FerramentasScreen(Vertical):
                 yield Button("\U0001F4C4  Gerenciar Templates", id="ferr-open-templates")
                 yield Button("\U0001F4E6  Package Editor", id="ferr-open-packages")
                 yield Button("▶  Executar Rotina", id="ferr-open-rotina")
+                yield Button("▶  Executar Grupo", id="ferr-open-executar")
 
-            for name in ("grupos", "templates", "packages", "rotina"):
+            for name in ("grupos", "templates", "packages", "rotina", "executar"):
                 with Vertical(id=f"ferr-{name}", classes="ferr-tool-container"):
                     yield Button("←  Voltar", id=f"ferr-back-{name}")
 
@@ -68,6 +69,9 @@ class FerramentasScreen(Vertical):
         if name == "rotina":
             from dbqm.ui.screens.exec_routine import ExecRoutineScreen
             return ExecRoutineScreen(id="ferr-rotina-inner")
+        if name == "executar":
+            from dbqm.ui.screens.group_run import GroupRunScreen
+            return GroupRunScreen(id="ferr-executar-inner")
         raise ValueError(f"Unknown tool: {name}")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

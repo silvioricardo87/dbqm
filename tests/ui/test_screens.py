@@ -3608,7 +3608,7 @@ class FerramentasTestApp(App):
 
 @pytest.mark.asyncio
 async def test_ferramentas_screen_renders_menu(tmp_config_dir):
-    """FerramentasScreen shows a menu with four launcher buttons, starting
+    """FerramentasScreen shows a menu with five launcher buttons, starting
     on the menu view."""
     from textual.widgets import Button, ContentSwitcher
     app = FerramentasTestApp()
@@ -3618,6 +3618,7 @@ async def test_ferramentas_screen_renders_menu(tmp_config_dir):
         assert screen.query_one("#ferr-open-templates", Button) is not None
         assert screen.query_one("#ferr-open-packages", Button) is not None
         assert screen.query_one("#ferr-open-rotina", Button) is not None
+        assert screen.query_one("#ferr-open-executar", Button) is not None
         switcher = screen.query_one(ContentSwitcher)
         assert switcher.current == "ferr-menu"
 
@@ -3639,6 +3640,9 @@ async def test_ferramentas_screen_does_not_load_tools_on_mount(tmp_config_dir):
         screen = app.query_one(FerramentasScreen)
         packages_container = screen.query_one("#ferr-packages")
         assert len(list(packages_container.children)) == 1  # only the Voltar button
+
+        executar_container = screen.query_one("#ferr-executar")
+        assert len(list(executar_container.children)) == 1  # only the Voltar button
 
 
 @pytest.mark.asyncio
@@ -3675,3 +3679,74 @@ async def test_ferramentas_screen_open_and_back(tmp_config_dir):
         screen.query_one("#ferr-open-packages", Button).press()
         await pilot.pause()
         assert len(packages_container.query(PackageEditorScreen)) == 1
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_open_executar_grupo(tmp_config_dir):
+    """Pressing 'Executar Grupo' lazily mounts a GroupRunScreen into the
+    #ferr-executar container and switches to it."""
+    from textual.widgets import Button, ContentSwitcher
+    from dbqm.ui.screens.group_run import GroupRunScreen
+
+    app = FerramentasTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.query_one(FerramentasScreen)
+        switcher = screen.query_one(ContentSwitcher)
+
+        screen.query_one("#ferr-open-executar", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-executar"
+
+        executar_container = screen.query_one("#ferr-executar")
+        assert len(executar_container.query(GroupRunScreen)) == 1
+
+        screen.query_one("#ferr-back-executar", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-menu"
+
+        # Re-opening must not build a second instance of the tool screen.
+        screen.query_one("#ferr-open-executar", Button).press()
+        await pilot.pause()
+        assert len(executar_container.query(GroupRunScreen)) == 1
+
+
+# ======================================================================
+# GroupRunScreen tests (Ferramentas-hosted copy of the query-based group
+# execution feature, salvaged from the pre-redesign GroupExecScreen)
+# ======================================================================
+
+from dbqm.ui.screens.group_run import GroupRunScreen
+
+
+class GroupRunTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield GroupRunScreen()
+
+
+@pytest.mark.asyncio
+async def test_group_run_screen_renders_standalone(tmp_config_dir):
+    """GroupRunScreen renders standalone with its own #gr-group-list id,
+    distinct from GroupExecScreen's #ge-group-list."""
+    from textual.widgets import ListView
+
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "group_a",
+                "description": "Test group A",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        assert screen is not None
+        assert screen.query_one("#gr-group-list", ListView) is not None
