@@ -3474,20 +3474,38 @@ async def test_ferramentas_screen_renders_menu(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_screen_open_and_back(tmp_config_dir):
-    """Pressing a launcher button switches to that tool; Voltar returns to
-    the menu.
+async def test_ferramentas_screen_does_not_load_tools_on_mount(tmp_config_dir):
+    """Mounting FerramentasScreen alone must not instantiate any tool
+    screen. In particular, PackageEditorScreen's on_mount() eagerly pushes
+    a modal screen (_PackageChoiceModal) the moment it is mounted (see
+    dbqm/ui/screens/package_editor.py). If the tool screens were mounted
+    up front, that modal would become the app's active screen before any
+    user interaction happens at all. Tool screens must be built lazily, on
+    first open, so no modal is pushed just from mounting the launcher."""
+    app = FerramentasTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
 
-    Uses Button.press() rather than pilot.click(): PackageEditorScreen's
-    on_mount() eagerly pushes a modal screen (_PackageChoiceModal) the
-    moment it is mounted (see dbqm/ui/screens/package_editor.py). Since all
-    four tool screens are mounted up front inside the ContentSwitcher (only
-    hidden, not deferred), that modal becomes the app's active screen
-    before any interaction happens at all, which breaks coordinate-based
-    pilot.click() lookups (they resolve against the topmost screen).
-    Button.press() posts the Pressed message directly and is unaffected,
-    and is explicit provision for this in the task."""
+        screen = app.query_one(FerramentasScreen)
+        packages_container = screen.query_one("#ferr-packages")
+        assert len(list(packages_container.children)) == 1  # only the Voltar button
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_open_and_back(tmp_config_dir):
+    """Pressing a launcher button lazily builds and mounts that tool into
+    its container, switches to it; Voltar returns to the menu.
+
+    Uses Button.press() rather than pilot.click(): once Package Editor is
+    opened, PackageEditorScreen's on_mount() pushes a modal screen
+    (_PackageChoiceModal), which becomes the app's active screen and
+    breaks coordinate-based pilot.click() lookups (they resolve against
+    the topmost screen). Button.press() posts the Pressed message directly
+    and is unaffected."""
     from textual.widgets import Button, ContentSwitcher
+    from dbqm.ui.screens.package_editor import PackageEditorScreen
+
     app = FerramentasTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
         screen = app.query_one(FerramentasScreen)
@@ -3497,6 +3515,14 @@ async def test_ferramentas_screen_open_and_back(tmp_config_dir):
         await pilot.pause()
         assert switcher.current == "ferr-packages"
 
+        packages_container = screen.query_one("#ferr-packages")
+        assert len(packages_container.query(PackageEditorScreen)) == 1
+
         screen.query_one("#ferr-back-packages", Button).press()
         await pilot.pause()
         assert switcher.current == "ferr-menu"
+
+        # Re-opening must not build a second instance of the tool screen.
+        screen.query_one("#ferr-open-packages", Button).press()
+        await pilot.pause()
+        assert len(packages_container.query(PackageEditorScreen)) == 1

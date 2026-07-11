@@ -37,6 +37,10 @@ class FerramentasScreen(Vertical):
     }
     """
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._loaded_tools: set[str] = set()
+
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial="ferr-menu"):
             with Vertical(id="ferr-menu"):
@@ -49,7 +53,6 @@ class FerramentasScreen(Vertical):
             for name in ("grupos", "templates", "packages", "rotina"):
                 with Vertical(id=f"ferr-{name}", classes="ferr-tool-container"):
                     yield Button("←  Voltar", id=f"ferr-back-{name}")
-                    yield self._build_tool(name)
 
     def _build_tool(self, name: str):
         """Lazily import and instantiate the tool screen widget for `name`."""
@@ -71,6 +74,10 @@ class FerramentasScreen(Vertical):
         button_id = event.button.id or ""
         if button_id.startswith("ferr-open-"):
             name = button_id.removeprefix("ferr-open-")
+            if name not in self._loaded_tools:
+                container = self.query_one(f"#ferr-{name}", Vertical)
+                container.mount(self._build_tool(name))
+                self._loaded_tools.add(name)
             self.query_one(ContentSwitcher).current = f"ferr-{name}"
             event.stop()
         elif button_id.startswith("ferr-back-"):
