@@ -802,15 +802,39 @@ async def test_adhoc_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_adhoc_screen_has_input_phase(tmp_config_dir):
-    """AdhocScreen should show input phase on mount."""
+async def test_adhoc_has_params_editor_results_panels(tmp_config_dir):
+    """AdhocScreen renders three simultaneous panels + a results sub-toggle."""
+    from dbqm.ui.widgets.panel import Panel
+    from textual.widgets import ContentSwitcher, Select, TextArea
+
     app = AdhocTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
-        input_phase = screen.query_one("#adhoc-input-phase")
-        assert input_phase.display is True
-        results_phase = screen.query_one("#adhoc-results-phase")
-        assert results_phase.display is False
+        titles = [
+            p.query_one("#panel-title").render().plain for p in screen.query(Panel)
+        ]
+        assert any("PARAMETROS" in t for t in titles)
+        assert any("SQL EDITOR" in t for t in titles)
+        assert any("RESULTADOS" in t for t in titles)
+        # Results sub-toggle: a ContentSwitcher with table + output panes.
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
+        assert switcher is not None
+        assert screen.query_one("#res-table") is not None
+        assert screen.query_one("#res-output") is not None
+        # Params panel keeps the connection Select; editor keeps the TextArea.
+        assert screen.query_one("#adhoc-conn-select", Select) is not None
+        assert screen.query_one("#adhoc-sql-area", TextArea) is not None
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_starts_on_table_view(tmp_config_dir):
+    """The results sub-toggle starts on the Tabela (res-table) view."""
+    from textual.widgets import ContentSwitcher
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
+        assert switcher.current == "res-table"
 
 
 @pytest.mark.asyncio
@@ -844,24 +868,26 @@ async def test_adhoc_screen_has_buttons(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_adhoc_screen_go_back_to_input(tmp_config_dir):
-    """go_back_to_input should show input and hide results."""
+async def test_adhoc_results_sub_toggle_switches_views(tmp_config_dir):
+    """The Tabela/Output buttons flip the results ContentSwitcher."""
+    from textual.widgets import Button, ContentSwitcher
     app = AdhocTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
-        # Simulate being in results phase
-        screen.query_one("#adhoc-input-phase").display = False
-        screen.query_one("#adhoc-results-phase").display = True
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
 
-        screen.go_back_to_input()
+        screen.query_one("#res-btn-output", Button).press()
+        await pilot.pause()
+        assert switcher.current == "res-output"
 
-        assert screen.query_one("#adhoc-input-phase").display is True
-        assert screen.query_one("#adhoc-results-phase").display is False
+        screen.query_one("#res-btn-table", Button).press()
+        await pilot.pause()
+        assert switcher.current == "res-table"
 
 
 @pytest.mark.asyncio
-async def test_adhoc_screen_go_back_cleans_connection(tmp_config_dir):
-    """go_back_to_input should rollback and close any open DML connection."""
+async def test_adhoc_unmount_cleans_connection(tmp_config_dir):
+    """Leaving the screen should rollback and close any open DML connection."""
     app = AdhocTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
@@ -877,10 +903,8 @@ async def test_adhoc_screen_go_back_cleans_connection(tmp_config_dir):
 
         mock = MockConn()
         screen._db_connection = mock
-        screen.query_one("#adhoc-input-phase").display = False
-        screen.query_one("#adhoc-results-phase").display = True
 
-        screen.go_back_to_input()
+        screen.on_unmount()
 
         assert mock.rolled_back is True
         assert mock.closed is True
@@ -916,9 +940,11 @@ async def test_adhoc_plsql_result_shows_static(tmp_config_dir):
         )
         screen._on_sql_result(result)
 
-        assert screen.query_one("#adhoc-results-phase").display is True
+        from textual.widgets import ContentSwitcher
+        # PL/SQL routes to the Output view; the DML/message static shows there.
+        assert screen.query_one("#res-switcher", ContentSwitcher).current == "res-output"
         assert screen.query_one("#adhoc-dml-result").display is True
-        assert screen.query_one("#adhoc-result-table").display is False
+        assert screen.query_one("#res-table").display is False
 
 
 @pytest.mark.asyncio
@@ -963,8 +989,12 @@ async def test_adhoc_dbms_panel_hidden_initially(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_adhoc_select_shows_dbms_panel_when_capture_enabled(tmp_config_dir):
-    """A SELECT with capture on shows the result table AND the DBMS panel."""
-    from textual.widgets import TextArea
+    """A SELECT with capture on loads the table AND populates the DBMS panel.
+
+    With the results sub-toggle, DBMS output routes the view to Output; the
+    table stays loaded and reachable via the Tabela button.
+    """
+    from textual.widgets import Button, ContentSwitcher, TextArea
     from dbqm.core.query_engine import AdhocResult
     app = AdhocTestApp()
     async with app.run_test() as pilot:
@@ -979,12 +1009,21 @@ async def test_adhoc_select_shows_dbms_panel_when_capture_enabled(tmp_config_dir
         screen._on_sql_result(result)
         await pilot.pause()
 
-        assert screen.query_one("#adhoc-result-table").display is True
+        # DBMS output present -> Output view is selected.
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
+        assert switcher.current == "res-output"
         panel = screen.query_one("#adhoc-dbms-panel")
         assert panel.display is True
         view = screen.query_one("#adhoc-dbms-view", TextArea)
         assert "log A" in view.text
         assert "log B" in view.text
+
+        # The table is still loaded and reachable via the Tabela toggle.
+        from dbqm.ui.widgets.result_table import ResultTable
+        screen.query_one("#res-btn-table", Button).press()
+        await pilot.pause()
+        assert switcher.current == "res-table"
+        assert screen.query_one("#res-table", ResultTable).display is True
 
 
 @pytest.mark.asyncio

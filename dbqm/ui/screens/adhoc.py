@@ -6,11 +6,12 @@ from datetime import datetime
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Checkbox, Select, Static, TextArea
+from textual.widgets import Button, Checkbox, ContentSwitcher, Select, Static, TextArea
 from dbqm.ui.utils import NavSelect
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.sql_viewer import SqlViewer
@@ -39,49 +40,73 @@ def _format_plsql_message(result: AdhocResult) -> str:
 class AdhocScreen(Vertical):
     """Screen widget for executing ad-hoc SQL statements.
 
-    Phase 1 — SQL input with connection selector and action buttons.
-    Phase 2 — results (ResultTable for SELECT, info for DML).
+    Three simultaneous panels (no phase swap):
+      - PARAMETROS  — connection selector + DBMS_OUTPUT opt-in.
+      - SQL EDITOR  — the SQL TextArea plus the action buttons.
+      - RESULTADOS  — a Tabela/Output sub-toggle (ContentSwitcher) hosting the
+        ResultTable (#res-table) and the DBMS/output view (#res-output).
     """
 
     DEFAULT_CSS = """
     AdhocScreen {
         height: 1fr;
     }
-    AdhocScreen #adhoc-input-phase {
+    AdhocScreen #adhoc-body {
         height: 1fr;
     }
-    AdhocScreen #adhoc-conn-bar {
-        height: auto;
-        padding: 1 1 0 1;
-        background: $surface;
+    AdhocScreen #adhoc-params-panel {
+        width: 32;
     }
-    AdhocScreen #adhoc-conn-bar Select {
+    AdhocScreen #adhoc-editor-col {
         width: 1fr;
+    }
+    AdhocScreen #adhoc-conn-select {
+        width: 100%;
         border: round $error;
     }
-    AdhocScreen #adhoc-conn-bar Select.--conn-selected {
+    AdhocScreen #adhoc-conn-select.--conn-selected {
         border: round $success;
+    }
+    AdhocScreen #adhoc-dbms-toggle {
+        width: 100%;
+        height: auto;
+        margin: 1 0 0 0;
+        padding: 0 1;
+        border: round $primary;
+        background: $surface;
+        content-align: left middle;
+    }
+    AdhocScreen #adhoc-editor-panel {
+        height: 3fr;
     }
     AdhocScreen #adhoc-sql-area {
         height: 1fr;
-        margin: 0 1;
     }
     AdhocScreen #adhoc-btn-bar {
         height: auto;
-        padding: 1;
+        padding: 1 0 0 0;
         align: center middle;
     }
     AdhocScreen #adhoc-btn-bar Button {
         margin: 0 1;
     }
-    AdhocScreen #adhoc-results-phase {
-        height: 1fr;
+    AdhocScreen #adhoc-results-panel {
+        height: 2fr;
+    }
+    AdhocScreen #res-toggle-bar {
+        height: auto;
+        padding: 0 0 1 0;
+    }
+    AdhocScreen #res-toggle-bar Button {
+        margin: 0 1 0 0;
     }
     AdhocScreen #adhoc-result-info {
         height: auto;
         padding: 0 1;
-        background: $surface;
         color: $text-muted;
+    }
+    AdhocScreen #res-switcher {
+        height: 1fr;
     }
     AdhocScreen #adhoc-dml-result {
         height: auto;
@@ -89,31 +114,17 @@ class AdhocScreen(Vertical):
         content-align: center middle;
         text-align: center;
     }
-    AdhocScreen #adhoc-sql-viewer-area {
-        height: 1fr;
-        padding: 0 1;
-    }
-    AdhocScreen #adhoc-conn-bar Checkbox {
-        width: auto;
-        max-width: 32;
-        height: 5;
-        margin: 0 0 0 1;
-        padding: 0 1;
-        border: round $primary;
-        background: $surface;
-        content-align: left middle;
-    }
     AdhocScreen #adhoc-dbms-panel {
-        height: auto;
-        border-top: heavy $primary;
-        padding: 0 1;
+        height: 1fr;
+        padding: 0;
     }
     AdhocScreen #adhoc-dbms-label {
         height: auto;
         color: $text-muted;
     }
     AdhocScreen #adhoc-dbms-view {
-        height: 10;
+        height: 1fr;
+        min-height: 6;
         margin: 0;
     }
     AdhocScreen #adhoc-dbms-btns {
@@ -161,41 +172,52 @@ class AdhocScreen(Vertical):
             self._handle_clear()
 
     def compose(self) -> ComposeResult:
-        # Input phase
-        with Vertical(id="adhoc-input-phase"):
-            with Horizontal(id="adhoc-conn-bar"):
+        with Horizontal(id="adhoc-body"):
+            # Left column — parameters / connection / DBMS opt-in.
+            with Panel("🎯  PARAMETROS", accent=True, id="adhoc-params-panel"):
                 yield NavSelect([], prompt="Selecione a conexao", id="adhoc-conn-select")
                 yield Checkbox("Saida DBMS", id="adhoc-dbms-toggle", value=False)
-            yield TextArea("", language="sql", id="adhoc-sql-area")
-            with Horizontal(id="adhoc-btn-bar"):
-                yield Button("Executar (Ctrl+Enter)", variant="primary", id="adhoc-execute", disabled=True)
-                yield Button("Limpar (Ctrl+L)", variant="error", id="adhoc-clear")
-                yield Button("Gerar SQL", variant="default", id="adhoc-generate")
-                yield Button("Salvar como consulta", variant="default", id="adhoc-save")
+
+            # Right column — editor above, results below.
+            with Vertical(id="adhoc-editor-col"):
+                with Panel("✏️  SQL EDITOR", id="adhoc-editor-panel"):
+                    yield TextArea("", language="sql", id="adhoc-sql-area")
+                    with Horizontal(id="adhoc-btn-bar"):
+                        yield Button("Executar (Ctrl+Enter)", variant="primary", id="adhoc-execute", disabled=True)
+                        yield Button("Limpar (Ctrl+L)", variant="error", id="adhoc-clear")
+                        yield Button("Gerar SQL", variant="default", id="adhoc-generate")
+                        yield Button("Salvar como consulta", variant="default", id="adhoc-save")
+
+                with Panel("📊  RESULTADOS", id="adhoc-results-panel"):
+                    with Horizontal(id="res-toggle-bar"):
+                        yield Button("Tabela", id="res-btn-table")
+                        yield Button("Output", id="res-btn-output")
+                    yield Static("", id="adhoc-result-info")
+                    with ContentSwitcher(initial="res-table", id="res-switcher"):
+                        yield ResultTable(id="res-table")
+                        with Vertical(id="res-output"):
+                            yield Static("", id="adhoc-dml-result")
+                            yield SqlViewer("", id="adhoc-sql-viewer")
+                            with Vertical(id="adhoc-dbms-panel"):
+                                yield Static("DBMS_OUTPUT", id="adhoc-dbms-label")
+                                yield TextArea("", read_only=True, id="adhoc-dbms-view")
+                                with Horizontal(id="adhoc-dbms-btns"):
+                                    yield Button("Salvar em arquivo", id="adhoc-dbms-save")
+                                    yield Button("Copiar", id="adhoc-dbms-copy")
 
         # Progress indicator
         yield ProgressIndicator()
 
-        # Results phase (hidden initially)
-        with Vertical(id="adhoc-results-phase"):
-            yield Static("", id="adhoc-result-info")
-            yield ResultTable(id="adhoc-result-table")
-            yield Static("", id="adhoc-dml-result")
-            yield SqlViewer("", id="adhoc-sql-viewer")
-            with Vertical(id="adhoc-dbms-panel"):
-                yield Static("DBMS_OUTPUT", id="adhoc-dbms-label")
-                yield TextArea("", read_only=True, id="adhoc-dbms-view")
-                with Horizontal(id="adhoc-dbms-btns"):
-                    yield Button("Salvar em arquivo", id="adhoc-dbms-save")
-                    yield Button("Copiar", id="adhoc-dbms-copy")
-
     def on_mount(self) -> None:
-        self.query_one("#adhoc-results-phase").display = False
         self.query_one("#adhoc-dml-result").display = False
         self.query_one("#adhoc-sql-viewer").display = False
         self.query_one("#adhoc-dbms-panel").display = False
         self._load_connections()
         self.call_after_refresh(self._set_initial_focus)
+
+    def _show_results(self, view: str) -> None:
+        """Flip the results sub-toggle to 'res-table' or 'res-output'."""
+        self.query_one("#res-switcher", ContentSwitcher).current = view
 
     def _dbms_output_enabled(self) -> bool:
         """Whether the user opted into DBMS_OUTPUT capture via the checkbox."""
@@ -288,6 +310,10 @@ class AdhocScreen(Vertical):
             self._handle_dbms_save()
         elif btn_id == "adhoc-dbms-copy":
             self._copy_dbms_output()
+        elif btn_id == "res-btn-table":
+            self._show_results("res-table")
+        elif btn_id == "res-btn-output":
+            self._show_results("res-output")
 
     def _handle_clear(self) -> None:
         """Clear SQL input with confirmation."""
@@ -431,10 +457,8 @@ class AdhocScreen(Vertical):
         # Log execution
         self._log_audit(adhoc_result)
 
-        # Switch to results phase
-        self.query_one("#adhoc-input-phase").display = False
-        results_phase = self.query_one("#adhoc-results-phase")
-        results_phase.display = True
+        # The SQL viewer is only for the "Gerar SQL" flow — hide it on execute.
+        self.query_one("#adhoc-sql-viewer").display = False
 
         if self._sql_type == "SELECT":
             self._show_select_result(adhoc_result)
@@ -446,6 +470,14 @@ class AdhocScreen(Vertical):
             self._show_dml_result(adhoc_result, db_connection)
 
         self._update_dbms_panel(adhoc_result)
+
+        # Drive the results sub-toggle: PL/SQL and DBMS-output executions land
+        # on the Output view; a plain SELECT lands on the Tabela view.
+        show_output = self._capture_output or self._sql_type == "PLSQL"
+        if self._sql_type == "SELECT" and not show_output:
+            self._show_results("res-table")
+        else:
+            self._show_results("res-output")
 
     def _update_dbms_panel(self, result: AdhocResult) -> None:
         """Show/hide the DBMS_OUTPUT panel and load its captured lines."""
@@ -510,7 +542,7 @@ class AdhocScreen(Vertical):
         info.display = True
 
         # Show result table
-        result_table = self.query_one("#adhoc-result-table", ResultTable)
+        result_table = self.query_one("#res-table", ResultTable)
         result_table.display = True
         result_table.load_result(qr)
 
@@ -544,7 +576,7 @@ class AdhocScreen(Vertical):
         """Display DML result with commit/rollback options."""
         # Hide SELECT elements
         self.query_one("#adhoc-result-info").display = False
-        self.query_one("#adhoc-result-table").display = False
+        self.query_one("#res-table").display = False
         self.query_one("#adhoc-sql-viewer").display = False
 
         # Show DML result
@@ -571,7 +603,7 @@ class AdhocScreen(Vertical):
         """Display DDL execution result with compilation errors if any."""
         # Hide SELECT elements
         self.query_one("#adhoc-result-info").display = False
-        self.query_one("#adhoc-result-table").display = False
+        self.query_one("#res-table").display = False
         self.query_one("#adhoc-sql-viewer").display = False
 
         # Show result in DML static area
@@ -601,7 +633,7 @@ class AdhocScreen(Vertical):
         """Display PL/SQL block result with captured DBMS_OUTPUT lines."""
         # Hide SELECT elements
         self.query_one("#adhoc-result-info").display = False
-        self.query_one("#adhoc-result-table").display = False
+        self.query_one("#res-table").display = False
         self.query_one("#adhoc-sql-viewer").display = False
 
         dml_static = self.query_one("#adhoc-dml-result", Static)
@@ -692,17 +724,12 @@ class AdhocScreen(Vertical):
         self._show_generated_sql(raw_sql, result)
 
     def _show_generated_sql(self, sql: str, params: dict[str, str]) -> None:
-        """Show generated SQL in SqlViewer."""
+        """Show generated SQL in SqlViewer, inside the Output results view."""
         final_sql = generate_sql_text(sql, params) if params else sql
 
-        # Switch to results phase
-        self.query_one("#adhoc-input-phase").display = False
-        results_phase = self.query_one("#adhoc-results-phase")
-        results_phase.display = True
-
-        # Hide SELECT/DML elements
+        # Hide SELECT/DML elements; surface the generated SQL in the output pane.
         self.query_one("#adhoc-result-info").display = False
-        self.query_one("#adhoc-result-table").display = False
+        self.query_one("#res-table").display = False
         self.query_one("#adhoc-dml-result").display = False
         self.query_one("#adhoc-dbms-panel").display = False
 
@@ -710,13 +737,13 @@ class AdhocScreen(Vertical):
         sql_viewer = self.query_one("#adhoc-sql-viewer", SqlViewer)
         sql_viewer.display = True
         sql_viewer.set_sql(final_sql)
+        self._show_results("res-output")
 
         # Action bar with export
         try:
             action_bar = self.app.query_one(ActionBar)
             action_bar.set_actions([
                 Action("Exportar SQL", "E", "export_sql"),
-                Action("Voltar", "Esc", "go_back"),
             ])
         except Exception:
             pass
@@ -840,24 +867,22 @@ class AdhocScreen(Vertical):
         action = message.action_id
 
         if action == "toggle_vertical":
-            result_table = self.query_one("#adhoc-result-table", ResultTable)
+            result_table = self.query_one("#res-table", ResultTable)
             result_table.toggle_vertical()
         elif action == "export":
             self._handle_export()
         elif action == "reexecute":
             self._handle_reexecute()
         elif action == "prev_page":
-            result_table = self.query_one("#adhoc-result-table", ResultTable)
+            result_table = self.query_one("#res-table", ResultTable)
             result_table.prev_page()
             self._set_select_actions(result_table)
         elif action == "next_page":
-            result_table = self.query_one("#adhoc-result-table", ResultTable)
+            result_table = self.query_one("#res-table", ResultTable)
             result_table.next_page()
             self._set_select_actions(result_table)
         elif action == "export_sql":
             self._handle_export_sql()
-        elif action == "go_back":
-            self.go_back_to_input()
         elif action == "dml_commit":
             self._handle_commit()
         elif action == "dml_rollback":
@@ -904,15 +929,17 @@ class AdhocScreen(Vertical):
 
     def _handle_reexecute(self) -> None:
         """Re-execute with new/same parameters."""
-        self.go_back_to_input()
+        # Roll back / close any open DML transaction from the previous run
+        # before starting a fresh execution.
+        self._cleanup_db_connection()
         self._handle_execute()
 
     # ------------------------------------------------------------------
-    # Back navigation
+    # Cleanup
     # ------------------------------------------------------------------
 
-    def go_back_to_input(self) -> None:
-        """Return to the SQL input phase."""
+    def _cleanup_db_connection(self) -> None:
+        """Roll back and close any open DML connection (uncommitted work)."""
         if self._db_connection:
             try:
                 self._db_connection.rollback()
@@ -920,18 +947,7 @@ class AdhocScreen(Vertical):
             except Exception:
                 pass
             self._db_connection = None
-        self.query_one("#adhoc-input-phase").display = True
-        self.query_one("#adhoc-results-phase").display = False
-        self.query_one("#adhoc-dbms-panel").display = False
-        self._current_result = None
-        self._current_adhoc_result = None
-        self._dbms_output_lines = []
-        self._clear_action_bar()
 
-        # Restore focus to the SQL editor (explicit id — a second, read-only
-        # TextArea exists in the DBMS_OUTPUT panel).
-        try:
-            from textual.widgets import TextArea
-            self.query_one("#adhoc-sql-area", TextArea).focus()
-        except Exception:
-            pass
+    def on_unmount(self) -> None:
+        """Ensure no uncommitted DML transaction leaks when leaving the screen."""
+        self._cleanup_db_connection()
