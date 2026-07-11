@@ -211,6 +211,15 @@ async def test_action_bar_empty():
         assert ab.display is False
 
 
+def test_action_bar_uses_primary_key_markup():
+    bar = ActionBar()
+    bar._actions = [Action("Executar", "r", "run")]
+    bar._rebuild()
+    rendered = str(bar._Static__content)
+    assert "on white" not in rendered            # no more black-on-white chip
+    assert "bold $primary" in rendered or "bold #58a6ff" in rendered
+
+
 # ---------------------------------------------------------------------------
 # ResultTable tests
 # ---------------------------------------------------------------------------
