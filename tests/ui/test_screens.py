@@ -1586,6 +1586,54 @@ async def test_settings_screen_loads_saved_settings(tmp_config_dir):
         assert audit_switch.value is True
 
 
+@pytest.mark.asyncio
+async def test_settings_two_column_panels(tmp_config_dir):
+    """CONFIG DA APLICACAO and PORTABILIDADE panels both exist."""
+    from dbqm.ui.widgets.panel import Panel
+
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        panels = screen.query(Panel)
+        titles = [p.query_one("#panel-title").render().plain for p in panels]
+        assert any("CONFIG DA APLICACAO" in t for t in titles)
+        assert any("PORTABILIDADE" in t for t in titles)
+        assert any("FERNET KEY" in t for t in titles)
+
+
+@pytest.mark.asyncio
+async def test_settings_export_import_buttons_in_panel(tmp_config_dir):
+    """Export/import buttons and theme select exist and route through panel bodies."""
+    from dbqm.ui.widgets.panel import Panel
+    from textual.widgets import Button
+
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        theme_select = screen.query_one("#settings-theme-select", Select)
+        export_btn = screen.query_one("#btn-export", Button)
+        import_btn = screen.query_one("#btn-import", Button)
+        assert theme_select is not None
+        assert export_btn is not None
+        assert import_btn is not None
+
+        # Every widget of interest lives inside a Panel's #panel-body — no
+        # leftover .settings-section box-in-box container remains.
+        for widget in (theme_select, export_btn, import_btn):
+            panel = next(a for a in widget.ancestors if isinstance(a, Panel))
+            body = panel.query_one("#panel-body")
+            assert widget in body.query("*") or widget.parent is body or body in widget.ancestors
+
+
+@pytest.mark.asyncio
+async def test_settings_no_settings_section_boxes(tmp_config_dir):
+    """The old box-in-box `.settings-section` styling is gone."""
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        assert len(screen.query(".settings-section")) == 0
+
+
 # ======================================================================
 # ConfigPortScreen tests
 # ======================================================================
