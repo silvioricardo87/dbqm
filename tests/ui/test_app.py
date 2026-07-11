@@ -1,6 +1,6 @@
 """Tests for the main app (single tabbed shell)."""
 import pytest
-from textual.widgets import TabbedContent
+from textual.widgets import TabbedContent, TabPane
 
 from dbqm.ui.app import DBQMApp
 from dbqm.ui.widgets.status_bar import StatusBar
@@ -90,3 +90,35 @@ async def test_conexoes_tab_hosts_connections_screen(tmp_config_dir):
         assert app.query_one(ConnectionsScreen) is not None
         # ConnectionsScreen restores its contextual actions when activated.
         assert len(app.query_one(ActionBar)._actions) == 5
+
+
+@pytest.mark.asyncio
+async def test_all_panes_enabled_after_mount(tmp_config_dir):
+    """After the initial mount focus-storm settles, no TabPane is disabled
+    (so every tab header is mouse-clickable), and the intended initial tab
+    (no connections configured -> Conexoes) is the active one.
+    """
+    app = DBQMApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        for tab_id in DBQMApp.TAB_TO_SCREEN:
+            pane = app.query_one(f"#{tab_id}", TabPane)
+            assert not pane.disabled, f"{tab_id} is unexpectedly disabled"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-conexoes"
+
+
+@pytest.mark.asyncio
+async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
+    """Simulates a mouse click on a tab header by setting
+    TabbedContent.active directly, and confirms the switch takes effect and
+    the target pane remains enabled.
+    """
+    app = DBQMApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        tabs = app.query_one("#main-tabs", TabbedContent)
+        tabs.active = "tab-historico"
+        await pilot.pause()
+        assert tabs.active == "tab-historico"
+        pane = app.query_one("#tab-historico", TabPane)
+        assert not pane.disabled

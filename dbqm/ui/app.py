@@ -33,6 +33,11 @@ class DBQMApp(App):
         super().__init__(**kwargs)
         from dbqm._version import __version__
         self.title = f"DB Query Manager v{__version__}"
+        # Set as soon as the user (or a test) explicitly switches tabs, so
+        # the deferred initial-mount settle step (``_finish_initial_mount``)
+        # never clobbers a real switch that happens to land during the
+        # initial mount focus-storm window.
+        self._user_switched_tab = False
 
     BINDINGS = [
         Binding("f1", "switch_tab('tab-coleta')", "Coleta", show=False),
@@ -134,15 +139,32 @@ class DBQMApp(App):
             groups=len(groups),
         )
 
-        # Disable every pane except the initially-active one. The hosted
-        # phase-based screens focus a widget on mount, and focusing a widget
-        # inside an inactive pane would otherwise activate that pane. Disabling
-        # the inactive panes makes their descendants non-focusable, so only the
-        # active screen can take focus and the intended tab always wins.
+        # Disable every pane except the initially-active one, but only for
+        # the initial mount window. The hosted phase-based screens focus a
+        # widget on mount, and focusing a widget inside an inactive pane
+        # would otherwise activate that pane. Disabling the inactive panes
+        # makes their descendants non-focusable during this mount
+        # focus-storm, so only the active screen can take focus and the
+        # intended tab always wins. Once mounting has settled, every pane is
+        # re-enabled (see ``_finish_initial_mount``) so the tab bar stays
+        # fully mouse-clickable for the rest of the app's life.
+        initial_tab = "tab-coleta"
         try:
-            self._sync_panes(self.query_one("#main-tabs", TabbedContent).active)
+            initial_tab = self.query_one("#main-tabs", TabbedContent).active
+            self._sync_panes(initial_tab)
         except Exception:
             pass
+
+        # Deferred twice: phase-based screens schedule their own initial
+        # focus via a single call_after_refresh from their own on_mount
+        # (queued before this App.on_mount even runs). A single defer here
+        # can still land in an earlier refresh cycle than a screen whose
+        # focus call needed an extra layout pass (e.g. after populating a
+        # Select's options), letting it hijack the tab *after* we reset it.
+        # Deferring twice guarantees this runs after that whole storm settles.
+        self.call_after_refresh(
+            lambda: self.call_after_refresh(self._finish_initial_mount, initial_tab)
+        )
 
         # First-run: no connections configured. The Conexoes tab is already
         # active (chosen in compose); just welcome the user.
@@ -155,10 +177,12 @@ class DBQMApp(App):
             )
 
     def _sync_panes(self, active_id: str) -> None:
-        """Enable the active pane and disable the rest.
+        """Enable one pane and disable the rest, for the initial mount only.
 
         Disabled panes hold hidden, non-focusable content so their screens
-        cannot steal focus (and thereby hijack the active tab).
+        cannot steal focus (and thereby hijack the active tab) during the
+        simultaneous mount of all 8 panes. Never called again after
+        ``_finish_initial_mount`` runs.
         """
         try:
             tabbed = self.query_one("#main-tabs", TabbedContent)
@@ -167,22 +191,55 @@ class DBQMApp(App):
         except Exception:
             pass
 
+    def _finish_initial_mount(self, initial_tab: str) -> None:
+        """Undo the initial-mount pane disabling once things have settled.
+
+        Re-enables every TabPane (so all 8 tab headers are mouse-clickable).
+        If the user hasn't explicitly switched tabs in the meantime (e.g. a
+        very fast F-key press landing during the mount focus-storm window),
+        restores the intended initial tab as active; otherwise the user's
+        own switch wins and is left as-is.
+
+        Either way, (re)focuses whichever tab ends up active. This matters
+        even when the user already switched: their own switch-time focus
+        attempt (``on_tabbed_content_tab_activated`` -> ``_focus_active_
+        screen``) may have silently failed because its target pane was
+        still disabled at that instant (this mount-settle step hadn't run
+        yet), so ``.focus()`` was a no-op. Re-focusing now, after every pane
+        is guaranteed enabled, resolves that.
+        """
+        target = initial_tab
+        try:
+            tabbed = self.query_one("#main-tabs", TabbedContent)
+            for pane in tabbed.query(TabPane):
+                pane.disabled = False
+            if self._user_switched_tab:
+                target = tabbed.active
+            else:
+                tabbed.active = initial_tab
+        except Exception:
+            pass
+        self._focus_active_screen(target)
+
     # ------------------------------------------------------------------
     # Tab navigation
     # ------------------------------------------------------------------
 
     def action_switch_tab(self, tab_id: str) -> None:
-        """Switch to the given tab.
+        """Switch to the given tab by activating it in the TabbedContent.
 
-        Blur focus first, then enable the target pane (and disable the rest)
-        before activating it. Textual reactivates the tab that owns the
-        currently focused descendant; clearing focus and disabling the other
-        panes keeps a programmatic switch from being reverted. The
-        tab-activated handler restores focus into the newly active pane.
+        Blurs focus first: the outgoing pane's content is about to be hidden
+        by the ContentSwitcher, and if it still holds focus, Textual's
+        auto-focus falls back to the first focusable widget in the whole DOM
+        (the Templates sidebar's option list) instead of leaving focus for
+        ``on_tabbed_content_tab_activated`` to place deliberately inside the
+        newly active screen. Tab-activation side effects (action bar
+        refresh, focusing the screen's first widget) are handled by
+        ``on_tabbed_content_tab_activated``.
         """
+        self._user_switched_tab = True
         try:
             self.set_focus(None)
-            self._sync_panes(tab_id)
             self.query_one("#main-tabs", TabbedContent).active = tab_id
         except Exception:
             pass
@@ -207,13 +264,6 @@ class DBQMApp(App):
         are restored when switching back. Everything else clears the bar.
         This is best-effort and never hard-codes phase ids.
         """
-        # Keep pane enabled-state in sync with whatever became active (covers
-        # activation via a tab click, not just action_switch_tab).
-        try:
-            self._sync_panes(self.query_one("#main-tabs", TabbedContent).active)
-        except Exception:
-            pass
-
         screen = self._active_screen()
         if screen is None:
             try:
