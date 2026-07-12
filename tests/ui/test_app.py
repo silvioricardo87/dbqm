@@ -50,11 +50,12 @@ async def test_ctrl_b_toggles_templates_sidebar(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test() as pilot:
         sb = app.query_one(TemplatesSidebar)
-        assert not sb.has_class("-collapsed")
-        await pilot.press("ctrl+b")
+        # Starts collapsed (clean initial screen); Ctrl+B reveals it.
         assert sb.has_class("-collapsed")
         await pilot.press("ctrl+b")
         assert not sb.has_class("-collapsed")
+        await pilot.press("ctrl+b")
+        assert sb.has_class("-collapsed")
 
 
 @pytest.mark.asyncio

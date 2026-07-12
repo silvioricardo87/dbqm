@@ -561,6 +561,10 @@ async def test_panel_renders_title_and_body():
         assert title_content.startswith("⚙️  PARAMETROS")
         assert panel.has_class("accent-focus")
         assert app.query_one("#inner", Static) in panel.query_one("#panel-body").children
+        # Regression guard: the title must actually PAINT, not just exist in the
+        # DOM. A `height: 1` title with a `border-bottom` leaves zero rows for
+        # text, so it renders blank — assert the text reaches the screen.
+        assert "PARAMETROS" in app.export_screenshot()
 
 
 # ---------------------------------------------------------------------------
@@ -575,15 +579,33 @@ class _TemplatesSidebarApp(App):
 
 
 @pytest.mark.asyncio
-async def test_templates_sidebar_toggle():
+async def test_templates_sidebar_starts_collapsed_and_toggles():
     app = _TemplatesSidebarApp()
     async with app.run_test() as pilot:
         sb = app.query_one("#tpl", TemplatesSidebar)
-        assert not sb.has_class("-collapsed")
-        sb.toggle()
+        # Starts collapsed so the app opens clean; Ctrl+B reveals it.
         assert sb.has_class("-collapsed")
         sb.toggle()
         assert not sb.has_class("-collapsed")
+        sb.toggle()
+        assert sb.has_class("-collapsed")
+
+
+@pytest.mark.asyncio
+async def test_templates_sidebar_shows_hint_when_empty():
+    from textual.widgets import OptionList, Static as _Static
+    app = _TemplatesSidebarApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one("#tpl", TemplatesSidebar)
+        sb._reload()  # no templates in the test config
+        await pilot.pause()
+        # With zero templates the hint shows and the list is hidden.
+        assert sb.query_one("#tpl-empty", _Static).display is True
+        assert sb.query_one("#tpl-list", OptionList).display is False
+        # And the sidebar title itself paints (same border-bottom/height guard).
+        sb.remove_class("-collapsed")
+        await pilot.pause()
+        assert "TEMPLATES" in app.export_screenshot()
 
 
 @pytest.mark.asyncio

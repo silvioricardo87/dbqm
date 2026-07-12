@@ -2953,11 +2953,12 @@ async def test_templates_sidebar_collapse_toggle_via_shortcut(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         sidebar = app.query_one(TemplatesSidebar)
-        assert not sidebar.has_class("-collapsed")
-        await pilot.press("ctrl+b")
+        # Starts collapsed (clean initial screen); Ctrl+B reveals it.
         assert sidebar.has_class("-collapsed")
         await pilot.press("ctrl+b")
         assert not sidebar.has_class("-collapsed")
+        await pilot.press("ctrl+b")
+        assert sidebar.has_class("-collapsed")
 
 
 # --- 2. Help modal ---

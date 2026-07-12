@@ -23,7 +23,7 @@ class Panel(Vertical):
     Panel.accent-focus:focus-within { border: round $accent; }
 
     Panel > #panel-title {
-        height: 1;
+        height: auto;
         width: 100%;
         color: $primary;
         text-style: bold;
