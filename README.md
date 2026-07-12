@@ -195,7 +195,7 @@ The app is a single tabbed dashboard. Switch tabs with `F1`–`F8`:
 | `F1` | 🔍  Coleta | Ad-hoc SQL |
 | `F2` | 🔌  Conexoes | Manage database connections |
 | `F3` | 📂  Objetos | Object browser |
-| `F4` | 📊  Multi-Exec | Query groups & comparison |
+| `F4` | 📊  Multi-Exec | Run one ad-hoc SQL across selected connections & compare (load/save as a group) |
 | `F5` | 📜  Historico | Execution history |
 | `F6` | ⚙️  Configuracoes | Settings (inclui Exportar/Importar) |
 | `F7` | 📝  Consultas | Run saved queries |
@@ -294,7 +294,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (738+ tests)
+└── tests/                         # Test suite (762+ tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests
