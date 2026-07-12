@@ -149,6 +149,12 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
                     "WHERE object_type = :t ORDER BY object_name",
                     {"t": obj_upper},
                 )
+            elif obj_upper == "ROUTINE":
+                cursor.execute(
+                    "SELECT object_name FROM user_objects "
+                    "WHERE object_type IN ('PROCEDURE', 'FUNCTION') "
+                    "ORDER BY object_name"
+                )
             else:
                 return []
         elif db_type == "sqlserver":

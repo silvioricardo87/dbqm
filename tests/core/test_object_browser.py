@@ -139,6 +139,20 @@ class TestListObjectsProcedureFunction:
         result = list_objects(mock_db, "sqlserver", "PACKAGE")
         assert result == []
 
+    def test_oracle_routine_returns_procedures_and_functions(self):
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [("FN_CALC",), ("MY_PROC",)]
+        mock_db.cursor.return_value = mock_cursor
+
+        result = list_objects(mock_db, "oracle", "ROUTINE")
+        assert result == ["FN_CALC", "MY_PROC"]
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "user_objects" in sql
+        assert "PROCEDURE" in sql
+        assert "FUNCTION" in sql
+        assert "ORDER BY object_name" in sql
+
 
 class TestGetStandaloneRoutineInfo:
     """Test get_standalone_routine_info."""
