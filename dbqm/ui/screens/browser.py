@@ -1,104 +1,99 @@
-"""Object browser screen — browse tables, views, packages, and routines."""
+"""Object browser screen — three live panels: objects, columns, data preview.
+
+Selecting an object in the OBJETOS list fires a single worker that fills the
+COLUNAS structure table and the DADOS preview simultaneously — no wizard steps.
+The DDL extraction (previously a standalone screen) is folded in here as the
+"Extrair DDL" button in the DADOS panel.
+"""
 from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, DataTable, Input, Select, Static
+from textual.widgets import Button, DataTable, Input, OptionList, Select
+from textual.widgets.option_list import Option
 from dbqm.ui.utils import NavSelect
 from textual import work
 
-from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
-from dbqm.ui.widgets.progress import ProgressIndicator
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.sql_viewer import SqlViewer
 
 DEFAULT_LIMIT = 100
 
+# Object types that are shown as inline SOURCE text (no tabular DADOS).
+SOURCE_TYPES = ("PACKAGE", "ROUTINE")
+
+TYPE_OPTIONS = [
+    ("Tabelas", "TABLE"),
+    ("Views", "VIEW"),
+    ("Packages", "PACKAGE"),
+    ("Rotinas", "ROUTINE"),
+]
+
+TYPE_EMOJI = {
+    "TABLE": "🗃",
+    "VIEW": "👁",
+    "PACKAGE": "📦",
+    "ROUTINE": "⚙",
+}
+
 
 class BrowserScreen(Vertical):
-    """Screen widget for browsing database objects.
+    """Screen widget for browsing database objects as three live panels.
 
-    Phase 1 — connection + object type selection.
-    Phase 2 — object list with filter.
-    Phase 3 — object detail (structure, definition, routines).
+    OBJETOS  — connection + type selects, a filter, and the object list.
+    COLUNAS  — the selected object's structure (columns).
+    DADOS    — a paginated preview of the object's rows + DDL extraction.
     """
 
     DEFAULT_CSS = """
     BrowserScreen {
         height: 1fr;
     }
-    BrowserScreen #br-select-phase {
-        height: auto;
-        padding: 1;
+    BrowserScreen #browser-body {
+        height: 1fr;
     }
-    BrowserScreen #br-conn-bar {
-        height: auto;
-        padding: 0 0 1 0;
+    BrowserScreen #obj-list-panel {
+        width: 46;
     }
-    BrowserScreen #br-conn-bar Select {
+    BrowserScreen #obj-columns-panel {
         width: 1fr;
     }
-    BrowserScreen #br-type-bar {
-        height: auto;
-        padding: 0 0 1 0;
-        align: center middle;
-    }
-    BrowserScreen #br-type-bar Button {
-        margin: 0 1;
-    }
-    BrowserScreen #br-list-phase {
-        height: 1fr;
-        padding: 0 1;
-    }
-    BrowserScreen #br-filter-bar {
-        height: auto;
-        padding: 0 0 1 0;
-    }
-    BrowserScreen #br-filter-bar Input {
+    BrowserScreen #obj-preview-panel {
         width: 1fr;
     }
-    BrowserScreen #br-filter-bar Button {
-        margin: 0 0 0 1;
+    BrowserScreen #obj-conn {
+        width: 100%;
     }
-    BrowserScreen #br-object-table {
+    BrowserScreen #obj-type {
+        width: 100%;
+        margin-top: 1;
+    }
+    BrowserScreen #obj-filter {
+        width: 100%;
+        margin-top: 1;
+    }
+    BrowserScreen #obj-list {
         height: 1fr;
-        max-height: 20;
+        margin-top: 1;
     }
-    BrowserScreen #br-detail-phase {
+    BrowserScreen #obj-columns {
         height: 1fr;
-        padding: 0 1;
     }
-    BrowserScreen #br-detail-info {
-        height: auto;
-        padding: 0 1;
-        background: $surface;
-        color: $text-muted;
-    }
-    BrowserScreen #br-structure-table {
+    BrowserScreen #obj-preview {
         height: 1fr;
-        max-height: 15;
     }
-    BrowserScreen #br-index-info {
-        height: auto;
-        padding: 1 1 0 1;
-    }
-    BrowserScreen #br-sql-viewer {
+    BrowserScreen #obj-source {
         height: 1fr;
         max-height: 100%;
     }
-    BrowserScreen #br-routine-table {
-        height: 1fr;
-        max-height: 15;
-    }
-    BrowserScreen #br-data-phase {
-        height: 1fr;
-        padding: 0 1;
-    }
-    BrowserScreen #br-data-info {
+    BrowserScreen #obj-preview-buttons {
         height: auto;
-        padding: 0 1;
-        background: $surface;
-        color: $text-muted;
+        align: center middle;
+        margin-top: 1;
+    }
+    BrowserScreen #obj-preview-buttons Button {
+        margin: 0 1;
     }
     """
 
@@ -112,57 +107,45 @@ class BrowserScreen(Vertical):
         super().__init__(name=name, id=id, classes=classes)
         self._current_conn = None
         self._db = None
-        self._obj_type = ""
+        self._obj_type = "TABLE"
         self._objects: list[str] = []
         self._selected_object = ""
-        self._query_limit = DEFAULT_LIMIT
-        self._query_offset = 0
+        self._preview_limit = DEFAULT_LIMIT
+        self._preview_offset = 0
+        self._preview_columns: list[str] = []
+        self._preview_rows: list[list] = []
+        self._preview_total = 0
 
     def compose(self) -> ComposeResult:
-        # Phase 1: Connection + type selection
-        with Vertical(id="br-select-phase"):
-            with Horizontal(id="br-conn-bar"):
-                yield NavSelect([], prompt="Selecione a conexao", id="br-conn-select")
-            with Horizontal(id="br-type-bar"):
-                yield Button("Tabelas", id="br-type-table")
-                yield Button("Views", id="br-type-view")
-                yield Button("Packages", id="br-type-package")
-                yield Button("Rotinas", id="br-type-routine")
+        with Horizontal(id="browser-body"):
+            with Panel("📂  OBJETOS", id="obj-list-panel"):
+                yield NavSelect([], prompt="Selecione a conexao", id="obj-conn")
+                yield Select(
+                    TYPE_OPTIONS, value="TABLE", allow_blank=False, id="obj-type"
+                )
+                yield Input(placeholder="Filtrar objetos...", id="obj-filter")
+                yield OptionList(id="obj-list")
 
-        # Progress indicator
-        yield ProgressIndicator()
+            with Panel("📋  COLUNAS", id="obj-columns-panel"):
+                yield DataTable(id="obj-columns")
 
-        # Phase 2: Object list
-        with Vertical(id="br-list-phase"):
-            with Horizontal(id="br-filter-bar"):
-                yield Input(placeholder="Filtrar objetos...", id="br-filter-input")
-                yield Button("Filtrar", id="br-filter-btn")
-            yield DataTable(id="br-object-table")
-
-        # Phase 3: Object detail
-        with Vertical(id="br-detail-phase"):
-            yield Static("", id="br-detail-info")
-            yield DataTable(id="br-structure-table")
-            yield Static("", id="br-index-info")
-            yield SqlViewer("", id="br-sql-viewer")
-            yield DataTable(id="br-routine-table")
-
-        # Phase 3b: Data query results
-        with Vertical(id="br-data-phase"):
-            yield Static("", id="br-data-info")
-            yield ResultTable(id="br-data-result")
+            with Panel("🔍  DADOS", accent=True, id="obj-preview-panel"):
+                yield ResultTable(id="obj-preview")
+                yield SqlViewer("", id="obj-source")
+                with Horizontal(id="obj-preview-buttons"):
+                    yield Button("Extrair DDL", id="obj-ddl")
+                    yield Button("Carregar mais", id="obj-more")
 
     def on_mount(self) -> None:
-        self.query_one("#br-list-phase").display = False
-        self.query_one("#br-detail-phase").display = False
-        self.query_one("#br-data-phase").display = False
+        columns = self.query_one("#obj-columns", DataTable)
+        columns.cursor_type = "row"
+        self._show_table_view()
         self._load_connections()
-        self._setup_type_buttons()
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
         try:
-            self.query_one("#br-conn-select", Select).focus()
+            self.query_one("#obj-conn", Select).focus()
         except Exception:
             pass
 
@@ -175,252 +158,217 @@ class BrowserScreen(Vertical):
             (f"{c.name} ({c.db_type} - {c.display_target()})", c.name)
             for c in connections
         ]
-        select_widget = self.query_one("#br-conn-select", Select)
-        select_widget.set_options(options)
+        self.query_one("#obj-conn", Select).set_options(options)
 
         if not connections:
             self.notify("Nenhuma conexao configurada.", severity="warning")
 
-    def _setup_type_buttons(self) -> None:
-        """Show/hide type buttons based on selected connection's db_type."""
-        # Initially hide package/routine; they'll be shown when connection is selected
-        self.query_one("#br-type-package", Button).display = False
-        self.query_one("#br-type-routine", Button).display = False
-
     def _get_selected_conn(self):
-        """Get the currently selected connection object."""
+        """Resolve the currently selected connection object."""
         from dbqm.models.connection import find_connection
 
-        select_widget = self.query_one("#br-conn-select", Select)
-        conn_name = select_widget.value
+        conn_name = self.query_one("#obj-conn", Select).value
         if conn_name is Select.BLANK:
-            self.notify("Selecione uma conexao.", severity="warning")
             return None
-        conn = find_connection(conn_name)
-        if not conn:
-            self.notify("Conexao nao encontrada.", severity="error")
-            return None
-        return conn
+        return find_connection(conn_name)
 
     # ------------------------------------------------------------------
-    # Connection change handler
+    # Reactions: connection / type / filter
     # ------------------------------------------------------------------
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """When connection changes, update type button visibility."""
-        if event.select.id != "br-conn-select":
-            return
+        sel_id = event.select.id or ""
+        if sel_id == "obj-conn":
+            conn = self._get_selected_conn()
+            # Switching connection invalidates the open handle.
+            self._close_db()
+            self._current_conn = conn
+            if conn is not None:
+                self._reload_objects()
+        elif sel_id == "obj-type":
+            value = event.value
+            self._obj_type = "" if value is Select.BLANK else str(value)
+            if self._current_conn is not None and self._obj_type:
+                self._reload_objects()
 
-        conn = self._get_selected_conn()
-        if not conn:
-            return
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "obj-filter":
+            # Filter the already-loaded list client-side (responsive, no DB hit).
+            self._populate_list()
 
-        self._current_conn = conn
-        pkg_btn = self.query_one("#br-type-package", Button)
-        routine_btn = self.query_one("#br-type-routine", Button)
-
-        if conn.db_type == "oracle":
-            pkg_btn.display = True
-            routine_btn.display = False
-        elif conn.db_type in ("postgresql", "mysql"):
-            pkg_btn.display = False
-            routine_btn.display = True
-        else:
-            pkg_btn.display = False
-            routine_btn.display = False
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "obj-filter":
+            self._populate_list()
 
     # ------------------------------------------------------------------
-    # Button handlers
+    # Object listing
     # ------------------------------------------------------------------
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        btn_id = event.button.id or ""
-
-        if btn_id.startswith("br-type-"):
-            self._handle_type_selection(btn_id)
-        elif btn_id == "br-filter-btn":
-            self._apply_filter()
-
-    def _handle_type_selection(self, btn_id: str) -> None:
-        """Handle object type button click."""
-        conn = self._get_selected_conn()
-        if not conn:
-            return
-
-        self._current_conn = conn
-        type_map = {
-            "br-type-table": "TABLE",
-            "br-type-view": "VIEW",
-            "br-type-package": "PACKAGE",
-            "br-type-routine": "ROUTINE",
-        }
-        self._obj_type = type_map.get(btn_id, "")
-        if not self._obj_type:
-            return
-
-        self.query_one(ProgressIndicator).start(
-            f"Listando objetos em [bold]{conn.name}[/]..."
-        )
-        self._load_objects(conn, self._obj_type)
-
-    @work(thread=True)
-    def _load_objects(self, conn, obj_type: str) -> None:
-        """Load object list in background thread."""
+    @work(thread=True, exclusive=True)
+    def _reload_objects(self):
+        """Fetch the object list for the current connection + type."""
         from dbqm.core.db_manager import get_connection
         from dbqm.core.object_browser import list_objects
+
+        conn = self._current_conn
+        obj_type = self._obj_type
+        if conn is None or not obj_type:
+            return
 
         try:
             if self._db is None:
                 self._db = get_connection(conn)
-
             objects = list_objects(self._db, conn.db_type, obj_type)
             self.app.call_from_thread(self._on_objects_loaded, objects)
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, str(e))
 
     def _on_objects_loaded(self, objects: list[str]) -> None:
-        """Handle objects loaded."""
-        self.query_one(ProgressIndicator).stop()
         self._objects = objects
-
+        self._populate_list()
         if not objects:
             self.notify("Nenhum objeto encontrado.", severity="warning")
-            return
 
-        # Switch to list phase
-        self.query_one("#br-select-phase").display = False
-        self.query_one("#br-list-phase").display = True
-        self.query_one("#br-detail-phase").display = False
-        self.query_one("#br-data-phase").display = False
+    def _populate_list(self) -> None:
+        """Render the cached object list, applying the current text filter."""
+        try:
+            filter_text = self.query_one("#obj-filter", Input).value.strip().upper()
+        except Exception:
+            filter_text = ""
 
-        self._populate_object_table(objects)
-
-        # Set up action bar
-        self._set_list_actions()
-
-    def _on_load_error(self, error: str) -> None:
-        self.query_one(ProgressIndicator).stop()
-        self.notify(f"Erro: {error}", severity="error", timeout=8)
-
-    def _populate_object_table(self, objects: list[str]) -> None:
-        """Populate the object list DataTable."""
-        type_labels = {
-            "TABLE": "Tabela",
-            "VIEW": "View",
-            "PACKAGE": "Package",
-            "ROUTINE": "Rotina",
-        }
-        label = type_labels.get(self._obj_type, "Objeto")
-
-        table = self.query_one("#br-object-table", DataTable)
-        table.clear(columns=True)
-        table.add_column("#", key="num")
-        table.add_column(label, key="name")
-        table.cursor_type = "row"
-
-        display_objects = objects[:200]
-        for i, obj in enumerate(display_objects, 1):
-            table.add_row(str(i), obj, key=obj)
-
-        if len(objects) > 200:
-            self.notify(
-                f"{len(objects)} objetos encontrados. Exibindo os primeiros 200. Use o filtro.",
-                severity="information",
-                timeout=5,
-            )
-
-    def _apply_filter(self) -> None:
-        """Filter the object list."""
-        filter_text = self.query_one("#br-filter-input", Input).value.strip()
         if filter_text:
-            filtered = [o for o in self._objects if filter_text.upper() in o.upper()]
+            objects = [o for o in self._objects if filter_text in o.upper()]
         else:
-            filtered = self._objects
+            objects = self._objects
 
-        if not filtered:
-            self.notify("Nenhum objeto encontrado com esse filtro.", severity="warning")
+        emoji = TYPE_EMOJI.get(self._obj_type, "")
+        prefix = f"{emoji}  " if emoji else ""
+
+        option_list = self.query_one("#obj-list", OptionList)
+        option_list.clear_options()
+        for obj in objects[:500]:
+            option_list.add_option(Option(f"{prefix}{obj}", id=obj))
+
+    def on_option_list_option_selected(
+        self, event: OptionList.OptionSelected
+    ) -> None:
+        if event.option_list.id != "obj-list":
+            return
+        name = str(event.option.id) if event.option.id else None
+        if not name:
+            return
+        self._selected_object = name
+        self._load_object(name)
+
+    # ------------------------------------------------------------------
+    # Live load: structure + preview together
+    # ------------------------------------------------------------------
+
+    @work(thread=True, exclusive=True, group="obj-load")
+    def _load_object(self, name: str):
+        """Fill COLUNAS (structure) and DADOS (first page) in one worker.
+
+        TABLE/VIEW keep the tabular structure + preview flow. PACKAGE/ROUTINE
+        have no rows to preview, so DADOS shows the object SOURCE instead —
+        calling browse_table on them is a guaranteed ORA-00942.
+        """
+        conn = self._current_conn
+        obj_type = self._obj_type
+        if conn is None or self._db is None:
             return
 
-        self._populate_object_table(filtered)
+        self._selected_object = name
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Filter on Enter in filter input."""
-        if event.input.id == "br-filter-input":
-            self._apply_filter()
+        if obj_type in SOURCE_TYPES:
+            self._load_object_source(conn, name, obj_type)
+            return
 
-    # ------------------------------------------------------------------
-    # Object selection (from DataTable)
-    # ------------------------------------------------------------------
-
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle object selection from the list."""
-        table_id = event.data_table.id or ""
-
-        if table_id == "br-object-table":
-            obj_name = str(event.row_key.value)
-            self._selected_object = obj_name
-            self._load_object_detail(obj_name)
-
-    def _load_object_detail(self, obj_name: str) -> None:
-        """Load detail for the selected object."""
-        self.query_one(ProgressIndicator).start(
-            f"Carregando [bold]{obj_name}[/]..."
-        )
-
-        if self._obj_type == "TABLE":
-            self._load_table_structure(obj_name)
-        elif self._obj_type == "VIEW":
-            self._load_view_definition(obj_name)
-        elif self._obj_type == "PACKAGE":
-            self._load_package_routines(obj_name)
-        elif self._obj_type == "ROUTINE":
-            self._load_routine_detail(obj_name)
-
-    # ------------------------------------------------------------------
-    # Table structure
-    # ------------------------------------------------------------------
-
-    @work(thread=True)
-    def _load_table_structure(self, table_name: str) -> None:
         from dbqm.core.object_browser import get_table_structure
+        from dbqm.core.table_browser import browse_table
+
+        self.app.call_from_thread(self._show_table_view)
+
+        # Structure -> COLUNAS
+        try:
+            structure = get_table_structure(self._db, conn.db_type, name)
+            self.app.call_from_thread(self._on_structure_loaded, structure)
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, f"Estrutura: {e}")
+
+        # First page -> DADOS
+        self._preview_offset = 0
+        try:
+            result = browse_table(
+                self._db, conn.db_type, name, conn.name,
+                self._preview_limit, 0,
+            )
+            self.app.call_from_thread(self._on_preview_loaded, result, False)
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, f"Dados: {e}")
+
+    def _load_object_source(self, conn, name: str, obj_type: str) -> None:
+        """Fetch SOURCE text for a PACKAGE/ROUTINE and show it in DADOS.
+
+        Reuses the same extraction core the "Extrair DDL" button calls
+        (dbqm.core.ddl_extractor), capturing the DDL text instead of only
+        saving it to disk.
+        """
+        self.app.call_from_thread(self._show_source_view)
+
+        if conn.db_type != "oracle":
+            self.app.call_from_thread(
+                self._on_source_unavailable,
+                f"Source nao disponivel para o tipo de banco '{conn.db_type}'.",
+            )
+            return
+
+        from dbqm.core.ddl_extractor import extract_ddl, extract_routine
 
         try:
-            structure = get_table_structure(
-                self._db, self._current_conn.db_type, table_name
-            )
-            self.app.call_from_thread(self._on_table_structure_loaded, structure)
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
+            errors: list[str] = []
+            if obj_type == "ROUTINE" and "." in name:
+                pkg_name, routine_name = name.upper().split(".", 1)
+                result = extract_routine(conn, pkg_name, routine_name)
+                objs = list(result.spec_headers) + list(result.body_routines)
+                errors = result.errors
+            else:
+                result = extract_ddl(conn, name)
+                objs = list(result.objects)
+                errors = result.errors
 
-    def _on_table_structure_loaded(self, structure) -> None:
-        """Display table structure."""
-        self.query_one(ProgressIndicator).stop()
+            if not objs:
+                message = "; ".join(errors) if errors else "Source nao encontrado."
+                self.app.call_from_thread(self._on_source_unavailable, message)
+            else:
+                source_text = "\n\n".join(o.ddl for o in objs)
+                self.app.call_from_thread(self._on_source_loaded, source_text)
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, f"Source: {e}")
 
-        # Switch to detail phase
-        self.query_one("#br-list-phase").display = False
-        detail = self.query_one("#br-detail-phase")
-        detail.display = True
-        self.query_one("#br-data-phase").display = False
+        # COLUNAS: non-tabular objects get a routine list (PACKAGE) or a note.
+        try:
+            if obj_type == "PACKAGE":
+                from dbqm.core.object_browser import list_package_routines
 
-        # Info bar
-        info = self.query_one("#br-detail-info", Static)
-        info.update(
-            f"[bold]Tabela:[/] {str(structure.table)} | "
-            f"{len(structure.columns)} colunas | "
-            f"{len(structure.indexes)} indices | "
-            f"{structure.elapsed:.2f}s"
-        )
+                pkg_info = list_package_routines(self._db, conn.db_type, name)
+                self.app.call_from_thread(self._on_package_routines_loaded, pkg_info)
+            else:
+                self.app.call_from_thread(
+                    self._on_columns_note,
+                    "Objeto nao tabular — veja o source ao lado",
+                )
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, f"Estrutura: {e}")
 
-        # Structure table
-        struct_table = self.query_one("#br-structure-table", DataTable)
-        struct_table.display = True
-        struct_table.clear(columns=True)
-        struct_table.cursor_type = "row"
-        struct_table.add_column("Coluna", key="col")
-        struct_table.add_column("Tipo", key="type")
-        struct_table.add_column("Tamanho", key="size")
-        struct_table.add_column("Nullable", key="null")
-        struct_table.add_column("Chave", key="key")
+    def _on_structure_loaded(self, structure) -> None:
+        table = self.query_one("#obj-columns", DataTable)
+        table.clear(columns=True)
+        table.cursor_type = "row"
+        table.add_column("Coluna", key="col")
+        table.add_column("Tipo", key="type")
+        table.add_column("Tamanho", key="size")
+        table.add_column("Nulo", key="null")
+        table.add_column("Chave", key="key")
 
         for col in structure.columns:
             if col.data_precision is not None:
@@ -437,631 +385,203 @@ class BrowserScreen(Vertical):
                 key_parts.append("PK")
             if col.fk_ref:
                 key_parts.append(f"FK -> {col.fk_ref}")
-            key = " ".join(key_parts)
 
-            struct_table.add_row(
+            table.add_row(
                 str(col.name), str(col.data_type), str(size),
-                "Y" if col.nullable else "N", str(key)
+                "Y" if col.nullable else "N", " ".join(key_parts),
             )
 
-        # Index info
-        index_info = self.query_one("#br-index-info", Static)
-        if structure.indexes:
-            idx_lines = ["[bold]Indices:[/]"]
-            for idx in structure.indexes:
-                unique = " (UNIQUE)" if idx.is_unique else ""
-                cols = ", ".join(idx.columns)
-                idx_lines.append(f"  {idx.name}{unique}: {cols}")
-            index_info.update("\n".join(idx_lines))
-            index_info.display = True
-        else:
-            index_info.update("")
-            index_info.display = False
-
-        # Hide other detail widgets
-        self.query_one("#br-sql-viewer", SqlViewer).display = False
-        self.query_one("#br-routine-table", DataTable).display = False
-
-        # Store structure for export
-        self._current_structure = structure
-
-        # Action bar
-        self._set_table_detail_actions()
-
-    def _set_table_detail_actions(self) -> None:
-        actions = [
-            Action("Consultar dados", "Q", "br_query_data"),
-            Action("Exportar estrutura", "E", "br_export_structure"),
-            Action("Voltar", "Esc", "br_back_to_list"),
-        ]
-        try:
-            self.app.query_one(ActionBar).set_actions(actions)
-        except Exception:
-            pass
-
-    # ------------------------------------------------------------------
-    # View definition
-    # ------------------------------------------------------------------
-
-    @work(thread=True)
-    def _load_view_definition(self, view_name: str) -> None:
-        from dbqm.core.object_browser import get_view_definition
-
-        try:
-            view_info = get_view_definition(
-                self._db, self._current_conn.db_type, view_name
-            )
-            self.app.call_from_thread(self._on_view_loaded, view_info)
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
-
-    def _on_view_loaded(self, view_info) -> None:
-        """Display view definition."""
-        self.query_one(ProgressIndicator).stop()
-
-        self.query_one("#br-list-phase").display = False
-        detail = self.query_one("#br-detail-phase")
-        detail.display = True
-        self.query_one("#br-data-phase").display = False
-
-        info = self.query_one("#br-detail-info", Static)
-        info.update(f"[bold]View:[/] {str(view_info.name)} | Owner: {str(view_info.owner)}")
-
-        # Hide table-specific widgets
-        self.query_one("#br-structure-table", DataTable).display = False
-        self.query_one("#br-index-info", Static).display = False
-        self.query_one("#br-routine-table", DataTable).display = False
-
-        # Show SQL definition
-        sql_viewer = self.query_one("#br-sql-viewer", SqlViewer)
-        sql_viewer.display = True
-        sql_viewer.set_sql(view_info.sql_definition or "-- Definicao nao disponivel")
-
-        self._current_view_info = view_info
-
-        # Action bar
-        actions = [
-            Action("Consultar dados", "Q", "br_query_data"),
-            Action("Exportar definicao", "E", "br_export_view"),
-            Action("Voltar", "Esc", "br_back_to_list"),
-        ]
-        try:
-            self.app.query_one(ActionBar).set_actions(actions)
-        except Exception:
-            pass
-
-    # ------------------------------------------------------------------
-    # Package routines
-    # ------------------------------------------------------------------
-
-    @work(thread=True)
-    def _load_package_routines(self, pkg_name: str) -> None:
-        from dbqm.core.object_browser import list_package_routines
-
-        try:
-            pkg_info = list_package_routines(
-                self._db, self._current_conn.db_type, pkg_name
-            )
-            self.app.call_from_thread(self._on_package_loaded, pkg_info)
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
-
-    def _on_package_loaded(self, pkg_info) -> None:
-        """Display package routines."""
-        self.query_one(ProgressIndicator).stop()
-
-        self.query_one("#br-list-phase").display = False
-        detail = self.query_one("#br-detail-phase")
-        detail.display = True
-        self.query_one("#br-data-phase").display = False
-
-        info = self.query_one("#br-detail-info", Static)
-        info.update(
-            f"[bold]Package:[/] {pkg_info.name} | "
-            f"Owner: {pkg_info.owner} | "
-            f"{len(pkg_info.routines)} rotinas"
-        )
-
-        # Hide table/view-specific widgets
-        self.query_one("#br-structure-table", DataTable).display = False
-        self.query_one("#br-index-info", Static).display = False
-        self.query_one("#br-sql-viewer", SqlViewer).display = False
-
-        # Show routine table
-        routine_table = self.query_one("#br-routine-table", DataTable)
-        routine_table.display = True
-        routine_table.clear(columns=True)
-        routine_table.cursor_type = "row"
-        routine_table.add_column("Tipo", key="type")
-        routine_table.add_column("Nome", key="name")
-        routine_table.add_column("Assinatura", key="sig")
-
-        for r in pkg_info.routines:
-            routine_table.add_row(r.routine_type, r.name, r.signature)
-
-        self._current_pkg_info = pkg_info
-
-        # Action bar
-        actions = [
-            Action("Ver spec", "S", "br_view_spec"),
-            Action("Ver body", "B", "br_view_body"),
-            Action("Exportar package", "E", "br_export_package"),
-            Action("Voltar", "Esc", "br_back_to_list"),
-        ]
-        try:
-            self.app.query_one(ActionBar).set_actions(actions)
-        except Exception:
-            pass
-
-    # ------------------------------------------------------------------
-    # Routine detail (PostgreSQL/MySQL)
-    # ------------------------------------------------------------------
-
-    @work(thread=True)
-    def _load_routine_detail(self, routine_name: str) -> None:
-        try:
-            cursor = self._db.cursor()
-            try:
-                if self._current_conn.db_type == "postgresql":
-                    cursor.execute("""
-                        SELECT routine_type, data_type, routine_definition
-                        FROM information_schema.routines
-                        WHERE routine_name = %(name)s AND routine_schema = 'public'
-                    """, {"name": routine_name})
-                else:
-                    cursor.execute("""
-                        SELECT routine_type, data_type, routine_definition
-                        FROM information_schema.routines
-                        WHERE routine_name = %(name)s AND routine_schema = DATABASE()
-                    """, {"name": routine_name})
-                row = cursor.fetchone()
-            finally:
-                cursor.close()
-
-            if row:
-                rtype, rdata, rdef = row
-                self.app.call_from_thread(
-                    self._on_routine_loaded, routine_name, rtype, rdata, rdef
-                )
-            else:
-                self.app.call_from_thread(
-                    self._on_load_error, "Rotina nao encontrada."
-                )
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
-
-    def _on_routine_loaded(
-        self, routine_name: str, rtype: str, rdata: str, rdef: str | None
-    ) -> None:
-        """Display routine detail."""
-        self.query_one(ProgressIndicator).stop()
-
-        self.query_one("#br-list-phase").display = False
-        detail = self.query_one("#br-detail-phase")
-        detail.display = True
-        self.query_one("#br-data-phase").display = False
-
-        info = self.query_one("#br-detail-info", Static)
-        ret_info = f" | Retorno: {rdata}" if rdata else ""
-        info.update(f"[bold]{rtype}:[/] {routine_name}{ret_info}")
-
-        # Hide table/pkg-specific widgets
-        self.query_one("#br-structure-table", DataTable).display = False
-        self.query_one("#br-index-info", Static).display = False
-        self.query_one("#br-routine-table", DataTable).display = False
-
-        # Show SQL
-        sql_viewer = self.query_one("#br-sql-viewer", SqlViewer)
-        sql_viewer.display = True
-        if rdef:
-            sql_viewer.set_sql(rdef)
-        else:
-            sql_viewer.set_sql("-- Definicao nao disponivel (rotina compilada ou sem permissao)")
-
-        # Action bar
-        actions = [
-            Action("Voltar", "Esc", "br_back_to_list"),
-        ]
-        try:
-            self.app.query_one(ActionBar).set_actions(actions)
-        except Exception:
-            pass
-
-    # ------------------------------------------------------------------
-    # Data query (tables and views)
-    # ------------------------------------------------------------------
-
-    def _handle_query_data(self) -> None:
-        """Query data from the selected table/view."""
-        if not self._selected_object or not self._current_conn:
-            return
-
-        self._query_offset = 0
-        self._run_data_query()
-
-    def _run_data_query(self) -> None:
-        self.query_one(ProgressIndicator).start(
-            f"Consultando [bold]{self._selected_object}[/]..."
-        )
-        self._execute_data_query(
-            self._selected_object,
-            self._current_conn,
-            self._query_limit,
-            self._query_offset,
-        )
-
-    @work(thread=True)
-    def _execute_data_query(self, obj_name: str, conn, limit: int, offset: int) -> None:
-        from dbqm.core.table_browser import browse_table, _validate_identifier
-
-        try:
-            result = browse_table(
-                self._db, conn.db_type, obj_name, conn.name, limit, offset
-            )
-            self.app.call_from_thread(self._on_data_result, result)
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
-
-    def _on_data_result(self, result) -> None:
-        """Display data query results."""
+    def _on_preview_loaded(self, result, append: bool) -> None:
         from dbqm.core.query_engine import QueryResult
 
-        self.query_one(ProgressIndicator).stop()
+        self._preview_total = result.total_count
+        self._preview_columns = result.columns
+        if append:
+            self._preview_rows.extend(result.rows)
+        else:
+            self._preview_rows = list(result.rows)
+        self._preview_offset = result.offset
 
-        # Switch to data phase
-        self.query_one("#br-detail-phase").display = False
-        data_phase = self.query_one("#br-data-phase")
-        data_phase.display = True
-
-        # Info bar
-        info = self.query_one("#br-data-info", Static)
-        page_info = ""
-        if result.total_count > 0:
-            page_start = result.offset + 1
-            page_end = min(result.offset + result.limit, result.total_count)
-            page_info = f" | Exibindo {page_start}-{page_end} de {result.total_count}"
-        info.update(
-            f"[bold]{self._selected_object}[/] | {result.connection_name} | "
-            f"{result.row_count} registros | {result.elapsed:.2f}s{page_info}"
-        )
-
-        # Result table
         qr = QueryResult(
             query_name=f"Dados: {self._selected_object}",
             connection_name=result.connection_name,
-            columns=result.columns,
-            rows=result.rows,
-            row_count=result.row_count,
+            columns=self._preview_columns,
+            rows=self._preview_rows,
+            row_count=len(self._preview_rows),
             elapsed=result.elapsed,
         )
-        result_table = self.query_one("#br-data-result", ResultTable)
-        result_table.load_result(qr)
+        self.query_one("#obj-preview", ResultTable).load_result(qr)
 
-        self._current_browse_result = result
-        self._current_data_qr = qr
+    def _on_source_loaded(self, source_text: str) -> None:
+        self.query_one("#obj-source", SqlViewer).set_sql(source_text)
 
-        # Action bar with pagination
-        self._set_data_actions(result)
+    def _on_source_unavailable(self, message: str) -> None:
+        self.query_one("#obj-source", SqlViewer).set_sql(f"-- {message}")
+        self.notify(message, severity="warning")
 
-    def _set_data_actions(self, result) -> None:
-        actions = [
-            Action("Exportar", "E", "br_export_data"),
-        ]
-        if result.offset + result.limit < result.total_count:
-            actions.append(Action("Proxima", "N", "br_next_page"))
-        if result.offset > 0:
-            actions.append(Action("Anterior", "P", "br_prev_page"))
-        actions.append(Action("Voltar", "Esc", "br_back_to_detail"))
+    def _on_package_routines_loaded(self, pkg_info) -> None:
+        table = self.query_one("#obj-columns", DataTable)
+        table.clear(columns=True)
+        table.cursor_type = "row"
+        table.add_column("Rotina", key="name")
+        table.add_column("Tipo", key="rtype")
+        table.add_column("Assinatura", key="sig")
 
-        try:
-            self.app.query_one(ActionBar).set_actions(actions)
-        except Exception:
-            pass
+        for routine in pkg_info.routines:
+            table.add_row(str(routine.name), str(routine.routine_type), routine.signature)
 
-    # ------------------------------------------------------------------
-    # Package source viewing
-    # ------------------------------------------------------------------
+        if not pkg_info.routines:
+            self.notify("Nenhuma rotina encontrada no pacote.", severity="warning")
 
-    def _handle_view_spec(self) -> None:
-        if not hasattr(self, '_current_pkg_info'):
-            return
-        self.query_one(ProgressIndicator).start("Carregando spec...")
-        self._load_package_source(self._current_pkg_info.name, "PACKAGE")
+    def _on_columns_note(self, note: str) -> None:
+        table = self.query_one("#obj-columns", DataTable)
+        table.clear(columns=True)
+        table.cursor_type = "row"
+        table.add_column("Info", key="info")
+        table.add_row(note)
 
-    def _handle_view_body(self) -> None:
-        if not hasattr(self, '_current_pkg_info'):
-            return
-        self.query_one(ProgressIndicator).start("Carregando body...")
-        self._load_package_source(self._current_pkg_info.name, "PACKAGE BODY")
+    def _show_table_view(self) -> None:
+        """Show the tabular DADOS preview (TABLE/VIEW) and hide the source view."""
+        self.query_one("#obj-preview", ResultTable).display = True
+        self.query_one("#obj-source", SqlViewer).display = False
+        self.query_one("#obj-more", Button).display = True
 
-    @work(thread=True)
-    def _load_package_source(self, pkg_name: str, source_type: str) -> None:
-        from dbqm.core.object_browser import get_package_source
+    def _show_source_view(self) -> None:
+        """Show the read-only SOURCE view (PACKAGE/ROUTINE) and hide the table."""
+        self.query_one("#obj-preview", ResultTable).display = False
+        self.query_one("#obj-source", SqlViewer).display = True
+        self.query_one("#obj-more", Button).display = False
 
-        try:
-            source = get_package_source(
-                self._db, self._current_conn.db_type, pkg_name, source_type
-            )
-            self.app.call_from_thread(self._on_source_loaded, source, source_type, pkg_name)
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
-
-    def _on_source_loaded(self, source: str, source_type: str, pkg_name: str) -> None:
-        self.query_one(ProgressIndicator).stop()
-
-        if not source:
-            label = "Spec" if source_type == "PACKAGE" else "Body"
-            self.notify(f"{label} nao encontrado.", severity="warning")
-            return
-
-        # Show in detail phase, replacing routine table
-        self.query_one("#br-routine-table", DataTable).display = False
-        sql_viewer = self.query_one("#br-sql-viewer", SqlViewer)
-        sql_viewer.display = True
-
-        label = "SPEC" if source_type == "PACKAGE" else "BODY"
-        sql_viewer.set_sql(f"-- {label}: {pkg_name}\n\n{source}")
+    def _on_error(self, error: str) -> None:
+        self.notify(f"Erro: {error}", severity="error", timeout=8)
 
     # ------------------------------------------------------------------
-    # Export handlers
+    # Buttons: Extrair DDL / Carregar mais
     # ------------------------------------------------------------------
 
-    def _handle_export_structure(self) -> None:
-        """Export table structure."""
-        if not hasattr(self, '_current_structure'):
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id or ""
+        if btn_id == "obj-ddl":
+            self._handle_extract_ddl()
+        elif btn_id == "obj-more":
+            self._handle_load_more()
+
+    def _handle_extract_ddl(self) -> None:
+        if not self._selected_object or self._current_conn is None:
+            self.notify("Selecione um objeto.", severity="warning")
             return
+        conn = self._current_conn
+        self.notify(f"Extraindo DDL de {self._selected_object}...")
+        self._run_ddl(conn, self._selected_object)
 
-        from dbqm.core.exporter import export_query_csv, export_query_json, export_query_txt
-        from dbqm.core.query_engine import QueryResult
-        from dbqm.ui.modals.export_picker import request_export
-
-        request_export(self.app, include_png=False, callback=self._on_structure_export_format)
-
-    def _on_structure_export_format(self, fmt: str | None) -> None:
-        if fmt is None:
-            return
-
-        from dbqm.core.exporter import export_query_csv, export_query_json, export_query_txt
-        from dbqm.core.query_engine import QueryResult
-
-        structure = self._current_structure
-        columns = ["Coluna", "Tipo", "Tamanho", "Nullable", "Chave"]
-        rows = []
-        for col in structure.columns:
-            if col.data_precision is not None:
-                size = f"{col.data_precision}"
-                if col.data_scale is not None and col.data_scale > 0:
-                    size += f",{col.data_scale}"
-            elif col.data_length is not None:
-                size = str(col.data_length)
-            else:
-                size = ""
-
-            key_parts = []
-            if col.is_pk:
-                key_parts.append("PK")
-            if col.fk_ref:
-                key_parts.append(f"FK -> {col.fk_ref}")
-            key = " ".join(key_parts)
-            rows.append([col.name, col.data_type, size, "Y" if col.nullable else "N", key])
-
-        qr = QueryResult(
-            query_name=f"Estrutura: {structure.table}",
-            connection_name=self._current_conn.name if self._current_conn else "",
-            columns=columns,
-            rows=rows,
-            row_count=len(rows),
-            elapsed=structure.elapsed,
+    @work(thread=True, group="obj-ddl")
+    def _run_ddl(self, conn, obj_name: str):
+        """Extract DDL via the same core path the standalone DDL screen used."""
+        from dbqm.core.ddl_extractor import (
+            extract_ddl,
+            save_extraction,
+            extract_routine,
+            save_routine_extraction,
         )
 
         try:
-            if fmt == "csv":
-                path = export_query_csv(qr, structure.table)
-            elif fmt == "json":
-                path = export_query_json(qr, structure.table)
+            if conn.db_type == "oracle":
+                obj_upper = obj_name.upper()
+                if "." in obj_upper:
+                    pkg_name, routine_name = obj_upper.split(".", 1)
+                    result = extract_routine(conn, pkg_name, routine_name)
+                    if result.errors and not result.body_routines:
+                        self.app.call_from_thread(self._on_error, "; ".join(result.errors))
+                        return
+                    dir_path, _ = save_routine_extraction(result)
+                    self.app.call_from_thread(self._on_ddl_saved, dir_path, result.saved_files)
+                    return
+                result = extract_ddl(conn, obj_upper)
+            elif conn.db_type in ("postgresql", "mysql"):
+                result = self._extract_generic(conn, obj_name)
             else:
-                path = export_query_txt(qr, structure.table)
-            self.notify(f"Exportado: {path}", timeout=5)
-        except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
-
-    def _handle_export_view(self) -> None:
-        """Export view definition."""
-        if not hasattr(self, '_current_view_info'):
-            return
-
-        from dbqm.core.exporter import export_sql_file
-
-        try:
-            view_info = self._current_view_info
-            content = f"-- VIEW: {view_info.name}\n{view_info.sql_definition}"
-            path = export_sql_file(content, view_info.name)
-            self.notify(f"Exportado: {path}", timeout=5)
-        except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
-
-    def _handle_export_package(self) -> None:
-        """Export package source."""
-        if not hasattr(self, '_current_pkg_info'):
-            return
-
-        self.query_one(ProgressIndicator).start("Exportando package...")
-        self._run_package_export(self._current_pkg_info.name)
-
-    @work(thread=True)
-    def _run_package_export(self, pkg_name: str) -> None:
-        from dbqm.core.object_browser import get_package_source
-        from dbqm.core.exporter import export_sql_file
-
-        try:
-            spec = get_package_source(self._db, self._current_conn.db_type, pkg_name, "PACKAGE")
-            body = get_package_source(self._db, self._current_conn.db_type, pkg_name, "PACKAGE BODY")
-
-            parts: list[str] = []
-            if spec:
-                parts.append(f"-- PACKAGE SPEC: {pkg_name}")
-                parts.append(f"CREATE OR REPLACE {spec}")
-                parts.append("/")
-                parts.append("")
-            if body:
-                parts.append(f"-- PACKAGE BODY: {pkg_name}")
-                parts.append(f"CREATE OR REPLACE {body}")
-                parts.append("/")
-
-            if not parts:
                 self.app.call_from_thread(
-                    self._on_load_error,
-                    "Nenhum source encontrado para este package.",
+                    self._on_error,
+                    f"Tipo de banco '{conn.db_type}' nao suportado para DDL.",
                 )
                 return
 
-            content = "\n".join(parts)
-            path = export_sql_file(content, pkg_name)
-            self.app.call_from_thread(self._on_package_exported, path)
-        except Exception as e:
-            self.app.call_from_thread(self._on_load_error, str(e))
+            if result.errors and not result.objects:
+                self.app.call_from_thread(self._on_error, "; ".join(result.errors))
+                return
 
-    def _on_package_exported(self, path: str) -> None:
-        self.query_one(ProgressIndicator).stop()
-        self.notify(f"Exportado: {path}", timeout=5)
+            dir_path, _ = save_extraction(result)
+            self.app.call_from_thread(self._on_ddl_saved, dir_path, result.saved_files)
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, str(e))
 
-    def _handle_export_data(self) -> None:
-        """Export query data."""
-        if not hasattr(self, '_current_data_qr'):
-            return
+    def _extract_generic(self, conn, object_name: str):
+        """Extract DDL for PostgreSQL/MySQL objects (own short-lived handle)."""
+        from dbqm.core.db_manager import get_connection
+        from dbqm.core.ddl_extractor import ExtractionResult
 
-        from dbqm.ui.modals.export_picker import request_export
-
-        request_export(self.app, include_png=False, callback=self._on_data_export_format)
-
-    def _on_data_export_format(self, fmt: str | None) -> None:
-        if fmt is None or not hasattr(self, '_current_data_qr'):
-            return
-
-        from dbqm.core.exporter import export_query_csv, export_query_json, export_query_txt
-
-        qr = self._current_data_qr
-        table = self._selected_object
-
+        db = None
         try:
-            if fmt == "csv":
-                path = export_query_csv(qr, table)
-            elif fmt == "json":
-                path = export_query_json(qr, table)
+            db = get_connection(conn)
+            result = ExtractionResult(
+                object_name=object_name, object_type="UNKNOWN",
+                owner="", connection_name=conn.name,
+            )
+            if conn.db_type == "postgresql":
+                from dbqm.core.ddl_pg import extract_pg_ddl
+                extract_pg_ddl(db, object_name, result)
             else:
-                path = export_query_txt(qr, table)
-            self.notify(f"Exportado: {path}", timeout=5)
-        except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
+                from dbqm.core.ddl_mysql import extract_mysql_ddl
+                extract_mysql_ddl(db, object_name, result)
+            return result
+        finally:
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+    def _on_ddl_saved(self, dir_path: str, saved_files: list[str]) -> None:
+        if saved_files:
+            self.notify(
+                f"DDL salvo: {', '.join(saved_files)} em {dir_path}", timeout=6
+            )
+        else:
+            self.notify(f"DDL salvo em {dir_path}", timeout=6)
+
+    def _handle_load_more(self) -> None:
+        if not self._selected_object or self._current_conn is None:
+            return
+        next_offset = self._preview_offset + self._preview_limit
+        if self._preview_total and next_offset >= self._preview_total:
+            self.notify("Nao ha mais registros.", severity="information")
+            return
+        self._load_more_page(next_offset)
+
+    @work(thread=True, group="obj-more")
+    def _load_more_page(self, offset: int):
+        from dbqm.core.table_browser import browse_table
+
+        conn = self._current_conn
+        if conn is None or self._db is None:
+            return
+        try:
+            result = browse_table(
+                self._db, conn.db_type, self._selected_object, conn.name,
+                self._preview_limit, offset,
+            )
+            self.app.call_from_thread(self._on_preview_loaded, result, True)
+        except Exception as e:  # pragma: no cover - depends on live DB
+            self.app.call_from_thread(self._on_error, f"Dados: {e}")
 
     # ------------------------------------------------------------------
-    # Action bar handlers
+    # Lifecycle
     # ------------------------------------------------------------------
-
-    def on_action_selected(self, message: ActionSelected) -> None:
-        action = message.action_id
-
-        if action == "br_query_data":
-            self._handle_query_data()
-        elif action == "br_export_structure":
-            self._handle_export_structure()
-        elif action == "br_export_view":
-            self._handle_export_view()
-        elif action == "br_export_package":
-            self._handle_export_package()
-        elif action == "br_export_data":
-            self._handle_export_data()
-        elif action == "br_view_spec":
-            self._handle_view_spec()
-        elif action == "br_view_body":
-            self._handle_view_body()
-        elif action == "br_next_page":
-            self._query_offset += self._query_limit
-            self._run_data_query()
-        elif action == "br_prev_page":
-            self._query_offset = max(0, self._query_offset - self._query_limit)
-            self._run_data_query()
-        elif action == "br_back_to_list":
-            self.go_back_to_list()
-        elif action == "br_back_to_detail":
-            self.go_back_to_detail()
-        elif action == "br_back_to_select":
-            self.go_back_to_select()
-
-    # ------------------------------------------------------------------
-    # Navigation
-    # ------------------------------------------------------------------
-
-    def _set_list_actions(self) -> None:
-        actions = [
-            Action("Voltar", "Esc", "br_back_to_select"),
-        ]
-        try:
-            self.app.query_one(ActionBar).set_actions(actions)
-        except Exception:
-            pass
-
-    def go_back_to_select(self) -> None:
-        """Return to connection/type selection."""
-        self.query_one("#br-select-phase").display = True
-        self.query_one("#br-list-phase").display = False
-        self.query_one("#br-detail-phase").display = False
-        self.query_one("#br-data-phase").display = False
-        self._close_db()
-        try:
-            self.app.query_one(ActionBar).set_actions([])
-        except Exception:
-            pass
-        # Restore focus to connection selector
-        try:
-            from textual.widgets import Select
-            for s in self.query(Select):
-                if s.display:
-                    s.focus()
-                    break
-        except Exception:
-            pass
-
-    def go_back_to_list(self) -> None:
-        """Return to the object list."""
-        self.query_one("#br-select-phase").display = False
-        self.query_one("#br-list-phase").display = True
-        self.query_one("#br-detail-phase").display = False
-        self.query_one("#br-data-phase").display = False
-        self._set_list_actions()
-        # Restore focus to object table
-        try:
-            table = self.query_one("#br-obj-table", DataTable)
-            if table.display:
-                table.focus()
-        except Exception:
-            pass
-
-    def go_back_to_detail(self) -> None:
-        """Return from data view to detail view."""
-        self.query_one("#br-data-phase").display = False
-        self.query_one("#br-detail-phase").display = True
-
-        # Restore appropriate actions
-        if self._obj_type == "TABLE":
-            self._set_table_detail_actions()
-        elif self._obj_type == "VIEW":
-            actions = [
-                Action("Consultar dados", "Q", "br_query_data"),
-                Action("Exportar definicao", "E", "br_export_view"),
-                Action("Voltar", "Esc", "br_back_to_list"),
-            ]
-            try:
-                self.app.query_one(ActionBar).set_actions(actions)
-            except Exception:
-                pass
 
     def on_unmount(self) -> None:
-        """Close DB connection when the screen is unmounted."""
         self._close_db()
 
     def _close_db(self) -> None:
-        """Close the database connection."""
         if self._db is not None:
             try:
                 self._db.close()

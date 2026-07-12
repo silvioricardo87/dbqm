@@ -29,3 +29,19 @@ def test_get_theme_returns_light():
 def test_get_theme_unknown_falls_back_to_dark():
     theme = get_theme("nonexistent")
     assert theme.name == "github-dark"
+
+
+def test_dark_palette_matches_prototype():
+    assert GITHUB_DARK.background == "#0d1117"
+    assert GITHUB_DARK.surface == "#090b10"          # darker than panel
+    assert GITHUB_DARK.panel == "#161b22"
+    assert GITHUB_DARK.variables["accent"] == "#bc8cff"
+    assert GITHUB_DARK.variables["panel-active"] == "#21262d"
+    assert GITHUB_DARK.warning == "#d29922"
+
+
+def test_light_defines_accent_and_panel():
+    assert GITHUB_LIGHT.variables["accent"] == "#8250df"
+    assert GITHUB_LIGHT.panel == "#ffffff"
+    assert GITHUB_LIGHT.surface == "#ebedf0"
+    assert GITHUB_LIGHT.background == "#f6f8fa"

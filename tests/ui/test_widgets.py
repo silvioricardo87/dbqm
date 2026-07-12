@@ -1,132 +1,6 @@
 """Tests for UI widgets."""
 import pytest
 from textual.app import App, ComposeResult
-from dbqm.ui.widgets.sidebar import Sidebar, SidebarItemSelected
-
-
-class SidebarTestApp(App):
-    def compose(self) -> ComposeResult:
-        yield Sidebar()
-
-
-@pytest.mark.asyncio
-async def test_sidebar_renders():
-    app = SidebarTestApp()
-    async with app.run_test() as pilot:
-        sidebar = app.query_one(Sidebar)
-        assert sidebar is not None
-
-
-@pytest.mark.asyncio
-async def test_sidebar_has_menu_items():
-    app = SidebarTestApp()
-    async with app.run_test() as pilot:
-        sidebar = app.query_one(Sidebar)
-        items = sidebar.query(".sidebar-item")
-        assert len(items) >= 11  # At least 11 menu items
-
-
-@pytest.mark.asyncio
-async def test_sidebar_collapse_toggle():
-    app = SidebarTestApp()
-    async with app.run_test() as pilot:
-        sidebar = app.query_one(Sidebar)
-        assert not sidebar.collapsed
-        sidebar.toggle_collapse()
-        assert sidebar.collapsed
-        assert sidebar.has_class("sidebar--collapsed")
-        sidebar.toggle_collapse()
-        assert not sidebar.collapsed
-        assert not sidebar.has_class("sidebar--collapsed")
-
-
-@pytest.mark.asyncio
-async def test_sidebar_set_active():
-    app = SidebarTestApp()
-    async with app.run_test() as pilot:
-        sidebar = app.query_one(Sidebar)
-        sidebar.set_active("exec_query")
-        active_items = sidebar.query(".sidebar-item--active")
-        assert len(active_items) == 1
-
-
-@pytest.mark.asyncio
-async def test_sidebar_set_active_changes():
-    """Setting a new active item removes the previous one."""
-    app = SidebarTestApp()
-    async with app.run_test() as pilot:
-        sidebar = app.query_one(Sidebar)
-        sidebar.set_active("exec_query")
-        sidebar.set_active("adhoc_sql")
-        active_items = sidebar.query(".sidebar-item--active")
-        assert len(active_items) == 1
-
-
-@pytest.mark.asyncio
-async def test_sidebar_item_click_posts_message():
-    """Clicking a menu item posts SidebarItemSelected."""
-    messages = []
-
-    class CapturingApp(App):
-        def compose(self) -> ComposeResult:
-            yield Sidebar()
-
-        def on_sidebar_item_selected(self, event: SidebarItemSelected) -> None:
-            messages.append(event.action)
-
-    app = CapturingApp()
-    async with app.run_test() as pilot:
-        sidebar = app.query_one(Sidebar)
-        items = sidebar.query(".sidebar-item")
-        # Click the first item via pilot
-        await pilot.click(type(items[0]), offset=(1, 0))
-        await pilot.pause()
-        assert len(messages) == 1
-        assert messages[0] == "exec_query"
-
-
-@pytest.mark.asyncio
-async def test_sidebar_has_section_labels():
-    app = SidebarTestApp()
-    async with app.run_test() as pilot:
-        sidebar = app.query_one(Sidebar)
-        labels = sidebar.query(".sidebar-section-label")
-        assert len(labels) == 4  # CONSULTAS, GRUPOS, FERRAMENTAS, SISTEMA
-
-
-# ---------------------------------------------------------------------------
-# Breadcrumb tests
-# ---------------------------------------------------------------------------
-from dbqm.ui.widgets.breadcrumb import Breadcrumb, BreadcrumbNavigated
-
-
-class BreadcrumbTestApp(App):
-    def compose(self) -> ComposeResult:
-        yield Breadcrumb()
-
-
-@pytest.mark.asyncio
-async def test_breadcrumb_renders_path():
-    app = BreadcrumbTestApp()
-    async with app.run_test() as pilot:
-        bc = app.query_one(Breadcrumb)
-        bc.set_path(["Consultas", "Executar", "saldo_cliente"])
-        await pilot.pause()
-        rendered = bc.render_text()
-        assert "Consultas" in rendered
-        assert "Executar" in rendered
-        assert "saldo_cliente" in rendered
-
-
-@pytest.mark.asyncio
-async def test_breadcrumb_empty_path():
-    app = BreadcrumbTestApp()
-    async with app.run_test() as pilot:
-        bc = app.query_one(Breadcrumb)
-        bc.set_path([])
-        await pilot.pause()
-        rendered = bc.render_text()
-        assert rendered.strip() == ""
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +50,10 @@ async def test_status_bar_shows_counts():
         assert "2" in rendered
 
 
+def test_status_bar_inverted_primary_background():
+    assert "background: $primary" in StatusBar.DEFAULT_CSS
+
+
 # ---------------------------------------------------------------------------
 # ActionBar tests
 # ---------------------------------------------------------------------------
@@ -209,6 +87,15 @@ async def test_action_bar_empty():
         ab.set_actions([])
         await pilot.pause()
         assert ab.display is False
+
+
+def test_action_bar_uses_primary_key_markup():
+    bar = ActionBar()
+    bar._actions = [Action("Executar", "r", "run")]
+    bar._rebuild()
+    rendered = str(bar._Static__content)
+    assert "on white" not in rendered            # no more black-on-white chip
+    assert "bold $primary" in rendered or "bold #58a6ff" in rendered
 
 
 # ---------------------------------------------------------------------------
@@ -650,3 +537,100 @@ async def test_group_result_summary_shows(sample_group_result):
         rendered = str(summary._Static__content)
         assert "DIVERGENTE" in rendered
         assert "status" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Panel tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.panel import Panel
+from textual.widgets import Static
+
+
+class _PanelApp(App):
+    def compose(self) -> ComposeResult:
+        with Panel("⚙️  PARAMETROS", accent=True, id="p1"):
+            yield Static("body", id="inner")
+
+
+@pytest.mark.asyncio
+async def test_panel_renders_title_and_body():
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        panel = app.query_one("#p1", Panel)
+        title_content = str(panel.query_one("#panel-title")._Static__content)
+        assert title_content.startswith("⚙️  PARAMETROS")
+        assert panel.has_class("accent-focus")
+        assert app.query_one("#inner", Static) in panel.query_one("#panel-body").children
+        # Regression guard: the title must actually PAINT, not just exist in the
+        # DOM. A `height: 1` title with a `border-bottom` leaves zero rows for
+        # text, so it renders blank — assert the text reaches the screen.
+        assert "PARAMETROS" in app.export_screenshot()
+
+
+# ---------------------------------------------------------------------------
+# TemplatesSidebar tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
+
+
+class _TemplatesSidebarApp(App):
+    def compose(self) -> ComposeResult:
+        yield TemplatesSidebar(id="tpl")
+
+
+@pytest.mark.asyncio
+async def test_templates_sidebar_starts_collapsed_and_toggles():
+    app = _TemplatesSidebarApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one("#tpl", TemplatesSidebar)
+        # Starts collapsed so the app opens clean; Ctrl+B reveals it.
+        assert sb.has_class("-collapsed")
+        sb.toggle()
+        assert not sb.has_class("-collapsed")
+        sb.toggle()
+        assert sb.has_class("-collapsed")
+
+
+@pytest.mark.asyncio
+async def test_templates_sidebar_shows_hint_when_empty():
+    from textual.widgets import OptionList, Static as _Static
+    app = _TemplatesSidebarApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one("#tpl", TemplatesSidebar)
+        sb._reload()  # no templates in the test config
+        await pilot.pause()
+        # With zero templates the hint shows and the list is hidden.
+        assert sb.query_one("#tpl-empty", _Static).display is True
+        assert sb.query_one("#tpl-list", OptionList).display is False
+        # And the sidebar title itself paints (same border-bottom/height guard).
+        sb.remove_class("-collapsed")
+        await pilot.pause()
+        assert "TEMPLATES" in app.export_screenshot()
+
+
+@pytest.mark.asyncio
+async def test_templates_sidebar_option_selected_posts_message():
+    from textual.widgets import OptionList
+    from textual.widgets.option_list import Option
+
+    messages = []
+
+    class CapturingApp(App):
+        def compose(self) -> ComposeResult:
+            yield TemplatesSidebar(id="tpl")
+
+        def on_templates_sidebar_template_chosen(self, event: TemplatesSidebar.TemplateChosen) -> None:
+            messages.append(event.sql)
+
+    app = CapturingApp()
+    async with app.run_test() as pilot:
+        sb = app.query_one("#tpl", TemplatesSidebar)
+        ol = sb.query_one("#tpl-list", OptionList)
+        ol.clear_options()
+        sb._sqls = {"demo": "SELECT 1 FROM DUAL"}
+        ol.add_option(Option("demo", id="demo"))
+        await pilot.pause()
+        ol.highlighted = 0
+        await pilot.press("enter")
+        await pilot.pause()
+        assert messages == ["SELECT 1 FROM DUAL"]

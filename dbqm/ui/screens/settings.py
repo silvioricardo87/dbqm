@@ -7,13 +7,15 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Select, Static, Switch
 
-from dbqm.ui.utils import NavSelect, NavVerticalScroll
+from dbqm.ui.utils import NavSelect
+from dbqm.ui.widgets.panel import Panel
 
 
-class SettingsScreen(NavVerticalScroll):
+class SettingsScreen(Vertical):
     """Screen widget for application settings.
 
-    Uses VerticalScroll so content is accessible on smaller terminals.
+    Laid out as two columns of Panels: application config on the left,
+    Fernet key status and config portability stacked on the right.
     """
 
     DEFAULT_CSS = """
@@ -21,12 +23,18 @@ class SettingsScreen(NavVerticalScroll):
         height: 1fr;
         padding: 1 2;
     }
-    SettingsScreen .settings-section {
-        height: auto;
-        margin-bottom: 1;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
+    SettingsScreen #settings-columns {
+        height: 1fr;
+    }
+    SettingsScreen #settings-columns > Panel {
+        width: 1fr;
+    }
+    SettingsScreen #settings-right-column {
+        width: 1fr;
+        height: 1fr;
+    }
+    SettingsScreen #settings-right-column > Panel {
+        height: 1fr;
     }
     SettingsScreen .settings-label {
         height: auto;
@@ -62,77 +70,77 @@ class SettingsScreen(NavVerticalScroll):
     """
 
     def compose(self) -> ComposeResult:
-        # Theme section
-        with Vertical(classes="settings-section"):
-            yield Static("Tema", classes="settings-label")
-            yield NavSelect(
-                [
-                    ("GitHub Dark", "github-dark"),
-                    ("GitHub Light", "github-light"),
-                ],
-                id="settings-theme-select",
-                allow_blank=False,
-            )
-
-        # Audit log section
-        with Vertical(classes="settings-section"):
-            yield Static("Log de auditoria", classes="settings-label")
-            with Vertical(classes="audit-row"):
-                yield Switch(id="settings-audit-switch")
-                yield Static(
-                    "[dim]Registra execucoes de consultas e grupos[/]",
-                    id="settings-audit-desc",
-                    markup=True,
+        with Horizontal(id="settings-columns"):
+            with Panel("⚙️  CONFIG DA APLICACAO", id="settings-panel-config"):
+                # Theme
+                yield Static("Tema", classes="settings-label")
+                yield NavSelect(
+                    [
+                        ("GitHub Dark", "github-dark"),
+                        ("GitHub Light", "github-light"),
+                    ],
+                    id="settings-theme-select",
+                    allow_blank=False,
                 )
 
-        # Export directory section
-        with Vertical(classes="settings-section"):
-            yield Static("Exportacao", classes="settings-label")
-
-            # Group 1: directory path + change button
-            with Vertical(classes="export-subgroup"):
-                yield Static(
-                    "[dim]Local onde os arquivos exportados sao salvos. "
-                    "Por padrao, o diretorio atual de execucao.[/]",
-                    markup=True,
-                )
-                yield Static("", id="settings-export-dir-current", markup=True)
-                with Horizontal(classes="port-buttons"):
-                    yield Button("Alterar diretorio", variant="primary", id="btn-export-dir")
-
-            # Group 2: subdirectory toggle (independent option)
-            with Vertical(classes="export-subgroup"):
-                yield Static("Estrutura de pastas", classes="export-subgroup-label")
+                # Audit log
+                yield Static("Log de auditoria", classes="settings-label")
                 with Vertical(classes="audit-row"):
-                    yield Switch(id="settings-export-subdirs-switch")
+                    yield Switch(id="settings-audit-switch")
                     yield Static(
-                        "[dim]Criar subdiretorios por tipo (grupos, DDL, SQL). "
-                        "Consultas sempre vao direto no diretorio configurado.[/]",
+                        "[dim]Registra execucoes de consultas e grupos[/]",
+                        id="settings-audit-desc",
                         markup=True,
                     )
 
-        # Export/Import section
-        with Vertical(classes="settings-section"):
-            yield Static("Exportar / Importar configuracoes", classes="settings-label")
-            yield Static(
-                "[dim]Exporte conexoes, consultas e grupos como bundle .dbqm "
-                "ou importe de um arquivo existente[/]",
-                markup=True,
-            )
-            with Horizontal(classes="port-buttons"):
-                yield Button("Exportar", variant="primary", id="btn-export")
-                yield Button("Importar", variant="warning", id="btn-import")
+                # Export directory
+                yield Static("Exportacao", classes="settings-label")
 
-        # Oracle Instant Client manager
-        with Vertical(classes="settings-section"):
-            yield Static("Oracle Instant Client", classes="settings-label")
-            yield Static(
-                "[dim]Baixe, extraia e instale o Oracle Instant Client compativel "
-                "com seu sistema operacional[/]",
-                markup=True,
-            )
-            with Horizontal(classes="port-buttons"):
-                yield Button("Gerenciar clients", variant="primary", id="btn-oracle-clients")
+                # Group 1: directory path + change button
+                with Vertical(classes="export-subgroup"):
+                    yield Static(
+                        "[dim]Local onde os arquivos exportados sao salvos. "
+                        "Por padrao, o diretorio atual de execucao.[/]",
+                        markup=True,
+                    )
+                    yield Static("", id="settings-export-dir-current", markup=True)
+                    with Horizontal(classes="port-buttons"):
+                        yield Button("Alterar diretorio", variant="primary", id="btn-export-dir")
+
+                # Group 2: subdirectory toggle (independent option)
+                with Vertical(classes="export-subgroup"):
+                    yield Static("Estrutura de pastas", classes="export-subgroup-label")
+                    with Vertical(classes="audit-row"):
+                        yield Switch(id="settings-export-subdirs-switch")
+                        yield Static(
+                            "[dim]Criar subdiretorios por tipo (grupos, DDL, SQL). "
+                            "Consultas sempre vao direto no diretorio configurado.[/]",
+                            markup=True,
+                        )
+
+                # Oracle Instant Client manager
+                yield Static("Oracle Instant Client", classes="settings-label")
+                yield Static(
+                    "[dim]Baixe, extraia e instale o Oracle Instant Client compativel "
+                    "com seu sistema operacional[/]",
+                    markup=True,
+                )
+                with Horizontal(classes="port-buttons"):
+                    yield Button("Gerenciar clients", variant="primary", id="btn-oracle-clients")
+
+            with Vertical(id="settings-right-column"):
+                with Panel("🔑  FERNET KEY", id="settings-panel-fernet"):
+                    yield Static("", id="settings-fernet-status", markup=True)
+
+                with Panel("📦  PORTABILIDADE", id="settings-panel-portability"):
+                    yield Static(
+                        "[dim]Exporte conexoes, consultas e grupos como bundle .dbqm "
+                        "ou importe de um arquivo existente[/]",
+                        markup=True,
+                    )
+                    with Horizontal(classes="port-buttons"):
+                        yield Button("Exportar", variant="primary", id="btn-export")
+                        yield Button("Importar", variant="warning", id="btn-import")
 
     def on_mount(self) -> None:
         from dbqm.models.settings import load_settings
@@ -149,6 +157,7 @@ class SettingsScreen(NavVerticalScroll):
         subdirs_switch.value = settings.create_export_subdirs
 
         self._refresh_export_dir_label(settings.default_export_dir)
+        self._refresh_fernet_status()
 
         self.call_after_refresh(self._set_initial_focus)
 
@@ -158,6 +167,19 @@ class SettingsScreen(NavVerticalScroll):
             label.update(f"[b]Diretorio atual:[/] {configured}")
         else:
             label.update(f"[b]Diretorio atual:[/] [dim](usando o diretorio de execucao: {Path.cwd()})[/]")
+
+    def _refresh_fernet_status(self) -> None:
+        from dbqm.core.paths import KEY_FILE
+
+        status = self.query_one("#settings-fernet-status", Static)
+        exists = KEY_FILE.exists()
+        state = "[green]Presente[/green]" if exists else "[yellow]Sera gerada no primeiro uso[/yellow]"
+        status.update(
+            f"[b]Status:[/b] {state}\n"
+            f"[b]Local:[/b] [dim]{KEY_FILE}[/]\n\n"
+            "[dim]Chave usada para criptografar senhas de conexao salvas. "
+            "Nao ha acao manual necessaria — ela e criada automaticamente.[/]"
+        )
 
     def _set_initial_focus(self) -> None:
         try:

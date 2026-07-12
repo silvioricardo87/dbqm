@@ -14,8 +14,9 @@ class StatusBar(Static):
     StatusBar {
         dock: bottom;
         height: 1;
-        background: $surface-darken-1;
-        color: $text-muted;
+        background: $primary;
+        color: $background;
+        text-style: bold;
         padding: 0 1;
     }
     """

@@ -33,6 +33,7 @@ class ActionBar(Static):
         height: auto;
         padding: 0 1;
         background: $surface;
+        border-top: solid $border;
         dock: bottom;
     }
     """
@@ -60,7 +61,7 @@ class ActionBar(Static):
             if action.key:
                 parts.append(
                     f"[@click=select_action('{action.action_id}')]"
-                    f"[bold black on white] {action.key} [/] {action.label}"
+                    f"[bold $primary]{action.key}[/] {action.label}"
                     f"[/]"
                 )
             else:

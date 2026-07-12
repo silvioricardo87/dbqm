@@ -22,6 +22,9 @@ class Group:
     folder: str = ""
     template: str = ""  # template name (empty = no template)
     template_fields: dict = field(default_factory=dict)  # {field_name: source_expression}
+    # Ad-hoc (Multi-Exec) groups: run one SQL across a set of connections.
+    adhoc_sql: str = ""  # non-empty marks this as an ad-hoc group
+    connections: list[str] = field(default_factory=list)  # connection names
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
 
     def to_dict(self) -> dict:
@@ -42,6 +45,8 @@ class Group:
             folder=data.get("folder", ""),
             template=data.get("template", ""),
             template_fields=data.get("template_fields", {}),
+            adhoc_sql=data.get("adhoc_sql", ""),
+            connections=data.get("connections", []),
             created_at=data.get("created_at", datetime.now().isoformat(timespec="seconds")),
         )
 

@@ -1,12 +1,14 @@
-"""Connection management screen."""
+"""Connection management screen — master list + embedded edit form."""
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Vertical
-from textual.widgets import DataTable, Static
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import Button, Input, OptionList, Select, Static, TextArea
+from textual.widgets.option_list import Option
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.panel import Panel
 
 
 DB_TYPE_LABELS = {
@@ -16,14 +18,38 @@ DB_TYPE_LABELS = {
     "mysql": "MySQL",
 }
 
+DB_TYPE_OPTIONS = [
+    ("Oracle", "oracle"),
+    ("SQL Server", "sqlserver"),
+    ("PostgreSQL", "postgresql"),
+    ("MySQL", "mysql"),
+]
+
+ORACLE_MODE_OPTIONS = [
+    ("Conexao direta (host/port/service)", "direct"),
+    ("TNS (tnsnames.ora)", "tns"),
+]
+
+DEFAULT_PORTS = {
+    "oracle": "1521",
+    "sqlserver": "1433",
+    "postgresql": "5432",
+    "mysql": "3306",
+}
+
+DEFAULT_HOSTS = {
+    "postgresql": "localhost",
+    "mysql": "localhost",
+}
+
 _DESCRIPTION_PREVIEW_LEN = 60
 
 
 def _format_description(description: str) -> str:
-    """One-line preview of a connection description for table display."""
+    """One-line preview of a connection description for list display."""
     if not description:
         return ""
-    # Collapse newlines so the description fits in a single row.
+    # Collapse newlines so the description fits in a single line.
     flat = " ".join(description.split())
     if len(flat) > _DESCRIPTION_PREVIEW_LEN:
         flat = flat[: _DESCRIPTION_PREVIEW_LEN - 3].rstrip() + "..."
@@ -31,79 +57,273 @@ def _format_description(description: str) -> str:
 
 
 class ConnectionsScreen(Vertical):
-    """Screen widget for managing database connections."""
+    """Screen widget for managing database connections.
+
+    Master-detail layout: a connection list (CONEXOES) on the left and an
+    embedded edit form (EDICAO) on the right. Selecting an item in the list
+    loads it into the form; Nova/Testar/Salvar/Excluir act on the form.
+    """
 
     DEFAULT_CSS = """
     ConnectionsScreen {
         height: 1fr;
     }
-    ConnectionsScreen #conn-empty {
+    ConnectionsScreen #conn-body {
         height: 1fr;
+    }
+    ConnectionsScreen #conn-list-panel {
+        width: 42;
+    }
+    ConnectionsScreen #conn-form-panel {
+        width: 1fr;
+    }
+    ConnectionsScreen #conn-empty {
+        height: auto;
+        padding: 1;
         content-align: center middle;
         text-align: center;
+        color: $text-muted;
     }
-    ConnectionsScreen DataTable {
+    ConnectionsScreen #conn-list {
         height: 1fr;
+    }
+    ConnectionsScreen #conn-btn-new {
+        width: 100%;
+        margin-top: 1;
+    }
+    ConnectionsScreen #conn-form-scroll {
+        height: 1fr;
+    }
+    ConnectionsScreen .field-label {
+        margin-top: 1;
+        height: 1;
+        color: $text-muted;
+    }
+    ConnectionsScreen Input {
+        width: 100%;
+    }
+    ConnectionsScreen Select {
+        width: 100%;
+    }
+    ConnectionsScreen #conn-form-desc {
+        height: 5;
+        width: 100%;
+    }
+    ConnectionsScreen #conn-form-buttons {
+        margin-top: 1;
+        height: auto;
+        width: 100%;
+        align: center middle;
+    }
+    ConnectionsScreen #conn-form-buttons Button {
+        margin: 0 1;
     }
     """
 
+    # Maps a logical field name to its (label id, widget id) — used to
+    # show/hide field groups depending on the selected db type/mode.
+    _FIELD_GROUPS = {
+        "mode": ("#conn-form-mode-label", "#conn-form-mode"),
+        "service": ("#conn-form-service-label", "#conn-form-service"),
+        "database": ("#conn-form-database-label", "#conn-form-database"),
+        "tns_path": ("#conn-form-tns-path-label", "#conn-form-tns-path"),
+        "tns_name": ("#conn-form-tns-name-label", "#conn-form-tns-name"),
+        "host": ("#conn-form-host-label", "#conn-form-host"),
+        "port": ("#conn-form-port-label", "#conn-form-port"),
+    }
+
+    def __init__(
+        self,
+        *,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+    ) -> None:
+        super().__init__(name=name, id=id, classes=classes)
+        self._loaded_name: str | None = None
+        self._remove_name: str | None = None
+        self._rename_old_name: str | None = None
+
     def compose(self) -> ComposeResult:
-        yield Static(
-            "[dim]Nenhuma conexao configurada[/]",
-            id="conn-empty",
-            markup=True,
-        )
-        yield DataTable(id="conn-table")
+        with Horizontal(id="conn-body"):
+            with Panel("🔌  CONEXOES", id="conn-list-panel"):
+                yield Static(
+                    "[dim]Nenhuma conexao configurada[/]",
+                    id="conn-empty",
+                    markup=True,
+                )
+                yield OptionList(id="conn-list")
+                yield Button("Nova", id="conn-btn-new")
+
+            with Panel("📝  EDICAO", accent=True, id="conn-form-panel"):
+                with VerticalScroll(id="conn-form-scroll"):
+                    yield Static("Nome:", classes="field-label")
+                    yield Input(id="conn-form-name")
+
+                    yield Static("Tipo de banco:", classes="field-label")
+                    yield Select(
+                        DB_TYPE_OPTIONS, prompt="Selecione o tipo", id="conn-form-type"
+                    )
+
+                    yield Static("Modo:", classes="field-label", id="conn-form-mode-label")
+                    yield Select(
+                        ORACLE_MODE_OPTIONS, prompt="Selecione o modo", id="conn-form-mode"
+                    )
+
+                    yield Static("Host:", classes="field-label", id="conn-form-host-label")
+                    yield Input(id="conn-form-host")
+
+                    yield Static("Porta:", classes="field-label", id="conn-form-port-label")
+                    yield Input(id="conn-form-port")
+
+                    yield Static(
+                        "Service Name:", classes="field-label", id="conn-form-service-label"
+                    )
+                    yield Input(id="conn-form-service")
+
+                    yield Static(
+                        "Caminho tnsnames.ora:",
+                        classes="field-label",
+                        id="conn-form-tns-path-label",
+                    )
+                    yield Input(id="conn-form-tns-path")
+
+                    yield Static(
+                        "TNS Name:", classes="field-label", id="conn-form-tns-name-label"
+                    )
+                    yield Input(id="conn-form-tns-name")
+
+                    yield Static(
+                        "Database:", classes="field-label", id="conn-form-database-label"
+                    )
+                    yield Input(id="conn-form-database")
+
+                    yield Static("Usuario:", classes="field-label")
+                    yield Input(id="conn-form-user")
+
+                    yield Static("Senha:", classes="field-label")
+                    yield Input(password=True, id="conn-form-pass")
+
+                    yield Static("Descricao (opcional):", classes="field-label")
+                    yield TextArea(id="conn-form-desc")
+
+                with Horizontal(id="conn-form-buttons"):
+                    yield Button("Testar", variant="warning", id="conn-btn-test")
+                    yield Button("Salvar", variant="primary", id="conn-btn-save")
+                    yield Button("Excluir", variant="error", id="conn-btn-delete")
 
     def on_mount(self) -> None:
-        self._setup_table()
         self._load_connections()
+        # Widgets already start blank/unselected as composed — just apply
+        # the "no type selected" field visibility instead of writing to
+        # every field (avoids a burst of reactive Changed messages during
+        # the initial mount cascade that raced with tab-activation timing).
+        self._apply_field_visibility("", "")
         self._set_actions()
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
-        table = self.query_one("#conn-table", DataTable)
-        if table.display:
-            table.focus()
+        # This runs from a deferred call_after_refresh scheduled at mount
+        # time. If the user has already switched to another tab by the time
+        # it fires, focusing a widget here would steal focus back and flip
+        # TabbedContent.active (it tracks focus location via TabPaneFocused)
+        # — so bail out when this screen's hosting tab is no longer active.
+        # (No-op when not hosted inside a TabbedContent, e.g. in tests.)
+        try:
+            from textual.widgets import TabbedContent, TabPane
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle Enter on a row — test the selected connection."""
-        if event.data_table.id == "conn-table":
-            self._handle_test()
+            tab_pane = next(
+                (a for a in self.ancestors_with_self if isinstance(a, TabPane)), None
+            )
+            if tab_pane is not None:
+                tabbed = self.app.query_one(TabbedContent)
+                if tabbed.active != tab_pane.id:
+                    return
+        except Exception:
+            pass
 
-    def _setup_table(self) -> None:
-        table = self.query_one("#conn-table", DataTable)
-        table.cursor_type = "row"
-        table.add_columns("#", "Nome", "Tipo", "Destino", "Descricao")
+        option_list = self.query_one("#conn-list", OptionList)
+        if option_list.display and option_list.option_count:
+            option_list.focus()
+        else:
+            self.query_one("#conn-form-name", Input).focus()
+
+    # ------------------------------------------------------------------
+    # List
+    # ------------------------------------------------------------------
 
     def _load_connections(self) -> None:
         from dbqm.models.connection import load_connections
 
         connections = load_connections()
-        table = self.query_one("#conn-table", DataTable)
+        option_list = self.query_one("#conn-list", OptionList)
         empty_msg = self.query_one("#conn-empty", Static)
 
-        table.clear()
+        option_list.clear_options()
 
         if not connections:
             empty_msg.display = True
-            table.display = False
+            option_list.display = False
             return
 
         empty_msg.display = False
-        table.display = True
+        option_list.display = True
 
-        for i, conn in enumerate(connections, 1):
+        for conn in connections:
             db_label = DB_TYPE_LABELS.get(conn.db_type, conn.db_type)
             if conn.db_type == "oracle" and conn.mode == "tns":
                 db_label = "Oracle/TNS"
-            table.add_row(
-                str(i),
-                str(conn.name),
-                str(db_label),
-                str(conn.display_target()),
-                _format_description(conn.description),
-            )
+            label = f"{conn.name}  ({db_label} - {conn.display_target()})"
+            desc = _format_description(conn.description)
+            if desc:
+                label += f"  | {desc}"
+            option_list.add_option(Option(label, id=conn.name))
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        if event.option_list.id != "conn-list":
+            return
+        name = str(event.option.id) if event.option.id else None
+        if not name:
+            return
+        from dbqm.models.connection import find_connection
+
+        conn = find_connection(name)
+        if conn is None:
+            self.notify(f'Conexao "{name}" nao encontrada.', severity="error")
+            return
+        self._load_into_form(conn)
+
+    def _get_selected_name(self) -> str | None:
+        """Get the connection name currently highlighted in the list."""
+        option_list = self.query_one("#conn-list", OptionList)
+        if not option_list.display or option_list.option_count == 0:
+            return None
+        idx = option_list.highlighted
+        if idx is None:
+            return None
+        try:
+            option = option_list.get_option_at_index(idx)
+        except Exception:
+            return None
+        return str(option.id) if option.id else None
+
+    def _select_in_list(self, name: str) -> None:
+        """Highlight and load a connection by name, if present in the list."""
+        option_list = self.query_one("#conn-list", OptionList)
+        try:
+            idx = option_list.get_option_index(name)
+        except Exception:
+            return
+        option_list.highlighted = idx
+        from dbqm.models.connection import find_connection
+
+        conn = find_connection(name)
+        if conn is not None:
+            self._load_into_form(conn)
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
 
     def _set_actions(self) -> None:
         try:
@@ -113,27 +333,11 @@ class ConnectionsScreen(Vertical):
         actions = [
             Action("Nova", "N", "conn_new"),
             Action("Testar", "T", "conn_test"),
-            Action("Editar", "E", "conn_edit"),
+            Action("Salvar", "S", "conn_save"),
             Action("Renomear", "R", "conn_rename"),
-            Action("Remover", "D", "conn_remove"),
+            Action("Excluir", "X", "conn_remove"),
         ]
         action_bar.set_actions(actions)
-
-    def _get_selected_name(self) -> str | None:
-        """Get the connection name from the currently selected table row."""
-        table = self.query_one("#conn-table", DataTable)
-        if not table.display or table.row_count == 0:
-            return None
-        try:
-            row_key = table.cursor_row
-            row = table.get_row_at(row_key)
-            return str(row[1])  # Name column
-        except Exception:
-            return None
-
-    # ------------------------------------------------------------------
-    # Action handlers
-    # ------------------------------------------------------------------
 
     def on_action_selected(self, message: ActionSelected) -> None:
         action = message.action_id
@@ -141,65 +345,162 @@ class ConnectionsScreen(Vertical):
             self._handle_new()
         elif action == "conn_test":
             self._handle_test()
-        elif action == "conn_edit":
-            self._handle_edit()
+        elif action == "conn_save":
+            self._handle_save()
         elif action == "conn_rename":
             self._handle_rename()
         elif action == "conn_remove":
             self._handle_remove()
 
-    # -- New --
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id or ""
+        if btn_id == "conn-btn-new":
+            self._handle_new()
+        elif btn_id == "conn-btn-test":
+            self._handle_test()
+        elif btn_id == "conn-btn-save":
+            self._handle_save()
+        elif btn_id == "conn-btn-delete":
+            self._handle_remove()
+
+    # ------------------------------------------------------------------
+    # Form — load / clear / field visibility
+    # ------------------------------------------------------------------
+
+    def _load_into_form(self, conn) -> None:
+        """Populate the embedded form with an existing connection."""
+        from dbqm.core.crypto import decrypt
+
+        self._loaded_name = conn.name
+
+        name_input = self.query_one("#conn-form-name", Input)
+        name_input.value = conn.name
+        name_input.disabled = True
+
+        type_select = self.query_one("#conn-form-type", Select)
+        valid_types = [v for _, v in DB_TYPE_OPTIONS]
+        if conn.db_type in valid_types:
+            type_select.value = conn.db_type
+        else:
+            type_select.clear()
+
+        mode = conn.mode or "direct"
+        if conn.db_type == "oracle":
+            mode_select = self.query_one("#conn-form-mode", Select)
+            valid_modes = [v for _, v in ORACLE_MODE_OPTIONS]
+            mode_select.value = mode if mode in valid_modes else "direct"
+
+        self._apply_field_visibility(conn.db_type, mode)
+
+        self.query_one("#conn-form-host", Input).value = conn.host or ""
+        self.query_one("#conn-form-port", Input).value = str(conn.port) if conn.port else ""
+        self.query_one("#conn-form-service", Input).value = conn.service_name or ""
+        self.query_one("#conn-form-tns-path", Input).value = conn.tns_path or ""
+        self.query_one("#conn-form-tns-name", Input).value = conn.tns_name or ""
+        self.query_one("#conn-form-database", Input).value = conn.database or ""
+        self.query_one("#conn-form-user", Input).value = conn.user or ""
+
+        password = ""
+        if conn.password:
+            try:
+                password = decrypt(conn.password)
+            except Exception:
+                password = ""
+        self.query_one("#conn-form-pass", Input).value = password
+
+        self.query_one("#conn-form-desc", TextArea).text = conn.description or ""
+
+    def _clear_form(self) -> None:
+        """Reset the form to a blank state, ready for a new connection."""
+        self._loaded_name = None
+
+        name_input = self.query_one("#conn-form-name", Input)
+        name_input.value = ""
+        name_input.disabled = False
+
+        self.query_one("#conn-form-type", Select).clear()
+        self.query_one("#conn-form-mode", Select).clear()
+
+        for field_id in (
+            "#conn-form-host",
+            "#conn-form-port",
+            "#conn-form-service",
+            "#conn-form-tns-path",
+            "#conn-form-tns-name",
+            "#conn-form-database",
+            "#conn-form-user",
+            "#conn-form-pass",
+        ):
+            self.query_one(field_id, Input).value = ""
+
+        self.query_one("#conn-form-desc", TextArea).text = ""
+        self._apply_field_visibility("", "")
+
+    def _current_db_type(self) -> str:
+        val = self.query_one("#conn-form-type", Select).value
+        return "" if val == Select.NULL else str(val)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "conn-form-type":
+            db_type = "" if event.value == Select.NULL else str(event.value)
+            mode_select = self.query_one("#conn-form-mode", Select)
+            if db_type == "oracle":
+                if mode_select.value == Select.NULL:
+                    mode_select.value = "direct"
+                mode = str(mode_select.value)
+            else:
+                mode = ""
+            self._apply_defaults(db_type)
+            self._apply_field_visibility(db_type, mode)
+        elif event.select.id == "conn-form-mode":
+            db_type = self._current_db_type()
+            mode = "" if event.value == Select.NULL else str(event.value)
+            self._apply_field_visibility(db_type, mode)
+
+    def _apply_defaults(self, db_type: str) -> None:
+        """Fill sensible default host/port for a freshly-selected db type
+        (only when the field is still empty, so edits are never clobbered)."""
+        host_input = self.query_one("#conn-form-host", Input)
+        port_input = self.query_one("#conn-form-port", Input)
+        if not host_input.value:
+            host_input.value = DEFAULT_HOSTS.get(db_type, "")
+        if not port_input.value:
+            port_input.value = DEFAULT_PORTS.get(db_type, "")
+
+    def _apply_field_visibility(self, db_type: str, mode: str) -> None:
+        is_oracle = db_type == "oracle"
+        is_tns = is_oracle and mode == "tns"
+        has_type = bool(db_type)
+
+        self._set_visible("mode", is_oracle)
+        self._set_visible("service", is_oracle and not is_tns)
+        self._set_visible("database", has_type and not is_oracle)
+        self._set_visible("tns_path", is_tns)
+        self._set_visible("tns_name", is_tns)
+        self._set_visible("host", has_type and not is_tns)
+        self._set_visible("port", has_type and not is_tns)
+
+    def _set_visible(self, key: str, visible: bool) -> None:
+        label_id, field_id = self._FIELD_GROUPS[key]
+        self.query_one(label_id).display = visible
+        self.query_one(field_id).display = visible
+
+    # ------------------------------------------------------------------
+    # New
+    # ------------------------------------------------------------------
 
     def _handle_new(self) -> None:
-        from dbqm.ui.modals.connection_form import ConnectionFormModal
+        self._clear_form()
+        self.query_one("#conn-form-name", Input).focus()
 
-        modal = ConnectionFormModal()
-        self.app.push_screen(modal, callback=self._on_new_result)
-
-    def _on_new_result(self, result: dict | None) -> None:
-        if result is None:
-            return
-
-        from dbqm.core.crypto import encrypt
-        from dbqm.models.connection import Connection, load_connections, save_connections
-
-        connections = load_connections()
-
-        # Check duplicate
-        if any(c.name == result["name"] for c in connections):
-            self.notify(f'Conexao "{result["name"]}" ja existe.', severity="error")
-            return
-
-        password = result.get("password", "")
-        if password:
-            password = encrypt(password)
-
-        conn = Connection(
-            name=result["name"],
-            db_type=result["db_type"],
-            user=result.get("user", ""),
-            password=password,
-            mode=result.get("mode"),
-            host=result.get("host"),
-            port=result.get("port"),
-            service_name=result.get("service_name"),
-            database=result.get("database"),
-            tns_path=result.get("tns_path"),
-            tns_name=result.get("tns_name"),
-            description=result.get("description", ""),
-        )
-        connections.append(conn)
-        save_connections(connections)
-        self._load_connections()
-        self._update_status_bar()
-        self.notify(f'Conexao "{conn.name}" criada!')
-
-    # -- Test --
+    # ------------------------------------------------------------------
+    # Test
+    # ------------------------------------------------------------------
 
     def _handle_test(self) -> None:
-        name = self._get_selected_name()
-        if name is None:
-            self.notify("Selecione uma conexao.", severity="warning")
+        name = self.query_one("#conn-form-name", Input).value.strip()
+        if not name:
+            self.notify("Informe o nome da conexao.", severity="warning")
             return
         self.notify(f"Testando {name}...")
         self._run_test(name)
@@ -225,60 +526,120 @@ class ConnectionsScreen(Vertical):
                 self.notify, f"Erro ao testar conexao: {e}", severity="error", timeout=8
             )
 
-    # -- Edit --
+    # ------------------------------------------------------------------
+    # Save (create or update)
+    # ------------------------------------------------------------------
 
-    def _handle_edit(self) -> None:
-        name = self._get_selected_name()
-        if name is None:
-            self.notify("Selecione uma conexao.", severity="warning")
-            return
+    def _val(self, field_id: str) -> str:
+        return self.query_one(field_id, Input).value.strip()
 
-        from dbqm.models.connection import find_connection
-        from dbqm.ui.modals.connection_form import ConnectionFormModal
+    def _int_val(self, field_id: str, default: int) -> int:
+        val = self._val(field_id)
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return default
 
-        conn = find_connection(name)
-        if conn is None:
-            self.notify(f'Conexao "{name}" nao encontrada.', severity="error")
-            return
+    def _collect_form_values(self) -> dict | None:
+        """Collect all form field values into a dict, validating required ones."""
+        name = self.query_one("#conn-form-name", Input).value.strip()
+        if not name:
+            self.notify("Nome obrigatorio.", severity="error")
+            return None
 
-        conn_dict = conn.to_dict()
-        modal = ConnectionFormModal(connection=conn_dict)
-        self.app.push_screen(modal, callback=self._on_edit_result)
+        type_select = self.query_one("#conn-form-type", Select)
+        if type_select.value == Select.NULL:
+            self.notify("Selecione o tipo de banco.", severity="error")
+            return None
+        db_type = str(type_select.value)
 
-    def _on_edit_result(self, result: dict | None) -> None:
-        if result is None:
+        result: dict = {"name": name, "db_type": db_type}
+
+        if db_type == "oracle":
+            mode_select = self.query_one("#conn-form-mode", Select)
+            mode = str(mode_select.value) if mode_select.value != Select.NULL else "direct"
+            result["mode"] = mode
+
+            if mode == "tns":
+                result["tns_path"] = self._val("#conn-form-tns-path")
+                result["tns_name"] = self._val("#conn-form-tns-name")
+            else:
+                result["host"] = self._val("#conn-form-host")
+                result["port"] = self._int_val("#conn-form-port", 1521)
+                result["service_name"] = self._val("#conn-form-service")
+        else:
+            result["host"] = self._val("#conn-form-host")
+            result["port"] = self._int_val("#conn-form-port", int(DEFAULT_PORTS.get(db_type, "0")))
+            result["database"] = self._val("#conn-form-database")
+
+        result["user"] = self._val("#conn-form-user")
+        result["password"] = self._val("#conn-form-pass")
+
+        desc_widget = self.query_one("#conn-form-desc", TextArea)
+        result["description"] = desc_widget.text.strip()
+
+        return result
+
+    def _handle_save(self) -> None:
+        values = self._collect_form_values()
+        if values is None:
             return
 
         from dbqm.core.crypto import encrypt
-        from dbqm.models.connection import load_connections, save_connections
+        from dbqm.models.connection import Connection, load_connections, save_connections
 
         connections = load_connections()
-        name = result["name"]
+        name = values["name"]
+        existing = next((c for c in connections if c.name == name), None)
 
-        for conn in connections:
-            if conn.name == name:
-                conn.db_type = result["db_type"]
-                conn.user = result.get("user", "")
-                conn.mode = result.get("mode")
-                conn.host = result.get("host")
-                conn.port = result.get("port")
-                conn.service_name = result.get("service_name")
-                conn.database = result.get("database")
-                conn.tns_path = result.get("tns_path")
-                conn.tns_name = result.get("tns_name")
-                conn.description = result.get("description", "")
+        password = values.get("password", "")
+        if password:
+            password = encrypt(password)
+        elif existing is not None:
+            password = existing.password
+        else:
+            password = ""
 
-                password = result.get("password", "")
-                if password:
-                    conn.password = encrypt(password)
-                # If password is empty, keep existing
-                break
+        if existing is not None:
+            existing.db_type = values["db_type"]
+            existing.user = values.get("user", "")
+            existing.password = password
+            existing.mode = values.get("mode")
+            existing.host = values.get("host")
+            existing.port = values.get("port")
+            existing.service_name = values.get("service_name")
+            existing.database = values.get("database")
+            existing.tns_path = values.get("tns_path")
+            existing.tns_name = values.get("tns_name")
+            existing.description = values.get("description", "")
+            message = f'Conexao "{name}" atualizada!'
+        else:
+            conn = Connection(
+                name=name,
+                db_type=values["db_type"],
+                user=values.get("user", ""),
+                password=password,
+                mode=values.get("mode"),
+                host=values.get("host"),
+                port=values.get("port"),
+                service_name=values.get("service_name"),
+                database=values.get("database"),
+                tns_path=values.get("tns_path"),
+                tns_name=values.get("tns_name"),
+                description=values.get("description", ""),
+            )
+            connections.append(conn)
+            message = f'Conexao "{name}" criada!'
 
         save_connections(connections)
         self._load_connections()
-        self.notify(f'Conexao "{name}" atualizada!')
+        self._update_status_bar()
+        self._select_in_list(name)
+        self.notify(message)
 
-    # -- Rename --
+    # ------------------------------------------------------------------
+    # Rename
+    # ------------------------------------------------------------------
 
     def _handle_rename(self) -> None:
         name = self._get_selected_name()
@@ -329,9 +690,13 @@ class ConnectionsScreen(Vertical):
             save_queries(queries)
 
         self._load_connections()
+        if self._loaded_name == old_name:
+            self._select_in_list(new_name)
         self.notify(f'Conexao renomeada: "{old_name}" -> "{new_name}"')
 
-    # -- Remove --
+    # ------------------------------------------------------------------
+    # Delete
+    # ------------------------------------------------------------------
 
     def _handle_remove(self) -> None:
         name = self._get_selected_name()
@@ -353,6 +718,8 @@ class ConnectionsScreen(Vertical):
 
         name = self._remove_name
         if delete_connection(name):
+            if self._loaded_name == name:
+                self._clear_form()
             self._load_connections()
             self._update_status_bar()
             self.notify(f'Conexao "{name}" removida!')

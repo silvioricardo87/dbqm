@@ -289,13 +289,44 @@ async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
 
 
 # ======================================================================
-# ConnectionsScreen tests
+# ConnectionsScreen tests — master list (CONEXOES) + embedded form (EDICAO)
 # ======================================================================
 
 
 class ConnectionsTestApp(App):
     def compose(self) -> ComposeResult:
         yield ConnectionsScreen()
+
+
+def _seed_connections(config_dir):
+    from dbqm.core.crypto import encrypt
+
+    conn_data = {
+        "connections": [
+            {
+                "name": "dev_oracle",
+                "db_type": "oracle",
+                "mode": "direct",
+                "host": "db.example.com",
+                "port": 1521,
+                "service_name": "ORCL",
+                "user": "admin",
+                "password": encrypt("s3cret"),
+            },
+            {
+                "name": "prod_pg",
+                "db_type": "postgresql",
+                "host": "localhost",
+                "port": 5432,
+                "database": "mydb",
+                "user": "pguser",
+                "password": encrypt("pgpass"),
+            },
+        ]
+    }
+    (config_dir / "connections.json").write_text(
+        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+    )
 
 
 @pytest.mark.asyncio
@@ -307,62 +338,59 @@ async def test_connections_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_connections_screen_empty(tmp_config_dir):
-    """With no connections, should show empty message and hide table."""
+async def test_connections_has_list_and_form_panels(tmp_config_dir):
+    """CONEXOES + EDICAO panels exist, with the list and form field ids."""
+    from dbqm.ui.widgets.panel import Panel
+
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ConnectionsScreen)
+        titles = [p.query_one("#panel-title").render().plain for p in screen.query(Panel)]
+        assert any("CONEXOES" in t for t in titles)
+        assert any("EDICAO" in t for t in titles)
+        assert screen.query_one("#conn-list") is not None
+        assert screen.query_one("#conn-form-name") is not None
+        assert screen.query_one("#conn-form-type") is not None
+        assert screen.query_one("#conn-form-host") is not None
+        assert screen.query_one("#conn-form-port") is not None
+        assert screen.query_one("#conn-form-user") is not None
+        assert screen.query_one("#conn-form-pass") is not None
+        assert screen.query_one("#conn-form-service") is not None
+        assert screen.query_one("#conn-form-mode") is not None
+
+
+@pytest.mark.asyncio
+async def test_connections_screen_empty(tmp_config_dir):
+    """With no connections, should show empty message and hide the list."""
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        from textual.widgets import OptionList
+        screen = app.query_one(ConnectionsScreen)
         empty = screen.query_one("#conn-empty")
         assert empty.display is True
-        table = screen.query_one("#conn-table")
-        assert table.display is False
+        option_list = screen.query_one("#conn-list", OptionList)
+        assert option_list.display is False
 
 
 @pytest.mark.asyncio
 async def test_connections_screen_with_data(tmp_config_dir):
-    """With connections configured, should show them in the table."""
-    config_dir = tmp_config_dir / "config"
-    conn_data = {
-        "connections": [
-            {
-                "name": "dev_oracle",
-                "db_type": "oracle",
-                "mode": "direct",
-                "host": "db.example.com",
-                "port": 1521,
-                "service_name": "ORCL",
-                "user": "admin",
-                "password": "encrypted_pass",
-            },
-            {
-                "name": "prod_pg",
-                "db_type": "postgresql",
-                "host": "localhost",
-                "port": 5432,
-                "database": "mydb",
-                "user": "pguser",
-                "password": "encrypted_pass2",
-            },
-        ]
-    }
-    (config_dir / "connections.json").write_text(
-        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
-    )
+    """With connections configured, should list them in the OptionList."""
+    _seed_connections(tmp_config_dir / "config")
 
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
+        from textual.widgets import OptionList
         screen = app.query_one(ConnectionsScreen)
         empty = screen.query_one("#conn-empty")
         assert empty.display is False
-        from textual.widgets import DataTable
-        table = screen.query_one("#conn-table", DataTable)
-        assert table.display is True
-        assert table.row_count == 2
+        option_list = screen.query_one("#conn-list", OptionList)
+        assert option_list.display is True
+        assert option_list.option_count == 2
 
 
 @pytest.mark.asyncio
-async def test_connections_screen_shows_description_column(tmp_config_dir):
-    """The connections table should expose the description for each row."""
+async def test_connections_list_shows_description_preview(tmp_config_dir):
+    """Long descriptions are truncated with an ellipsis in the list preview."""
     config_dir = tmp_config_dir / "config"
     long_desc = "Producao - " + "x" * 200
     (config_dir / "connections.json").write_text(
@@ -386,20 +414,17 @@ async def test_connections_screen_shows_description_column(tmp_config_dir):
 
     app = ConnectionsTestApp()
     async with app.run_test():
-        from textual.widgets import DataTable
+        from textual.widgets import OptionList
         screen = app.query_one(ConnectionsScreen)
-        table = screen.query_one("#conn-table", DataTable)
-        assert len(table.columns) == 5
-        row0 = table.get_row_at(0)
-        # Description is truncated; assert ellipsis and length cap.
-        assert row0[4].endswith("...")
-        assert len(row0[4]) <= 60
-        row1 = table.get_row_at(1)
-        assert row1[4] == ""
+        option_list = screen.query_one("#conn-list", OptionList)
+        prompt0 = str(option_list.get_option_at_index(0).prompt)
+        assert "..." in prompt0
+        prompt1 = str(option_list.get_option_at_index(1).prompt)
+        assert "prod" not in prompt1  # no_desc row has no description leak
 
 
 def test_format_description_helper():
-    """Unit test the table formatter for descriptions."""
+    """Unit test the list preview formatter for descriptions."""
     from dbqm.ui.screens.connections import _format_description
 
     assert _format_description("") == ""
@@ -411,6 +436,163 @@ def test_format_description_helper():
     out = _format_description(long)
     assert out.endswith("...")
     assert len(out) <= 60
+
+
+@pytest.mark.asyncio
+async def test_connections_select_loads_into_form(tmp_config_dir):
+    """Selecting a seeded connection populates the embedded form, with the
+    password decrypted for display."""
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        assert screen.query_one("#conn-form-name", Input).value == "dev_oracle"
+        assert screen.query_one("#conn-form-type", Select).value == "oracle"
+        assert screen.query_one("#conn-form-host", Input).value == "db.example.com"
+        assert screen.query_one("#conn-form-port", Input).value == "1521"
+        assert screen.query_one("#conn-form-service", Input).value == "ORCL"
+        assert screen.query_one("#conn-form-user", Input).value == "admin"
+        assert screen.query_one("#conn-form-pass", Input).value == "s3cret"
+
+
+@pytest.mark.asyncio
+async def test_connections_nova_clears_form(tmp_config_dir):
+    """The 'Nova' action/button clears the form for a new entry."""
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+        assert screen.query_one("#conn-form-name", Input).value == "dev_oracle"
+
+        from dbqm.ui.widgets.action_bar import ActionSelected
+        screen.on_action_selected(ActionSelected("conn_new"))
+        await pilot.pause()
+
+        assert screen.query_one("#conn-form-name", Input).value == ""
+        assert screen.query_one("#conn-form-name", Input).disabled is False
+        assert screen.query_one("#conn-form-type", Select).value == Select.NULL
+
+
+@pytest.mark.asyncio
+async def test_connections_save_creates_new_connection(tmp_config_dir):
+    """Filling the form and pressing Salvar creates a new connection."""
+    from dbqm.models.connection import load_connections
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+
+        screen.query_one("#conn-form-name", Input).value = "new_conn"
+        screen.query_one("#conn-form-type", Select).value = "postgresql"
+        await pilot.pause()
+        screen.query_one("#conn-form-host", Input).value = "pg.example.com"
+        screen.query_one("#conn-form-port", Input).value = "5432"
+        screen.query_one("#conn-form-database", Input).value = "mydb"
+        screen.query_one("#conn-form-user", Input).value = "pguser"
+        screen.query_one("#conn-form-pass", Input).value = "secretpw"
+
+        screen._handle_save()
+        await pilot.pause()
+
+        conns = load_connections()
+        assert any(c.name == "new_conn" for c in conns)
+        saved = next(c for c in conns if c.name == "new_conn")
+        assert saved.host == "pg.example.com"
+        assert saved.database == "mydb"
+
+        from dbqm.core.crypto import decrypt
+        assert decrypt(saved.password) == "secretpw"
+
+
+@pytest.mark.asyncio
+async def test_connections_save_updates_existing_connection(tmp_config_dir):
+    """Editing a loaded connection and pressing Salvar persists the change."""
+    _seed_connections(tmp_config_dir / "config")
+    from dbqm.models.connection import find_connection
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        screen.query_one("#conn-form-host", Input).value = "new-host.example.com"
+        screen._handle_save()
+        await pilot.pause()
+
+        updated = find_connection("dev_oracle")
+        assert updated is not None
+        assert updated.host == "new-host.example.com"
+
+        # Password re-encrypted from the (unchanged) decrypted display value.
+        from dbqm.core.crypto import decrypt
+        assert decrypt(updated.password) == "s3cret"
+
+
+@pytest.mark.asyncio
+async def test_connections_excluir_removes_connection(tmp_config_dir):
+    """Excluir, after confirming, deletes the highlighted connection."""
+    _seed_connections(tmp_config_dir / "config")
+    from dbqm.models.connection import load_connections
+    from dbqm.ui.modals.confirm import ConfirmModal
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        from dbqm.ui.widgets.action_bar import ActionSelected
+        screen.on_action_selected(ActionSelected("conn_remove"))
+        await pilot.pause()
+
+        modal = next(s for s in app.screen_stack if isinstance(s, ConfirmModal))
+        assert "dev_oracle" in modal._message
+
+        screen._on_remove_result(True)
+        await pilot.pause()
+
+        conns = load_connections()
+        assert all(c.name != "dev_oracle" for c in conns)
+        # Form is cleared since the deleted connection was loaded.
+        assert screen.query_one("#conn-form-name", Input).value == ""
+
+
+@pytest.mark.asyncio
+async def test_connections_testar_warns_without_name(tmp_config_dir):
+    """Testar with an empty form name shows a warning, not a crash."""
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._handle_test()
+        await pilot.pause()
+        messages = [str(n.message) for n in app._notifications]
+        assert any("nome" in m.lower() for m in messages)
+
+
+@pytest.mark.asyncio
+async def test_connections_testar_starts_worker_for_named_connection(tmp_config_dir):
+    """Testar with a name in the form kicks off the existing test worker."""
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+
+        screen._handle_test()
+        await pilot.pause()
+
+        messages = [str(n.message) for n in app._notifications]
+        assert any("Testando" in m for m in messages)
 
 
 # ======================================================================
@@ -571,34 +753,54 @@ async def test_group_exec_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_group_exec_screen_shows_empty_message(tmp_config_dir):
-    """With no groups configured, should show empty state."""
+async def test_group_exec_screen_has_option3_widgets(tmp_config_dir):
+    """Multi-Exec (Option 3) exposes the target checklist, SQL editor,
+    comparison display and the saved-group Select."""
+    from textual.widgets import SelectionList, TextArea, Select
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        empty = screen.query_one("#ge-empty-message")
-        assert empty.display is True
+        assert screen.query_one("#conn-checklist", SelectionList) is not None
+        assert screen.query_one("#group-sql", TextArea) is not None
+        assert screen.query_one("#group-results", GroupResultWidget) is not None
+        assert screen.query_one("#group-saved-select", Select) is not None
 
 
 @pytest.mark.asyncio
-async def test_group_exec_screen_shows_group_list(tmp_config_dir):
-    """With groups configured, should show the group list."""
+async def test_group_exec_checklist_lists_connections(tmp_config_dir):
+    """The connection checklist is populated from the saved connections."""
+    from textual.widgets import SelectionList
+    _seed_connections(tmp_config_dir / "config")
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        checklist = screen.query_one("#conn-checklist", SelectionList)
+        values = {opt.value for opt in checklist.options}
+        assert {"dev_oracle", "prod_pg"} <= values
+
+
+@pytest.mark.asyncio
+async def test_group_exec_saved_select_lists_only_adhoc_groups(tmp_config_dir):
+    """Only groups with adhoc_sql appear in the saved-group Select."""
+    from textual.widgets import Select
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
             {
-                "name": "group_a",
-                "description": "Test group A",
+                "name": "legacy_query_group",
+                "description": "old query-based",
                 "queries": ["q1", "q2"],
                 "join_key": "id",
                 "compare_columns": ["status"],
             },
             {
-                "name": "group_b",
-                "description": "Test group B",
-                "queries": ["q1", "q3"],
-                "join_key": "code",
-                "compare_columns": ["value"],
+                "name": "adhoc_group",
+                "description": "",
+                "queries": [],
+                "join_key": "ID",
+                "adhoc_sql": "SELECT ID, STATUS FROM t",
+                "connections": ["dev_oracle"],
             },
         ]
     }
@@ -609,38 +811,28 @@ async def test_group_exec_screen_shows_group_list(tmp_config_dir):
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        empty = screen.query_one("#ge-empty-message")
-        assert empty.display is False
-        # Selection phase should be visible
-        sel = screen.query_one("#ge-selection-phase")
-        assert sel.display is True
-        # Results phase should be hidden
-        res = screen.query_one("#ge-results-phase")
-        assert res.display is False
+        select = screen.query_one("#group-saved-select", Select)
+        labels = {label.plain if hasattr(label, "plain") else str(label)
+                  for label, _ in select._options}
+        assert "adhoc_group" in labels
+        assert "legacy_query_group" not in labels
 
 
 @pytest.mark.asyncio
-async def test_group_exec_results_phase_hidden_initially(tmp_config_dir):
-    """Results phase should be hidden on mount."""
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        results = screen.query_one("#ge-results-phase")
-        assert results.display is False
-
-
-@pytest.mark.asyncio
-async def test_group_exec_go_back_to_selection(tmp_config_dir):
-    """go_back_to_selection should show selection and hide results."""
+async def test_group_exec_load_group_checks_conns_and_fills_sql(tmp_config_dir):
+    """Carregar an ad-hoc group checks its connections and fills the SQL."""
+    from textual.widgets import SelectionList, TextArea, Select, Button
     config_dir = tmp_config_dir / "config"
+    _seed_connections(config_dir)
     groups_data = {
         "groups": [
             {
-                "name": "g1",
-                "description": "Test",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
+                "name": "adhoc_group",
+                "description": "",
+                "queries": [],
+                "join_key": "ID",
+                "adhoc_sql": "SELECT ID, STATUS FROM apolice",
+                "connections": ["prod_pg"],
             },
         ]
     }
@@ -651,91 +843,150 @@ async def test_group_exec_go_back_to_selection(tmp_config_dir):
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        # Simulate being in results phase
-        screen.query_one("#ge-selection-phase").display = False
-        screen.query_one("#ge-results-phase").display = True
+        screen.query_one("#group-saved-select", Select).value = "adhoc_group"
+        await pilot.pause()
 
-        screen.go_back_to_selection()
+        screen._load_group()
+        await pilot.pause()
 
-        assert screen.query_one("#ge-selection-phase").display is True
-        assert screen.query_one("#ge-results-phase").display is False
+        sql = screen.query_one("#group-sql", TextArea).text
+        assert "SELECT ID, STATUS FROM apolice" in sql
+        checklist = screen.query_one("#conn-checklist", SelectionList)
+        assert list(checklist.selected) == ["prod_pg"]
 
 
 @pytest.mark.asyncio
-async def test_group_exec_screen_with_accented_folders(tmp_config_dir):
-    """Groups with accented folders should not crash the app."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g_acc_a",
-                "description": "",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "Produ\u00e7\u00e3o",
-            },
-            {
-                "name": "g_acc_b",
-                "description": "",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["val"],
-                "folder": "Homologa\u00e7\u00e3o",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
+async def test_group_exec_handle_execute_warns_on_empty_sql(tmp_config_dir):
+    """Executar with no SQL typed should warn and never start a run."""
+    from dbqm.ui.widgets.progress import ProgressIndicator
+
+    _seed_connections(tmp_config_dir / "config")
 
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        folder_bar = screen.query_one("#ge-folder-bar")
-        assert folder_bar is not None
-        from textual.widgets import Button
-        buttons = folder_bar.query(Button)
-        assert len(buttons) >= 3
+        screen._handle_execute()
+        await pilot.pause()
+
+        messages = [str(n.message) for n in app._notifications]
+        assert any("sql" in m.lower() for m in messages)
+        assert screen.query_one(ProgressIndicator).display is False
 
 
 @pytest.mark.asyncio
-async def test_group_exec_screen_with_folders(tmp_config_dir):
-    """Groups with folders should produce folder filter bar."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g_folder_a",
-                "description": "",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "Folder A",
-            },
-            {
-                "name": "g_folder_b",
-                "description": "",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["val"],
-                "folder": "Folder B",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
+async def test_group_exec_handle_execute_warns_on_no_connections_checked(tmp_config_dir):
+    """Executar with SQL but no checked connections should warn and not run."""
+    from textual.widgets import TextArea
+    from dbqm.ui.widgets.progress import ProgressIndicator
+
+    _seed_connections(tmp_config_dir / "config")
 
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        folder_bar = screen.query_one("#ge-folder-bar")
-        assert folder_bar is not None
-        from textual.widgets import Button
-        buttons = folder_bar.query(Button)
-        # "Todas" + "Folder A" + "Folder B" = 3
-        assert len(buttons) >= 3
+        screen.query_one("#group-sql", TextArea).load_text("SELECT 1 FROM DUAL")
+        await pilot.pause()
+
+        screen._handle_execute()
+        await pilot.pause()
+
+        messages = [str(n.message) for n in app._notifications]
+        assert any("conexao" in m.lower() for m in messages)
+        assert screen.query_one(ProgressIndicator).display is False
+
+
+@pytest.mark.asyncio
+async def test_group_exec_on_save_name_persists_adhoc_group(tmp_config_dir):
+    """_on_save_name (the save-as-group flow) persists a Group with the
+    current SQL and checked connections."""
+    from textual.widgets import TextArea
+    from dbqm.models.group import load_groups
+
+    _seed_connections(tmp_config_dir / "config")
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        screen.query_one("#group-sql", TextArea).load_text("SELECT ID, STATUS FROM apolice")
+        screen._populate_connections({"dev_oracle", "prod_pg"})
+        await pilot.pause()
+
+        screen._on_save_name("meu_grupo_adhoc")
+        await pilot.pause()
+
+        groups = {g.name: g for g in load_groups()}
+        assert "meu_grupo_adhoc" in groups
+        saved = groups["meu_grupo_adhoc"]
+        assert saved.adhoc_sql == "SELECT ID, STATUS FROM apolice"
+        assert sorted(saved.connections) == ["dev_oracle", "prod_pg"]
+
+
+@pytest.mark.asyncio
+async def test_group_exec_save_selection_warns_when_incomplete(tmp_config_dir):
+    """_save_selection should warn (and not push a naming dialog) when SQL
+    or the connection checklist is empty."""
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+        base_stack_len = len(app.screen_stack)
+
+        screen._save_selection()
+        await pilot.pause()
+
+        messages = [str(n.message) for n in app._notifications]
+        assert any("sql" in m.lower() for m in messages)
+        assert len(app.screen_stack) == base_stack_len
+
+
+@pytest.mark.asyncio
+async def test_group_exec_execute_runs_per_connection_and_builds_comparison(
+    tmp_config_dir, monkeypatch
+):
+    """Running the worker against two fake connections invokes execute_adhoc
+    per connection and produces a real comparison rendered in #group-results."""
+    from dbqm.core.query_engine import AdhocResult
+
+    _seed_connections(tmp_config_dir / "config")
+
+    calls: list[tuple[str, str]] = []
+
+    def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
+        calls.append((sql, conn.name))
+        rows = [[1, "ok"], [2, "fail"]] if conn.name == "dev_oracle" else [[1, "ok"], [2, "ok"]]
+        return AdhocResult(
+            sql_type="SELECT",
+            connection_name=conn.name,
+            columns=["ID", "STATUS"],
+            rows=rows,
+            row_count=len(rows),
+        )
+
+    monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
+
+    app = GroupExecTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupExecScreen)
+
+        worker = screen._run("SELECT ID, STATUS FROM t", ["dev_oracle", "prod_pg"])
+        await worker.wait()
+        await pilot.pause()
+
+        # execute_adhoc was invoked once per checked connection.
+        assert sorted(calls) == [
+            ("SELECT ID, STATUS FROM t", "dev_oracle"),
+            ("SELECT ID, STATUS FROM t", "prod_pg"),
+        ]
+
+        grw = screen.query_one("#group-results", GroupResultWidget)
+        gr = grw.group_result
+        assert gr is not None
+        assert set(gr.query_results.keys()) == {"dev_oracle", "prod_pg"}
+        assert gr.all_match is False
+        assert len(gr.comparisons) == 1
+        comp = gr.comparisons[0]
+        assert comp.column == "STATUS"
+        assert comp.diff_count == 1
+        assert comp.equal_count == 1
 
 
 @pytest.mark.asyncio
@@ -802,15 +1053,39 @@ async def test_adhoc_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_adhoc_screen_has_input_phase(tmp_config_dir):
-    """AdhocScreen should show input phase on mount."""
+async def test_adhoc_has_params_editor_results_panels(tmp_config_dir):
+    """AdhocScreen renders three simultaneous panels + a results sub-toggle."""
+    from dbqm.ui.widgets.panel import Panel
+    from textual.widgets import ContentSwitcher, Select, TextArea
+
     app = AdhocTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
-        input_phase = screen.query_one("#adhoc-input-phase")
-        assert input_phase.display is True
-        results_phase = screen.query_one("#adhoc-results-phase")
-        assert results_phase.display is False
+        titles = [
+            p.query_one("#panel-title").render().plain for p in screen.query(Panel)
+        ]
+        assert any("PARAMETROS" in t for t in titles)
+        assert any("SQL EDITOR" in t for t in titles)
+        assert any("RESULTADOS" in t for t in titles)
+        # Results sub-toggle: a ContentSwitcher with table + output panes.
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
+        assert switcher is not None
+        assert screen.query_one("#res-table") is not None
+        assert screen.query_one("#res-output") is not None
+        # Params panel keeps the connection Select; editor keeps the TextArea.
+        assert screen.query_one("#adhoc-conn-select", Select) is not None
+        assert screen.query_one("#adhoc-sql-area", TextArea) is not None
+
+
+@pytest.mark.asyncio
+async def test_adhoc_screen_starts_on_table_view(tmp_config_dir):
+    """The results sub-toggle starts on the Tabela (res-table) view."""
+    from textual.widgets import ContentSwitcher
+    app = AdhocTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(AdhocScreen)
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
+        assert switcher.current == "res-table"
 
 
 @pytest.mark.asyncio
@@ -844,24 +1119,26 @@ async def test_adhoc_screen_has_buttons(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_adhoc_screen_go_back_to_input(tmp_config_dir):
-    """go_back_to_input should show input and hide results."""
+async def test_adhoc_results_sub_toggle_switches_views(tmp_config_dir):
+    """The Tabela/Output buttons flip the results ContentSwitcher."""
+    from textual.widgets import Button, ContentSwitcher
     app = AdhocTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
-        # Simulate being in results phase
-        screen.query_one("#adhoc-input-phase").display = False
-        screen.query_one("#adhoc-results-phase").display = True
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
 
-        screen.go_back_to_input()
+        screen.query_one("#res-btn-output", Button).press()
+        await pilot.pause()
+        assert switcher.current == "res-output"
 
-        assert screen.query_one("#adhoc-input-phase").display is True
-        assert screen.query_one("#adhoc-results-phase").display is False
+        screen.query_one("#res-btn-table", Button).press()
+        await pilot.pause()
+        assert switcher.current == "res-table"
 
 
 @pytest.mark.asyncio
-async def test_adhoc_screen_go_back_cleans_connection(tmp_config_dir):
-    """go_back_to_input should rollback and close any open DML connection."""
+async def test_adhoc_unmount_cleans_connection(tmp_config_dir):
+    """Leaving the screen should rollback and close any open DML connection."""
     app = AdhocTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
@@ -877,10 +1154,8 @@ async def test_adhoc_screen_go_back_cleans_connection(tmp_config_dir):
 
         mock = MockConn()
         screen._db_connection = mock
-        screen.query_one("#adhoc-input-phase").display = False
-        screen.query_one("#adhoc-results-phase").display = True
 
-        screen.go_back_to_input()
+        screen.on_unmount()
 
         assert mock.rolled_back is True
         assert mock.closed is True
@@ -916,9 +1191,11 @@ async def test_adhoc_plsql_result_shows_static(tmp_config_dir):
         )
         screen._on_sql_result(result)
 
-        assert screen.query_one("#adhoc-results-phase").display is True
+        from textual.widgets import ContentSwitcher
+        # PL/SQL routes to the Output view; the DML/message static shows there.
+        assert screen.query_one("#res-switcher", ContentSwitcher).current == "res-output"
         assert screen.query_one("#adhoc-dml-result").display is True
-        assert screen.query_one("#adhoc-result-table").display is False
+        assert screen.query_one("#res-table").display is False
 
 
 @pytest.mark.asyncio
@@ -963,8 +1240,12 @@ async def test_adhoc_dbms_panel_hidden_initially(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_adhoc_select_shows_dbms_panel_when_capture_enabled(tmp_config_dir):
-    """A SELECT with capture on shows the result table AND the DBMS panel."""
-    from textual.widgets import TextArea
+    """A SELECT with capture on loads the table AND populates the DBMS panel.
+
+    With the results sub-toggle, DBMS output routes the view to Output; the
+    table stays loaded and reachable via the Tabela button.
+    """
+    from textual.widgets import Button, ContentSwitcher, TextArea
     from dbqm.core.query_engine import AdhocResult
     app = AdhocTestApp()
     async with app.run_test() as pilot:
@@ -979,12 +1260,21 @@ async def test_adhoc_select_shows_dbms_panel_when_capture_enabled(tmp_config_dir
         screen._on_sql_result(result)
         await pilot.pause()
 
-        assert screen.query_one("#adhoc-result-table").display is True
+        # DBMS output present -> Output view is selected.
+        switcher = screen.query_one("#res-switcher", ContentSwitcher)
+        assert switcher.current == "res-output"
         panel = screen.query_one("#adhoc-dbms-panel")
         assert panel.display is True
         view = screen.query_one("#adhoc-dbms-view", TextArea)
         assert "log A" in view.text
         assert "log B" in view.text
+
+        # The table is still loaded and reachable via the Tabela toggle.
+        from dbqm.ui.widgets.result_table import ResultTable
+        screen.query_one("#res-btn-table", Button).press()
+        await pilot.pause()
+        assert switcher.current == "res-table"
+        assert screen.query_one("#res-table", ResultTable).display is True
 
 
 @pytest.mark.asyncio
@@ -1172,112 +1462,6 @@ async def test_adhoc_screen_execute_enabled_when_conn_and_sql(tmp_config_dir):
 
 
 # ======================================================================
-# DDLScreen tests
-# ======================================================================
-
-from dbqm.ui.screens.ddl import DDLScreen
-
-
-class DDLTestApp(App):
-    def compose(self) -> ComposeResult:
-        yield DDLScreen()
-
-
-@pytest.mark.asyncio
-async def test_ddl_screen_renders(tmp_config_dir):
-    app = DDLTestApp()
-    async with app.run_test() as pilot:
-        assert app.query_one(DDLScreen) is not None
-
-
-@pytest.mark.asyncio
-async def test_ddl_screen_has_input_phase(tmp_config_dir):
-    """DDLScreen should show input phase on mount."""
-    app = DDLTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(DDLScreen)
-        input_phase = screen.query_one("#ddl-input-phase")
-        assert input_phase.display is True
-        results_phase = screen.query_one("#ddl-results-phase")
-        assert results_phase.display is False
-
-
-@pytest.mark.asyncio
-async def test_ddl_screen_has_object_input(tmp_config_dir):
-    """DDLScreen should have an Input for object name."""
-    app = DDLTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(DDLScreen)
-        obj_input = screen.query_one("#ddl-object-input", Input)
-        assert obj_input is not None
-
-
-@pytest.mark.asyncio
-async def test_ddl_screen_has_extract_button(tmp_config_dir):
-    """DDLScreen should have an extract button."""
-    app = DDLTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(DDLScreen)
-        from textual.widgets import Button
-        extract_btn = screen.query_one("#ddl-extract", Button)
-        assert extract_btn is not None
-
-
-@pytest.mark.asyncio
-async def test_ddl_screen_go_back_to_input(tmp_config_dir):
-    """go_back_to_input should show input and hide results."""
-    app = DDLTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(DDLScreen)
-        # Simulate being in results phase
-        screen.query_one("#ddl-input-phase").display = False
-        screen.query_one("#ddl-results-phase").display = True
-
-        screen.go_back_to_input()
-
-        assert screen.query_one("#ddl-input-phase").display is True
-        assert screen.query_one("#ddl-results-phase").display is False
-
-
-@pytest.mark.asyncio
-async def test_ddl_screen_connection_selector(tmp_config_dir):
-    """DDLScreen should have a connection selector with supported connections."""
-    config_dir = tmp_config_dir / "config"
-    conn_data = {
-        "connections": [
-            {
-                "name": "oracle_conn",
-                "db_type": "oracle",
-                "mode": "direct",
-                "host": "localhost",
-                "port": 1521,
-                "service_name": "ORCL",
-                "user": "admin",
-                "password": "pass",
-            },
-            {
-                "name": "sqlite_conn",
-                "db_type": "sqlite",
-                "host": "",
-                "port": 0,
-                "database": "test.db",
-                "user": "",
-                "password": "",
-            },
-        ]
-    }
-    (config_dir / "connections.json").write_text(
-        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = DDLTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(DDLScreen)
-        select_widget = screen.query_one("#ddl-conn-select", Select)
-        assert select_widget is not None
-
-
-# ======================================================================
 # BrowserScreen tests
 # ======================================================================
 
@@ -1297,94 +1481,255 @@ async def test_browser_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_has_select_phase(tmp_config_dir):
-    """BrowserScreen should show select phase on mount."""
+async def test_browser_three_live_panels(tmp_config_dir):
+    """BrowserScreen renders three simultaneous panels + the live surfaces."""
+    from dbqm.ui.widgets.panel import Panel
+
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        select_phase = screen.query_one("#br-select-phase")
-        assert select_phase.display is True
-        list_phase = screen.query_one("#br-list-phase")
-        assert list_phase.display is False
-        detail_phase = screen.query_one("#br-detail-phase")
-        assert detail_phase.display is False
-        data_phase = screen.query_one("#br-data-phase")
-        assert data_phase.display is False
+        titles = [
+            p.query_one("#panel-title").render().plain for p in screen.query(Panel)
+        ]
+        assert any("OBJETOS" in t for t in titles)
+        assert any("COLUNAS" in t for t in titles)
+        assert any("DADOS" in t for t in titles)
+        assert screen.query_one("#obj-list") is not None
+        assert screen.query_one("#obj-columns") is not None
+        assert screen.query_one("#obj-preview") is not None
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_has_type_buttons(tmp_config_dir):
-    """BrowserScreen should have type selection buttons."""
+async def test_browser_has_conn_type_filter_and_buttons(tmp_config_dir):
+    """OBJETOS panel exposes conn + type selects, a filter input, and the
+    DADOS panel carries the Extrair DDL / Carregar mais buttons."""
     from textual.widgets import Button
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        table_btn = screen.query_one("#br-type-table", Button)
-        view_btn = screen.query_one("#br-type-view", Button)
-        assert table_btn is not None
-        assert view_btn is not None
+        assert screen.query_one("#obj-conn", Select) is not None
+        assert screen.query_one("#obj-type", Select) is not None
+        assert screen.query_one("#obj-filter", Input) is not None
+        assert screen.query_one("#obj-ddl", Button) is not None
+        assert screen.query_one("#obj-more", Button) is not None
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_has_connection_selector(tmp_config_dir):
-    """BrowserScreen should have a connection selector."""
-    config_dir = tmp_config_dir / "config"
-    conn_data = {
-        "connections": [
-            {
-                "name": "test_conn",
-                "db_type": "oracle",
-                "mode": "direct",
-                "host": "localhost",
-                "port": 1521,
-                "service_name": "ORCL",
-                "user": "admin",
-                "password": "pass",
-            },
-        ]
-    }
-    (config_dir / "connections.json").write_text(
-        json.dumps(conn_data, ensure_ascii=False), encoding="utf-8"
+async def test_browser_reload_populates_object_list(tmp_config_dir, monkeypatch):
+    """Reloading objects (via list_objects) fills the OptionList."""
+    from textual.widgets import OptionList
+
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.list_objects",
+        lambda db, db_type, obj_type: ["CLIENTE", "PEDIDO", "PRODUTO"],
     )
 
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        select_widget = screen.query_one("#br-conn-select", Select)
-        assert select_widget is not None
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "TABLE"
+
+        worker = screen._reload_objects()
+        await worker.wait()
+        await pilot.pause()
+
+        option_list = screen.query_one("#obj-list", OptionList)
+        assert option_list.option_count == 3
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_go_back_to_select(tmp_config_dir):
-    """go_back_to_select should show select and hide other phases."""
+async def test_browser_select_object_fills_columns_and_preview(
+    tmp_config_dir, monkeypatch
+):
+    """Selecting an object fires ONE worker that fills BOTH the COLUNAS table
+    (structure) and the DADOS preview (first page) — the live-update contract."""
+    from types import SimpleNamespace
+    from textual.widgets import DataTable
+    from dbqm.ui.widgets.result_table import ResultTable
+    from dbqm.core.table_browser import BrowseResult
+
+    fake_structure = SimpleNamespace(
+        table="CLIENTE",
+        elapsed=0.01,
+        indexes=[],
+        columns=[
+            SimpleNamespace(
+                name="ID", data_type="NUMBER", data_precision=10, data_scale=0,
+                data_length=None, nullable=False, is_pk=True, fk_ref=None,
+            ),
+            SimpleNamespace(
+                name="NOME", data_type="VARCHAR2", data_precision=None,
+                data_scale=None, data_length=100, nullable=True, is_pk=False,
+                fk_ref=None,
+            ),
+        ],
+    )
+    fake_browse = BrowseResult(
+        table="CLIENTE",
+        connection_name="c1",
+        columns=["ID", "NOME"],
+        rows=[[1, "Ana"], [2, "Bruno"]],
+        row_count=2,
+        total_count=2,
+        elapsed=0.02,
+        limit=100,
+        offset=0,
+    )
+
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.get_table_structure",
+        lambda db, db_type, table: fake_structure,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.table_browser.browse_table",
+        lambda db, db_type, table, conn_name, limit, offset: fake_browse,
+    )
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        # Simulate being in list phase
-        screen.query_one("#br-select-phase").display = False
-        screen.query_one("#br-list-phase").display = True
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "TABLE"
 
-        screen.go_back_to_select()
+        worker = screen._load_object("CLIENTE")
+        await worker.wait()
+        await pilot.pause()
 
-        assert screen.query_one("#br-select-phase").display is True
-        assert screen.query_one("#br-list-phase").display is False
+        columns_table = screen.query_one("#obj-columns", DataTable)
+        assert columns_table.row_count == 2  # two columns of CLIENTE
+        preview = screen.query_one("#obj-preview", ResultTable)
+        assert preview is not None
+        assert screen._selected_object == "CLIENTE"
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_go_back_to_list(tmp_config_dir):
-    """go_back_to_list should show list and hide detail."""
+async def test_browser_select_package_shows_source_no_error(
+    tmp_config_dir, monkeypatch
+):
+    """Selecting a PACKAGE fetches SOURCE text (via the ddl_extractor core
+    used by "Extrair DDL") and shows it inline — no browse_table ORA-00942,
+    no error toast."""
+    from types import SimpleNamespace
+    from dbqm.ui.widgets.sql_viewer import SqlViewer
+    from dbqm.ui.widgets.result_table import ResultTable
+    from dbqm.core.ddl_extractor import ExtractedObject, ExtractionResult
+
+    fake_result = ExtractionResult(
+        object_name="PKG_CLIENTE", object_type="PACKAGE",
+        owner="APP", connection_name="c1",
+        objects=[
+            ExtractedObject("PKG_CLIENTE", "PACKAGE SPEC", "CREATE OR REPLACE PACKAGE pkg_cliente IS ..."),
+            ExtractedObject("PKG_CLIENTE", "PACKAGE BODY", "CREATE OR REPLACE PACKAGE BODY pkg_cliente IS ..."),
+        ],
+    )
+
+    def _fake_browse_table(*args, **kwargs):
+        raise AssertionError("browse_table must not be called for PACKAGE objects")
+
+    monkeypatch.setattr(
+        "dbqm.core.ddl_extractor.extract_ddl",
+        lambda conn, name, owner_filter=None, on_progress=None: fake_result,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.list_package_routines",
+        lambda db, db_type, package: SimpleNamespace(
+            name="PKG_CLIENTE", owner="APP",
+            routines=[
+                SimpleNamespace(name="GET_NOME", routine_type="FUNCTION", signature="(p_id NUMBER) RETURN VARCHAR2"),
+            ],
+        ),
+    )
+    monkeypatch.setattr("dbqm.core.table_browser.browse_table", _fake_browse_table)
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        # Simulate being in detail phase
-        screen.query_one("#br-select-phase").display = False
-        screen.query_one("#br-list-phase").display = False
-        screen.query_one("#br-detail-phase").display = True
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "PACKAGE"
 
-        screen.go_back_to_list()
+        worker = screen._load_object("PKG_CLIENTE")
+        await worker.wait()
+        await pilot.pause()
 
-        assert screen.query_one("#br-list-phase").display is True
-        assert screen.query_one("#br-detail-phase").display is False
+        source_view = screen.query_one("#obj-source", SqlViewer)
+        assert "pkg_cliente" in source_view._sql
+        assert source_view.display is True
+        preview = screen.query_one("#obj-preview", ResultTable)
+        assert preview.display is False
+
+        error_notifications = [
+            n for n in app._notifications if n.severity == "error"
+        ]
+        assert error_notifications == []
+
+
+@pytest.mark.asyncio
+async def test_browser_select_table_shows_table_view(tmp_config_dir, monkeypatch):
+    """The table view (#obj-preview) is used for TABLE, and toggling back
+    from a previous PACKAGE selection hides the source view again."""
+    from types import SimpleNamespace
+    from dbqm.core.table_browser import BrowseResult
+    from dbqm.ui.widgets.sql_viewer import SqlViewer
+    from dbqm.ui.widgets.result_table import ResultTable
+
+    fake_structure = SimpleNamespace(
+        table="CLIENTE", elapsed=0.01, indexes=[],
+        columns=[
+            SimpleNamespace(
+                name="ID", data_type="NUMBER", data_precision=10, data_scale=0,
+                data_length=None, nullable=False, is_pk=True, fk_ref=None,
+            ),
+        ],
+    )
+    fake_browse = BrowseResult(
+        table="CLIENTE", connection_name="c1", columns=["ID"],
+        rows=[[1]], row_count=1, total_count=1, elapsed=0.01,
+        limit=100, offset=0,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.get_table_structure",
+        lambda db, db_type, table: fake_structure,
+    )
+    monkeypatch.setattr(
+        "dbqm.core.table_browser.browse_table",
+        lambda db, db_type, table, conn_name, limit, offset: fake_browse,
+    )
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "TABLE"
+
+        worker = screen._load_object("CLIENTE")
+        await worker.wait()
+        await pilot.pause()
+
+        preview = screen.query_one("#obj-preview", ResultTable)
+        source_view = screen.query_one("#obj-source", SqlViewer)
+        assert preview.display is True
+        assert source_view.display is False
 
 
 @pytest.mark.asyncio
@@ -1427,8 +1772,32 @@ async def test_history_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_history_shows_table_and_detail_together(tmp_config_dir):
+    """Table and detail panel are both visible at once — no phase swap."""
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        assert screen.query_one("#hist-table").display
+        assert screen.query_one("#hist-detail").display
+
+
+@pytest.mark.asyncio
+async def test_history_panels_have_titles(tmp_config_dir):
+    """HISTORICO and DETALHES panels both exist."""
+    from dbqm.ui.widgets.panel import Panel
+
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        panels = screen.query(Panel)
+        titles = [p.query_one("#panel-title").render().plain for p in panels]
+        assert any("HISTORICO" in t for t in titles)
+        assert any("DETALHES" in t for t in titles)
+
+
+@pytest.mark.asyncio
 async def test_history_screen_empty(tmp_config_dir):
-    """With no history, should show empty message and hide table."""
+    """With no history, should show empty message; table stays docked/visible."""
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
@@ -1436,7 +1805,8 @@ async def test_history_screen_empty(tmp_config_dir):
         assert empty.display is True
         from textual.widgets import DataTable
         table = screen.query_one("#hist-table", DataTable)
-        assert table.display is False
+        assert table.display is True
+        assert table.row_count == 0
 
 
 @pytest.mark.asyncio
@@ -1480,29 +1850,13 @@ async def test_history_screen_with_data(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_history_screen_detail_hidden_initially(tmp_config_dir):
-    """Detail phase should be hidden on mount."""
+async def test_history_screen_detail_visible_initially(tmp_config_dir):
+    """Detail panel is docked and visible on mount (no phase swap)."""
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
-        detail = screen.query_one("#hist-detail-phase")
-        assert detail.display is False
-
-
-@pytest.mark.asyncio
-async def test_history_screen_go_back_to_list(tmp_config_dir):
-    """go_back_to_list should show list and hide detail."""
-    app = HistoryTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(HistoryScreen)
-        # Simulate being in detail phase
-        screen.query_one("#hist-list-phase").display = False
-        screen.query_one("#hist-detail-phase").display = True
-
-        screen.go_back_to_list()
-
-        assert screen.query_one("#hist-list-phase").display is True
-        assert screen.query_one("#hist-detail-phase").display is False
+        detail = screen.query_one("#hist-detail")
+        assert detail.display is True
 
 
 # ======================================================================
@@ -1575,6 +1929,54 @@ async def test_settings_screen_loads_saved_settings(tmp_config_dir):
         assert theme_select.value == "github-light"
         audit_switch = screen.query_one("#settings-audit-switch", Switch)
         assert audit_switch.value is True
+
+
+@pytest.mark.asyncio
+async def test_settings_two_column_panels(tmp_config_dir):
+    """CONFIG DA APLICACAO and PORTABILIDADE panels both exist."""
+    from dbqm.ui.widgets.panel import Panel
+
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        panels = screen.query(Panel)
+        titles = [p.query_one("#panel-title").render().plain for p in panels]
+        assert any("CONFIG DA APLICACAO" in t for t in titles)
+        assert any("PORTABILIDADE" in t for t in titles)
+        assert any("FERNET KEY" in t for t in titles)
+
+
+@pytest.mark.asyncio
+async def test_settings_export_import_buttons_in_panel(tmp_config_dir):
+    """Export/import buttons and theme select exist and route through panel bodies."""
+    from dbqm.ui.widgets.panel import Panel
+    from textual.widgets import Button
+
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        theme_select = screen.query_one("#settings-theme-select", Select)
+        export_btn = screen.query_one("#btn-export", Button)
+        import_btn = screen.query_one("#btn-import", Button)
+        assert theme_select is not None
+        assert export_btn is not None
+        assert import_btn is not None
+
+        # Every widget of interest lives inside a Panel's #panel-body — no
+        # leftover .settings-section box-in-box container remains.
+        for widget in (theme_select, export_btn, import_btn):
+            panel = next(a for a in widget.ancestors if isinstance(a, Panel))
+            body = panel.query_one("#panel-body")
+            assert widget in body.query("*") or widget.parent is body or body in widget.ancestors
+
+
+@pytest.mark.asyncio
+async def test_settings_no_settings_section_boxes(tmp_config_dir):
+    """The old box-in-box `.settings-section` styling is gone."""
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        assert len(screen.query(".settings-section")) == 0
 
 
 # ======================================================================
@@ -1768,48 +2170,6 @@ async def test_query_exec_folder_arrow_navigation(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_group_exec_folder_arrow_navigation(tmp_config_dir):
-    """Left/Right arrows should switch folder tabs in group exec."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g1",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "F1",
-            },
-            {
-                "name": "g2",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "folder": "F2",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        # Should have folder buttons: Todas + F1 + F2
-        assert len(screen._folder_buttons) >= 3
-        assert screen._active_folder_idx == 0
-        # Right arrow should advance
-        await pilot.press("right")
-        assert screen._active_folder_idx == 1
-        await pilot.press("right")
-        assert screen._active_folder_idx == 2
-        # Left arrow should go back
-        await pilot.press("left")
-        assert screen._active_folder_idx == 1
-
-
-@pytest.mark.asyncio
 async def test_query_list_shows_all_items(tmp_config_dir):
     """All queries should render in the list, not just one."""
     config_dir = tmp_config_dir / "config"
@@ -1832,32 +2192,6 @@ async def test_query_list_shows_all_items(tmp_config_dir):
         from dbqm.ui.widgets.query_list import _QueryListItem
         items = app.query(_QueryListItem)
         assert len(items) == 10
-
-
-@pytest.mark.asyncio
-async def test_group_list_shows_all_items(tmp_config_dir):
-    """All groups should render in the list, not just one."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": f"g{i}",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-            }
-            for i in range(8)
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        from dbqm.ui.screens.group_exec import _GroupListItem
-        items = app.query(_GroupListItem)
-        assert len(items) == 8
 
 
 # ======================================================================
@@ -2240,8 +2574,9 @@ async def test_history_detail_view_with_params(tmp_config_dir):
         assert table.row_count == 1
         # Show detail for the entry
         screen._show_detail(entries[0])
-        detail = screen.query_one("#hist-detail-phase")
+        detail = screen.query_one("#hist-detail")
         assert detail.display is True
+        assert "param_query" in detail.render().plain
 
 
 @pytest.mark.asyncio
@@ -2267,8 +2602,9 @@ async def test_history_detail_view_group_entry(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
         screen._show_detail(entries[0])
-        detail = screen.query_one("#hist-detail-phase")
+        detail = screen.query_one("#hist-detail")
         assert detail.display is True
+        assert "comparison_group" in detail.render().plain
 
 
 # ======================================================================
@@ -2298,85 +2634,42 @@ async def test_settings_theme_change_saves(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_group_exec_show_result_does_not_crash(tmp_config_dir):
-    """_show_result should display group results without AttributeError."""
-    from dbqm.ui.widgets.action_bar import ActionBar
+async def test_group_exec_show_result_renders_comparison(tmp_config_dir):
+    """_show_result feeds a GroupResult (built from AdhocResults) into the
+    comparison widget without crashing."""
+    from dbqm.core.query_engine import AdhocResult
 
-    qr1 = QR(
-        query_name="q1", connection_name="c1",
-        columns=["id", "status"], rows=[[1, "ok"], [2, "fail"]],
-        row_count=2, elapsed=0.1,
+    r1 = AdhocResult(
+        sql_type="SELECT", connection_name="c1",
+        columns=["id", "status"], rows=[[1, "ok"], [2, "fail"]], row_count=2,
     )
-    qr2 = QR(
-        query_name="q2", connection_name="c2",
-        columns=["id", "status"], rows=[[1, "ok"], [2, "ok"]],
-        row_count=2, elapsed=0.1,
+    r2 = AdhocResult(
+        sql_type="SELECT", connection_name="c2",
+        columns=["id", "status"], rows=[[1, "ok"], [2, "ok"]], row_count=2,
     )
     comp = ComparisonResult(
         column="status",
         rows=[
-            ComparisonRow(key_value=1, values={"q1": "ok", "q2": "ok"}, status="OK"),
-            ComparisonRow(key_value=2, values={"q1": "fail", "q2": "ok"}, status="DIFF"),
+            ComparisonRow(key_value=1, values={"c1": "ok", "c2": "ok"}, status="OK"),
+            ComparisonRow(key_value=2, values={"c1": "fail", "c2": "ok"}, status="DIFF"),
         ],
         total_keys=2, equal_count=1, diff_count=1, absent_count=0, normalized_count=0,
     )
     gr = GR(
-        group_name="test_group",
-        query_results={"q1": qr1, "q2": qr2},
+        group_name="(ad-hoc)",
+        query_results={"c1": r1, "c2": r2},
         comparisons=[comp],
         all_match=False,
-        summary_lines=["Coluna: status", "  Iguais: 1", "  Diferentes: 1"],
-    )
-
-    class TestApp(App):
-        def compose(self_):
-            yield ActionBar()
-            yield GroupExecScreen()
-
-    app = TestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        # Directly call _show_result — this is where the bug was
-        screen._show_result(gr, {"param1": "value1"})
-        await pilot.pause()
-
-        # Results phase should be visible
-        assert screen.query_one("#ge-results-phase").display is True
-        assert screen.query_one("#ge-selection-phase").display is False
-
-
-@pytest.mark.asyncio
-async def test_group_exec_folder_bar_is_horizontal_scroll(tmp_config_dir):
-    """Group exec folder bar should use HorizontalScroll for scrollability."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "g1",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["s"],
-                "folder": "A",
-            },
-            {
-                "name": "g2",
-                "queries": ["q1"],
-                "join_key": "id",
-                "compare_columns": ["s"],
-                "folder": "B",
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
     )
 
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
-        from textual.containers import HorizontalScroll
         screen = app.query_one(GroupExecScreen)
-        folder_bar = screen.query_one("#ge-folder-bar")
-        assert isinstance(folder_bar, HorizontalScroll)
+        screen._show_result(gr)
+        await pilot.pause()
+
+        grw = screen.query_one("#group-results", GroupResultWidget)
+        assert grw.group_result is gr
 
 
 # ======================================================================
@@ -2385,165 +2678,37 @@ async def test_group_exec_folder_bar_is_horizontal_scroll(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_connection_form_modal_opens(tmp_config_dir):
-    """Pressing N on connections screen should open the connection form modal."""
+async def test_connections_n_shortcut_clears_embedded_form(tmp_config_dir):
+    """The Nova action (bound to the 'N' shortcut) clears the embedded
+    EDICAO form (the master-detail layout handles 'new' inline, not via a
+    modal). Drives the action through the same message the app-level 'n'
+    keybinding posts, since headless pilot key-routing doesn't switch tabs."""
+    from dbqm.models.connection import Connection, save_connections
+    from dbqm.core.crypto import encrypt
     from dbqm.ui.app import DBQMApp
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
     from dbqm.ui.screens.connections import ConnectionsScreen
+    from dbqm.ui.widgets.action_bar import ActionSelected
+
+    save_connections([
+        Connection(name="test_conn", db_type="oracle", mode="direct",
+                   host="localhost", port=1521, service_name="ORCL",
+                   user="admin", password=encrypt("pass")),
+    ])
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        # Navigate to connections
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
         await pilot.pause()
 
-        # Trigger the "new" action directly (simulates the N shortcut)
         conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_new()
+        conn_screen._select_in_list("test_conn")
         await pilot.pause()
-        await pilot.pause()
+        assert conn_screen.query_one("#conn-form-name", Input).value == "test_conn"
 
-        # Modal should be on the screen stack
-        modal_screens = [
-            s for s in app.screen_stack
-            if isinstance(s, ConnectionFormModal)
-        ]
-        assert len(modal_screens) > 0, "ConnectionFormModal should have opened"
-
-
-@pytest.mark.asyncio
-async def test_connection_form_modal_closes_on_esc(tmp_config_dir):
-    """ESC should close the connection form modal."""
-    from dbqm.ui.app import DBQMApp
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
-    from dbqm.ui.screens.connections import ConnectionsScreen
-
-    app = DBQMApp()
-    async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
+        conn_screen.on_action_selected(ActionSelected("conn_new"))
         await pilot.pause()
 
-        # Open the modal via direct call
-        conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_new()
-        await pilot.pause()
-        await pilot.pause()
-
-        # Press ESC to close
-        await pilot.press("escape")
-        await pilot.pause()
-
-        # Modal should be gone from the screen stack
-        modal_screens = [
-            s for s in app.screen_stack
-            if isinstance(s, ConnectionFormModal)
-        ]
-        assert len(modal_screens) == 0
-
-
-@pytest.mark.asyncio
-async def test_connection_form_collects_description(tmp_config_dir):
-    """ConnectionFormModal should expose a description TextArea and round-trip it."""
-    from textual.app import App, ComposeResult
-    from textual.widgets import TextArea, Select
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
-
-    captured = {}
-
-    class _App(App):
-        def on_mount(self):
-            modal = ConnectionFormModal(connection={
-                "name": "edit_target",
-                "db_type": "postgresql",
-                "host": "h", "port": 5432, "database": "db",
-                "user": "u", "password": "encrypted",
-                "description": "Banco de homologacao\nContato: dba@example.com",
-            })
-
-            def on_dismiss(value):
-                captured["result"] = value
-                self.exit()
-
-            self.push_screen(modal, callback=on_dismiss)
-
-    app = _App()
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        modal = next(s for s in app.screen_stack if isinstance(s, ConnectionFormModal))
-
-        # TextArea exists and is pre-filled from the input dict.
-        desc = modal.query_one("#field-description", TextArea)
-        assert "homologacao" in desc.text
-        assert "dba@example.com" in desc.text
-
-        # Replace the contents to verify the form captures the new value on save.
-        desc.text = "Apenas leitura - cuidado com DML"
-        await pilot.pause()
-
-        modal._collect_values()  # smoke check it runs without error
-        # Trigger Save via the public path.
-        from textual.widgets import Button
-        modal.query_one("#btn-save", Button).press()
-        await pilot.pause()
-
-    assert captured["result"] is not None
-    assert captured["result"]["description"] == "Apenas leitura - cuidado com DML"
-
-
-@pytest.mark.asyncio
-async def test_connection_form_db_type_selection(tmp_config_dir):
-    """Selecting a db type should populate dynamic fields without crash."""
-    from dbqm.ui.app import DBQMApp
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
-    from dbqm.ui.screens.connections import ConnectionsScreen
-
-    app = DBQMApp()
-    async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
-        await pilot.pause()
-
-        # Open the modal via direct call
-        conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_new()
-        await pilot.pause()
-        await pilot.pause()
-
-        # Find the modal on the screen stack
-        modal = None
-        for s in app.screen_stack:
-            if isinstance(s, ConnectionFormModal):
-                modal = s
-                break
-        assert modal is not None, "ConnectionFormModal should be open"
-
-        # Select postgresql type
-        db_select = modal.query_one("#field-db-type", Select)
-        db_select.value = "postgresql"
-        await pilot.pause()
-        await pilot.pause()
-
-        # Should have host, port, database, user, password fields
-        inputs = modal.query(Input)
-        # Should have at least: name + host + port + database + user + password = 6
-        assert len(inputs) >= 5
+        assert conn_screen.query_one("#conn-form-name", Input).value == ""
+        assert conn_screen.query_one("#conn-form-type", Select).value == Select.NULL
 
 
 @pytest.mark.asyncio
@@ -2554,12 +2719,7 @@ async def test_query_exec_shortcut_keys(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "exec_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f7")
         await pilot.pause()
         await pilot.pause()
 
@@ -2575,12 +2735,7 @@ async def test_settings_screen_theme_selector(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "settings":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f6")
         await pilot.pause()
         await pilot.pause()
 
@@ -2590,61 +2745,52 @@ async def test_settings_screen_theme_selector(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_all_sidebar_items_open_without_crash(tmp_config_dir):
-    """Every sidebar item should load its screen without crashing."""
+async def test_all_tabs_open_without_crash(tmp_config_dir):
+    """Switching to every tab should host its screen without crashing."""
     from dbqm.ui.app import DBQMApp
 
-    actions_to_test = [
-        "exec_query", "adhoc_sql", "config_query",
-        "exec_group", "config_group",
-        "extract_ddl", "browse", "history",
-        "config_conn", "settings",
+    tabs_to_test = [
+        "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8",
     ]
 
-    for action in actions_to_test:
-        app = DBQMApp()
-        async with app.run_test(size=(120, 40)) as pilot:
-            sidebar = app.query_one("Sidebar")
-            for i, item in enumerate(sidebar._focusable_items):
-                if item._action == action:
-                    sidebar._selected_index = i
-                    break
-            sidebar.key_enter()
-            await pilot.pause()
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        for key in tabs_to_test:
+            await pilot.press(key)
             await pilot.pause()
             # Just verify no crash
 
 
 @pytest.mark.asyncio
 async def test_query_manage_view_sql(tmp_config_dir):
-    """View SQL shortcut should work on query manage screen."""
+    """View SQL action should open a modal on the query manage screen.
+
+    QueryManageScreen is no longer a top-level tab, so it is exercised
+    directly inside a tiny host App.
+    """
     from dbqm.models.query import Query, save_queries
-    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.action_bar import ActionSelected
 
     save_queries([
         Query(name="test_q", connection="c1", sql="SELECT 1 FROM dual", table="dual"),
     ])
 
-    app = DBQMApp()
+    app = QueryManageTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        screen = app.query_one(QueryManageScreen)
+        screen.on_action_selected(ActionSelected("qm_view_sql"))
         await pilot.pause()
         await pilot.pause()
-        # No crash = success
+        assert len(app.screen_stack) > 1  # Modal opened
 
 
 @pytest.mark.asyncio
 async def test_edit_connection_opens(tmp_config_dir):
-    """Editing an existing connection should open modal without crash."""
+    """Editing an existing connection loads it into the embedded EDICAO
+    form (no modal — the whole point of the master-detail redesign)."""
     from dbqm.models.connection import Connection, save_connections
     from dbqm.core.crypto import encrypt
     from dbqm.ui.app import DBQMApp
-    from dbqm.ui.modals.connection_form import ConnectionFormModal
     from dbqm.ui.screens.connections import ConnectionsScreen
 
     save_connections([
@@ -2655,27 +2801,22 @@ async def test_edit_connection_opens(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_conn":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
         await pilot.pause()
 
-        # Trigger edit directly (simulates the E shortcut)
+        # Select the connection in the list (simulates clicking/Enter on it)
         conn_screen = app.query_one(ConnectionsScreen)
-        conn_screen._handle_edit()
+        option_list = conn_screen.query_one("#conn-list")
+        option_list.focus()
+        option_list.highlighted = 0
+        await pilot.pause()
+        await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
 
-        # Modal should be on the screen stack with pre-filled fields
-        modal_screens = [
-            s for s in app.screen_stack
-            if isinstance(s, ConnectionFormModal)
-        ]
-        assert len(modal_screens) > 0
+        # No modal pushed — the embedded form is pre-filled in place.
+        assert len(app.screen_stack) == 1
+        assert conn_screen.query_one("#conn-form-name", Input).value == "test_conn"
+        assert conn_screen.query_one("#conn-form-host", Input).value == "localhost"
 
 
 # ======================================================================
@@ -2786,53 +2927,38 @@ def test_generate_wizard_template_no_params():
 # ======================================================================
 
 
-# --- 1. Sidebar keyboard navigation ---
+# --- 1. Tab navigation ---
 
 
 @pytest.mark.asyncio
-async def test_sidebar_up_down_navigation(tmp_config_dir):
-    """Arrow keys navigate sidebar items."""
+async def test_f_keys_switch_between_tabs(tmp_config_dir):
+    """F-keys switch the active tab."""
     from dbqm.ui.app import DBQMApp
+    from textual.widgets import TabbedContent
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        sidebar.focus()
-        initial = sidebar._selected_index
-        sidebar.key_down()
-        assert sidebar._selected_index == initial + 1
-        sidebar.key_up()
-        assert sidebar._selected_index == initial
+        await pilot.press("f1")
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-coleta"
+        await pilot.press("f5")
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
 
 
 @pytest.mark.asyncio
-async def test_sidebar_home_end(tmp_config_dir):
-    """Home/End jump to first/last item."""
+async def test_templates_sidebar_collapse_toggle_via_shortcut(tmp_config_dir):
+    """Ctrl+B toggles the Templates sidebar."""
     from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        sidebar.focus()
-        sidebar.key_end()
-        assert sidebar._selected_index == len(sidebar._focusable_items) - 1
-        sidebar.key_home()
-        assert sidebar._selected_index == 0
-
-
-@pytest.mark.asyncio
-async def test_sidebar_collapse_toggle_via_shortcut(tmp_config_dir):
-    """Ctrl+B toggles sidebar collapse."""
-    from dbqm.ui.app import DBQMApp
-
-    app = DBQMApp()
-    async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        assert not sidebar.collapsed
+        sidebar = app.query_one(TemplatesSidebar)
+        # Starts collapsed (clean initial screen); Ctrl+B reveals it.
+        assert sidebar.has_class("-collapsed")
         await pilot.press("ctrl+b")
-        assert sidebar.collapsed
+        assert not sidebar.has_class("-collapsed")
         await pilot.press("ctrl+b")
-        assert not sidebar.collapsed
+        assert sidebar.has_class("-collapsed")
 
 
 # --- 2. Help modal ---
@@ -2871,12 +2997,7 @@ async def test_query_exec_loads_queries(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "exec_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f7")
         await pilot.pause()
         await pilot.pause()
         items = app.query(_QueryListItem)
@@ -2897,12 +3018,7 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "exec_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f7")
         await pilot.pause()
         await pilot.pause()
         screen = app.query_one(QueryExecScreen)
@@ -2918,23 +3034,19 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_manage_view_sql_shortcut(tmp_config_dir):
-    """V shortcut opens SQL viewer modal."""
+    """View SQL action opens the SQL viewer modal.
+
+    QueryManageScreen is no longer a top-level tab; drive it directly.
+    """
     from dbqm.models.query import Query, save_queries
-    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.action_bar import ActionSelected
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1 FROM dual", table="dual")])
 
-    app = DBQMApp()
+    app = QueryManageTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
-        await pilot.pause()
-        await pilot.press("v")
+        screen = app.query_one(QueryManageScreen)
+        screen.on_action_selected(ActionSelected("qm_view_sql"))
         await pilot.pause()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # Modal opened
@@ -2942,23 +3054,19 @@ async def test_query_manage_view_sql_shortcut(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_manage_rename_shortcut(tmp_config_dir):
-    """R shortcut opens rename modal."""
+    """Rename action opens the rename modal.
+
+    QueryManageScreen is no longer a top-level tab; drive it directly.
+    """
     from dbqm.models.query import Query, save_queries
-    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.widgets.action_bar import ActionSelected
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1", table="t1")])
 
-    app = DBQMApp()
+    app = QueryManageTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "config_query":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
-        await pilot.pause()
-        await pilot.press("r")
+        screen = app.query_one(QueryManageScreen)
+        screen.on_action_selected(ActionSelected("qm_rename"))
         await pilot.pause()
         await pilot.pause()
         assert len(app.screen_stack) > 1
@@ -2982,12 +3090,7 @@ async def test_history_shows_entries(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "history":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f5")
         await pilot.pause()
         await pilot.pause()
         screen = app.query_one(HistoryScreen)
@@ -2997,7 +3100,7 @@ async def test_history_shows_entries(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_detail_view(tmp_config_dir):
-    """Enter on history row shows detail."""
+    """Highlighting a history row updates the docked detail panel."""
     from dbqm.core.history import record_query_execution
     from dbqm.ui.app import DBQMApp
     from dbqm.ui.screens.history import HistoryScreen
@@ -3009,19 +3112,13 @@ async def test_history_detail_view(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "history":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f5")
         await pilot.pause()
-        await pilot.pause()
-        await pilot.press("enter")
         await pilot.pause()
         screen = app.query_one(HistoryScreen)
-        detail = screen.query_one("#hist-detail-phase")
+        detail = screen.query_one("#hist-detail")
         assert detail.display is True
+        assert "test_q" in detail.render().plain
 
 
 # --- 6. Settings ---
@@ -3035,12 +3132,7 @@ async def test_settings_has_theme_and_audit(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "settings":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
+        await pilot.press("f6")
         await pilot.pause()
         await pilot.pause()
         selects = app.query(Select)
@@ -3218,40 +3310,6 @@ async def test_template_manage_screen_no_fields_template(tmp_config_dir):
         assert fields_col == ""
 
 
-# ======================================================================
-# GroupExecScreen template integration
-# ======================================================================
-
-
-@pytest.mark.asyncio
-async def test_group_exec_screen_with_template_group(tmp_config_dir):
-    """Group with template configured should show in the group list."""
-    config_dir = tmp_config_dir / "config"
-    groups_data = {
-        "groups": [
-            {
-                "name": "grupo_tpl",
-                "description": "Grupo com template",
-                "queries": ["q1", "q2"],
-                "join_key": "id",
-                "compare_columns": ["status"],
-                "template": "meu_template",
-                "template_fields": {"titulo": "param:CORRETOR"},
-            },
-        ]
-    }
-    (config_dir / "groups.json").write_text(
-        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
-    )
-
-    app = GroupExecTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(GroupExecScreen)
-        from textual.widgets import ListView
-        group_list = screen.query_one("#ge-group-list", ListView)
-        assert len(group_list.children) == 1
-
-
 @pytest.mark.asyncio
 async def test_group_manage_screen_with_template_data(tmp_config_dir):
     """Groups with template fields survive loading in management screen."""
@@ -3311,25 +3369,19 @@ async def test_oracle_clients_screen_renders_platform_and_tables(tmp_config_dir)
 
 
 @pytest.mark.asyncio
-async def test_esc_clears_screen(tmp_config_dir):
-    """ESC from a screen returns to empty state."""
+async def test_esc_at_top_level_is_harmless(tmp_config_dir):
+    """ESC on a tab whose screen has no deeper phase is a harmless no-op:
+    the tab stays active and nothing crashes."""
     from dbqm.ui.app import DBQMApp
+    from textual.widgets import TabbedContent
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = app.query_one("Sidebar")
-        for i, item in enumerate(sidebar._focusable_items):
-            if item._action == "history":
-                sidebar._selected_index = i
-                break
-        sidebar.key_enter()
-        await pilot.pause()
+        await pilot.press("f5")
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        area = app.query_one("#screen-area")
-        # Should be cleared or back to previous state
-        assert len(list(area.children)) == 0
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
 
 
 # ======================================================================
@@ -3337,41 +3389,35 @@ async def test_esc_clears_screen(tmp_config_dir):
 # ======================================================================
 
 
-async def _open_via_sidebar(app, pilot, action):
-    sidebar = app.query_one("Sidebar")
-    for i, item in enumerate(sidebar._focusable_items):
-        if item._action == action:
-            sidebar._selected_index = i
-            break
-    sidebar.key_enter()
+async def _open_tab(app, pilot, fkey):
+    await pilot.press(fkey)
     await pilot.pause()
     await pilot.pause()
-    return sidebar
 
 
 @pytest.mark.asyncio
-async def test_escape_from_query_list_returns_to_sidebar(tmp_config_dir):
-    """Esc while the query list is focused must NOT be swallowed: it should
-    clear the screen and move focus back to the sidebar so the user can
-    navigate again."""
+async def test_escape_from_query_list_at_selection_is_noop(tmp_config_dir):
+    """Esc while the query list is focused at the selection phase must not
+    crash and must keep the QueryExec tab/screen in place (there is no
+    results phase to go back from)."""
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.query_exec import QueryExecScreen
     from dbqm.ui.widgets.query_list import QueryListWidget
-    from dbqm.ui.widgets.sidebar import Sidebar
+    from textual.widgets import TabbedContent
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1")])
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        sidebar = await _open_via_sidebar(app, pilot, "exec_query")
-        # Deterministically put focus on the query list (the swallow path).
+        await _open_tab(app, pilot, "f7")
+        # Deterministically put focus on the query list.
         app.query_one("#ql-main", QueryListWidget).focus()
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
 
-        area = app.query_one("#screen-area")
-        assert len(list(area.children)) == 0
-        assert app.focused is app.query_one(Sidebar)
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-consultas"
+        assert app.query_one(QueryExecScreen) is not None
 
 
 @pytest.mark.asyncio
@@ -3380,12 +3426,13 @@ async def test_query_list_escape_dismisses_search_without_clearing(tmp_config_di
     screen (does not bubble to the app-level go-back)."""
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.query_exec import QueryExecScreen
     from dbqm.ui.widgets.query_list import QueryListWidget
 
     save_queries([Query(name="q1", connection="c1", sql="SELECT 1")])
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_via_sidebar(app, pilot, "exec_query")
+        await _open_tab(app, pilot, "f7")
         ql = app.query_one("#ql-main", QueryListWidget)
         ql.action_start_search()
         await pilot.pause()
@@ -3396,7 +3443,7 @@ async def test_query_list_escape_dismisses_search_without_clearing(tmp_config_di
 
         # Search closed, screen still present (not cleared).
         assert not ql.query_one("#ql-search").has_class("visible")
-        assert len(list(app.query_one("#screen-area").children)) == 1
+        assert app.query_one(QueryExecScreen) is not None
 
 
 @pytest.mark.asyncio
@@ -3429,17 +3476,473 @@ async def test_exec_routine_back_to_select_focuses_connection(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_action_go_back_focuses_sidebar_after_clear(tmp_config_dir):
-    """app.action_go_back, when it clears the top-level screen, must focus
-    the sidebar."""
+async def test_action_go_back_at_top_level_is_noop(tmp_config_dir):
+    """app.action_go_back on a tab with no deeper phase is a harmless no-op:
+    the tab remains active and the screen stays mounted."""
     from dbqm.ui.app import DBQMApp
-    from dbqm.ui.widgets.sidebar import Sidebar
+    from dbqm.ui.screens.history import HistoryScreen
+    from textual.widgets import TabbedContent
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_via_sidebar(app, pilot, "history")
+        await _open_tab(app, pilot, "f5")
         app.action_go_back()
         await pilot.pause()
 
-        assert len(list(app.query_one("#screen-area").children)) == 0
-        assert app.focused is app.query_one(Sidebar)
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one(HistoryScreen) is not None
+
+
+# ======================================================================
+# FerramentasScreen tests
+# ======================================================================
+
+from dbqm.ui.screens.ferramentas import FerramentasScreen
+
+
+class FerramentasTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield FerramentasScreen()
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_renders_menu(tmp_config_dir):
+    """FerramentasScreen shows a menu with five launcher buttons, starting
+    on the menu view."""
+    from textual.widgets import Button, ContentSwitcher
+    app = FerramentasTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(FerramentasScreen)
+        assert screen.query_one("#ferr-open-grupos", Button) is not None
+        assert screen.query_one("#ferr-open-templates", Button) is not None
+        assert screen.query_one("#ferr-open-packages", Button) is not None
+        assert screen.query_one("#ferr-open-rotina", Button) is not None
+        assert screen.query_one("#ferr-open-executar", Button) is not None
+        switcher = screen.query_one(ContentSwitcher)
+        assert switcher.current == "ferr-menu"
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_does_not_load_tools_on_mount(tmp_config_dir):
+    """Mounting FerramentasScreen alone must not instantiate any tool
+    screen. In particular, PackageEditorScreen's on_mount() eagerly pushes
+    a modal screen (_PackageChoiceModal) the moment it is mounted (see
+    dbqm/ui/screens/package_editor.py). If the tool screens were mounted
+    up front, that modal would become the app's active screen before any
+    user interaction happens at all. Tool screens must be built lazily, on
+    first open, so no modal is pushed just from mounting the launcher."""
+    app = FerramentasTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+
+        screen = app.query_one(FerramentasScreen)
+        packages_container = screen.query_one("#ferr-packages")
+        assert len(list(packages_container.children)) == 1  # only the Voltar button
+
+        executar_container = screen.query_one("#ferr-executar")
+        assert len(list(executar_container.children)) == 1  # only the Voltar button
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_open_and_back(tmp_config_dir):
+    """Pressing a launcher button lazily builds and mounts that tool into
+    its container, switches to it; Voltar returns to the menu.
+
+    Uses Button.press() rather than pilot.click(): once Package Editor is
+    opened, PackageEditorScreen's on_mount() pushes a modal screen
+    (_PackageChoiceModal), which becomes the app's active screen and
+    breaks coordinate-based pilot.click() lookups (they resolve against
+    the topmost screen). Button.press() posts the Pressed message directly
+    and is unaffected."""
+    from textual.widgets import Button, ContentSwitcher
+    from dbqm.ui.screens.package_editor import PackageEditorScreen
+
+    app = FerramentasTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.query_one(FerramentasScreen)
+        switcher = screen.query_one(ContentSwitcher)
+
+        screen.query_one("#ferr-open-packages", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-packages"
+
+        packages_container = screen.query_one("#ferr-packages")
+        assert len(packages_container.query(PackageEditorScreen)) == 1
+
+        screen.query_one("#ferr-back-packages", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-menu"
+
+        # Re-opening must not build a second instance of the tool screen.
+        screen.query_one("#ferr-open-packages", Button).press()
+        await pilot.pause()
+        assert len(packages_container.query(PackageEditorScreen)) == 1
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_open_executar_grupo(tmp_config_dir):
+    """Pressing 'Executar Grupo' lazily mounts a GroupRunScreen into the
+    #ferr-executar container and switches to it."""
+    from textual.widgets import Button, ContentSwitcher
+    from dbqm.ui.screens.group_run import GroupRunScreen
+
+    app = FerramentasTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.query_one(FerramentasScreen)
+        switcher = screen.query_one(ContentSwitcher)
+
+        screen.query_one("#ferr-open-executar", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-executar"
+
+        executar_container = screen.query_one("#ferr-executar")
+        assert len(executar_container.query(GroupRunScreen)) == 1
+
+        screen.query_one("#ferr-back-executar", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-menu"
+
+        # Re-opening must not build a second instance of the tool screen.
+        screen.query_one("#ferr-open-executar", Button).press()
+        await pilot.pause()
+        assert len(executar_container.query(GroupRunScreen)) == 1
+
+
+# ======================================================================
+# GroupRunScreen tests (Ferramentas-hosted copy of the query-based group
+# execution feature, salvaged from the pre-redesign GroupExecScreen)
+# ======================================================================
+
+from dbqm.ui.screens.group_run import GroupRunScreen
+
+
+class GroupRunTestApp(App):
+    def compose(self) -> ComposeResult:
+        yield GroupRunScreen()
+
+
+@pytest.mark.asyncio
+async def test_group_run_screen_renders_standalone(tmp_config_dir):
+    """GroupRunScreen renders standalone with its own #gr-group-list id."""
+    from textual.widgets import ListView
+
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "group_a",
+                "description": "Test group A",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        assert screen is not None
+        assert screen.query_one("#gr-group-list", ListView) is not None
+
+
+@pytest.mark.asyncio
+async def test_group_run_screen_shows_empty_message(tmp_config_dir):
+    """With no groups configured, should show empty state."""
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        empty = screen.query_one("#gr-empty-message")
+        assert empty.display is True
+
+
+@pytest.mark.asyncio
+async def test_group_run_screen_shows_group_list(tmp_config_dir):
+    """With groups configured, should show the group list and hide the
+    empty-state message; the results phase stays hidden."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "group_a",
+                "description": "Test group A",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+            },
+            {
+                "name": "group_b",
+                "description": "Test group B",
+                "queries": ["q1", "q3"],
+                "join_key": "code",
+                "compare_columns": ["value"],
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        empty = screen.query_one("#gr-empty-message")
+        assert empty.display is False
+        sel = screen.query_one("#gr-selection-phase")
+        assert sel.display is True
+        res = screen.query_one("#gr-results-phase")
+        assert res.display is False
+
+
+@pytest.mark.asyncio
+async def test_group_run_results_phase_hidden_initially(tmp_config_dir):
+    """Results phase should be hidden on mount."""
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        results = screen.query_one("#gr-results-phase")
+        assert results.display is False
+
+
+@pytest.mark.asyncio
+async def test_group_run_go_back_to_selection(tmp_config_dir):
+    """go_back_to_selection should show selection and hide results."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g1",
+                "description": "Test",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        # Simulate being in results phase
+        screen.query_one("#gr-selection-phase").display = False
+        screen.query_one("#gr-results-phase").display = True
+
+        screen.go_back_to_selection()
+
+        assert screen.query_one("#gr-selection-phase").display is True
+        assert screen.query_one("#gr-results-phase").display is False
+
+
+@pytest.mark.asyncio
+async def test_group_run_screen_with_accented_folders(tmp_config_dir):
+    """Groups with accented folders should not crash the app."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g_acc_a",
+                "description": "",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "Produção",
+            },
+            {
+                "name": "g_acc_b",
+                "description": "",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["val"],
+                "folder": "Homologação",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        folder_bar = screen.query_one("#gr-folder-bar")
+        assert folder_bar is not None
+        from textual.widgets import Button
+        buttons = folder_bar.query(Button)
+        assert len(buttons) >= 3
+
+
+@pytest.mark.asyncio
+async def test_group_run_screen_with_folders(tmp_config_dir):
+    """Groups with folders should produce a folder filter bar."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g_folder_a",
+                "description": "",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "Folder A",
+            },
+            {
+                "name": "g_folder_b",
+                "description": "",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["val"],
+                "folder": "Folder B",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        folder_bar = screen.query_one("#gr-folder-bar")
+        assert folder_bar is not None
+        from textual.widgets import Button
+        buttons = folder_bar.query(Button)
+        # "Todas" + "Folder A" + "Folder B" = 3
+        assert len(buttons) >= 3
+
+
+@pytest.mark.asyncio
+async def test_group_run_folder_arrow_navigation(tmp_config_dir):
+    """Left/Right arrows should switch folder tabs in group run."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g1",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "F1",
+            },
+            {
+                "name": "g2",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "F2",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        # Should have folder buttons: Todas + F1 + F2
+        assert len(screen._folder_buttons) >= 3
+        assert screen._active_folder_idx == 0
+        # Right arrow should advance
+        await pilot.press("right")
+        assert screen._active_folder_idx == 1
+        await pilot.press("right")
+        assert screen._active_folder_idx == 2
+        # Left arrow should go back
+        await pilot.press("left")
+        assert screen._active_folder_idx == 1
+
+
+@pytest.mark.asyncio
+async def test_group_run_list_shows_all_items(tmp_config_dir):
+    """All groups should render in the list, not just one."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": f"g{i}",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+            }
+            for i in range(8)
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        from dbqm.ui.screens.group_run import _GroupListItem
+        items = app.query(_GroupListItem)
+        assert len(items) == 8
+
+
+@pytest.mark.asyncio
+async def test_group_run_folder_bar_is_horizontal_scroll(tmp_config_dir):
+    """Group run folder bar should use HorizontalScroll for scrollability."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g1",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["s"],
+                "folder": "A",
+            },
+            {
+                "name": "g2",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["s"],
+                "folder": "B",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        from textual.containers import HorizontalScroll
+        screen = app.query_one(GroupRunScreen)
+        folder_bar = screen.query_one("#gr-folder-bar")
+        assert isinstance(folder_bar, HorizontalScroll)
+
+
+@pytest.mark.asyncio
+async def test_group_run_screen_with_template_group(tmp_config_dir):
+    """Group with template configured should show in the group list."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "grupo_tpl",
+                "description": "Grupo com template",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "template": "meu_template",
+                "template_fields": {"titulo": "param:CORRETOR"},
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        from textual.widgets import ListView
+        group_list = screen.query_one("#gr-group-list", ListView)
+        assert len(group_list.children) == 1
