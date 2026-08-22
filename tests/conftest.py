@@ -75,33 +75,6 @@ def tmp_config_dir(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.fixture(autouse=True)
-def _tema_padrao_para_apps_textual(monkeypatch):
-    """Toda App do Textual usada em teste ganha os temas do design system,
-    do mesmo jeito que a DBQMApp real ganha em __init__.
-
-    Sem isso, os varios harnesses de teste ad-hoc (`class XxxTestApp(App)`)
-    nunca registram plano-escuro/plano-claro, e qualquer DEFAULT_CSS que use
-    um token puro (ex.: `$borda`, que ao contrario de `$accent`/`$primary`
-    nao e variavel embutida do Textual) quebra a montagem do widget com
-    UnresolvedVariableError. Antes desta migracao isso nunca apareceu porque
-    so se usavam variaveis embutidas, disponiveis em qualquer tema.
-    """
-    from textual.app import App as AppTextual
-
-    from dbqm.ui.theme import PADRAO, TEMAS_TEXTUAL
-
-    init_original = AppTextual.__init__
-
-    def init_com_tema(self, *args, **kwargs):
-        init_original(self, *args, **kwargs)
-        for tema in TEMAS_TEXTUAL.values():
-            self.register_theme(tema)
-        self.theme = PADRAO
-
-    monkeypatch.setattr(AppTextual, "__init__", init_com_tema)
-
-
 @pytest.fixture
 def sqlite_db():
     """Create an in-memory SQLite database with test tables."""

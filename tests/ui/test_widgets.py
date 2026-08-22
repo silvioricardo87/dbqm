@@ -1,6 +1,8 @@
 """Tests for UI widgets."""
 import pytest
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
+
+from tests.ui._helpers import ThemedTestApp
 
 
 # ---------------------------------------------------------------------------
@@ -9,7 +11,7 @@ from textual.app import App, ComposeResult
 from dbqm.ui.widgets.status_bar import StatusBar
 
 
-class StatusBarTestApp(App):
+class StatusBarTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield StatusBar()
 
@@ -60,7 +62,7 @@ def test_status_bar_inverted_primary_background():
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected, Action
 
 
-class ActionBarTestApp(App):
+class ActionBarTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield ActionBar()
 
@@ -105,7 +107,7 @@ from dbqm.core.query_engine import QueryResult
 from dbqm.ui.widgets.result_table import ResultTable
 
 
-class ResultTableTestApp(App):
+class ResultTableTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield ResultTable()
 
@@ -251,7 +253,7 @@ async def test_result_table_pagination_boundary():
 from dbqm.ui.widgets.progress import ProgressIndicator
 
 
-class ProgressTestApp(App):
+class ProgressTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield ProgressIndicator()
 
@@ -301,7 +303,7 @@ async def test_progress_update_message():
 from dbqm.ui.widgets.query_list import QueryListWidget, QuerySelected
 
 
-class QueryListTestApp(App):
+class QueryListTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield QueryListWidget()
 
@@ -381,7 +383,7 @@ async def test_query_list_posts_query_selected():
     ]
     messages = []
 
-    class CapturingApp(App):
+    class CapturingApp(ThemedTestApp):
         def compose(self) -> ComposeResult:
             yield QueryListWidget()
 
@@ -424,7 +426,7 @@ from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.core.group_engine import GroupResult, ComparisonResult, ComparisonRow
 
 
-class GroupResultTestApp(App):
+class GroupResultTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield GroupResultWidget()
 
@@ -546,7 +548,7 @@ from dbqm.ui.widgets.panel import Panel
 from textual.widgets import Static
 
 
-class _PanelApp(App):
+class _PanelApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         with Panel("⚙️  PARAMETROS", accent=True, id="p1"):
             yield Static("body", id="inner")
@@ -573,7 +575,7 @@ async def test_panel_renders_title_and_body():
 from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
 
-class _TemplatesSidebarApp(App):
+class _TemplatesSidebarApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield TemplatesSidebar(id="tpl")
 
@@ -615,7 +617,7 @@ async def test_templates_sidebar_option_selected_posts_message():
 
     messages = []
 
-    class CapturingApp(App):
+    class CapturingApp(ThemedTestApp):
         def compose(self) -> ComposeResult:
             yield TemplatesSidebar(id="tpl")
 

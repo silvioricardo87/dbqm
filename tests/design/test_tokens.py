@@ -70,7 +70,7 @@ _VARIAVEL_CSS = re.compile(r'\$([a-zA-Z][a-zA-Z0-9_-]*)')
 # resquicio do tema antigo e nao deve aparecer em CSS novo.
 BUILTINS_DOCUMENTADOS = frozenset({
     "primary", "secondary", "accent", "warning", "error", "success",
-    "background", "surface", "panel", "text-muted",
+    "foreground", "background", "surface", "panel", "text-muted",
 })
 
 

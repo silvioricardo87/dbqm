@@ -4,15 +4,17 @@ from __future__ import annotations
 import json
 
 import pytest
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.widgets import Input, Select
 
 from dbqm.ui.screens.connections import ConnectionsScreen
 from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
 
+from tests.ui._helpers import ThemedTestApp
 
-class QueryExecTestApp(App):
+
+class QueryExecTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield QueryExecScreen()
 
@@ -293,7 +295,7 @@ async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
 # ======================================================================
 
 
-class ConnectionsTestApp(App):
+class ConnectionsTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield ConnectionsScreen()
 
@@ -602,7 +604,7 @@ async def test_connections_testar_starts_worker_for_named_connection(tmp_config_
 from dbqm.ui.screens.query_manage import QueryManageScreen
 
 
-class QueryManageTestApp(App):
+class QueryManageTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield QueryManageScreen()
 
@@ -708,7 +710,7 @@ async def test_query_manage_screen_favorite_column(tmp_config_dir):
 from dbqm.ui.screens.group_manage import GroupManageScreen
 
 
-class GroupManageTestApp(App):
+class GroupManageTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield GroupManageScreen()
 
@@ -740,7 +742,7 @@ async def test_group_manage_screen_empty(tmp_config_dir):
 from dbqm.ui.screens.group_exec import GroupExecScreen
 
 
-class GroupExecTestApp(App):
+class GroupExecTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield GroupExecScreen()
 
@@ -1040,7 +1042,7 @@ async def test_group_manage_screen_with_data(tmp_config_dir):
 from dbqm.ui.screens.adhoc import AdhocScreen
 
 
-class AdhocTestApp(App):
+class AdhocTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield AdhocScreen()
 
@@ -1468,7 +1470,7 @@ async def test_adhoc_screen_execute_enabled_when_conn_and_sql(tmp_config_dir):
 from dbqm.ui.screens.browser import BrowserScreen
 
 
-class BrowserTestApp(App):
+class BrowserTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield BrowserScreen()
 
@@ -1759,7 +1761,7 @@ async def test_browser_screen_unmount_closes_db(tmp_config_dir):
 from dbqm.ui.screens.history import HistoryScreen
 
 
-class HistoryTestApp(App):
+class HistoryTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield HistoryScreen()
 
@@ -1866,7 +1868,7 @@ async def test_history_screen_detail_visible_initially(tmp_config_dir):
 from dbqm.ui.screens.settings import SettingsScreen
 
 
-class SettingsTestApp(App):
+class SettingsTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield SettingsScreen()
 
@@ -1986,7 +1988,7 @@ async def test_settings_no_settings_section_boxes(tmp_config_dir):
 from dbqm.ui.screens.config_port import ConfigPortScreen
 
 
-class ConfigPortTestApp(App):
+class ConfigPortTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield ConfigPortScreen()
 
@@ -2105,7 +2107,7 @@ async def test_group_result_accented_names(tmp_config_dir):
         summary_lines=[],
     )
 
-    class GRTestApp(App):
+    class GRTestApp(ThemedTestApp):
         def compose(self_):
             yield GroupResultWidget()
 
@@ -2228,7 +2230,7 @@ async def test_group_result_flat_mode_with_sample_data(tmp_config_dir):
         summary_lines=["Coluna: status", "  Iguais: 1", "  Diferentes: 1"],
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield GroupResultWidget()
 
@@ -2269,7 +2271,7 @@ async def test_group_result_pivoted_mode_with_sample_data(tmp_config_dir):
         summary_lines=["Coluna: val", "  Iguais: 1"],
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield GroupResultWidget()
 
@@ -2310,7 +2312,7 @@ async def test_group_result_with_absent_rows(tmp_config_dir):
         summary_lines=[],
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield GroupResultWidget()
 
@@ -2343,7 +2345,7 @@ async def test_group_result_with_none_values(tmp_config_dir):
         summary_lines=[],
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield GroupResultWidget()
 
@@ -2377,7 +2379,7 @@ async def test_group_result_filter_status(tmp_config_dir):
         summary_lines=[],
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield GroupResultWidget()
 
@@ -2420,7 +2422,7 @@ async def test_group_result_multiple_compare_columns(tmp_config_dir):
         summary_lines=["Coluna: status", "  Iguais: 1", "Coluna: amount", "  Diferentes: 1"],
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield GroupResultWidget()
 
@@ -2453,7 +2455,7 @@ async def test_result_table_load_result(tmp_config_dir):
         row_count=2, elapsed=0.05,
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield ResultTable()
 
@@ -2475,7 +2477,7 @@ async def test_result_table_vertical_mode(tmp_config_dir):
         row_count=1, elapsed=0.05,
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield ResultTable()
 
@@ -2499,7 +2501,7 @@ async def test_result_table_with_none_values(tmp_config_dir):
         row_count=2, elapsed=0.05,
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield ResultTable()
 
@@ -2521,7 +2523,7 @@ async def test_result_table_pagination(tmp_config_dir):
         row_count=250, elapsed=0.1,
     )
 
-    class TestApp(App):
+    class TestApp(ThemedTestApp):
         def compose(self_):
             yield ResultTable(page_size=100)
 
@@ -2847,7 +2849,7 @@ async def test_global_error_handler_shows_modal(tmp_config_dir):
 from dbqm.ui.screens.package_editor import PackageEditorScreen
 
 
-class PackageEditorTestApp(App):
+class PackageEditorTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield PackageEditorScreen()
 
@@ -3191,7 +3193,7 @@ def test_package_wizard_empty_routines():
 from dbqm.ui.screens.template_manage import TemplateManageScreen
 
 
-class TemplateManageTestApp(App):
+class TemplateManageTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield TemplateManageScreen()
 
@@ -3345,7 +3347,7 @@ async def test_group_manage_screen_with_template_data(tmp_config_dir):
 # ESC tests (continued)
 # ======================================================================
 
-class OracleClientsTestApp(App):
+class OracleClientsTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield OracleClientsScreen()
 
@@ -3454,7 +3456,7 @@ async def test_exec_routine_back_to_select_focuses_connection(tmp_config_dir):
     from textual.widgets import Select
     from dbqm.ui.screens.exec_routine import ExecRoutineScreen
 
-    class _App(App):
+    class _App(ThemedTestApp):
         def compose(self) -> ComposeResult:
             yield ExecRoutineScreen()
 
@@ -3500,7 +3502,7 @@ async def test_action_go_back_at_top_level_is_noop(tmp_config_dir):
 from dbqm.ui.screens.ferramentas import FerramentasScreen
 
 
-class FerramentasTestApp(App):
+class FerramentasTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield FerramentasScreen()
 
@@ -3617,7 +3619,7 @@ async def test_ferramentas_screen_open_executar_grupo(tmp_config_dir):
 from dbqm.ui.screens.group_run import GroupRunScreen
 
 
-class GroupRunTestApp(App):
+class GroupRunTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield GroupRunScreen()
 

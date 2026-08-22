@@ -123,3 +123,25 @@ async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
         assert tabs.active == "tab-historico"
         pane = app.query_one("#tab-historico", TabPane)
         assert not pane.disabled
+
+
+def test_dbqm_app_registra_e_ativa_tema_na_construcao(tmp_config_dir):
+    """DBQMApp precisa registrar e ativar o tema em __init__, antes do
+    primeiro compose/mount — nao em on_mount. O DEFAULT_CSS de widgets como
+    Panel usa tokens puros (ex.: `$borda`), que ao contrario de
+    `$accent`/`$primary` nao sao variavel embutida do Textual: so existem
+    quando um dos nossos temas esta registrado E ativo. Se o registro
+    voltar para on_mount (ou for removido), o primeiro mount quebra com
+    UnresolvedVariableError antes mesmo deste teste rodar `run_test()`.
+
+    De proposito nao usa nenhum helper/fixture que registre tema por fora
+    (ver tests/ui/_helpers.ThemedTestApp) — isso provaria so que o helper
+    funciona, nao que a DBQMApp real se vira sozinha.
+    """
+    from dbqm.ui.theme import TEMAS_TEXTUAL
+
+    app = DBQMApp()
+
+    for nome in TEMAS_TEXTUAL:
+        assert nome in app.available_themes, f"tema {nome} nao registrado na construcao"
+    assert app.theme in TEMAS_TEXTUAL, f"tema ativo ({app.theme!r}) nao e um dos nossos"
