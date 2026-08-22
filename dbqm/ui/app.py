@@ -8,7 +8,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Header, TabbedContent, TabPane
 
-from dbqm.ui.theme import TEMAS_TEXTUAL, get_theme
+from dbqm.ui.theme import ESTADOS_INERTES_CSS, TEMAS_TEXTUAL, get_theme
 from dbqm.ui.widgets.status_bar import StatusBar
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
 from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
@@ -16,6 +16,11 @@ from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
 class DBQMApp(App):
     """DB Query Manager — single tabbed dashboard shell."""
+
+    # Estados inertes distintos (Task 12) — ver o comentario em
+    # `dbqm/ui/theme.py::ESTADOS_INERTES_CSS` para o porque de viver la e o
+    # porque de ser `DEFAULT_CSS`, nao `CSS`.
+    DEFAULT_CSS = ESTADOS_INERTES_CSS
 
     #: Maps each tab id to the id of the screen widget it hosts.
     TAB_TO_SCREEN: dict[str, str] = {

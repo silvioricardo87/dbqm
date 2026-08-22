@@ -12,6 +12,7 @@ from textual.widgets.selection_list import Selection
 from textual import work
 
 from dbqm.ui.utils import escape_markup
+from dbqm.ui.widgets.esqueleto import Esqueleto
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
@@ -61,6 +62,9 @@ class GroupExecScreen(Vertical):
     GroupExecScreen #group-sql {
         height: 1fr;
     }
+    GroupExecScreen #ge-results-skeleton {
+        display: none;
+    }
     """
 
     def __init__(
@@ -93,6 +97,9 @@ class GroupExecScreen(Vertical):
                 with Panel("✏️  SQL DO GRUPO", id="ge-editor-panel"):
                     yield TextArea("", language="sql", id="group-sql")
                 with Panel("📊  COMPARACAO DE RESULTADOS", id="ge-results-panel"):
+                    # A forma da comparacao que vem, nao um rodopio: reserva
+                    # o espaco certo enquanto as conexoes executam.
+                    yield Esqueleto(linhas=8, colunas=4, id="ge-results-skeleton")
                     yield GroupResultWidget(id="group-results")
         yield ProgressIndicator()
 
@@ -229,6 +236,11 @@ class GroupExecScreen(Vertical):
         self.query_one(ProgressIndicator).start(
             f"Executando em {len(checked)} conexao(oes)..."
         )
+        # Shape of the comparison that is coming, in place of whatever the
+        # panel showed before (empty on first run, a stale comparison on a
+        # re-run) — avoids a jump when the real table lands.
+        self.query_one("#group-results", GroupResultWidget).display = False
+        self.query_one("#ge-results-skeleton", Esqueleto).display = True
         self._run(sql, checked)
 
     @work(thread=True)
@@ -326,9 +338,13 @@ class GroupExecScreen(Vertical):
 
     def _on_error(self, message: str) -> None:
         self.query_one(ProgressIndicator).stop()
+        self.query_one("#ge-results-skeleton", Esqueleto).display = False
+        self.query_one("#group-results", GroupResultWidget).display = True
         self.notify(message, severity="error", timeout=8)
 
     def _show_result(self, group_result) -> None:
         self.query_one(ProgressIndicator).stop()
+        self.query_one("#ge-results-skeleton", Esqueleto).display = False
         grw = self.query_one("#group-results", GroupResultWidget)
+        grw.display = True
         grw.load_result(group_result)

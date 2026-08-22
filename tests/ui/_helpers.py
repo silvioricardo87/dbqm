@@ -18,11 +18,17 @@ from __future__ import annotations
 
 from textual.app import App
 
-from dbqm.ui.theme import PADRAO, TEMAS_TEXTUAL
+from dbqm.ui.theme import ESTADOS_INERTES_CSS, PADRAO, TEMAS_TEXTUAL
 
 
 class ThemedTestApp(App):
     """Base para App de teste: registra e ativa os temas do design system."""
+
+    # Espelha `DBQMApp.DEFAULT_CSS` (Task 12): sem isso, um harness ad-hoc
+    # que monta `.-somente-leitura`/`disabled=True` nao veria a distincao
+    # visual entre os dois — a mesma classe de lacuna que motivou este
+    # arquivo para os temas.
+    DEFAULT_CSS = ESTADOS_INERTES_CSS
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

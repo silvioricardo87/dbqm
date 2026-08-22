@@ -1096,3 +1096,43 @@ async def test_empty_state_oferece_a_primeira_acao():
     async with app.run_test():
         botao = app.query_one("#criar-consulta", Button)
         assert botao.label.plain == "Criar consulta"
+
+
+# ---------------------------------------------------------------------------
+# Esqueleto tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_esqueleto_tem_a_forma_do_conteudo_que_vem():
+    """Do formato do conteudo, nao um rodopio centralizado: evita o salto de
+    layout quando o resultado real chega."""
+    from dbqm.ui.widgets.esqueleto import Esqueleto
+
+    class _EsqueletoApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield Esqueleto(linhas=6, colunas=3, id="e")
+
+    app = _EsqueletoApp()
+    async with app.run_test():
+        esqueleto = app.query_one("#e", Esqueleto)
+        assert len(esqueleto.query(".esqueleto-linha")) == 6
+
+
+@pytest.mark.asyncio
+async def test_somente_leitura_e_visualmente_distinto_de_desabilitado():
+    """Somente leitura parece conteudo; desabilitado parece controle inerte —
+    confundir os dois e o defeito que esta tarefa existe para prevenir."""
+    from textual.widgets import Input
+
+    class _EstadosApp(ThemedTestApp):
+        CSS = "Input { width: 20; }"
+
+        def compose(self) -> ComposeResult:
+            yield Input(value="a", id="ro", classes="-somente-leitura")
+            yield Input(value="b", id="off", disabled=True)
+
+    app = _EstadosApp()
+    async with app.run_test():
+        ro = app.query_one("#ro", Input)
+        off = app.query_one("#off", Input)
+        assert ro.styles.color != off.styles.color

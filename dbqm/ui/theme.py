@@ -17,6 +17,24 @@ NOMES_LEGADOS: dict[str, str] = {
 
 PADRAO = "plano-escuro"
 
+# Estados inertes distintos (Task 12): um controle desabilitado e uma acao
+# indisponivel agora — o motivo precisa estar alcancavel, nunca so a cor;
+# somente-leitura e conteudo para consumir, nao um formulario quebrado. As
+# duas regras usam tokens diferentes (texto-desabilitado vs texto-apoio) e a
+# segunda tambem tira borda/fundo de controle, para que as duas nunca fiquem
+# visualmente iguais — o defeito que esta tarefa existe para prevenir.
+#
+# Vive aqui (nao em app.py) e e consumido tanto por `DBQMApp.DEFAULT_CSS`
+# quanto por `tests/ui/_helpers.py::ThemedTestApp.DEFAULT_CSS`: as duas Apps
+# nao tem parentesco entre si (irmas, ambas direto de `textual.app.App`), e
+# so `DEFAULT_CSS` se combina ao longo da MRO sem apagar o que uma subclasse
+# ad-hoc de teste declarar por conta propria — `CSS` (atributo unico, sem
+# merge) apagaria isso.
+ESTADOS_INERTES_CSS = """
+*:disabled { color: $texto-desabilitado; }
+.-somente-leitura { color: $texto-apoio; border: none; background: $painel; }
+"""
+
 
 def _construir(nome: str, tokens: dict[str, str], escuro: bool) -> Theme:
     """Traduz os tokens semanticos para um Theme do Textual.

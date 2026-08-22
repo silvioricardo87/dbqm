@@ -11,6 +11,7 @@ from textual import work
 from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.esqueleto import Esqueleto
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.query_list import ClearFiltersRequested, QueryListWidget, QuerySelected
 from dbqm.ui.widgets.result_table import ResultTable
@@ -43,6 +44,9 @@ class QueryExecScreen(Vertical):
     }
     QueryExecScreen #empty-message {
         height: 1fr;
+    }
+    QueryExecScreen #result-skeleton {
+        display: none;
     }
     QueryExecScreen #folder-bar {
         height: 3;
@@ -109,6 +113,9 @@ class QueryExecScreen(Vertical):
         # Results phase (hidden initially)
         with Vertical(id="results-phase"):
             yield Static("", id="result-info")
+            # A forma da tabela que vem, nao um rodopio: reserva o espaco
+            # certo para a primeira execucao, hidden ate `_execute` mostrar.
+            yield Esqueleto(linhas=8, colunas=4, id="result-skeleton")
             yield ResultTable(id="result-table")
 
     def on_mount(self) -> None:
@@ -360,10 +367,38 @@ class QueryExecScreen(Vertical):
     def _execute(self, query, conn, params: dict[str, str]) -> None:
         """Start query execution in a worker thread."""
         self._current_params = params
-        self.query_one(ProgressIndicator).start(
-            f"Executando [bold]{escape_markup(query.name)}[/] em [bold]{escape_markup(conn.name)}[/]..."
+        message = (
+            f"Executando [bold]{escape_markup(query.name)}[/] em "
+            f"[bold]{escape_markup(conn.name)}[/]..."
         )
+        if self._current_result is None:
+            # First load into the (still empty) results area: show the
+            # shape of the table that is coming instead of a spinner, so
+            # the layout does not jump when the real result lands.
+            self.query_one("#selection-phase").display = False
+            self.query_one("#results-phase").display = True
+            self.query_one("#result-table", ResultTable).display = False
+            self.query_one("#result-skeleton", Esqueleto).display = True
+            self.query_one("#result-info", Static).update(message)
+        else:
+            # Reexecuting: a result is already on screen. Keep it visible
+            # and use the message indicator, not the skeleton — replacing
+            # good data with placeholder blocks would be a worse jump than
+            # the one the skeleton exists to avoid.
+            self.query_one(ProgressIndicator).start(message)
         self._run_query(query, conn, params)
+
+    def _abort_first_load_if_pending(self) -> None:
+        """Undo the skeleton phase-switch from `_execute` when the FIRST
+        execution never produced a result — otherwise a failed first
+        execution strands the screen on an empty results phase with no way
+        back to the query list."""
+        if self._current_result is not None:
+            return
+        self.query_one("#selection-phase").display = True
+        self.query_one("#results-phase").display = False
+        self.query_one("#result-skeleton", Esqueleto).display = False
+        self.query_one("#result-table", ResultTable).display = True
 
     @work(thread=True)
     def _run_query(self, query, conn, params: dict[str, str]) -> None:
@@ -388,6 +423,7 @@ class QueryExecScreen(Vertical):
     def _show_error(self, msg: str) -> None:
         """Show error notification and stop progress indicator."""
         self.query_one(ProgressIndicator).stop()
+        self._abort_first_load_if_pending()
         self.notify(f"Erro: {msg}", severity="error", timeout=8)
 
     def _on_result(self, query, conn, params: dict[str, str], result: QueryResult, raw_rows: list[list] | None = None) -> None:
@@ -395,6 +431,7 @@ class QueryExecScreen(Vertical):
         self.query_one(ProgressIndicator).stop()
 
         if not result.success:
+            self._abort_first_load_if_pending()
             self.notify(f"Erro: {result.error}", severity="error", timeout=8)
             return
 
@@ -409,6 +446,11 @@ class QueryExecScreen(Vertical):
         self.query_one("#selection-phase").display = False
         results_phase = self.query_one("#results-phase")
         results_phase.display = True
+
+        # Real data arrived: the skeleton (if it was up for a first load)
+        # gives way to the table it stood in for.
+        self.query_one("#result-skeleton", Esqueleto).display = False
+        self.query_one("#result-table", ResultTable).display = True
 
         # Update info bar
         info = self.query_one("#result-info", Static)
@@ -595,6 +637,8 @@ class QueryExecScreen(Vertical):
         """Return to the query selection phase."""
         self.query_one("#selection-phase").display = True
         self.query_one("#results-phase").display = False
+        self.query_one("#result-skeleton", Esqueleto).display = False
+        self.query_one("#result-table", ResultTable).display = True
         self._current_result = None
         self._raw_rows = None
         self._showing_mapped = True

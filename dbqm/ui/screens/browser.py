@@ -15,6 +15,7 @@ from dbqm.ui.utils import NavSelect
 from textual import work
 
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.esqueleto import Esqueleto
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.sql_viewer import SqlViewer
@@ -81,6 +82,10 @@ class BrowserScreen(Vertical):
     BrowserScreen #obj-list-empty {
         height: 1fr;
     }
+    BrowserScreen #obj-list-skeleton {
+        display: none;
+        margin-top: 1;
+    }
     BrowserScreen #obj-columns {
         height: 1fr;
     }
@@ -135,6 +140,9 @@ class BrowserScreen(Vertical):
                     acao_id="escolher-conexao",
                     id="obj-list-empty",
                 )
+                # A forma da lista que vem, nao um rodopio: reserva o
+                # espaco certo enquanto a conexao busca os objetos.
+                yield Esqueleto(linhas=10, colunas=2, id="obj-list-skeleton")
                 yield OptionList(id="obj-list")
 
             with Panel("📋  COLUNAS", id="obj-columns-panel"):
@@ -142,7 +150,10 @@ class BrowserScreen(Vertical):
 
             with Panel("🔍  DADOS", accent=True, id="obj-preview-panel"):
                 yield ResultTable(id="obj-preview")
-                yield SqlViewer("", id="obj-source")
+                # Fonte de PACKAGE/ROUTINE: conteudo para consumir, nao um
+                # formulario de edicao — nao usar o mesmo visual de campo
+                # desabilitado (ver `-somente-leitura` em dbqm/ui/theme.py).
+                yield SqlViewer("", id="obj-source", classes="-somente-leitura")
                 with Horizontal(id="obj-preview-buttons"):
                     yield Button("Extrair DDL", id="obj-ddl")
                     yield Button("Carregar mais", id="obj-more")
@@ -155,13 +166,18 @@ class BrowserScreen(Vertical):
         self._update_obj_list_visibility()
         self.call_after_refresh(self._set_initial_focus)
 
-    def _update_obj_list_visibility(self) -> None:
-        """Show the "pick a connection" empty state until one is chosen."""
+    def _update_obj_list_visibility(self, *, loading: bool = False) -> None:
+        """Switch the OBJETOS panel between its three states: pick a
+        connection (empty state), the object list, or — while
+        `_reload_objects` runs — the skeleton with the shape of the list
+        that is coming."""
         empty = self.query_one("#obj-list-empty", EmptyState)
         option_list = self.query_one("#obj-list", OptionList)
+        skeleton = self.query_one("#obj-list-skeleton", Esqueleto)
         has_conn = self._current_conn is not None
-        empty.display = not has_conn
-        option_list.display = has_conn
+        skeleton.display = loading
+        empty.display = not has_conn and not loading
+        option_list.display = has_conn and not loading
 
     def _set_initial_focus(self) -> None:
         try:
@@ -203,13 +219,16 @@ class BrowserScreen(Vertical):
             # Switching connection invalidates the open handle.
             self._close_db()
             self._current_conn = conn
-            self._update_obj_list_visibility()
             if conn is not None:
+                self._update_obj_list_visibility(loading=True)
                 self._reload_objects()
+            else:
+                self._update_obj_list_visibility()
         elif sel_id == "obj-type":
             value = event.value
             self._obj_type = "" if value is Select.BLANK else str(value)
             if self._current_conn is not None and self._obj_type:
+                self._update_obj_list_visibility(loading=True)
                 self._reload_objects()
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -246,6 +265,7 @@ class BrowserScreen(Vertical):
 
     def _on_objects_loaded(self, objects: list[str]) -> None:
         self._objects = objects
+        self._update_obj_list_visibility()
         self._populate_list()
         if not objects:
             self.notify("Nenhum objeto encontrado.", severity="warning")
@@ -474,6 +494,10 @@ class BrowserScreen(Vertical):
         self.query_one("#obj-more", Button).display = False
 
     def _on_error(self, error: str) -> None:
+        # Shared handler for object-list/structure/preview/DDL errors: only
+        # the first of those leaves the skeleton up, but resetting here is
+        # a harmless no-op for the other three (idempotent on `has_conn`).
+        self._update_obj_list_visibility()
         self.notify(f"Erro: {error}", severity="error", timeout=8)
 
     # ------------------------------------------------------------------
