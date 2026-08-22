@@ -882,7 +882,7 @@ class PackageEditorScreen(Vertical):
             error_panel.display = True
         else:
             error_panel.update(
-                f"  {target.capitalize()} compilado com sucesso!"
+                f"[bold]  {target.capitalize()} compilado com sucesso![/]"
             )
             error_panel.display = True
             self.notify(

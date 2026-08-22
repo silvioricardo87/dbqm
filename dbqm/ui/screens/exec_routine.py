@@ -478,7 +478,7 @@ class ExecRoutineScreen(Vertical):
         result_area.remove_children()
 
         if result.success:
-            lines = [f"Executado com sucesso ({result.elapsed:.2f}s)"]
+            lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]
             if result.return_value is not None:
                 lines.append(f"\n[bold]Retorno:[/] {result.return_value}")
             if result.output_lines:

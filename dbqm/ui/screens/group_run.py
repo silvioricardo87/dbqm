@@ -65,7 +65,7 @@ class _GroupListItem(ListItem):
         parts = [f"[bold]{name}[/bold]"]
         if desc:
             parts.append(f"[dim]{desc}[/dim]")
-        parts.append(f"[$identidade]{queries_label}[/]")
+        parts.append(f"[$texto-apoio]{queries_label}[/]")
 
         line = "  |  ".join(parts)
         yield Static(line, markup=True)
