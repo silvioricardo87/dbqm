@@ -117,14 +117,20 @@ class GroupResultWidget(Vertical, can_focus=False):
             pass
 
     def _status_markup(self, status: str) -> str:
-        """Return Rich-markup-colored status label."""
-        colors = {
-            "OK": "[green]OK[/]",
-            "OK*": "[green]OK*[/]",
-            "DIFF": "[yellow]DIFF[/]",
-            "ABSENT": "[red]ABSENT[/]",
+        """Rotula o status da comparacao com o token do eixo de veredito.
+
+        OK ainda recebe tinta hoje. Quando o valor de $veredito-igual for
+        igualado ao texto neutro numa tarefa futura, OK deixa de ter tinta
+        sem que este codigo mude — o nome do token e que fica, o valor e
+        que muda depois.
+        """
+        marcas = {
+            "OK": "[$veredito-igual]OK[/]",
+            "OK*": "[$veredito-igual]OK*[/]",
+            "DIFF": "[$veredito-difere]DIFF[/]",
+            "ABSENT": "[$veredito-ausente]ABSENT[/]",
         }
-        return colors.get(status, status)
+        return marcas.get(status, status)
 
     def _render_flat(self, container) -> None:
         """Render flat mode: one DataTable per compare column."""
@@ -239,17 +245,17 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         lines = []
         overall = "CONSISTENTE" if gr.all_match else "DIVERGENTE"
-        overall_color = "green" if gr.all_match else "yellow"
-        lines.append(f"[{overall_color} bold]{overall}[/]")
+        overall_token = "$veredito-igual" if gr.all_match else "$veredito-difere"
+        lines.append(f"[{overall_token} bold]{overall}[/]")
         lines.append("")
 
         for comp in gr.comparisons:
             col_name = str(comp.column) if comp.column is not None else ""
             lines.append(f"[bold]{col_name}[/]:")
-            lines.append(f"  [green]Iguais:[/]      {comp.equal_count}/{comp.total_keys}")
+            lines.append(f"  [$veredito-igual]Iguais:[/]      {comp.equal_count}/{comp.total_keys}")
             if comp.normalized_count > 0:
-                lines.append(f"  [green]Normalizados:[/] {comp.normalized_count}/{comp.total_keys}")
-            lines.append(f"  [yellow]Diferentes:[/]  {comp.diff_count}/{comp.total_keys}")
-            lines.append(f"  [red]Ausentes:[/]    {comp.absent_count}/{comp.total_keys}")
+                lines.append(f"  [$veredito-igual]Normalizados:[/] {comp.normalized_count}/{comp.total_keys}")
+            lines.append(f"  [$veredito-difere]Diferentes:[/]  {comp.diff_count}/{comp.total_keys}")
+            lines.append(f"  [$veredito-ausente]Ausentes:[/]    {comp.absent_count}/{comp.total_keys}")
 
         summary.update("\n".join(lines))

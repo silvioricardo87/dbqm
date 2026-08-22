@@ -11,19 +11,19 @@ from textual.widgets import Static
 HELP_TEXT = """\
 [bold]Atalhos de Teclado[/bold]
 
-[bold cyan]Geral[/bold cyan]
+[bold $texto-forte]Geral[/]
   Ctrl+B    Toggle sidebar
   Ctrl+Q    Sair
   ESC       Voltar
   /         Buscar/filtrar
   ?         Esta ajuda
 
-[bold cyan]Resultado de consulta[/bold cyan]
+[bold $texto-forte]Resultado de consulta[/]
   V         Visualizacao vertical
   E         Exportar
   R         Reexecutar
 
-[bold cyan]Resultado de grupo[/bold cyan]
+[bold $texto-forte]Resultado de grupo[/]
   F         Flat/Pivoted
   S         Filtrar status
   E         Exportar

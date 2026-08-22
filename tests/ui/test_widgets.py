@@ -56,6 +56,31 @@ def test_status_bar_inverted_primary_background():
     assert "background: $primary" in StatusBar.DEFAULT_CSS
 
 
+@pytest.mark.asyncio
+async def test_status_bar_usa_token_de_identidade_para_conexao_ativa():
+    """A bolinha de conexao e identidade, nao 'verde de sucesso'.
+
+    Resolve o markup contra o tema ativo (via ThemedTestApp) em vez de
+    procurar o nome do token na string crua: uma asserção sobre texto
+    fonte so prova que alguem digitou "$identidade" em algum lugar, nao
+    que a cor renderizada e a do token.
+    """
+    from textual.style import Style
+
+    app = StatusBarTestApp()
+    async with app.run_test():
+        barra = app.query_one(StatusBar)
+        barra.set_connection("MGORA7ORA9")
+        await app.workers.wait_for_complete()
+        content = barra.render()
+        pecas = list(content.render(Style.null(), end="", parse_style=Style.parse))
+        cor_bolinha = next(
+            estilo.foreground for texto, estilo in pecas if "●" in texto
+        )
+        assert cor_bolinha == Style.parse("$identidade").foreground
+        assert cor_bolinha != Style.parse("green").foreground
+
+
 # ---------------------------------------------------------------------------
 # ActionBar tests
 # ---------------------------------------------------------------------------

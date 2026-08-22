@@ -50,7 +50,7 @@ class _QueryListItem(ListItem):
 
     def compose(self):
         is_fav = _attr(self.query_data, "is_favorite", False)
-        star = "[yellow]★[/]" if is_fav else "[dim]☆[/]"
+        star = "[$identidade]★[/]" if is_fav else "[dim]☆[/]"
 
         name = _attr(self.query_data, "name", "")
         desc = _attr(self.query_data, "description", "")
@@ -65,7 +65,7 @@ class _QueryListItem(ListItem):
         parts = [f"{star} [bold]{name}[/bold]"]
         if desc:
             parts.append(f"[dim]{desc}[/dim]")
-        parts.append(f"[#e3b341]{conn}[/#e3b341]")
+        parts.append(f"[$identidade]{conn}[/]")
         if table:
             parts.append(f"[dim]{table}[/dim]")
 
