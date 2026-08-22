@@ -99,14 +99,23 @@ def _build_html(group_result: GroupResult, query_names: list[str], params: dict 
 <style>
 {css_variaveis(TOKENS_ESCURO)}
 {_bloco_tema_claro(TOKENS_CLARO)}
+    /* tests/design/test_contraste.py so calcula os pares declarados em
+       VALIDO_SOBRE, entre tokens crus. Qualquer cor montada aqui em tempo de
+       renderizacao (color-mix(), rgba() etc.) fica invisivel para aquele
+       teste — foi assim que um preenchimento de badge sem contraste passou
+       despercebido. Por isso: nenhuma cor composta em CSS pode carregar
+       texto; texto so usa var(--token) puro, e estado em superficie e
+       borda/marcador, nunca preenchimento. */
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
     body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--fundo); color: var(--texto); padding: 24px; }}
     .header {{ background: var(--painel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
     .header h1 {{ color: var(--identidade); font-size: 1.4em; }}
     .header .meta {{ color: var(--texto-apoio); font-size: 0.85em; margin-top: 8px; }}
     .badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 0.85em; }}
-    .badge.ok {{ background: color-mix(in srgb, var(--veredito-igual) 20%, var(--painel)); color: var(--veredito-igual); }}
-    .badge.diff {{ background: color-mix(in srgb, var(--veredito-difere) 20%, var(--painel)); color: var(--veredito-difere); }}
+    /* Estado em superficie e borda/marcador, nunca preenchimento: um preenchimento
+       misturado a partir do proprio texto sempre compromete um dos dois. */
+    .badge.ok {{ background: var(--painel); color: var(--veredito-igual); border: 1px solid var(--veredito-igual); }}
+    .badge.diff {{ background: var(--painel); color: var(--veredito-difere); border: 1px solid var(--veredito-difere); }}
     .params {{ margin: 12px 0; border-collapse: collapse; }}
     .params td {{ padding: 4px 16px 4px 0; color: var(--texto-apoio); font-size: 0.9em; }}
     h3 {{ color: var(--identidade); margin: 24px 0 8px; }}
@@ -121,8 +130,9 @@ def _build_html(group_result: GroupResult, query_names: list[str], params: dict 
     .ok {{ color: var(--veredito-igual); font-weight: 600; }}
     .diff {{ color: var(--veredito-difere); font-weight: 600; }}
     .absent {{ color: var(--veredito-ausente); font-weight: 600; }}
-    .diff-row td {{ background: color-mix(in srgb, var(--veredito-difere) 10%, transparent); }}
-    .absent-row td {{ background: color-mix(in srgb, var(--veredito-ausente) 10%, transparent); }}
+    /* Realce de linha e marcador na borda, nao preenchimento (mesmo motivo do badge). */
+    .diff-row .key {{ border-left: 3px solid var(--veredito-difere); }}
+    .absent-row .key {{ border-left: 3px solid var(--veredito-ausente); }}
     .summary {{ color: var(--texto-apoio); font-size: 0.85em; margin-bottom: 16px; padding: 8px 0; border-top: 1px solid var(--borda); }}
     .hidden {{ display: none; }}
     input.search {{ background: var(--painel); border: 1px solid var(--borda); color: var(--texto); padding: 6px 12px; border-radius: 4px; margin-bottom: 12px; width: 300px; }}
