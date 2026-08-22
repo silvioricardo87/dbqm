@@ -62,10 +62,10 @@ class AdhocScreen(Vertical):
     }
     AdhocScreen #adhoc-conn-select {
         width: 100%;
-        border: round $error;
+        border: round $borda;
     }
     AdhocScreen #adhoc-conn-select.--conn-selected {
-        border: round $success;
+        border: round $identidade;
     }
     AdhocScreen #adhoc-dbms-toggle {
         width: 100%;
