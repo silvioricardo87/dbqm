@@ -121,11 +121,46 @@ def test_veredito_rejeita_status_desconhecido():
 
 
 def test_operacao_bem_sucedida_nao_recebe_tinta():
-    """Sucesso e a ausencia de alarme."""
+    """Sucesso e a ausencia de alarme, mas nao de peso: `ok` nao pode levar
+    NENHUM token de cor (nao so `$op-falha` — qualquer `$token`, inclusive
+    um token de veredito colado por engano), e mantem `[bold]`. Uma versao
+    anterior deste teste so checava a ausencia de `$op-falha`, o que passaria
+    mesmo se sucesso fosse pintado com uma cor de veredito."""
     from dbqm.ui.widgets.veredito import marcar_operacao
 
-    assert "$op-falha" not in marcar_operacao("ok")
+    ok = marcar_operacao("ok")
+    assert "$" not in ok, f"operacao bem sucedida nao deve carregar token de cor: {ok!r}"
+    assert "[bold]" in ok, f"operacao bem sucedida perde peso sem cor: {ok!r}"
     assert "$op-falha" in marcar_operacao("falha")
+
+
+def test_operacao_bem_sucedida_mantem_peso_nos_call_sites_manuais():
+    """Os quatro pontos que montam markup de sucesso a mao — fora de
+    `marcar_operacao`, porque a mensagem tambem carrega o tempo decorrido —
+    tem que seguir a mesma regra: sem token de cor, com `[bold]` preservado.
+    Nada testava isso ate agora; um `[bold]` apagado num desses sites
+    passaria a suite inteira em silencio."""
+    from pathlib import Path
+
+    raiz_screens = Path(__file__).resolve().parents[2] / "dbqm" / "ui" / "screens"
+    sites = {
+        "adhoc.py": [
+            'return f"[bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"',
+            'f"[bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"',
+        ],
+        "exec_routine.py": [
+            'lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]',
+        ],
+        "package_editor.py": [
+            'f"[bold]  {target.capitalize()} compilado com sucesso![/]"',
+        ],
+    }
+    for nome_arquivo, trechos in sites.items():
+        texto = (raiz_screens / nome_arquivo).read_text(encoding="utf-8")
+        for trecho in trechos:
+            assert trecho in texto, (
+                f"{nome_arquivo}: markup de sucesso mudou ou perdeu o [bold]: {trecho!r}"
+            )
 
 
 def test_operacao_rejeita_estado_desconhecido():
@@ -309,7 +344,7 @@ def test_action_bar_uses_primary_key_markup():
     bar._rebuild()
     rendered = str(bar._Static__content)
     assert "on white" not in rendered            # no more black-on-white chip
-    assert "bold $primary" in rendered or "bold #58a6ff" in rendered
+    assert "bold $primary" in rendered
 
 
 # ---------------------------------------------------------------------------
@@ -930,9 +965,6 @@ def test_dialog_variante_tela_preenche_a_viewport():
     burlavam o enum escrevendo `.styles.width`/`.styles.height` depois de
     construir. Ela existe, e usa porcentagem (nao celulas) porque e
     conteudo a ser exibido, nao um formulario compacto."""
-    from dbqm.ui.widgets.dialog import LARGURAS
-
-    assert LARGURAS["tela"] == "90%"
     d = Dialog("Titulo", largura="tela")
     # Textual guarda porcentagem como escalar "w"/"h" (viewport width/height);
     # comparar com a representacao efetivamente resolvida, nao com a string
@@ -950,25 +982,41 @@ def test_dialog_nao_tem_override_de_estilo_fora_do_componente():
     `test_toda_variavel_css_e_token_ou_builtin_documentado`: silencioso ate
     alguem reintroduzir o atalho, e ai falha alto. Precisar de mais espaco
     e sinal de variante nova em `LARGURAS` (ver "tela"), nunca de excecao
-    local."""
+    local.
+
+    Duas portas, nao uma: a atribuicao Python (`dialog.styles.width = ...`)
+    e a regra CSS lado-a-lado (`AlgumaTela #meu-dialog { height: 85%; }`).
+    A segunda escapava do guarda original porque ele so olhava `.styles.`;
+    `template_manage.py` e `error.py` hand-rolaram exatamente a variante
+    "tela" via CSS antes desta correcao. Todo id de Dialog neste repo
+    contem a substring "dialog" (id="dialog", "error-dialog",
+    "qp-dialog", "pkg-choice-dialog", ...), entao a regra CSS varre
+    qualquer bloco `#*dialog*{ ... }` por width/height/max-height/
+    min-height."""
     import re
     from pathlib import Path
 
     raiz_ui = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
-    padrao = re.compile(r"\.styles\.(width|height)\s*=")
+    padrao_python = re.compile(r"\.styles\.(width|height)\s*=")
+    padrao_css_id = re.compile(r"#[\w-]*dialog[\w-]*\s*\{([^}]*)\}", re.IGNORECASE)
+    padrao_css_prop = re.compile(r"(?<![\w-])(max-height|min-height|width|height)\s*:")
 
     ofensores = []
     for arquivo in sorted(raiz_ui.rglob("*.py")):
         if arquivo.name == "dialog.py":
             continue
         texto = arquivo.read_text(encoding="utf-8")
-        for m in padrao.finditer(texto):
+        for m in padrao_python.finditer(texto):
             linha = texto.count(chr(10), 0, m.start()) + 1
             ofensores.append(f"{arquivo.relative_to(raiz_ui)}:{linha}")
+        for bloco in padrao_css_id.finditer(texto):
+            if padrao_css_prop.search(bloco.group(1)):
+                linha = texto.count(chr(10), 0, bloco.start()) + 1
+                ofensores.append(f"{arquivo.relative_to(raiz_ui)}:{linha}")
 
     assert not ofensores, (
-        "styles.width/height de Dialog so pode ser atribuido dentro de "
-        f"dialog.py; achei override(s) fora do componente: {ofensores}"
+        "width/height/max-height/min-height de Dialog so pode ser definido "
+        f"dentro de dialog.py; achei override(s) fora do componente: {ofensores}"
     )
 
 
