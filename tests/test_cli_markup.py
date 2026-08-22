@@ -14,11 +14,17 @@ de ponto) nao levanta excecao em lugar nenhum, nem em `Console.print`, nem em
 Ou seja: nenhum teste que apenas *executa* um comando do CLI pega esse typo —
 inclusive `tests/test_cli.py` inteiro, que roda os comandos e confere saida,
 passaria identico com `[op-falha]` no lugar de `[op.falha]`. Este teste existe
-para ser o unico que pega: ele nao renderiza nada, so verifica estaticamente
-que todo nome usado dentro de uma tag `[...]` do cli.py e uma chave real do
-tema (`tema_rich().styles`) ou um atributo/abreviacao nativo do Rich
-(`Style.STYLE_ATTRIBUTES` — bold/b, dim/d, italic/i, etc.) ou um dos
-modificadores estruturais `on`/`not`.
+para ser o unico que pega, e precisa cobrir as DUAS formas que o Rich aceita
+um nome de estilo, nao so uma:
+
+  1. tag de markup entre colchetes: `[op.falha]texto[/]`
+  2. o kwarg `style=` de qualquer chamada (`console.print(..., style=...)`,
+     `Table(..., style=...)`, `add_column(..., style=...)`, `Text(..., style=...)`)
+
+A primeira rodada deste teste so cobria (1) — `style="op-falha"` passado por
+kwarg teria sobrevivido inspecionado por essa rodada, porque a regex de tag
+so olha para dentro de `[...]`. Um valor de `style=` e uma string solta, sem
+colchete nenhum.
 """
 from __future__ import annotations
 
@@ -43,21 +49,37 @@ _MODIFICADORES = {"on", "not"}
 
 
 def _nomes_de_markup_em(caminho: Path) -> set[str]:
-    """Todo nome referenciado dentro de uma tag `[...]` em literais de string.
+    """Todo nome de estilo que cli.py referencia, via tag `[...]` ou via `style=`.
 
-    Anda pela AST (nao pelo texto bruto) para que partes literais de f-string
-    sejam vistas isoladas dos `{...}` interpolados — assim um colchete de
-    progresso como `f"[{atual}/{total}]"` nunca vira uma tag falsa: a AST
-    quebra esse literal em pedacos em volta do `{atual}` e do `{total}`, e
-    nenhum dos pedacos isolados contem um `[...]` fechado.
+    Anda pela AST (nao pelo texto bruto) por dois motivos:
+
+    - Partes literais de f-string ficam isoladas dos `{...}` interpolados,
+      entao um colchete de progresso como `f"[{atual}/{total}]"` nunca vira
+      uma tag falsa: a AST quebra esse literal em pedacos em volta do
+      `{atual}` e do `{total}`, e nenhum pedaco isolado contem um `[...]`
+      fechado.
+    - `style=` so existe como kwarg de chamada (`ast.Call`); andar pelos nos
+      de chamada e olhar `keywords` pega `console.print(..., style=...)`,
+      `Table(..., style=...)`, `add_column(..., style=...)`, `Text(...,
+      style=...)` — qualquer chamada, sem precisar listar cada uma.
     """
     arvore = ast.parse(caminho.read_text(encoding="utf-8"))
     nomes: set[str] = set()
+
     for node in ast.walk(arvore):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             for corpo in _TAG.findall(node.value):
                 for palavra in corpo.split():
                     nomes.add(palavra)
+        elif isinstance(node, ast.Call):
+            for kw in node.keywords:
+                if kw.arg != "style":
+                    continue
+                valor = kw.value
+                if isinstance(valor, ast.Constant) and isinstance(valor.value, str):
+                    for palavra in valor.value.split():
+                        nomes.add(palavra)
+
     return nomes
 
 
@@ -70,5 +92,5 @@ def test_todo_nome_de_markup_do_cli_resolve_no_tema_ou_e_nativo_do_rich():
         if nome not in estilos and nome not in nativos
     )
     assert not desconhecidos, (
-        f"tag de markup em cli.py referencia estilo inexistente: {desconhecidos}"
+        f"tag/kwarg de estilo em cli.py referencia estilo inexistente: {desconhecidos}"
     )
