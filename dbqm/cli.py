@@ -180,6 +180,25 @@ def cmd_run(args: argparse.Namespace) -> None:
     _print_query_result(result, args.format)
 
 
+def _linhas_comparacao_coloridas(comparisons: list) -> list[str]:
+    """Linhas de resumo do grupo, coloridas pelo eixo de veredito.
+
+    Reconstroi o texto a partir de `ComparisonResult` (contagens), em vez de
+    reimprimir `group_result.summary_lines` cru: assim cada contagem recebe
+    o token do eixo a que pertence (igual/diferente/ausente) sem depender do
+    texto que o core escreve — core/ permanece livre de markup.
+    """
+    linhas: list[str] = []
+    for comp in comparisons:
+        linhas.append(f"Coluna: {comp.column}")
+        linhas.append(f"  [veredito.igual]Iguais:[/]       {comp.equal_count}")
+        if comp.normalized_count > 0:
+            linhas.append(f"  [veredito.igual]Iguais (norm):[/] {comp.normalized_count}")
+        linhas.append(f"  [veredito.difere]Diferentes:[/]   {comp.diff_count}")
+        linhas.append(f"  [veredito.ausente]Ausentes:[/]     {comp.absent_count}")
+    return linhas
+
+
 def cmd_run_group(args: argparse.Namespace) -> None:
     """Execute a group comparison."""
     group = find_group(args.group)
@@ -261,7 +280,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     else:
         status = "[veredito.igual]CONSISTENTE[/]" if group_result.all_match else "[veredito.difere]DIVERGENTE[/]"
         console.print(f"Grupo: {group_result.group_name} — {status}")
-        for line in group_result.summary_lines:
+        for line in _linhas_comparacao_coloridas(group_result.comparisons):
             console.print(f"  {line}")
 
 
@@ -368,7 +387,7 @@ def cmd_test(args: argparse.Namespace) -> None:
         for conn in connections:
             ok, msg = test_connection(conn)
             icon = "OK" if ok else "[op.falha]FAIL[/op.falha]"
-            console.print(f"  {icon}  {conn.name}: {msg.splitlines()[0]}")
+            console.print(f"  {icon}  [identidade]{conn.name}[/]: {msg.splitlines()[0]}")
         return
 
     conn = find_connection(args.connection)
@@ -402,7 +421,7 @@ def cmd_list(args: argparse.Namespace) -> None:
         table.add_column("Tipo")
         table.add_column("Destino")
         for c in items:
-            table.add_row(c.name, c.db_type, c.display_target())
+            table.add_row(f"[identidade]{c.name}[/]", c.db_type, c.display_target())
         console.print(table)
 
     elif resource == "queries":
@@ -427,7 +446,7 @@ def cmd_list(args: argparse.Namespace) -> None:
             params = ", ".join(p.name for p in q.params) or "-"
             fav = "*" if q.is_favorite else ""
             desc = q.description[:50] + "..." if len(q.description) > 50 else q.description
-            table.add_row(q.name, desc or "-", q.connection, q.folder or "-", params, fav)
+            table.add_row(q.name, desc or "-", f"[identidade]{q.connection}[/]", q.folder or "-", params, fav)
         console.print(table)
 
     elif resource == "groups":
@@ -544,7 +563,8 @@ def cmd_history(args: argparse.Namespace) -> None:
         if e.all_match is not None:
             status = "[veredito.igual]CONSISTENTE[/]" if e.all_match else "[veredito.difere]DIVERGENTE[/]"
         table.add_row(
-            e.timestamp, e.entry_type, e.name, e.connection or "-",
+            e.timestamp, e.entry_type, e.name,
+            f"[identidade]{e.connection}[/]" if e.connection else "-",
             str(e.row_count) if e.entry_type == "query" else "-",
             f"{e.elapsed:.2f}s", status,
         )
