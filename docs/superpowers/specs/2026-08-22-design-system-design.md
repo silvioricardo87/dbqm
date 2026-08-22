@@ -22,8 +22,17 @@ Medido antes de propor, como manda o §0 do guia.
 
 **Contraste calculado do tema atual** (piso 4.5:1 texto / 3:1 interface):
 
-- `text-dim` do `github-dark`: **3.8:1** — abaixo do piso, hoje, em produção.
+- `$text-muted`, o token de apoio realmente em uso, resolve para **6.84:1**
+  (escuro) e **5.74:1** (claro). Passa. O `text-dim` declarado em `theme.py`
+  fica em 3.8:1, mas tem **0 usos** — é dívida morta, não defeito ativo.
+- `$text-disabled` no tema claro: **2.68:1**, abaixo do piso de interface de 3:1.
+  Este é o defeito de contraste vivo hoje.
 - Bordas de painel: **~1.4:1** nos dois temas. Não separam regiões por contraste.
+
+Os tokens de apoio do Textual são `auto 60%` / `auto 38%` — resolvidos contra o
+fundo no momento da renderização, não hexadecimais fixos. A paleta Plano os
+substitui por valores explícitos, para que o contraste seja calculável a partir
+do arquivo de tokens em vez de exigir renderização.
 
 **O que já está saudável e não recebe sistema novo:** o espaçamento já é uma
 escala de fato (130 usos de `1`, 49 de `0 1`, 36 de `1 2`, um único `2` solto).
@@ -318,6 +327,7 @@ dois casos é pior que teste nenhum.
    a violação do §4 que hoje existe.
 3. **Contraste calculado** (`test_contraste.py`)
    Percorre os pares declarados em "válido sobre" e falha abaixo do piso.
+   Só é possível porque os tokens Plano são hex explícitos, não `auto %`.
    Substitui o atual `test_dark_palette_matches_prototype`, que trava valores em
    vez de garantir propriedades.
 4. **Inventário de componentes** (`test_inventario.py`)
