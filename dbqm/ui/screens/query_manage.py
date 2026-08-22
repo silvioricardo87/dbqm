@@ -9,6 +9,7 @@ from textual.widgets import Button, DataTable, Input, Select, Static, TextArea
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
 
 
 # ---------------------------------------------------------------------------
@@ -394,8 +395,6 @@ class QueryManageScreen(Vertical):
     }
     QueryManageScreen #qm-empty {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
     QueryManageScreen DataTable {
         height: 1fr;
@@ -403,10 +402,12 @@ class QueryManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            "[dim]Nenhuma consulta configurada[/]",
+        yield EmptyState(
+            o_que="Consultas",
+            porque="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
+            acao_rotulo="Criar consulta",
+            acao_id="criar-consulta",
             id="qm-empty",
-            markup=True,
         )
         yield DataTable(id="qm-table")
 
@@ -415,6 +416,10 @@ class QueryManageScreen(Vertical):
         self._load_queries()
         self._set_actions()
         self.call_after_refresh(self._set_initial_focus)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "criar-consulta":
+            self._handle_new()
 
     def _set_initial_focus(self) -> None:
         table = self.query_one("#qm-table", DataTable)
@@ -436,7 +441,7 @@ class QueryManageScreen(Vertical):
 
         queries = load_queries()
         table = self.query_one("#qm-table", DataTable)
-        empty_msg = self.query_one("#qm-empty", Static)
+        empty_msg = self.query_one("#qm-empty", EmptyState)
 
         table.clear()
 

@@ -485,12 +485,34 @@ class DBQMApp(App):
         """Set focus to the first interactive widget within a screen."""
         try:
             for widget in screen_widget.query("*"):
-                if widget.can_focus and widget.display:
+                if widget.can_focus and widget.display and self._ancestors_displayed(
+                    widget, screen_widget
+                ):
                     widget.focus()
                     return
             screen_widget.focus()
         except Exception:
             pass
+
+    @staticmethod
+    def _ancestors_displayed(widget, root) -> bool:
+        """True if every ancestor of ``widget`` up to (and including) ``root``
+        has ``display`` on. ``widget.display`` alone is a per-widget flag: a
+        widget nested inside a hidden container (e.g. EmptyState's action
+        Button, once the container itself is hidden with `display = False`
+        because the list it stands in for has content) still reports its OWN
+        display as True. Without this check, ``_focus_screen_widget`` would
+        pick that invisible-but-"displayed" button as the screen's first
+        focusable widget instead of the real, visible content after it.
+        """
+        node = widget.parent
+        while node is not None:
+            if not node.display:
+                return False
+            if node is root:
+                return True
+            node = node.parent
+        return True
 
     # ------------------------------------------------------------------
     # Back navigation

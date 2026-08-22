@@ -4,9 +4,10 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.content import Content
-from textual.widgets import DataTable, Static
+from textual.widgets import Button, DataTable, Static
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -26,10 +27,6 @@ class HistoryScreen(Vertical):
     }
     HistoryScreen #hist-empty {
         height: auto;
-        padding: 2;
-        content-align: center middle;
-        text-align: center;
-        color: $text-muted;
     }
     HistoryScreen #hist-table {
         height: 1fr;
@@ -55,8 +52,11 @@ class HistoryScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with Panel("📜  HISTORICO", id="hist-list-panel"):
-            yield Static(
-                "[dim]Nenhum historico de execucao.[/dim]",
+            yield EmptyState(
+                o_que="Historico",
+                porque="Cada consulta ou grupo executado fica registrado aqui",
+                acao_rotulo="Executar consulta",
+                acao_id="executar-consulta",
                 id="hist-empty",
             )
             yield DataTable(id="hist-table")
@@ -80,7 +80,7 @@ class HistoryScreen(Vertical):
         entries = load_history()
         self._entries = entries[:50]
 
-        empty = self.query_one("#hist-empty", Static)
+        empty = self.query_one("#hist-empty", EmptyState)
         table = self.query_one("#hist-table", DataTable)
 
         table.clear(columns=True)
@@ -234,3 +234,12 @@ class HistoryScreen(Vertical):
 
         if action == "hist_clear":
             self._handle_clear()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "executar-consulta":
+            # Guarded: HistoryScreen is also mounted standalone in tests,
+            # where self.app has no action_switch_tab (that lives on
+            # DBQMApp only).
+            switch = getattr(self.app, "action_switch_tab", None)
+            if callable(switch):
+                switch("tab-consultas")

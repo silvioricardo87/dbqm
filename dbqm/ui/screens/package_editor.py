@@ -10,6 +10,7 @@ from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.progress import ProgressIndicator
 
 
@@ -384,6 +385,9 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
     _WizardRoutineModal .wizard-row Input {
         width: 1fr;
     }
+    _WizardRoutineModal #wizard-empty {
+        height: auto;
+    }
     _WizardRoutineModal #wizard-list {
         height: auto;
         max-height: 10;
@@ -429,16 +433,28 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
                     placeholder="Tipo de retorno (apenas para FUNCTION)",
                     id="wizard-routine-return",
                 )
-            yield Static("Nenhuma rotina adicionada.", id="wizard-list")
+            yield EmptyState(
+                o_que="Rotinas",
+                porque="Cada rotina adicionada aqui vira uma entrada no esqueleto do pacote",
+                acao_rotulo="Adicionar rotina",
+                acao_id="adicionar-rotina",
+                id="wizard-empty",
+            )
+            yield Static("", id="wizard-list")
             with Horizontal(id="wizard-buttons"):
                 yield Button("Adicionar", variant="primary", id="wizard-add")
                 yield Button("Concluir", variant="default", id="wizard-done")
+
+    def on_mount(self) -> None:
+        self.query_one("#wizard-list", Static).display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "wizard-add":
             self._handle_add()
         elif event.button.id == "wizard-done":
             self.dismiss(self._routines if self._routines else None)
+        elif event.button.id == "adicionar-rotina":
+            self.query_one("#wizard-routine-name", Input).focus()
 
     def _handle_add(self) -> None:
         name = self.query_one("#wizard-routine-name", Input).value.strip()
@@ -470,7 +486,10 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
             if r["type"] == "FUNCTION" and r.get("return_type"):
                 sig += f" RETURN {r['return_type']}"
             lines.append(sig)
-        self.query_one("#wizard-list", Static).update("\n".join(lines))
+        self.query_one("#wizard-empty", EmptyState).display = False
+        wizard_list = self.query_one("#wizard-list", Static)
+        wizard_list.display = True
+        wizard_list.update("\n".join(lines))
 
         # Clear inputs for next routine
         self.query_one("#wizard-routine-name", Input).value = ""

@@ -8,6 +8,7 @@ from textual.widgets.option_list import Option
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -79,10 +80,6 @@ class ConnectionsScreen(Vertical):
     }
     ConnectionsScreen #conn-empty {
         height: auto;
-        padding: 1;
-        content-align: center middle;
-        text-align: center;
-        color: $text-muted;
     }
     ConnectionsScreen #conn-list {
         height: 1fr;
@@ -147,10 +144,12 @@ class ConnectionsScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Horizontal(id="conn-body"):
             with Panel("🔌  CONEXOES", id="conn-list-panel"):
-                yield Static(
-                    "[dim]Nenhuma conexao configurada[/]",
+                yield EmptyState(
+                    o_que="Conexoes",
+                    porque="O dbqm precisa de pelo menos uma conexao para executar consultas",
+                    acao_rotulo="Adicionar conexao",
+                    acao_id="adicionar-conexao",
                     id="conn-empty",
-                    markup=True,
                 )
                 yield OptionList(id="conn-list")
                 yield Button("Nova", id="conn-btn-new")
@@ -257,17 +256,22 @@ class ConnectionsScreen(Vertical):
 
         connections = load_connections()
         option_list = self.query_one("#conn-list", OptionList)
-        empty_msg = self.query_one("#conn-empty", Static)
+        empty_msg = self.query_one("#conn-empty", EmptyState)
+        new_btn = self.query_one("#conn-btn-new", Button)
 
         option_list.clear_options()
 
         if not connections:
             empty_msg.display = True
             option_list.display = False
+            # A acao de criar ja vive dentro do EmptyState; duplicar o botao
+            # "Nova" aqui so repetiria a mesma acao duas vezes na tela.
+            new_btn.display = False
             return
 
         empty_msg.display = False
         option_list.display = True
+        new_btn.display = True
 
         for conn in connections:
             db_label = DB_TYPE_LABELS.get(conn.db_type, conn.db_type)
@@ -354,7 +358,7 @@ class ConnectionsScreen(Vertical):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
-        if btn_id == "conn-btn-new":
+        if btn_id in ("conn-btn-new", "adicionar-conexao"):
             self._handle_new()
         elif btn_id == "conn-btn-test":
             self._handle_test()

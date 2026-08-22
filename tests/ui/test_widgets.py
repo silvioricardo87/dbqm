@@ -707,19 +707,44 @@ async def test_templates_sidebar_starts_collapsed_and_toggles():
 
 @pytest.mark.asyncio
 async def test_templates_sidebar_shows_hint_when_empty():
-    from textual.widgets import OptionList, Static as _Static
+    from textual.widgets import OptionList
+    from dbqm.ui.widgets.empty_state import EmptyState
     app = _TemplatesSidebarApp()
     async with app.run_test() as pilot:
         sb = app.query_one("#tpl", TemplatesSidebar)
         sb._reload()  # no templates in the test config
         await pilot.pause()
         # With zero templates the hint shows and the list is hidden.
-        assert sb.query_one("#tpl-empty", _Static).display is True
+        assert sb.query_one("#tpl-empty", EmptyState).display is True
         assert sb.query_one("#tpl-list", OptionList).display is False
         # And the sidebar title itself paints (same border-bottom/height guard).
         sb.remove_class("-collapsed")
         await pilot.pause()
         assert "TEMPLATES" in app.export_screenshot()
+
+
+@pytest.mark.asyncio
+async def test_templates_sidebar_empty_state_action_switches_to_ferramentas():
+    """The EmptyState's "Abrir Ferramentas" button must not be a dead end."""
+    from textual.widgets import Button
+
+    switched = []
+
+    class _SidebarWithSwitch(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield TemplatesSidebar(id="tpl")
+
+        def action_switch_tab(self, tab_id: str) -> None:
+            switched.append(tab_id)
+
+    app = _SidebarWithSwitch()
+    async with app.run_test() as pilot:
+        sb = app.query_one("#tpl", TemplatesSidebar)
+        sb._reload()  # no templates in the test config
+        await pilot.pause()
+        sb.query_one("#abrir-ferramentas", Button).press()
+        await pilot.pause()
+        assert switched == ["tab-ferramentas"]
 
 
 @pytest.mark.asyncio
@@ -748,3 +773,35 @@ async def test_templates_sidebar_option_selected_posts_message():
         await pilot.press("enter")
         await pilot.pause()
         assert messages == ["SELECT 1 FROM DUAL"]
+
+
+# ---------------------------------------------------------------------------
+# EmptyState tests
+# ---------------------------------------------------------------------------
+
+def test_empty_state_exige_uma_acao():
+    """Um vazio que so informa que esta vazio e um defeito, nao um estado."""
+    from dbqm.ui.widgets.empty_state import EmptyState
+
+    with pytest.raises(TypeError):
+        EmptyState("Consultas", "Voce ainda nao salvou nenhuma")  # sem acao
+
+
+@pytest.mark.asyncio
+async def test_empty_state_oferece_a_primeira_acao():
+    from textual.widgets import Button
+    from dbqm.ui.widgets.empty_state import EmptyState
+
+    class _EmptyStateApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield EmptyState(
+                o_que="Consultas",
+                porque="Voce ainda nao salvou nenhuma consulta",
+                acao_rotulo="Criar consulta",
+                acao_id="criar-consulta",
+            )
+
+    app = _EmptyStateApp()
+    async with app.run_test():
+        botao = app.query_one("#criar-consulta", Button)
+        assert botao.label.plain == "Criar consulta"

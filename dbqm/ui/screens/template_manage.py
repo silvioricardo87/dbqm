@@ -9,6 +9,7 @@ from textual.widgets import Button, DataTable, Input, Static, TextArea
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +139,6 @@ class TemplateManageScreen(Vertical):
     }
     TemplateManageScreen #tm-empty {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
     TemplateManageScreen DataTable {
         height: 1fr;
@@ -147,10 +146,12 @@ class TemplateManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            "[dim]Nenhum template configurado[/]",
+        yield EmptyState(
+            o_que="Templates",
+            porque="Templates guardam consultas com parametros para reusar depois",
+            acao_rotulo="Criar template",
+            acao_id="criar-template",
             id="tm-empty",
-            markup=True,
         )
         yield DataTable(id="tm-table")
 
@@ -159,6 +160,10 @@ class TemplateManageScreen(Vertical):
         self._load_templates()
         self._set_actions()
         self.call_after_refresh(self._set_initial_focus)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "criar-template":
+            self._handle_new()
 
     def _set_initial_focus(self) -> None:
         table = self.query_one("#tm-table", DataTable)
@@ -180,7 +185,7 @@ class TemplateManageScreen(Vertical):
 
         templates = load_templates()
         table = self.query_one("#tm-table", DataTable)
-        empty_msg = self.query_one("#tm-empty", Static)
+        empty_msg = self.query_one("#tm-empty", EmptyState)
 
         table.clear()
 

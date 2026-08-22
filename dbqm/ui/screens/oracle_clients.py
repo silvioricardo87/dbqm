@@ -16,6 +16,7 @@ from textual import work
 from dbqm.core import oracle_client_installer as oci
 from dbqm.core.paths import CLIENTS_DIR
 from dbqm.ui.modals.confirm import ConfirmModal
+from dbqm.ui.widgets.empty_state import EmptyState
 
 
 class OracleClientsScreen(Vertical):
@@ -104,6 +105,13 @@ class OracleClientsScreen(Vertical):
 
         with Vertical(classes="oc-section"):
             yield Static("Clients instalados", classes="oc-label")
+            yield EmptyState(
+                o_que="Clients instalados",
+                porque="O Oracle Instant Client permite conectar a bancos Oracle sem instalacao completa",
+                acao_rotulo="Instalar client",
+                acao_id="instalar-client",
+                id="oc-installed-empty",
+            )
             yield DataTable(id="oc-installed-table", cursor_type="row")
             with Horizontal():
                 yield Button("Usar este client", variant="primary", id="oc-use-btn")
@@ -140,10 +148,14 @@ class OracleClientsScreen(Vertical):
     def _refresh_installed(self) -> None:
         self._installed = oci.list_installed_clients()
         table = self.query_one("#oc-installed-table", DataTable)
+        empty = self.query_one("#oc-installed-empty", EmptyState)
         table.clear()
         if not self._installed:
-            table.add_row("[dim]Nenhum client instalado em ~/.dbqm/clients/[/]", "")
+            empty.display = True
+            table.display = False
             return
+        empty.display = False
+        table.display = True
         for c in self._installed:
             table.add_row(c.path.name, c.version or "[dim]?[/]")
 
@@ -183,6 +195,10 @@ class OracleClientsScreen(Vertical):
             self._start_remove()
         elif event.button.id == "oc-use-btn":
             self._use_selected()
+        elif event.button.id == "instalar-client":
+            # Leva o foco ate a lista de pacotes disponiveis: instalar exige
+            # escolher um pacote primeiro, entao a acao real e chegar la.
+            self.query_one("#oc-available-table", DataTable).focus()
 
     def _use_selected(self) -> None:
         """Pin the selected install in dbqm settings so it wins over ORACLE_HOME."""

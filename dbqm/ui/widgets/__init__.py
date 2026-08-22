@@ -9,6 +9,7 @@ from dbqm.ui.widgets.query_list import QueryListWidget, QuerySelected
 from dbqm.ui.widgets.sql_viewer import SqlViewer
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
 
 __all__ = [
     "Breadcrumb",
@@ -24,4 +25,5 @@ __all__ = [
     "SqlViewer",
     "GroupResultWidget",
     "Dialog",
+    "EmptyState",
 ]

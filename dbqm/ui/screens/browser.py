@@ -14,6 +14,7 @@ from textual.widgets.option_list import Option
 from dbqm.ui.utils import NavSelect
 from textual import work
 
+from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.sql_viewer import SqlViewer
@@ -77,6 +78,9 @@ class BrowserScreen(Vertical):
         height: 1fr;
         margin-top: 1;
     }
+    BrowserScreen #obj-list-empty {
+        height: 1fr;
+    }
     BrowserScreen #obj-columns {
         height: 1fr;
     }
@@ -124,6 +128,13 @@ class BrowserScreen(Vertical):
                     TYPE_OPTIONS, value="TABLE", allow_blank=False, id="obj-type"
                 )
                 yield Input(placeholder="Filtrar objetos...", id="obj-filter")
+                yield EmptyState(
+                    o_que="Objetos",
+                    porque="Escolha uma conexao para listar tabelas, views e rotinas",
+                    acao_rotulo="Escolher conexao",
+                    acao_id="escolher-conexao",
+                    id="obj-list-empty",
+                )
                 yield OptionList(id="obj-list")
 
             with Panel("📋  COLUNAS", id="obj-columns-panel"):
@@ -141,7 +152,16 @@ class BrowserScreen(Vertical):
         columns.cursor_type = "row"
         self._show_table_view()
         self._load_connections()
+        self._update_obj_list_visibility()
         self.call_after_refresh(self._set_initial_focus)
+
+    def _update_obj_list_visibility(self) -> None:
+        """Show the "pick a connection" empty state until one is chosen."""
+        empty = self.query_one("#obj-list-empty", EmptyState)
+        option_list = self.query_one("#obj-list", OptionList)
+        has_conn = self._current_conn is not None
+        empty.display = not has_conn
+        option_list.display = has_conn
 
     def _set_initial_focus(self) -> None:
         try:
@@ -183,6 +203,7 @@ class BrowserScreen(Vertical):
             # Switching connection invalidates the open handle.
             self._close_db()
             self._current_conn = conn
+            self._update_obj_list_visibility()
             if conn is not None:
                 self._reload_objects()
         elif sel_id == "obj-type":
@@ -465,6 +486,8 @@ class BrowserScreen(Vertical):
             self._handle_extract_ddl()
         elif btn_id == "obj-more":
             self._handle_load_more()
+        elif btn_id == "escolher-conexao":
+            self.query_one("#obj-conn", Select).focus()
 
     def _handle_extract_ddl(self) -> None:
         if not self._selected_object or self._current_conn is None:

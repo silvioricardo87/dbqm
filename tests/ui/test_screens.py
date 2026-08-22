@@ -375,6 +375,18 @@ async def test_connections_screen_empty(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_connections_empty_state_action_focuses_new_form(tmp_config_dir):
+    """The EmptyState's "Adicionar conexao" button must not be a dead end."""
+    from textual.widgets import Button
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#adicionar-conexao", Button).press()
+        await pilot.pause()
+        assert app.focused is screen.query_one("#conn-form-name", Input)
+
+
+@pytest.mark.asyncio
 async def test_connections_screen_with_data(tmp_config_dir):
     """With connections configured, should list them in the OptionList."""
     _seed_connections(tmp_config_dir / "config")
@@ -630,6 +642,18 @@ async def test_query_manage_screen_empty(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_query_manage_empty_state_action_opens_new_query(tmp_config_dir):
+    """The EmptyState's "Criar consulta" button must not be a dead end."""
+    from textual.widgets import Button
+    app = QueryManageTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryManageScreen)
+        screen.query_one("#criar-consulta", Button).press()
+        await pilot.pause()
+        assert len(app.screen_stack) > 1  # SqlPasteModal opened
+
+
+@pytest.mark.asyncio
 async def test_query_manage_screen_with_data(tmp_config_dir):
     """With queries configured, should show them in the table."""
     config_dir = tmp_config_dir / "config"
@@ -733,6 +757,25 @@ async def test_group_manage_screen_empty(tmp_config_dir):
         from textual.widgets import DataTable
         table = screen.query_one("#gm-table", DataTable)
         assert table.display is False
+
+
+@pytest.mark.asyncio
+async def test_group_manage_empty_state_action_opens_new_group(tmp_config_dir):
+    """The EmptyState's "Criar grupo" button must not be a dead end."""
+    from dbqm.models.query import Query, save_queries
+    from textual.widgets import Button
+
+    save_queries([
+        Query(name="q1", connection="c1", sql="SELECT 1 FROM dual", table="dual"),
+        Query(name="q2", connection="c1", sql="SELECT 2 FROM dual", table="dual"),
+    ])
+
+    app = GroupManageTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupManageScreen)
+        screen.query_one("#criar-grupo", Button).press()
+        await pilot.pause()
+        assert len(app.screen_stack) > 1  # GroupCreateModal opened
 
 
 # ======================================================================
@@ -1483,6 +1526,25 @@ async def test_browser_screen_renders(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_browser_shows_empty_state_until_connection_chosen(tmp_config_dir):
+    """No connection selected yet: EmptyState replaces the object OptionList,
+    and its "Escolher conexao" button must not be a dead end."""
+    from textual.widgets import Button, OptionList, Select
+    from dbqm.ui.widgets.empty_state import EmptyState
+
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        empty = screen.query_one("#obj-list-empty", EmptyState)
+        assert empty.display is True
+        assert screen.query_one("#obj-list", OptionList).display is False
+
+        screen.query_one("#escolher-conexao", Button).press()
+        await pilot.pause()
+        assert app.focused is screen.query_one("#obj-conn", Select)
+
+
+@pytest.mark.asyncio
 async def test_browser_three_live_panels(tmp_config_dir):
     """BrowserScreen renders three simultaneous panels + the live surfaces."""
     from dbqm.ui.widgets.panel import Panel
@@ -1809,6 +1871,28 @@ async def test_history_screen_empty(tmp_config_dir):
         table = screen.query_one("#hist-table", DataTable)
         assert table.display is True
         assert table.row_count == 0
+
+
+@pytest.mark.asyncio
+async def test_history_empty_state_action_switches_to_query_exec(tmp_config_dir):
+    """The EmptyState's "Executar consulta" button must not be a dead end."""
+    from textual.widgets import Button
+
+    switched = []
+
+    class _HistoryWithSwitch(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield HistoryScreen()
+
+        def action_switch_tab(self, tab_id: str) -> None:
+            switched.append(tab_id)
+
+    app = _HistoryWithSwitch()
+    async with app.run_test() as pilot:
+        screen = app.query_one(HistoryScreen)
+        screen.query_one("#executar-consulta", Button).press()
+        await pilot.pause()
+        assert switched == ["tab-consultas"]
 
 
 @pytest.mark.asyncio
@@ -2886,6 +2970,39 @@ async def test_package_editor_screen_renders(tmp_config_dir):
         assert app.query_one(PackageEditorScreen) is not None
 
 
+@pytest.mark.asyncio
+async def test_wizard_routine_modal_empty_state_action_focuses_name_input(tmp_config_dir):
+    """The "Rotinas" EmptyState in the wizard must not be a dead end, and
+    adding a routine must swap it for the real list (never both stacked)."""
+    from textual.widgets import Button, Input, Static
+    from dbqm.ui.screens.package_editor import _WizardRoutineModal
+    from dbqm.ui.widgets.empty_state import EmptyState
+
+    class _WizardHostApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield Static()
+
+    app = _WizardHostApp()
+    async with app.run_test() as pilot:
+        modal = _WizardRoutineModal()
+        app.push_screen(modal)
+        await pilot.pause()
+
+        assert modal.query_one("#wizard-empty", EmptyState).display is True
+        assert modal.query_one("#wizard-list", Static).display is False
+
+        modal.query_one("#adicionar-rotina", Button).press()
+        await pilot.pause()
+        assert app.focused is modal.query_one("#wizard-routine-name", Input)
+
+        modal.query_one("#wizard-routine-name", Input).value = "sp_teste"
+        modal.query_one("#wizard-add", Button).press()
+        await pilot.pause()
+
+        assert modal.query_one("#wizard-empty", EmptyState).display is False
+        assert modal.query_one("#wizard-list", Static).display is True
+
+
 # ======================================================================
 # Package editor core tests
 # ======================================================================
@@ -3244,6 +3361,18 @@ async def test_template_manage_screen_empty(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_template_manage_empty_state_action_opens_new_template(tmp_config_dir):
+    """The EmptyState's "Criar template" button must not be a dead end."""
+    from textual.widgets import Button
+    app = TemplateManageTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(TemplateManageScreen)
+        screen.query_one("#criar-template", Button).press()
+        await pilot.pause()
+        assert len(app.screen_stack) > 1  # TemplateEditModal opened
+
+
+@pytest.mark.asyncio
 async def test_template_manage_screen_with_data(tmp_config_dir):
     """With templates configured, should show them in the table."""
     templates_dir = tmp_config_dir / "templates"
@@ -3393,6 +3522,36 @@ async def test_oracle_clients_screen_renders_platform_and_tables(tmp_config_dir)
         assert len(available.columns) == 3
         installed = screen.query_one("#oc-installed-table", DataTable)
         assert len(installed.columns) == 2
+
+
+@pytest.mark.asyncio
+async def test_oracle_clients_empty_state_action_focuses_available_table(
+    tmp_config_dir, monkeypatch
+):
+    """The EmptyState's "Instalar client" button must not be a dead end.
+
+    With zero installed clients, it should send focus to the "Disponiveis
+    para download" table — installing requires picking a package there
+    first, so that's the real next step.
+    """
+    from textual.widgets import Button, DataTable
+
+    clients_root = tmp_config_dir / "clients_empty"
+    monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", clients_root)
+
+    app = OracleClientsTestApp()
+    async with app.run_test() as pilot:
+        from dbqm.ui.widgets.empty_state import EmptyState
+
+        screen = app.query_one(OracleClientsScreen)
+        empty = screen.query_one("#oc-installed-empty", EmptyState)
+        assert empty.display is True
+        installed = screen.query_one("#oc-installed-table", DataTable)
+        assert installed.display is False
+
+        screen.query_one("#instalar-client", Button).press()
+        await pilot.pause()
+        assert app.focused is screen.query_one("#oc-available-table", DataTable)
 
 
 @pytest.mark.asyncio

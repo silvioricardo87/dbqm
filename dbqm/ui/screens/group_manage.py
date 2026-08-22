@@ -9,6 +9,7 @@ from textual.widgets import Button, DataTable, Input, Select, Static, SelectionL
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
 
 
 # ---------------------------------------------------------------------------
@@ -453,8 +454,6 @@ class GroupManageScreen(Vertical):
     }
     GroupManageScreen #gm-empty {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
     GroupManageScreen DataTable {
         height: 1fr;
@@ -462,10 +461,12 @@ class GroupManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            "[dim]Nenhum grupo configurado[/]",
+        yield EmptyState(
+            o_que="Grupos",
+            porque="Grupos comparam a mesma consulta em varias conexoes de uma vez",
+            acao_rotulo="Criar grupo",
+            acao_id="criar-grupo",
             id="gm-empty",
-            markup=True,
         )
         yield DataTable(id="gm-table")
 
@@ -474,6 +475,10 @@ class GroupManageScreen(Vertical):
         self._load_groups()
         self._set_actions()
         self.call_after_refresh(self._set_initial_focus)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "criar-grupo":
+            self._handle_new()
 
     def _set_initial_focus(self) -> None:
         table = self.query_one("#gm-table", DataTable)
@@ -495,7 +500,7 @@ class GroupManageScreen(Vertical):
 
         groups = load_groups()
         table = self.query_one("#gm-table", DataTable)
-        empty_msg = self.query_one("#gm-empty", Static)
+        empty_msg = self.query_one("#gm-empty", EmptyState)
 
         table.clear()
 
