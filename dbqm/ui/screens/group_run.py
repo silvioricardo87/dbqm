@@ -17,7 +17,7 @@ from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
-from dbqm.ui.widgets.veredito import marcar_operacao
+from dbqm.ui.widgets.veredito import marcar_operacao, marcar_veredito
 
 from dbqm.core.group_engine import GroupResult
 
@@ -543,13 +543,13 @@ class GroupRunScreen(Vertical):
 
         # Update info bar
         overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
-        overall_color = "$veredito-igual" if group_result.all_match else "$veredito-difere"
+        overall_status = "igual" if group_result.all_match else "difere"
         group_name = str(group_result.group_name) if group_result.group_name else ""
         info = self.query_one("#gr-result-info", Static)
         info.update(
             f"[bold]{escape_markup(group_name)}[/] | "
             f"{len(group_result.query_results)} consultas | "
-            f"[{overall_color} bold]{overall}[/]"
+            f"[bold]{marcar_veredito(overall_status, texto=overall)}[/]"
         )
 
         # Load result into GroupResultWidget
@@ -685,11 +685,11 @@ class GroupRunScreen(Vertical):
         group_name = str(new_gr.group_name) if new_gr.group_name else ""
         if self._showing_mapped:
             overall = "CONSISTENTE" if new_gr.all_match else "DIVERGENTE"
-            overall_color = "$veredito-igual" if new_gr.all_match else "$veredito-difere"
+            overall_status = "igual" if new_gr.all_match else "difere"
             info.update(
                 f"[bold]{escape_markup(group_name)}[/] | "
                 f"{len(new_gr.query_results)} consultas | "
-                f"[{overall_color} bold]{overall}[/]"
+                f"[bold]{marcar_veredito(overall_status, texto=overall)}[/]"
             )
         else:
             info.update(

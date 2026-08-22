@@ -184,10 +184,9 @@ class HistoryScreen(Vertical):
                 lines.append(f"[bold]Erro:[/bold] {str(entry.error)}")
         elif entry.entry_type == "group":
             if entry.all_match is not None:
-                status = (
-                    "[$veredito-igual]CONSISTENTE[/]"
-                    if entry.all_match
-                    else "[$veredito-difere]DIVERGENTE[/]"
+                status = marcar_veredito(
+                    "igual" if entry.all_match else "difere",
+                    texto="CONSISTENTE" if entry.all_match else "DIVERGENTE",
                 )
                 lines.append(f"[bold]Resultado:[/bold] {status}")
             if entry.summary:

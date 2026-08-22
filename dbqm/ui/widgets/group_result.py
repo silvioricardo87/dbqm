@@ -260,16 +260,16 @@ class GroupResultWidget(Vertical, can_focus=False):
         lines = []
         overall = "CONSISTENTE" if gr.all_match else "DIVERGENTE"
         overall_status = "igual" if gr.all_match else "difere"
-        lines.append(f"{marcar_veredito(overall_status)} [bold]{overall}[/]")
+        lines.append(f"[bold]{marcar_veredito(overall_status, texto=overall)}[/]")
         lines.append("")
 
         for comp in gr.comparisons:
             col_name = str(comp.column) if comp.column is not None else ""
             lines.append(f"[bold]{col_name}[/]:")
-            lines.append(f"  {marcar_veredito('igual')} Iguais:      {comp.equal_count}/{comp.total_keys}")
+            lines.append(f"  {marcar_veredito('igual', texto='Iguais:')}      {comp.equal_count}/{comp.total_keys}")
             if comp.normalized_count > 0:
-                lines.append(f"  {marcar_veredito('igual-normalizado')} Normalizados: {comp.normalized_count}/{comp.total_keys}")
-            lines.append(f"  {marcar_veredito('difere')} Diferentes:  {comp.diff_count}/{comp.total_keys}")
-            lines.append(f"  {marcar_veredito('ausente')} Ausentes:    {comp.absent_count}/{comp.total_keys}")
+                lines.append(f"  {marcar_veredito('igual-normalizado', texto='Normalizados:')} {comp.normalized_count}/{comp.total_keys}")
+            lines.append(f"  {marcar_veredito('difere', texto='Diferentes:')}  {comp.diff_count}/{comp.total_keys}")
+            lines.append(f"  {marcar_veredito('ausente', texto='Ausentes:')}    {comp.absent_count}/{comp.total_keys}")
 
         summary.update("\n".join(lines))

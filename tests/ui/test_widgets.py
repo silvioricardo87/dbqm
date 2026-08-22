@@ -135,6 +135,89 @@ def test_operacao_rejeita_estado_desconhecido():
         marcar_operacao("talvez")
 
 
+def test_marcar_veredito_texto_troca_rotulo_mantem_glifo_e_token():
+    """`texto` deixa o chamador colorir sua propria palavra sem duplicar o
+    rotulo padrao do componente ao lado dela (achado da revisao da Task 11:
+    `_render_summary` gerava "= OK Iguais:" antes deste parametro existir).
+
+    O glifo e o token continuam vindo so de `VEREDITOS` — `texto` nunca
+    expõe o nome do token para o chamador montar `[$token]` por fora; se
+    expusesse, reabriria exatamente o buraco de montagem a mao que o resto
+    deste modulo fecha.
+    """
+    from dbqm.ui.widgets.veredito import marcar_veredito
+
+    padrao = marcar_veredito("difere")
+    customizado = marcar_veredito("difere", texto="DIVERGENTE")
+
+    assert "DIVERGENTE" in customizado
+    assert "DIFERE" not in customizado
+    assert "$veredito-difere" in customizado
+    # mesmo glifo do padrao, sem duplicar o rotulo "DIFERE" dele
+    assert customizado.split("]")[1].split(" ", 1)[0] == padrao.split("]")[1].split(" ", 1)[0]
+
+
+def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
+    """Fecha a porta que sobrou depois da primeira rodada da Task 11: nada
+    fora de `veredito.py` pode escrever `$veredito-*`/`$op-falha` direto no
+    markup. Um marcador desses carrega cor mas nao glifo — exatamente o
+    problema de acessibilidade que este componente existe para fechar — e
+    sem este teste nada acusa um quinto marcador desses aparecendo amanha.
+
+    O eixo veredito (`$veredito-*`) esta com zero ocorrencias fora do
+    componente hoje, entao fica de porta fechada de verdade: qualquer
+    ocorrencia nova falha.
+
+    O eixo operacao (`$op-falha`) ainda tem uso legado pre-existente em
+    telas que a Task 11 nunca tocou (DDL, rotina, client Oracle,
+    configuracoes) — fora do escopo desta tarefa, entao nao convertido
+    aqui. `PERMITIDO_LEGADO` trava o numero exato de ocorrencias por
+    arquivo para que a porta feche para qualquer ocorrencia NOVA (neles ou
+    em qualquer outro arquivo) sem barrar o debito que ja existia. Reduzir
+    o debito legado tambem deve atualizar o numero aqui — o teste acusa
+    os dois sentidos.
+
+    Trechos de `DEFAULT_CSS` sao ignorados: sao declaracao estatica de
+    estilo do widget (o mesmo uso que `theme.py` faz dos tokens), nao
+    markup dinamico — nao tem o problema de "estado comunicado so por
+    cor" que este teste vigia.
+    """
+    import re
+    from pathlib import Path
+
+    raiz_ui = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
+    padrao_token = re.compile(r"\$veredito-[a-z]+|\$op-falha")
+    padrao_css = re.compile(r'DEFAULT_CSS\s*=\s*""".*?"""', re.DOTALL)
+
+    # Debito pre-existente, fora do escopo da Task 11 (arquivos nunca
+    # editados nesta tarefa). Caminho relativo a dbqm/ui -> numero exato de
+    # ocorrencias de `$op-falha` em markup hoje.
+    PERMITIDO_LEGADO: dict[str, int] = {
+        "screens/adhoc.py": 2,
+        "screens/exec_routine.py": 2,
+        "screens/oracle_clients.py": 1,
+        "screens/package_editor.py": 2,
+        "screens/settings.py": 1,
+    }
+
+    ofensores = []
+    for arquivo in sorted(raiz_ui.rglob("*.py")):
+        rel = str(arquivo.relative_to(raiz_ui)).replace("\\", "/")
+        if rel == "widgets/veredito.py":
+            continue
+        texto_fonte = arquivo.read_text(encoding="utf-8")
+        texto_sem_css = padrao_css.sub("", texto_fonte)
+        n = len(padrao_token.findall(texto_sem_css))
+        permitido = PERMITIDO_LEGADO.get(rel, 0)
+        if n != permitido:
+            ofensores.append(f"{rel}: {n} ocorrencia(s), esperado {permitido}")
+
+    assert not ofensores, (
+        "markup de veredito/operacao montado a mao fora de veredito.py, "
+        f"alem do debito legado documentado em PERMITIDO_LEGADO: {ofensores}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # ActionBar tests
 # ---------------------------------------------------------------------------
