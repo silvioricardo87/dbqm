@@ -8,7 +8,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Header, TabbedContent, TabPane
 
-from dbqm.ui.theme import GITHUB_DARK, GITHUB_LIGHT
+from dbqm.ui.theme import TEMAS_TEXTUAL, get_theme
 from dbqm.ui.widgets.status_bar import StatusBar
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
 from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
@@ -124,9 +124,9 @@ class DBQMApp(App):
 
         settings = load_settings()
 
-        self.register_theme(GITHUB_DARK)
-        self.register_theme(GITHUB_LIGHT)
-        self.theme = settings.theme
+        for tema in TEMAS_TEXTUAL.values():
+            self.register_theme(tema)
+        self.theme = get_theme(settings.theme).name
 
         connections = load_connections()
         queries = load_queries()

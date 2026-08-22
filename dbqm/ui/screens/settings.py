@@ -7,6 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Select, Static, Switch
 
+from dbqm.ui.theme import get_theme
 from dbqm.ui.utils import NavSelect
 from dbqm.ui.widgets.panel import Panel
 
@@ -84,8 +85,8 @@ class SettingsScreen(Vertical):
                 yield Static("Tema", classes="settings-label")
                 yield NavSelect(
                     [
-                        ("GitHub Dark", "github-dark"),
-                        ("GitHub Light", "github-light"),
+                        ("Plano Escuro", "plano-escuro"),
+                        ("Plano Claro", "plano-claro"),
                     ],
                     id="settings-theme-select",
                     allow_blank=False,
@@ -159,7 +160,7 @@ class SettingsScreen(Vertical):
         settings = load_settings()
 
         theme_select = self.query_one("#settings-theme-select", Select)
-        theme_select.value = settings.theme
+        theme_select.value = get_theme(settings.theme).name
 
         audit_switch = self.query_one("#settings-audit-switch", Switch)
         audit_switch.value = settings.audit_log_enabled

@@ -1907,7 +1907,7 @@ async def test_settings_screen_loads_defaults(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(SettingsScreen)
         theme_select = screen.query_one("#settings-theme-select", Select)
-        assert theme_select.value == "github-dark"
+        assert theme_select.value == "plano-escuro"
         audit_switch = screen.query_one("#settings-audit-switch", Switch)
         assert audit_switch.value is False
 
@@ -1917,7 +1917,7 @@ async def test_settings_screen_loads_saved_settings(tmp_config_dir):
     """SettingsScreen should load previously saved settings."""
     from textual.widgets import Switch
     config_dir = tmp_config_dir / "config"
-    settings_data = {"audit_log_enabled": True, "theme": "github-light"}
+    settings_data = {"audit_log_enabled": True, "theme": "plano-claro"}
     (config_dir / "settings.json").write_text(
         json.dumps(settings_data, ensure_ascii=False), encoding="utf-8"
     )
@@ -1926,7 +1926,7 @@ async def test_settings_screen_loads_saved_settings(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(SettingsScreen)
         theme_select = screen.query_one("#settings-theme-select", Select)
-        assert theme_select.value == "github-light"
+        assert theme_select.value == "plano-claro"
         audit_switch = screen.query_one("#settings-audit-switch", Switch)
         assert audit_switch.value is True
 
@@ -2619,13 +2619,13 @@ async def test_settings_theme_change_saves(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(SettingsScreen)
         theme_select = screen.query_one("#settings-theme-select", Select)
-        # Change theme to github-light
-        theme_select.value = "github-light"
+        # Change theme to plano-claro
+        theme_select.value = "plano-claro"
         await pilot.pause()
 
         from dbqm.models.settings import load_settings
         settings = load_settings()
-        assert settings.theme == "github-light"
+        assert settings.theme == "plano-claro"
 
 
 # ======================================================================
