@@ -15,10 +15,10 @@ from typing import Final
 # --------------------------------------------------------------- camada 1
 # Primitivas ordenadas por luminancia: numero maior e sempre mais escuro.
 # ardosia (escuro): 950 #0b0e14 · 900 #0f131b · 850 #151a24 · 800 #1e2531
-#                   700 #2b3342 · 500 #6b7a93 · 450 #6b7688 · 300 #9aa4b5
+#                   700 #2b3342 · 500 #6b7688 · 450 #6b7a93 · 300 #9aa4b5
 #                   100 #d5dae4 · 050 #f2f5fa
 # neve (claro):     000 #ffffff · 050 #f4f6f9 · 100 #f2f5f8 · 150 #eaeef3
-#                   300 #d3dae3 · 500 #788291 · 600 #7b8798 · 700 #5b6577
+#                   300 #d3dae3 · 500 #7b8798 · 600 #788291 · 700 #5b6577
 #                   900 #1c2230 · 950 #0a0e16
 # tintas:  ambar 400 #e3b341 / 800 #7d5600   (identidade, linhagem SQL*Plus)
 #          persimmon 400 #ff8a5c / 800 #a83a0c   (discorda)

@@ -32,11 +32,22 @@ def test_get_theme_unknown_falls_back_to_dark():
 
 
 def test_light_defines_accent_and_panel():
+    """Confere a fiacao (theme.py -> tokens.py), nunca o valor do hex.
+
+    Um teste que compara contra um hex literal reprova toda vez que a
+    paleta e repintada (a propria Task 8 do design system e prova disso) e
+    nao pega o bug real: se `_construir` parasse de mapear
+    `background=tokens["fundo"]`, um hex sincronizado a mao no teste faria
+    a asserção passar mesmo com a fiacao quebrada. Comparar contra
+    TOKENS_CLARO prova a ligacao, nao a memoria de qual paleta esta ativa.
+    """
+    from dbqm.design.tokens import TOKENS_CLARO
+
     light = get_theme("plano-claro")
-    assert light.variables["identidade"] == "#7d5600"
-    assert light.panel == "#ffffff"
-    assert light.surface == "#eaeef3"
-    assert light.background == "#f4f6f9"
+    assert light.variables["identidade"] == TOKENS_CLARO["identidade"]
+    assert light.panel == TOKENS_CLARO["painel"]
+    assert light.surface == TOKENS_CLARO["superficie"]
+    assert light.background == TOKENS_CLARO["fundo"]
 
 
 def test_tema_expoe_todo_token_como_variavel_css():

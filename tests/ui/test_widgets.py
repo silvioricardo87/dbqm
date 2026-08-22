@@ -57,22 +57,23 @@ def test_status_bar_inverted_primary_background():
 
 
 @pytest.mark.asyncio
-async def test_status_bar_bolinha_usa_foreground_da_barra_nao_identidade():
-    """A bolinha de conexao usa o foreground da propria barra, nao identidade.
+async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
+    """A bolinha de conexao precisa contrastar com o fundo da propria barra.
 
-    A barra inteira ja e preenchida com $primary (= identidade) — pintar a
-    bolinha em $identidade tambem e ambar sobre ambar, invisivel. $identidade
-    so e valida sobre fundo/superficie/painel/superficie-elevada (ver
-    VALIDO_SOBRE em dbqm/design/tokens.py), nao sobre um preenchimento solido
-    de $primary. A bolinha usa $background — o mesmo tom que o texto da
-    conexao ao lado dela ja usa por heranca do `color: $background` da barra.
-
-    Resolve o markup contra o tema ativo (via ThemedTestApp) em vez de
-    procurar o nome do token na string crua: uma asserção sobre texto
-    fonte so prova que alguem digitou "$background" em algum lugar, nao
-    que a cor renderizada e a do token.
+    O bug original nunca foi "a bolinha usa o token errado" — foi "a
+    bolinha nao contrasta com o que esta atras dela". A barra inteira e
+    preenchida com $primary (= identidade); pintar a bolinha em $identidade
+    tambem e ambar sobre ambar, invisivel. Fixar a asserção num nome de
+    token (ex.: `== $background`) so prova a grafia atual: se o fundo da
+    barra um dia deixar de ser $primary, o teste continuaria verde e a
+    bolinha podia voltar a ficar invisivel sem que nada acusasse. Em vez
+    disso, mede o contraste WCAG real entre a cor resolvida da bolinha e a
+    cor resolvida do fundo da barra, exigindo o piso de interface (3:1) —
+    o mesmo piso que PISO_INTERFACE usa em tests/design/test_contraste.py.
     """
     from textual.style import Style
+
+    from tests.design._contraste import razao
 
     app = StatusBarTestApp()
     async with app.run_test():
@@ -84,8 +85,13 @@ async def test_status_bar_bolinha_usa_foreground_da_barra_nao_identidade():
         cor_bolinha = next(
             estilo.foreground for texto, estilo in pecas if "●" in texto
         )
-        assert cor_bolinha == Style.parse("$background").foreground
-        assert cor_bolinha != Style.parse("green").foreground
+        cor_fundo_barra = Style.parse("$primary").foreground
+
+        contraste = razao(cor_bolinha.hex, cor_fundo_barra.hex)
+        assert contraste >= 3.0, (
+            f"bolinha ({cor_bolinha.hex}) sobre o fundo da barra "
+            f"({cor_fundo_barra.hex}) = {contraste:.2f}:1, abaixo do piso de interface"
+        )
 
 
 # ---------------------------------------------------------------------------
