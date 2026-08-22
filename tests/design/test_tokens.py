@@ -56,10 +56,19 @@ def test_todo_token_de_texto_declara_sobre_quais_fundos_e_valido():
 # action_bar.py/panel.py/templates_sidebar.py passaram a resolver para o
 # `border` embutido do Textual (derivado da paleta, nao de nenhum token) em
 # vez do token `borda` que era a intencao.
+#
+# O guarda casa qualquer atribuicao (de modulo ou de classe) de uma string
+# triple-quoted a um identificador, nao so `DEFAULT_CSS` literal. Antes so
+# `DEFAULT_CSS = """..."""` era varrido; `dbqm/ui/theme.py::ESTADOS_INERTES_CSS`
+# escapava por ter outro nome, e uma renomeacao de token la dentro deixaria
+# `$texto-desabilitado`/`$texto-apoio` resolvendo em silencio para um builtin
+# do Textual — a mesma falha de `$border` que este guarda existe para pegar.
 
 RAIZ_UI = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
 
-_BLOCO_DEFAULT_CSS = re.compile(r'DEFAULT_CSS\s*=\s*"""(.*?)"""', re.DOTALL)
+_BLOCO_DEFAULT_CSS = re.compile(
+    r'[A-Za-z_][A-Za-z0-9_]*\s*=\s*"""(.*?)"""', re.DOTALL
+)
 _VARIAVEL_CSS = re.compile(r'\$([a-zA-Z][a-zA-Z0-9_-]*)')
 
 # Campos nomeados do Theme que `dbqm/ui/theme.py::_construir` preenche a
