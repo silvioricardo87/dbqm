@@ -714,8 +714,9 @@ git commit -m "refactor(ui): widgets e modais consomem tokens em vez de cor lite
 
 Separa os dois eixos que estavam fundidos: conexao ativa passa a usar
 \$identidade em vez de verde de sucesso, e o veredito de comparacao usa os
-tokens do proprio eixo. Sem mudanca visual: os tokens ainda tem os valores
-antigos."
+tokens do proprio eixo. Os valores dos tokens ainda sao os antigos, mas markup que usava nome ANSI
+muda de tom: [green] e (0,128,0) e \$veredito-igual e #3fb950. A troca de
+valores da paleta continua sendo tarefa separada."
 ```
 
 ---
@@ -1125,7 +1126,7 @@ Expected: FAIL com `ModuleNotFoundError`
 ```python
 """Dialog: a camada que flutua sobre o conteudo.
 
-Existe porque o mesmo bloco `border: thick $accent` estava copiado 24 vezes em
+Existe porque o mesmo bloco `border: thick $accent` estava copiado 29 vezes em
 13 arquivos. Regra de uso: se flutua sobre o conteudo, e Dialog; se nao flutua,
 e Panel.
 """
@@ -1199,7 +1200,7 @@ internos (`#save`, `#cancel`, …) — há testes que os consultam.
 ```bash
 python -m pytest tests/ -q
 git add dbqm/ui tests/ui
-git commit -m "refactor(ui): componente Dialog no lugar de 24 molduras copiadas
+git commit -m "refactor(ui): componente Dialog no lugar de 29 molduras copiadas
 
 Chrome de camada flutuante em um lugar so, com variantes fechadas de largura e
 tom. A borda passa a ser \$borda-forte: o accent saturado nao carregava
@@ -1453,7 +1454,34 @@ Expected: PASS
 
 - [ ] **Step 5: Substituir os pontos de uso**
 
-`group_result.py:_status_markup` passa a delegar para `marcar_veredito`, mapeando os status internos (`OK`, `OK*`, `DIFF`, `ABSENT`) para os nomes do componente. `status_bar`, `group_run` e `history` passam a usar `marcar_operacao`.
+**Correcao de premissa (descoberta durante a Task 5).** O plano dizia que
+`group_result.py:_status_markup` passaria a delegar para `marcar_veredito`.
+`_status_markup` e **codigo morto**: definido e chamado em lugar nenhum, nem em
+teste. Ligar o componente novo a ele entregaria zero. Os caminhos reais sao:
+
+- `_render_flat` e `_render_pivoted` alimentam as celulas de status com
+  `str(row.status)` cru — **hoje a coluna de veredito da tabela de comparacao
+  nao tem cor nenhuma**, apesar de ser a tela central do produto.
+- `_render_summary` monta linhas que vao para `Static.update()`, e essas ja
+  usam os tokens do eixo de veredito desde a Task 4.
+
+Portanto o Step 5 e:
+
+1. **Apagar `_status_markup`.** Codigo morto nao se migra, se remove.
+2. **Fazer as celulas de status da DataTable usarem `marcar_veredito`**, passando
+   o resultado por `Content.from_markup(...)`. Isto e obrigatorio: `add_row`
+   parseia com Rich puro, que nao resolve `$token` e levanta
+   `rich.errors.MarkupError`. O padrao ja esta aplicado em
+   `dbqm/ui/screens/history.py` (Task 5) — copie de la.
+   Este passo e o unico ganho visivel da tarefa: e quando o veredito finalmente
+   ganha cor na tabela.
+3. **Trocar as linhas de `_render_summary`** para chamarem `marcar_veredito` em
+   vez de montarem o markup a mao.
+4. `status_bar`, `group_run` e `history` passam a usar `marcar_operacao`.
+
+Acrescente um teste que monte a tabela de comparacao com um `GroupResult`
+contendo os quatro status e verifique a cor **resolvida** de cada celula — nao a
+string de markup. Um teste que so cheque a string nao teria pego nada disso.
 
 - [ ] **Step 6: Rodar tudo e commitar**
 

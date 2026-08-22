@@ -15,7 +15,7 @@ Medido antes de propor, como manda o §0 do guia.
 | Cor literal em markup | **210** (`[green]`, `[red]`, `[dim]`…) — 104 em `cli.py`, ~106 na TUI |
 | Hex fora do tema na TUI | `#e3b341` em `query_list.py:68` e `group_run.py` |
 | Segunda paleta independente | `core/html_report.py`: 14 hex próprios (`#00d4ff`, `#16213e`) |
-| Chrome de dialog replicado | `border: thick $accent` — **24× em 13 arquivos** |
+| Chrome de dialog replicado | `border: thick $accent` — **29x em 13 arquivos** |
 | Estados vazios | ~23 mensagens "Nenhum…"; **1** oferece a próxima ação |
 | Testes de manutenção do §13 | **0 de 4** |
 | Regras `:focus` | 3, em 58 blocos de CSS |
@@ -50,7 +50,7 @@ usam verde/amarelo/vermelho:
 estrutural da paleta.
 
 O segundo achado é um desperdício: a cor mais saturada do produto (`$accent`
-roxo `#bc8cff`) é gasta em **borda de dialog** — 24 usos, zero informação.
+roxo `#bc8cff`) é gasta em **borda de dialog** — 29 usos, zero informação.
 Enquanto isso, a única cor que alguém precisou escrever à mão foi um âmbar,
 para marcar **conexão**. O código já apontava onde a cor importa.
 
@@ -242,7 +242,7 @@ fundos para estilo arbitrário.
 
 ### `Dialog` (novo)
 
-Substitui os 24 blocos `border: thick $accent` copiados em 13 arquivos.
+Substitui os 29 blocos `border: thick $accent` copiados em 13 arquivos.
 
 - Props: `titulo`, `largura` ∈ `sm|md|lg`, `tom` ∈ `neutro|destrutivo`.
 - Entrega o chrome, o cabeçalho, a área de ações e a prisão de foco.
@@ -359,7 +359,7 @@ Cada passo é um commit próprio, e cada um mantém a suíte verde.
 | Token declarado e não usado | `text-dim`, `text-bright`, `panel-active`: 3 de 6 variáveis do tema são mortas |
 | Teste que trava valor em vez de propriedade | `test_dark_palette_matches_prototype` protege um token morto e impede olhar de novo |
 | Paleta paralela por causa da regra de camadas | `html_report.py` inventou 14 hex porque não podia importar `ui/` |
-| Cor saturada gasta em chrome | roxo `#bc8cff` em 24 bordas de dialog, zero informação |
+| Cor saturada gasta em chrome | roxo `#bc8cff` em 29 bordas de dialog, zero informação |
 | Estado vazio que só diz que está vazio | 22 de 23 ocorrências |
 | Dois eixos de significado com a mesma paleta | veredito e status de operação ambos em verde/amarelo/vermelho |
 
