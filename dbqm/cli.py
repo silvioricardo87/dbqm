@@ -11,7 +11,9 @@ from typing import Any
 
 from rich.console import Console
 from rich.table import Table
+from rich.theme import Theme as _TemaRich
 
+from dbqm.design.tokens import TOKENS_ESCURO
 from dbqm.models.query import find_query, load_queries
 from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
@@ -28,7 +30,19 @@ from dbqm.core.db_manager import test_connection
 from dbqm.core.ddl_extractor import extract_ddl, save_extraction
 from dbqm.core.config_portability import export_configs, import_configs
 
-console = Console()
+def tema_rich() -> _TemaRich:
+    """Tema do Rich construido a partir dos design tokens.
+
+    O CLI roda em terminal de fundo desconhecido, entao usa sempre a variante
+    escura: ela e a unica cuja legibilidade nao depende de o terminal ser claro.
+    Os nomes trocam '-' por '.' para seguir a convencao de estilo do Rich.
+    """
+    return _TemaRich(
+        {chave.replace("-", "."): valor for chave, valor in TOKENS_ESCURO.items()}
+    )
+
+
+console = Console(theme=tema_rich())
 
 
 def _parse_params(param_list: list[str] | None) -> dict:
@@ -38,7 +52,7 @@ def _parse_params(param_list: list[str] | None) -> dict:
     params = {}
     for p in param_list:
         if "=" not in p:
-            console.print(f"[red]Parametro invalido (use chave=valor): {p}[/red]")
+            console.print(f"[op.falha]Parametro invalido (use chave=valor): {p}[/op.falha]")
             sys.exit(1)
         key, value = p.split("=", 1)
         params[key.strip()] = value.strip()
@@ -62,7 +76,7 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
     """Print query result in the specified format."""
     from dbqm.core.query_engine import QueryResult
     if not result.success:
-        console.print(f"[red]Erro: {result.error}[/red]")
+        console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
         sys.exit(1)
 
     if output_format == "json":
@@ -110,13 +124,13 @@ def cmd_run(args: argparse.Namespace) -> None:
     """Execute a saved query."""
     query = find_query(args.query)
     if not query:
-        console.print(f"[red]Consulta '{args.query}' nao encontrada.[/red]")
+        console.print(f"[op.falha]Consulta '{args.query}' nao encontrada.[/op.falha]")
         sys.exit(1)
 
     conn_name = args.connection or query.connection
     conn = find_connection(conn_name)
     if not conn:
-        console.print(f"[red]Conexao '{conn_name}' nao encontrada.[/red]")
+        console.print(f"[op.falha]Conexao '{conn_name}' nao encontrada.[/op.falha]")
         sys.exit(1)
 
     param_values = _parse_params(args.param)
@@ -129,7 +143,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     # Validate required params
     missing = [p.name for p in query.params if p.name not in param_values]
     if missing:
-        console.print(f"[red]Parametros obrigatorios faltando: {', '.join(missing)}[/red]")
+        console.print(f"[op.falha]Parametros obrigatorios faltando: {', '.join(missing)}[/op.falha]")
         console.print("[dim]Use -p chave=valor para cada parametro[/dim]")
         sys.exit(1)
 
@@ -158,9 +172,9 @@ def cmd_run(args: argparse.Namespace) -> None:
         elif fmt == "txt":
             path = export_query_txt(result, table_name, param_values)
         else:
-            console.print(f"[red]Formato de export invalido: {fmt}[/red]")
+            console.print(f"[op.falha]Formato de export invalido: {fmt}[/op.falha]")
             sys.exit(1)
-        console.print(f"[green]Exportado: {path}[/green]")
+        console.print(f"Exportado: {path}")
         return
 
     _print_query_result(result, args.format)
@@ -170,7 +184,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     """Execute a group comparison."""
     group = find_group(args.group)
     if not group:
-        console.print(f"[red]Grupo '{args.group}' nao encontrado.[/red]")
+        console.print(f"[op.falha]Grupo '{args.group}' nao encontrado.[/op.falha]")
         sys.exit(1)
 
     param_values = _parse_params(args.param)
@@ -186,16 +200,16 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     for qname in group.queries:
         query = find_query(qname)
         if not query:
-            console.print(f"[red]Consulta '{qname}' do grupo nao encontrada.[/red]")
+            console.print(f"[op.falha]Consulta '{qname}' do grupo nao encontrada.[/op.falha]")
             sys.exit(1)
         conn = find_connection(query.connection)
         if not conn:
-            console.print(f"[red]Conexao '{query.connection}' nao encontrada.[/red]")
+            console.print(f"[op.falha]Conexao '{query.connection}' nao encontrada.[/op.falha]")
             sys.exit(1)
 
         result = execute_query(query, conn, param_values)
         if not result.success:
-            console.print(f"[red]Erro na consulta '{qname}': {result.error}[/red]")
+            console.print(f"[op.falha]Erro na consulta '{qname}': {result.error}[/op.falha]")
             sys.exit(1)
 
         # Apply column maps
@@ -233,7 +247,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
                 path = export_group_json(group_result, param_values)
             else:
                 path = export_group_txt(group_result, param_values)
-        console.print(f"[green]Exportado: {path}[/green]")
+        console.print(f"Exportado: {path}")
         return
 
     # Print result
@@ -245,7 +259,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         }
         print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
     else:
-        status = "[green]CONSISTENTE[/green]" if group_result.all_match else "[red]DIVERGENTE[/red]"
+        status = "[veredito.igual]CONSISTENTE[/]" if group_result.all_match else "[veredito.difere]DIVERGENTE[/]"
         console.print(f"Grupo: {group_result.group_name} — {status}")
         for line in group_result.summary_lines:
             console.print(f"  {line}")
@@ -255,7 +269,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     """Execute ad-hoc SQL."""
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[red]Conexao '{args.connection}' nao encontrada.[/red]")
+        console.print(f"[op.falha]Conexao '{args.connection}' nao encontrada.[/op.falha]")
         sys.exit(1)
 
     sql = args.sql
@@ -269,7 +283,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     if args.explain:
         result = execute_explain(sql, conn, param_values)
         if not result.success:
-            console.print(f"[red]Erro: {result.error}[/red]")
+            console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
             sys.exit(1)
         for row in result.rows:
             print(row[0] if row else "")
@@ -280,7 +294,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     # Require --commit for DML operations
     if sql_type in ("INSERT", "UPDATE", "DELETE") and not args.commit:
-        console.print("[red]DML requer --commit para confirmar a operacao.[/red]")
+        console.print("[op.falha]DML requer --commit para confirmar a operacao.[/op.falha]")
         sys.exit(1)
 
     result = execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
@@ -288,33 +302,33 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
     if not isinstance(result, tuple) and result.sql_type in ("INSERT", "UPDATE", "DELETE"):
         if not result.success:
-            console.print(f"[red]Erro: {result.error}[/red]")
+            console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
             sys.exit(1)
-        console.print(f"[green]{result.rows_affected} registros afetados (committed)[/green]")
+        console.print(f"{result.rows_affected} registros afetados (committed)")
         return
 
     # DDL results
     if not isinstance(result, tuple) and result.sql_type == "DDL":
         if result.success:
-            console.print(f"[green]DDL executado com sucesso ({result.elapsed:.2f}s)[/green]")
+            console.print(f"DDL executado com sucesso ({result.elapsed:.2f}s)")
         else:
-            console.print(f"[yellow]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/yellow]")
-            console.print(f"[red]{result.error}[/red]")
+            console.print(f"[op.falha]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/op.falha]")
+            console.print(f"[op.falha]{result.error}[/op.falha]")
             sys.exit(1)
         return
 
     # PL/SQL anonymous block results
     if not isinstance(result, tuple) and result.sql_type == "PLSQL":
         if not result.success:
-            console.print(f"[red]Erro: {result.error}[/red]")
+            console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
             sys.exit(1)
-        console.print(f"[green]Bloco PL/SQL executado ({result.elapsed:.2f}s)[/green]")
+        console.print(f"Bloco PL/SQL executado ({result.elapsed:.2f}s)")
         for line in result.output_lines:
             console.print(line, markup=False, highlight=False)
         return
 
     if not result.success:
-        console.print(f"[red]Erro: {result.error}[/red]")
+        console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
         sys.exit(1)
 
     if result.sql_type == "SELECT":
@@ -336,12 +350,12 @@ def cmd_sql(args: argparse.Namespace) -> None:
                 path = export_query_json(qr, "adhoc", param_values)
             else:
                 path = export_query_txt(qr, "adhoc", param_values)
-            console.print(f"[green]Exportado: {path}[/green]")
+            console.print(f"Exportado: {path}")
             return
 
         _print_query_result(qr, args.format)
     else:
-        console.print(f"[green]{result.rows_affected} registros afetados[/green]")
+        console.print(f"{result.rows_affected} registros afetados")
 
 
 def cmd_test(args: argparse.Namespace) -> None:
@@ -349,24 +363,24 @@ def cmd_test(args: argparse.Namespace) -> None:
     if args.connection == "__all__":
         connections = load_connections()
         if not connections:
-            console.print("[yellow]Nenhuma conexao configurada.[/yellow]")
+            console.print("[texto.apoio]Nenhuma conexao configurada.[/texto.apoio]")
             return
         for conn in connections:
             ok, msg = test_connection(conn)
-            icon = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
+            icon = "OK" if ok else "[op.falha]FAIL[/op.falha]"
             console.print(f"  {icon}  {conn.name}: {msg.splitlines()[0]}")
         return
 
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[red]Conexao '{args.connection}' nao encontrada.[/red]")
+        console.print(f"[op.falha]Conexao '{args.connection}' nao encontrada.[/op.falha]")
         sys.exit(1)
 
     ok, msg = test_connection(conn)
     if ok:
-        console.print(f"[green]{msg}[/green]")
+        console.print(msg)
     else:
-        console.print(f"[red]{msg}[/red]")
+        console.print(f"[op.falha]{msg}[/op.falha]")
         sys.exit(1)
 
 
@@ -377,7 +391,7 @@ def cmd_list(args: argparse.Namespace) -> None:
     if resource == "connections":
         items = load_connections()
         if not items:
-            console.print("[yellow]Nenhuma conexao configurada.[/yellow]")
+            console.print("[texto.apoio]Nenhuma conexao configurada.[/texto.apoio]")
             return
         if args.format == "json":
             data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target()} for c in items]
@@ -394,7 +408,7 @@ def cmd_list(args: argparse.Namespace) -> None:
     elif resource == "queries":
         items = load_queries()
         if not items:
-            console.print("[yellow]Nenhuma consulta configurada.[/yellow]")
+            console.print("[texto.apoio]Nenhuma consulta configurada.[/texto.apoio]")
             return
         if args.format == "json":
             data = [{"name": q.name, "connection": q.connection, "folder": q.folder,
@@ -419,7 +433,7 @@ def cmd_list(args: argparse.Namespace) -> None:
     elif resource == "groups":
         items = load_groups()
         if not items:
-            console.print("[yellow]Nenhum grupo configurado.[/yellow]")
+            console.print("[texto.apoio]Nenhum grupo configurado.[/texto.apoio]")
             return
         if args.format == "json":
             data = [{"name": g.name, "description": g.description, "queries": g.queries,
@@ -439,7 +453,7 @@ def cmd_list(args: argparse.Namespace) -> None:
         console.print(table)
 
     else:
-        console.print(f"[red]Recurso desconhecido: {resource}[/red]")
+        console.print(f"[op.falha]Recurso desconhecido: {resource}[/op.falha]")
         sys.exit(1)
 
 
@@ -447,7 +461,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     """Extract DDL for a database object."""
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[red]Conexao '{args.connection}' nao encontrada.[/red]")
+        console.print(f"[op.falha]Conexao '{args.connection}' nao encontrada.[/op.falha]")
         sys.exit(1)
 
     def on_progress(current, total, obj_type, obj_name):
@@ -457,7 +471,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
 
     if result.errors:
         for err in result.errors:
-            console.print(f"[red]{err}[/red]")
+            console.print(f"[op.falha]{err}[/op.falha]")
         if not result.objects:
             sys.exit(1)
 
@@ -468,7 +482,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
             print()
     else:
         dir_path, _ = save_extraction(result)
-        console.print(f"[green]DDL salvo em: {dir_path}[/green]")
+        console.print(f"DDL salvo em: {dir_path}")
 
 
 def cmd_export_config(args: argparse.Namespace) -> None:
@@ -480,7 +494,7 @@ def cmd_export_config(args: argparse.Namespace) -> None:
         include_queries=not args.no_queries,
         include_groups=not args.no_groups,
     )
-    console.print(f"[green]Configuracoes exportadas: {path}[/green]")
+    console.print(f"Configuracoes exportadas: {path}")
 
 
 def cmd_import_config(args: argparse.Namespace) -> None:
@@ -489,24 +503,24 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     try:
         summary = import_configs(args.file, password)
     except Exception as e:
-        console.print(f"[red]Erro ao importar: {e}[/red]")
+        console.print(f"[op.falha]Erro ao importar: {e}[/op.falha]")
         sys.exit(1)
 
-    console.print(f"[green]Importado: {summary['connections']} conexoes, "
+    console.print(f"Importado: {summary['connections']} conexoes, "
                   f"{summary['queries']} consultas, {summary['groups']} grupos "
-                  f"({summary['skipped']} duplicados ignorados)[/green]")
+                  f"({summary['skipped']} duplicados ignorados)")
 
 
 def cmd_history(args: argparse.Namespace) -> None:
     """View or clear execution history."""
     if args.clear:
         clear_history()
-        console.print("[green]Historico limpo.[/green]")
+        console.print("Historico limpo.")
         return
 
     entries = load_history()
     if not entries:
-        console.print("[yellow]Historico vazio.[/yellow]")
+        console.print("[texto.apoio]Historico vazio.[/texto.apoio]")
         return
 
     limit = args.limit or 20
@@ -526,9 +540,9 @@ def cmd_history(args: argparse.Namespace) -> None:
     table.add_column("Tempo")
     table.add_column("Status")
     for e in entries:
-        status = "[green]OK[/green]" if e.success else f"[red]ERRO[/red]"
+        status = "OK" if e.success else "[op.falha]ERRO[/op.falha]"
         if e.all_match is not None:
-            status = "[green]CONSISTENTE[/green]" if e.all_match else "[red]DIVERGENTE[/red]"
+            status = "[veredito.igual]CONSISTENTE[/]" if e.all_match else "[veredito.difere]DIVERGENTE[/]"
         table.add_row(
             e.timestamp, e.entry_type, e.name, e.connection or "-",
             str(e.row_count) if e.entry_type == "query" else "-",

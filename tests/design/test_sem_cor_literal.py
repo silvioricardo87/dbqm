@@ -7,7 +7,7 @@ protege contra crescimento antes de a divida acabar.
 from tests.design._varredura import violacoes
 
 # Baixar a cada tarefa da migracao. Task 13 fecha em 0.
-TETO = 130
+TETO = 32
 
 
 def test_cor_literal_nao_cresce():
