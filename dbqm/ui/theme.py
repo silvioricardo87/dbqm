@@ -49,15 +49,27 @@ def _construir(nome: str, tokens: dict[str, str], escuro: bool) -> Theme:
     Todo token vira variavel de CSS, inclusive os que tambem alimentam um
     campo nomeado do Theme: os componentes referenciam sempre `$token`, e os
     campos nomeados existem so para os widgets embutidos do Textual.
+
+    Os campos nomeados (`warning`, `error`, `success`) sao eixo OPERACAO,
+    nunca eixo VEREDITO — eles pintam toast/notify e outros widgets nativos
+    do Textual que nao tem nocao de "estes dois dados diferem", so de
+    "esta acao falhou/teve sucesso/e um aviso". Alimenta-los com
+    `veredito-*` pinta chrome e notificacoes com a cor de um resultado de
+    comparacao, e destrava a alavanca de rollback documentada: reverter
+    `veredito-igual` para verde pintaria de verde toda notificacao de
+    sucesso, exatamente a superficie que o desenho manda deixar sem cor.
+    Por isso `success` e `warning` mapeiam para `texto-apoio` (sucesso sem
+    tinta, aviso informativo sem tinta) e so `error` usa um token de
+    operacao (`op-falha`).
     """
     return Theme(
         name=nome,
         primary=tokens["identidade"],
         secondary=tokens["texto-apoio"],
         accent=tokens["identidade"],
-        warning=tokens["veredito-difere"],
+        warning=tokens["texto-apoio"],
         error=tokens["op-falha"],
-        success=tokens["veredito-igual"],
+        success=tokens["texto-apoio"],
         foreground=tokens["texto"],
         background=tokens["fundo"],
         surface=tokens["superficie"],
