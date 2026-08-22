@@ -17,9 +17,11 @@ from pathlib import Path
 
 RAIZ_PACOTE = Path(__file__).resolve().parents[2] / "dbqm"
 
-# Hex em 3, 6 ou 8 digitos. Negative lookahead evita dupla contagem.
+# Hex em 3, 6 ou 8 digitos. Negative lookahead evita dupla contagem e rejeita
+# seletores CSS como '#add-row', '#abc_panel' que nao sao cores.
+# Cores literais nunca sao seguidas de letra, digito ou hifen; seletores CSS sim.
 # Exemplo: em "#e3b #e3b341", pega "#e3b" e "#e3b341", nao "#e3b" dentro de "#e3b341".
-_HEX = re.compile(r"#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])")
+_HEX = re.compile(r"#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![\w-])")
 _NOMES = (
     "red", "green", "yellow", "blue", "cyan", "magenta", "white", "black",
     "bright_red", "bright_green", "bright_yellow", "bright_blue",
