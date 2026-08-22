@@ -8,6 +8,7 @@ from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.query_list import QueryListWidget, QuerySelected
 from dbqm.ui.widgets.sql_viewer import SqlViewer
 from dbqm.ui.widgets.group_result import GroupResultWidget
+from dbqm.ui.widgets.dialog import Dialog
 
 __all__ = [
     "Breadcrumb",
@@ -22,4 +23,5 @@ __all__ = [
     "QuerySelected",
     "SqlViewer",
     "GroupResultWidget",
+    "Dialog",
 ]

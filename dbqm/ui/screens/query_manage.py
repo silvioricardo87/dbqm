@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.widgets import Button, DataTable, Input, Select, Static, TextArea
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
 
 
 # ---------------------------------------------------------------------------
@@ -20,19 +21,6 @@ class SqlPasteModal(ModalScreen[dict | None]):
     DEFAULT_CSS = """
     SqlPasteModal {
         align: center middle;
-    }
-    SqlPasteModal #dialog {
-        width: 90;
-        max-height: 90%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    SqlPasteModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     SqlPasteModal TextArea {
         height: 10;
@@ -70,8 +58,7 @@ class SqlPasteModal(ModalScreen[dict | None]):
         connections = load_connections()
         conn_options = [(c.name, c.name) for c in connections]
 
-        with Vertical(id="dialog"):
-            yield Static("Nova Consulta (Colar SQL)", id="title")
+        with Dialog("Nova Consulta (Colar SQL)", largura="lg", id="dialog"):
             yield Static("[dim]Cole o SQL abaixo. A tabela e colunas serao detectadas automaticamente.[/dim]", id="info", markup=True)
             yield TextArea(id="sql-area", language="sql")
             yield Input(placeholder="Nome da consulta", id="name-input")
@@ -141,19 +128,6 @@ class SqlViewerModal(ModalScreen[None]):
     SqlViewerModal {
         align: center middle;
     }
-    SqlViewerModal #dialog {
-        width: 90;
-        max-height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    SqlViewerModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     SqlViewerModal #buttons {
         margin-top: 1;
         width: 100%;
@@ -173,8 +147,7 @@ class SqlViewerModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from dbqm.ui.widgets.sql_viewer import SqlViewer
 
-        with Vertical(id="dialog"):
-            yield Static(f"SQL: {self._query_name}", id="title")
+        with Dialog(f"SQL: {self._query_name}", largura="lg", id="dialog"):
             yield SqlViewer(self._sql, id="sql-display")
             with Horizontal(id="buttons"):
                 yield Button("Fechar", variant="primary", id="close-btn")
@@ -198,18 +171,6 @@ class EditMenuModal(ModalScreen[str | None]):
     EditMenuModal {
         align: center middle;
     }
-    EditMenuModal #dialog {
-        width: 50;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    EditMenuModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     EditMenuModal Button {
         width: 100%;
         margin-bottom: 1;
@@ -221,8 +182,7 @@ class EditMenuModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("O que deseja editar?", id="title")
+        with Dialog("O que deseja editar?", largura="sm", id="dialog"):
             yield Button("Descricao", id="edit_description")
             yield Button("Conexao", id="edit_connection")
             yield Button("SQL", id="edit_sql")
@@ -252,19 +212,6 @@ class EditSqlModal(ModalScreen[str | None]):
     EditSqlModal {
         align: center middle;
     }
-    EditSqlModal #dialog {
-        width: 90;
-        max-height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    EditSqlModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     EditSqlModal TextArea {
         height: 12;
         margin-bottom: 1;
@@ -288,8 +235,7 @@ class EditSqlModal(ModalScreen[str | None]):
         self._current_sql = current_sql
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("Editar SQL", id="title")
+        with Dialog("Editar SQL", largura="lg", id="dialog"):
             yield TextArea(self._current_sql, id="sql-area", language="sql")
             with Horizontal(id="buttons"):
                 yield Button("Salvar", variant="primary", id="save")
@@ -323,18 +269,6 @@ class FolderModal(ModalScreen[str | None]):
     FolderModal {
         align: center middle;
     }
-    FolderModal #dialog {
-        width: 60;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    FolderModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     FolderModal Input {
         width: 100%;
         margin-bottom: 1;
@@ -363,8 +297,7 @@ class FolderModal(ModalScreen[str | None]):
         self._existing = existing_folders or []
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("Pasta da Consulta", id="title")
+        with Dialog("Pasta da Consulta", id="dialog"):
             if self._existing:
                 folders_text = ", ".join(self._existing)
                 yield Static(f"[dim]Pastas existentes: {folders_text}[/dim]", id="existing", markup=True)
@@ -400,18 +333,6 @@ class ConnectionPickerModal(ModalScreen[str | None]):
     ConnectionPickerModal {
         align: center middle;
     }
-    ConnectionPickerModal #dialog {
-        width: 60;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    ConnectionPickerModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     ConnectionPickerModal Select {
         width: 100%;
         margin-bottom: 1;
@@ -440,8 +361,7 @@ class ConnectionPickerModal(ModalScreen[str | None]):
         connections = load_connections()
         options = [(c.name, c.name) for c in connections]
 
-        with Vertical(id="dialog"):
-            yield Static("Conexao para a copia", id="title")
+        with Dialog("Conexao para a copia", id="dialog"):
             yield Select(options, value=self._current, id="conn-pick")
             with Horizontal(id="buttons"):
                 yield Button("OK", variant="primary", id="ok")

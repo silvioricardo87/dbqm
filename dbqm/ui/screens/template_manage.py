@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.widgets import Button, DataTable, Input, Static, TextArea
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
 
 
 # ---------------------------------------------------------------------------
@@ -22,17 +23,7 @@ class TemplateEditModal(ModalScreen[dict | None]):
         align: center middle;
     }
     TemplateEditModal #dialog {
-        width: 90;
         height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    TemplateEditModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     TemplateEditModal Input {
         width: 100%;
@@ -77,8 +68,7 @@ class TemplateEditModal(ModalScreen[dict | None]):
         self._name_readonly = name_readonly
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static(self._title_text, id="title")
+        with Dialog(self._title_text, largura="lg", id="dialog"):
             yield Input(
                 value=self._name_value,
                 placeholder="Nome do template",

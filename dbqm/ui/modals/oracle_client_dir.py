@@ -9,6 +9,8 @@ from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Static
 
+from dbqm.ui.widgets.dialog import Dialog
+
 
 class OracleClientDirModal(ModalScreen[bool]):
     """Choose which Oracle Instant Client dbqm loads.
@@ -28,20 +30,6 @@ class OracleClientDirModal(ModalScreen[bool]):
     DEFAULT_CSS = """
     OracleClientDirModal {
         align: center middle;
-    }
-    OracleClientDirModal #dialog {
-        width: 80;
-        height: auto;
-        max-height: 90%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    OracleClientDirModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     OracleClientDirModal #description {
         width: 100%;
@@ -92,8 +80,7 @@ class OracleClientDirModal(ModalScreen[bool]):
         self._initial_path = initial_path
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("Oracle Instant Client", id="title")
+        with Dialog("Oracle Instant Client", largura="lg", id="dialog"):
             yield Static(
                 "Informe o diretorio do Instant Client que o dbqm deve carregar. "
                 "Definir aqui evita conflito com a variavel ORACLE_HOME do sistema, "

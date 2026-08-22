@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.widgets import Button, DataTable, Input, Select, Static, SelectionList
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
 
 
 # ---------------------------------------------------------------------------
@@ -20,19 +21,6 @@ class GroupCreateModal(ModalScreen[dict | None]):
     DEFAULT_CSS = """
     GroupCreateModal {
         align: center middle;
-    }
-    GroupCreateModal #dialog {
-        width: 80;
-        max-height: 90%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    GroupCreateModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     GroupCreateModal Input {
         width: 100%;
@@ -66,8 +54,7 @@ class GroupCreateModal(ModalScreen[dict | None]):
         queries = load_queries()
         query_items = [(q.name, q.name) for q in sorted(queries, key=lambda q: q.name)]
 
-        with Vertical(id="dialog"):
-            yield Static("Novo Grupo", id="title")
+        with Dialog("Novo Grupo", largura="lg", id="dialog"):
             yield Static(
                 "[dim]Selecione pelo menos 2 consultas para comparar.[/dim]",
                 id="info",
@@ -140,18 +127,6 @@ class GroupEditMenuModal(ModalScreen[str | None]):
     GroupEditMenuModal {
         align: center middle;
     }
-    GroupEditMenuModal #dialog {
-        width: 50;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    GroupEditMenuModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     GroupEditMenuModal Button {
         width: 100%;
         margin-bottom: 1;
@@ -163,8 +138,7 @@ class GroupEditMenuModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("O que deseja editar?", id="title")
+        with Dialog("O que deseja editar?", largura="sm", id="dialog"):
             yield Button("Descricao", id="edit_description")
             yield Button("Consultas", id="edit_queries")
             yield Button("Coluna de juncao", id="edit_join_key")
@@ -194,19 +168,6 @@ class QuerySelectionModal(ModalScreen[list[str] | None]):
     DEFAULT_CSS = """
     QuerySelectionModal {
         align: center middle;
-    }
-    QuerySelectionModal #dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    QuerySelectionModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     QuerySelectionModal SelectionList {
         height: 12;
@@ -239,8 +200,7 @@ class QuerySelectionModal(ModalScreen[list[str] | None]):
             for q in sorted(queries, key=lambda q: q.name)
         ]
 
-        with Vertical(id="dialog"):
-            yield Static("Selecionar Consultas", id="title")
+        with Dialog("Selecionar Consultas", id="dialog"):
             yield SelectionList(*query_items, id="query-select")
             with Horizontal(id="buttons"):
                 yield Button("OK", variant="primary", id="ok")
@@ -272,18 +232,6 @@ class GroupFolderModal(ModalScreen[str | None]):
     GroupFolderModal {
         align: center middle;
     }
-    GroupFolderModal #dialog {
-        width: 60;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    GroupFolderModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     GroupFolderModal Input {
         width: 100%;
         margin-bottom: 1;
@@ -312,8 +260,7 @@ class GroupFolderModal(ModalScreen[str | None]):
         self._existing = existing_folders or []
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("Pasta do Grupo", id="title")
+        with Dialog("Pasta do Grupo", id="dialog"):
             if self._existing:
                 folders_text = ", ".join(self._existing)
                 yield Static(f"[dim]Pastas existentes: {folders_text}[/dim]", id="existing", markup=True)
@@ -349,19 +296,6 @@ class TemplatePickerModal(ModalScreen[str | None]):
     TemplatePickerModal {
         align: center middle;
     }
-    TemplatePickerModal #dialog {
-        width: 50;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    TemplatePickerModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     TemplatePickerModal Button {
         width: 100%;
         margin-bottom: 1;
@@ -378,8 +312,7 @@ class TemplatePickerModal(ModalScreen[str | None]):
         self._current = current
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("Selecionar Template", id="title")
+        with Dialog("Selecionar Template", largura="sm", id="dialog"):
             for tname in self._templates:
                 variant = "primary" if tname == self._current else "default"
                 yield Button(tname, id=f"tpl-{tname}", variant=variant)
@@ -411,18 +344,7 @@ class TemplateFieldsModal(ModalScreen[dict | None]):
         align: center middle;
     }
     TemplateFieldsModal #dialog {
-        width: 80;
-        max-height: 90%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
         overflow-y: auto;
-    }
-    TemplateFieldsModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     TemplateFieldsModal #hint {
         margin-bottom: 1;
@@ -467,10 +389,9 @@ class TemplateFieldsModal(ModalScreen[dict | None]):
         self._query_names = query_names
 
     def compose(self) -> ComposeResult:
-        from textual.containers import Vertical as V, Horizontal as H
+        from textual.containers import Horizontal as H
 
-        with V(id="dialog"):
-            yield Static("Configurar Campos do Template", id="title")
+        with Dialog("Configurar Campos do Template", largura="lg", id="dialog"):
             yield Static(
                 "[dim]Fontes: param:NOME | query:CONSULTA:COLUNA | query:CONSULTA:_count | "
                 "query:CONSULTA:_status | literal:texto\n"

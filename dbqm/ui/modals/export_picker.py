@@ -5,9 +5,10 @@ from typing import Callable
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static
+from textual.widgets import Button
+
+from dbqm.ui.widgets.dialog import Dialog
 
 
 class ExportPickerModal(ModalScreen[str | None]):
@@ -20,21 +21,6 @@ class ExportPickerModal(ModalScreen[str | None]):
     DEFAULT_CSS = """
     ExportPickerModal {
         align: center middle;
-    }
-
-    ExportPickerModal #dialog {
-        width: 40;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-
-    ExportPickerModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
 
     ExportPickerModal Button {
@@ -56,8 +42,7 @@ class ExportPickerModal(ModalScreen[str | None]):
         self._include_png = include_png
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("Exportar como", id="title")
+        with Dialog("Exportar como", largura="sm", id="dialog"):
             yield Button("CSV", variant="primary", id="fmt-csv")
             yield Button("JSON", variant="primary", id="fmt-json")
             yield Button("TXT", variant="primary", id="fmt-txt")

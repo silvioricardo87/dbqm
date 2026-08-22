@@ -3,14 +3,13 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from dbqm.ui.widgets.dialog import Dialog
+
 
 HELP_TEXT = """\
-[bold]Atalhos de Teclado[/bold]
-
 [bold $texto-forte]Geral[/]
   Ctrl+B    Toggle sidebar
   Ctrl+Q    Sair
@@ -44,11 +43,6 @@ class HelpModal(ModalScreen[None]):
     }
 
     HelpModal #help-dialog {
-        width: 55;
-        max-height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
         overflow-y: auto;
     }
     """
@@ -60,7 +54,7 @@ class HelpModal(ModalScreen[None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(id="help-dialog"):
+        with Dialog("Atalhos de Teclado", largura="sm", id="help-dialog"):
             yield Static(HELP_TEXT, markup=True)
 
     def action_dismiss_help(self) -> None:

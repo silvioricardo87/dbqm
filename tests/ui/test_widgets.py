@@ -608,6 +608,33 @@ async def test_panel_renders_title_and_body():
 
 
 # ---------------------------------------------------------------------------
+# Dialog tests
+# ---------------------------------------------------------------------------
+from dbqm.ui.widgets.dialog import Dialog
+
+
+def test_dialog_rejeita_variante_desconhecida():
+    """Variantes fechadas: sem porta dos fundos para estilo arbitrario."""
+    with pytest.raises(ValueError, match="tom"):
+        Dialog("Titulo", tom="roxo")
+    with pytest.raises(ValueError, match="largura"):
+        Dialog("Titulo", largura="xxl")
+
+
+@pytest.mark.asyncio
+async def test_dialog_renderiza_o_titulo():
+    class _DialogApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            with Dialog("Confirmar exclusao", id="d"):
+                yield Static("corpo")
+
+    app = _DialogApp()
+    async with app.run_test():
+        titulo = app.query_one("#d-titulo", Static)
+        assert "Confirmar exclusao" in titulo.render().plain
+
+
+# ---------------------------------------------------------------------------
 # TemplatesSidebar tests
 # ---------------------------------------------------------------------------
 from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar

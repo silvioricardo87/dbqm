@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll, Horizontal
+from textual.containers import VerticalScroll, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Input, Select, Static
+from textual.widgets import Button, DataTable, Input, Select
+
+from dbqm.ui.widgets.dialog import Dialog
 
 
 class ColumnMapsModal(ModalScreen[dict | None]):
@@ -19,22 +21,8 @@ class ColumnMapsModal(ModalScreen[dict | None]):
         align: center middle;
     }
 
-    ColumnMapsModal #dialog {
-        width: 80;
-        max-height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
     ColumnMapsModal #maps-scroll {
         height: 1fr;
-    }
-
-    ColumnMapsModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
 
     ColumnMapsModal #col-select {
@@ -87,9 +75,8 @@ class ColumnMapsModal(ModalScreen[dict | None]):
 
     def compose(self) -> ComposeResult:
         options = [(col, col) for col in self._columns]
-        with Vertical(id="dialog"):
+        with Dialog("DE-PARA (Mapeamento de Valores)", largura="lg", id="dialog"):
             with VerticalScroll(id="maps-scroll"):
-                yield Static("DE-PARA (Mapeamento de Valores)", id="title")
                 yield Select(options, prompt="Selecione uma coluna", id="col-select")
                 yield DataTable(id="maps-table")
                 with Horizontal(id="add-row"):

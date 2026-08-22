@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
+
+from dbqm.ui.widgets.dialog import Dialog
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -17,21 +19,6 @@ class ConfirmModal(ModalScreen[bool]):
     DEFAULT_CSS = """
     ConfirmModal {
         align: center middle;
-    }
-
-    ConfirmModal #dialog {
-        width: 60;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-
-    ConfirmModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
 
     ConfirmModal #message {
@@ -61,8 +48,7 @@ class ConfirmModal(ModalScreen[bool]):
         self._message = message
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static(self._title_text, id="title")
+        with Dialog(self._title_text, id="dialog"):
             yield Static(self._message, id="message")
             with Horizontal(id="buttons"):
                 yield Button("Sim", variant="primary", id="confirm")

@@ -12,6 +12,7 @@ from textual import work
 
 from dbqm.ui.utils import sanitize_id, escape_markup
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
@@ -862,19 +863,6 @@ class _QueryPickerModal(ModalScreen[str | None]):
     _QueryPickerModal {
         align: center middle;
     }
-    _QueryPickerModal #qp-dialog {
-        width: 50;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _QueryPickerModal #qp-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _QueryPickerModal Button {
         width: 100%;
         margin: 0 0 1 0;
@@ -891,8 +879,7 @@ class _QueryPickerModal(ModalScreen[str | None]):
         self._qname_map: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="qp-dialog"):
-            yield Static("Selecionar consulta", id="qp-title")
+        with Dialog("Selecionar consulta", largura="sm", id="qp-dialog"):
             for qn in self._query_names:
                 safe_id = sanitize_id(qn)
                 self._qname_map[safe_id] = qn
@@ -920,19 +907,6 @@ class _IndividualResultModal(ModalScreen[None]):
     _IndividualResultModal {
         align: center middle;
     }
-    _IndividualResultModal #ir-dialog {
-        width: 90%;
-        height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _IndividualResultModal #ir-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _IndividualResultModal #ir-info {
         height: auto;
         color: $text-muted;
@@ -954,8 +928,12 @@ class _IndividualResultModal(ModalScreen[None]):
         self._result = result
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="ir-dialog"):
-            yield Static(self._query_name, id="ir-title")
+        # Precisa preencher a tela (tabela de resultado), nao uma das larguras
+        # fixas do Dialog — a largura/altura sao sobrescritas apos construir.
+        dialog = Dialog(self._query_name, id="ir-dialog")
+        dialog.styles.width = "90%"
+        dialog.styles.height = "80%"
+        with dialog:
             yield Static(
                 f"{self._result.row_count} registros | "
                 f"{self._result.elapsed:.2f}s | "
@@ -986,18 +964,7 @@ class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
         align: center middle;
     }
     _TemplateInputModal #ti-dialog {
-        width: 80;
-        max-height: 90%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
         overflow-y: auto;
-    }
-    _TemplateInputModal #ti-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     _TemplateInputModal .ti-field-row {
         height: auto;
@@ -1033,8 +1000,7 @@ class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Input as TInput
 
-        with Vertical(id="ti-dialog"):
-            yield Static("Preencher campos do template", id="ti-title")
+        with Dialog("Preencher campos do template", largura="lg", id="ti-dialog"):
             for field_name in self._fields:
                 with Horizontal(classes="ti-field-row"):
                     yield Static(
@@ -1087,19 +1053,6 @@ class _RenderedTemplateModal(ModalScreen[None]):
     _RenderedTemplateModal {
         align: center middle;
     }
-    _RenderedTemplateModal #rt-dialog {
-        width: 90%;
-        height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _RenderedTemplateModal #rt-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _RenderedTemplateModal TextArea {
         height: 1fr;
         margin-bottom: 1;
@@ -1125,8 +1078,11 @@ class _RenderedTemplateModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import TextArea
 
-        with Vertical(id="rt-dialog"):
-            yield Static("Template Gerado", id="rt-title")
+        # Mesmo motivo do _IndividualResultModal: precisa preencher a tela.
+        dialog = Dialog("Template Gerado", id="rt-dialog")
+        dialog.styles.width = "90%"
+        dialog.styles.height = "85%"
+        with dialog:
             yield TextArea(self._rendered_text, id="rt-content", read_only=True)
             with Horizontal(id="rt-buttons"):
                 yield Button("Copiar", variant="primary", id="rt-copy")

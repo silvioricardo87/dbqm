@@ -9,6 +9,7 @@ from textual.widgets import Button, Input, Select, Static, TextArea
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.progress import ProgressIndicator
 
 
@@ -23,19 +24,6 @@ class _PackageChoiceModal(ModalScreen[str | None]):
     DEFAULT_CSS = """
     _PackageChoiceModal {
         align: center middle;
-    }
-    _PackageChoiceModal #pkg-choice-dialog {
-        width: 50;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _PackageChoiceModal #pkg-choice-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     _PackageChoiceModal #pkg-choice-buttons {
         width: 100%;
@@ -53,8 +41,7 @@ class _PackageChoiceModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="pkg-choice-dialog"):
-            yield Static("Package Editor", id="pkg-choice-title")
+        with Dialog("Package Editor", largura="sm", id="pkg-choice-dialog"):
             with Horizontal(id="pkg-choice-buttons"):
                 yield Button("Editar existente", variant="primary", id="pkg-choice-edit")
                 yield Button("Criar novo", variant="default", id="pkg-choice-new")
@@ -75,19 +62,6 @@ class _PackageSearchModal(ModalScreen[dict | None]):
     DEFAULT_CSS = """
     _PackageSearchModal {
         align: center middle;
-    }
-    _PackageSearchModal #pkg-search-dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _PackageSearchModal #pkg-search-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     _PackageSearchModal .pkg-search-row {
         height: auto;
@@ -120,8 +94,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="pkg-search-dialog"):
-            yield Static("Buscar Package", id="pkg-search-title")
+        with Dialog("Buscar Package", id="pkg-search-dialog"):
             with Horizontal(classes="pkg-search-row"):
                 yield Select([], prompt="Selecione a conexao Oracle", id="pkg-search-conn")
             with Horizontal(classes="pkg-search-row"):
@@ -239,19 +212,6 @@ class _PackageCreateModal(ModalScreen[dict | None]):
     _PackageCreateModal {
         align: center middle;
     }
-    _PackageCreateModal #pkg-create-dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _PackageCreateModal #pkg-create-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _PackageCreateModal .pkg-create-row {
         height: auto;
         padding: 0 0 1 0;
@@ -292,8 +252,7 @@ class _PackageCreateModal(ModalScreen[dict | None]):
         self._mode = "blank"
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="pkg-create-dialog"):
-            yield Static("Criar Package", id="pkg-create-title")
+        with Dialog("Criar Package", id="pkg-create-dialog"):
             with Horizontal(classes="pkg-create-row"):
                 yield Select([], prompt="Selecione a conexao Oracle", id="pkg-create-conn")
             with Horizontal(classes="pkg-create-row"):
@@ -415,19 +374,6 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
     _WizardRoutineModal {
         align: center middle;
     }
-    _WizardRoutineModal #wizard-dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _WizardRoutineModal #wizard-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _WizardRoutineModal .wizard-row {
         height: auto;
         padding: 0 0 1 0;
@@ -464,8 +410,7 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
         self._routines: list[dict] = []
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="wizard-dialog"):
-            yield Static("Wizard - Adicionar Rotinas", id="wizard-title")
+        with Dialog("Wizard - Adicionar Rotinas", id="wizard-dialog"):
             with Horizontal(classes="wizard-row"):
                 yield Input(placeholder="Nome da rotina", id="wizard-routine-name")
             with Horizontal(classes="wizard-row"):
