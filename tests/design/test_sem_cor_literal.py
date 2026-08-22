@@ -11,16 +11,12 @@ TETO = 0
 
 
 def test_cor_literal_nao_cresce():
-    achados = violacoes()
-    assert len(achados) <= TETO, (
-        f"{len(achados)} cores literais, teto {TETO}. Novas:\n"
-        + "\n".join(f"  {a}:{l}  {t}" for a, l, t in achados[:20])
-    )
-
-
-def test_teto_esta_ajustado_ao_real():
-    """Impede que o teto fique folgado e pare de proteger."""
+    """Com TETO = 0, "nao cresce" (`<=`) e "esta ajustado ao real" (`==`)
+    colapsam na mesma comparacao — nao ha mais folga abaixo de zero para os
+    dois virarem testes distintos. Ficou um so, com a mensagem que nomeia
+    os arquivos ofensores."""
     achados = violacoes()
     assert len(achados) == TETO, (
-        f"divida caiu para {len(achados)} — baixe TETO para esse valor"
+        f"{len(achados)} cores literais, teto {TETO}. Novas:\n"
+        + "\n".join(f"  {a}:{l}  {t}" for a, l, t in achados[:20])
     )
