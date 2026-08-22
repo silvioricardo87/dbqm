@@ -7,6 +7,26 @@ from typing import Any
 
 from dbqm.core.group_engine import GroupResult
 from dbqm.core.exporter import _build_filepath
+from dbqm.design.tokens import TOKENS_CLARO, TOKENS_ESCURO
+
+
+def css_variaveis(tokens: dict[str, str]) -> str:
+    """Emite os design tokens como custom properties, para o <style> do relatorio."""
+    linhas = "\n".join(f"  --{chave}: {valor};" for chave, valor in sorted(tokens.items()))
+    return f":root {{\n{linhas}\n}}"
+
+
+def _bloco_tema_claro(tokens: dict[str, str]) -> str:
+    """Sobrescreve os tokens dentro de uma media query, para o SO/navegador do leitor.
+
+    O relatorio e um arquivo HTML autonomo — nao ha tema ativo da TUI para
+    herdar — entao ele responde a preferencia de cor do sistema em vez de
+    ficar preso a uma variante fixa. A base (:root, tema escuro) ja carrega a
+    paleta completa; aqui so a variante clara sobrescreve, entao nenhum token
+    fica com definicao unica dentro da media query.
+    """
+    linhas = "\n".join(f"    --{chave}: {valor};" for chave, valor in sorted(tokens.items()))
+    return f"@media (prefers-color-scheme: light) {{\n  :root {{\n{linhas}\n  }}\n}}"
 
 
 def export_group_html(group_result: GroupResult, params: dict | None = None) -> str:
@@ -77,34 +97,36 @@ def _build_html(group_result: GroupResult, query_names: list[str], params: dict 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Relatorio - {h(group_result.group_name)}</title>
 <style>
+{css_variaveis(TOKENS_ESCURO)}
+{_bloco_tema_claro(TOKENS_CLARO)}
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 24px; }}
-    .header {{ background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
-    .header h1 {{ color: #00d4ff; font-size: 1.4em; }}
-    .header .meta {{ color: #888; font-size: 0.85em; margin-top: 8px; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--fundo); color: var(--texto); padding: 24px; }}
+    .header {{ background: var(--painel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
+    .header h1 {{ color: var(--identidade); font-size: 1.4em; }}
+    .header .meta {{ color: var(--texto-apoio); font-size: 0.85em; margin-top: 8px; }}
     .badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 0.85em; }}
-    .badge.ok {{ background: #0d4d2e; color: #4caf50; }}
-    .badge.diff {{ background: #4d2d0d; color: #ff9800; }}
+    .badge.ok {{ background: color-mix(in srgb, var(--veredito-igual) 20%, var(--painel)); color: var(--veredito-igual); }}
+    .badge.diff {{ background: color-mix(in srgb, var(--veredito-difere) 20%, var(--painel)); color: var(--veredito-difere); }}
     .params {{ margin: 12px 0; border-collapse: collapse; }}
-    .params td {{ padding: 4px 16px 4px 0; color: #aaa; font-size: 0.9em; }}
-    h3 {{ color: #00d4ff; margin: 24px 0 8px; }}
+    .params td {{ padding: 4px 16px 4px 0; color: var(--texto-apoio); font-size: 0.9em; }}
+    h3 {{ color: var(--identidade); margin: 24px 0 8px; }}
     .filter-bar {{ margin-bottom: 8px; }}
-    .filter-btn {{ background: #16213e; color: #888; border: 1px solid #333; padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; font-size: 0.8em; }}
-    .filter-btn.active {{ background: #0a3d62; color: #00d4ff; border-color: #00d4ff; }}
+    .filter-btn {{ background: var(--painel); color: var(--texto-apoio); border: 1px solid var(--borda); padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; font-size: 0.8em; }}
+    .filter-btn.active {{ background: var(--superficie-elevada); color: var(--identidade); border-color: var(--identidade); }}
     table.data {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.9em; }}
-    table.data th {{ background: #16213e; color: #00d4ff; padding: 8px 12px; text-align: left; border-bottom: 2px solid #333; }}
-    table.data td {{ padding: 6px 12px; border-bottom: 1px solid #222; }}
-    table.data tr:hover {{ background: #16213e; }}
-    .key {{ color: #fff; font-weight: 600; }}
-    .ok {{ color: #4caf50; font-weight: 600; }}
-    .diff {{ color: #ff9800; font-weight: 600; }}
-    .absent {{ color: #f44336; font-weight: 600; }}
-    .diff-row td {{ background: rgba(255,152,0,0.05); }}
-    .absent-row td {{ background: rgba(244,67,54,0.05); }}
-    .summary {{ color: #888; font-size: 0.85em; margin-bottom: 16px; padding: 8px 0; border-top: 1px solid #333; }}
+    table.data th {{ background: var(--painel); color: var(--identidade); padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--borda); }}
+    table.data td {{ padding: 6px 12px; border-bottom: 1px solid var(--borda); }}
+    table.data tr:hover {{ background: var(--superficie-elevada); }}
+    .key {{ color: var(--texto-forte); font-weight: 600; }}
+    .ok {{ color: var(--veredito-igual); font-weight: 600; }}
+    .diff {{ color: var(--veredito-difere); font-weight: 600; }}
+    .absent {{ color: var(--veredito-ausente); font-weight: 600; }}
+    .diff-row td {{ background: color-mix(in srgb, var(--veredito-difere) 10%, transparent); }}
+    .absent-row td {{ background: color-mix(in srgb, var(--veredito-ausente) 10%, transparent); }}
+    .summary {{ color: var(--texto-apoio); font-size: 0.85em; margin-bottom: 16px; padding: 8px 0; border-top: 1px solid var(--borda); }}
     .hidden {{ display: none; }}
-    input.search {{ background: #16213e; border: 1px solid #333; color: #e0e0e0; padding: 6px 12px; border-radius: 4px; margin-bottom: 12px; width: 300px; }}
-    input.search::placeholder {{ color: #555; }}
+    input.search {{ background: var(--painel); border: 1px solid var(--borda); color: var(--texto); padding: 6px 12px; border-radius: 4px; margin-bottom: 12px; width: 300px; }}
+    input.search::placeholder {{ color: var(--texto-desabilitado); }}
 </style>
 </head>
 <body>

@@ -38,3 +38,19 @@ class TestBuildHtml:
         path = export_group_html(sample_group_result)
         assert Path(path).exists()
         assert path.endswith(".html")
+
+
+def test_relatorio_usa_as_cores_do_design_system():
+    """O relatorio tinha paleta propria so porque core/ nao podia importar ui/."""
+    from dbqm.core.html_report import css_variaveis
+    from dbqm.design.tokens import TOKENS_ESCURO
+
+    css = css_variaveis(TOKENS_ESCURO)
+    for chave, valor in TOKENS_ESCURO.items():
+        assert f"--{chave}: {valor}" in css
+
+
+def test_relatorio_nao_carrega_mais_a_paleta_antiga():
+    fonte = Path("dbqm/core/html_report.py").read_text(encoding="utf-8")
+    for orfa in ("#00d4ff", "#16213e", "#4caf50", "#ff9800", "#f44336"):
+        assert orfa not in fonte, f"{orfa} sobrou da paleta paralela"
