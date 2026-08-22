@@ -61,15 +61,15 @@ async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
     """A bolinha de conexao precisa contrastar com o fundo da propria barra.
 
     O bug original nunca foi "a bolinha usa o token errado" — foi "a
-    bolinha nao contrasta com o que esta atras dela". A barra inteira e
-    preenchida com $primary (= identidade); pintar a bolinha em $identidade
-    tambem e ambar sobre ambar, invisivel. Fixar a asserção num nome de
-    token (ex.: `== $background`) so prova a grafia atual: se o fundo da
-    barra um dia deixar de ser $primary, o teste continuaria verde e a
-    bolinha podia voltar a ficar invisivel sem que nada acusasse. Em vez
-    disso, mede o contraste WCAG real entre a cor resolvida da bolinha e a
-    cor resolvida do fundo da barra, exigindo o piso de interface (3:1) —
-    o mesmo piso que PISO_INTERFACE usa em tests/design/test_contraste.py.
+    bolinha nao contrasta com o que esta atras dela". Por isso este teste
+    nao nomeia nenhum token: nem o da bolinha (ja vem resolvido do conteudo
+    renderizado), nem o do fundo da barra. O fundo e lido de
+    `barra.styles.background` — a cor que o Textual efetivamente resolveu
+    e vai pintar atras do widget montado, seja qual for a regra CSS que a
+    produziu. Se `StatusBar.DEFAULT_CSS` trocar de `background: $primary`
+    para outro token, este teste continua medindo o par real; nomear
+    `$primary` aqui seria a mesma armadilha que a asserção anterior tinha
+    contra `$background` — presa a uma grafia, nao a relacao.
     """
     from textual.style import Style
 
@@ -85,11 +85,11 @@ async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
         cor_bolinha = next(
             estilo.foreground for texto, estilo in pecas if "●" in texto
         )
-        cor_fundo_barra = Style.parse("$primary").foreground
+        cor_fundo_barra = barra.styles.background
 
         contraste = razao(cor_bolinha.hex, cor_fundo_barra.hex)
         assert contraste >= 3.0, (
-            f"bolinha ({cor_bolinha.hex}) sobre o fundo da barra "
+            f"bolinha ({cor_bolinha.hex}) sobre o fundo real da barra "
             f"({cor_fundo_barra.hex}) = {contraste:.2f}:1, abaixo do piso de interface"
         )
 
