@@ -10,6 +10,7 @@ from textual import work
 
 from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.query_list import ClearFiltersRequested, QueryListWidget, QuerySelected
 from dbqm.ui.widgets.result_table import ResultTable
@@ -42,8 +43,6 @@ class QueryExecScreen(Vertical):
     }
     QueryExecScreen #empty-message {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
     QueryExecScreen #folder-bar {
         height: 3;
@@ -98,10 +97,12 @@ class QueryExecScreen(Vertical):
     def compose(self) -> ComposeResult:
         # Selection phase
         with Vertical(id="selection-phase"):
-            yield Static(
-                "[dim]Nenhuma consulta configurada[/]",
+            yield EmptyState(
+                o_que="Consultas",
+                porque="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
+                acao_rotulo="Criar consulta",
+                acao_id="criar-consulta-coleta",
                 id="empty-message",
-                markup=True,
             )
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
@@ -132,7 +133,7 @@ class QueryExecScreen(Vertical):
 
         queries = load_queries()
         selection = self.query_one("#selection-phase")
-        empty_msg = self.query_one("#empty-message", Static)
+        empty_msg = self.query_one("#empty-message", EmptyState)
 
         if not queries:
             empty_msg.display = True
@@ -188,8 +189,19 @@ class QueryExecScreen(Vertical):
         ql.load_queries(queries)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle folder filter button presses."""
+        """Handle folder filter button presses and the empty-state action."""
         btn_id = event.button.id or ""
+        if btn_id == "criar-consulta-coleta":
+            # Queries are created from the Coleta tab ("Salvar como
+            # consulta" there), not from this screen — guarded because
+            # QueryExecScreen is also mounted standalone in tests, where
+            # self.app has no action_switch_tab (that lives on DBQMApp
+            # only).
+            switch = getattr(self.app, "action_switch_tab", None)
+            if callable(switch):
+                switch("tab-coleta")
+            return
+
         if not btn_id.startswith("folder-"):
             return
 

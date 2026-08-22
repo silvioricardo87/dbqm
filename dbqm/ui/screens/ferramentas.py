@@ -74,15 +74,24 @@ class FerramentasScreen(Vertical):
             return GroupRunScreen(id="ferr-executar-inner")
         raise ValueError(f"Unknown tool: {name}")
 
+    def open_tool(self, name: str) -> None:
+        """Switch to a tool's pane, building it on first use.
+
+        Public (not just the ``ferr-open-*`` button handler below) so a
+        tool screen nested inside this launcher can send the user to a
+        *sibling* tool — e.g. GroupRunScreen's EmptyState linking to
+        "Gerenciar Grupos" when there is nothing to run yet.
+        """
+        if name not in self._loaded_tools:
+            container = self.query_one(f"#ferr-{name}", Vertical)
+            container.mount(self._build_tool(name))
+            self._loaded_tools.add(name)
+        self.query_one(ContentSwitcher).current = f"ferr-{name}"
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id or ""
         if button_id.startswith("ferr-open-"):
-            name = button_id.removeprefix("ferr-open-")
-            if name not in self._loaded_tools:
-                container = self.query_one(f"#ferr-{name}", Vertical)
-                container.mount(self._build_tool(name))
-                self._loaded_tools.add(name)
-            self.query_one(ContentSwitcher).current = f"ferr-{name}"
+            self.open_tool(button_id.removeprefix("ferr-open-"))
             event.stop()
         elif button_id.startswith("ferr-back-"):
             self.query_one(ContentSwitcher).current = "ferr-menu"

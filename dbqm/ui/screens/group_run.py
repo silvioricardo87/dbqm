@@ -103,8 +103,6 @@ class GroupRunScreen(Vertical):
     }
     GroupRunScreen #gr-empty-message {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
     GroupRunScreen #gr-folder-bar {
         height: 3;
@@ -149,10 +147,12 @@ class GroupRunScreen(Vertical):
     def compose(self) -> ComposeResult:
         # Selection phase
         with Vertical(id="gr-selection-phase"):
-            yield Static(
-                "[dim]Nenhum grupo configurado[/]",
+            yield EmptyState(
+                o_que="Grupos",
+                porque="Grupos comparam a mesma consulta em varias conexoes de uma vez",
+                acao_rotulo="Gerenciar grupos",
+                acao_id="gerenciar-grupos",
                 id="gr-empty-message",
-                markup=True,
             )
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
@@ -183,7 +183,7 @@ class GroupRunScreen(Vertical):
 
         groups = load_groups()
         selection = self.query_one("#gr-selection-phase")
-        empty_msg = self.query_one("#gr-empty-message", Static)
+        empty_msg = self.query_one("#gr-empty-message", EmptyState)
 
         if not groups:
             empty_msg.display = True
@@ -258,8 +258,19 @@ class GroupRunScreen(Vertical):
             group_list.append(_GroupListItem(g))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle folder filter button presses and the filtered-empty action."""
+        """Handle folder filter button presses and the empty-state actions."""
         btn_id = event.button.id or ""
+        if btn_id == "gerenciar-grupos":
+            # GroupRunScreen only ever lives nested inside FerramentasScreen
+            # (see ferramentas.py::_build_tool) — guarded for the standalone
+            # hosting tests also use.
+            try:
+                from dbqm.ui.screens.ferramentas import FerramentasScreen
+                self.app.query_one(FerramentasScreen).open_tool("grupos")
+            except Exception:
+                pass
+            return
+
         if btn_id == "ver-todos-grupos":
             if self._folder_buttons:
                 self._active_folder_idx = 0

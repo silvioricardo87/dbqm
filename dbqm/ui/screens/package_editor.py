@@ -123,7 +123,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
 
         if not oracle_conns:
             self.query_one("#pkg-search-error", Static).update(
-                "Nenhuma conexao Oracle configurada."
+                "Conexao Oracle necessaria — adicione uma na aba Conexoes."
             )
             self.query_one("#pkg-search-error").display = True
 
@@ -287,7 +287,7 @@ class _PackageCreateModal(ModalScreen[dict | None]):
 
         if not oracle_conns:
             self.query_one("#pkg-create-error", Static).update(
-                "Nenhuma conexao Oracle configurada."
+                "Conexao Oracle necessaria — adicione uma na aba Conexoes."
             )
             self.query_one("#pkg-create-error").display = True
 

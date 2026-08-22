@@ -38,6 +38,29 @@ async def test_query_exec_screen_shows_empty_message(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_query_exec_empty_state_action_switches_to_coleta(tmp_config_dir):
+    """The EmptyState's "Criar consulta" button must not be a dead end —
+    queries are created from the Coleta tab ("Salvar como consulta")."""
+    from textual.widgets import Button
+
+    switched = []
+
+    class _QueryExecWithSwitch(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield QueryExecScreen()
+
+        def action_switch_tab(self, tab_id: str) -> None:
+            switched.append(tab_id)
+
+    app = _QueryExecWithSwitch()
+    async with app.run_test() as pilot:
+        screen = app.query_one(QueryExecScreen)
+        screen.query_one("#criar-consulta-coleta", Button).press()
+        await pilot.pause()
+        assert switched == ["tab-coleta"]
+
+
+@pytest.mark.asyncio
 async def test_query_exec_screen_shows_query_list(tmp_config_dir):
     """With queries configured, should show the query list."""
     config_dir = tmp_config_dir / "config"
@@ -3793,6 +3816,37 @@ async def test_ferramentas_screen_open_executar_grupo(tmp_config_dir):
         screen.query_one("#ferr-open-executar", Button).press()
         await pilot.pause()
         assert len(executar_container.query(GroupRunScreen)) == 1
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_group_run_empty_state_action_opens_group_management(
+    tmp_config_dir,
+):
+    """With zero groups configured system-wide, GroupRunScreen's EmptyState
+    ("Gerenciar grupos") must not be a dead end: it switches the launcher
+    to the sibling "Gerenciar Grupos" tool, where groups are created."""
+    from textual.widgets import Button, ContentSwitcher
+    from dbqm.ui.widgets.empty_state import EmptyState
+    from dbqm.ui.screens.group_manage import GroupManageScreen
+
+    app = FerramentasTestApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.query_one(FerramentasScreen)
+        switcher = screen.query_one(ContentSwitcher)
+
+        screen.query_one("#ferr-open-executar", Button).press()
+        await pilot.pause()
+        assert switcher.current == "ferr-executar"
+
+        run_screen = screen.query_one(GroupRunScreen)
+        empty = run_screen.query_one("#gr-empty-message", EmptyState)
+        assert empty.display is True
+
+        run_screen.query_one("#gerenciar-grupos", Button).press()
+        await pilot.pause()
+
+        assert switcher.current == "ferr-grupos"
+        assert len(screen.query_one("#ferr-grupos").query(GroupManageScreen)) == 1
 
 
 # ======================================================================
