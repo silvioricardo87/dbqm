@@ -2991,7 +2991,7 @@ async def test_wizard_routine_modal_empty_state_action_focuses_name_input(tmp_co
         assert modal.query_one("#wizard-empty", EmptyState).display is True
         assert modal.query_one("#wizard-list", Static).display is False
 
-        modal.query_one("#adicionar-rotina", Button).press()
+        modal.query_one("#informar-nome-rotina", Button).press()
         await pilot.pause()
         assert app.focused is modal.query_one("#wizard-routine-name", Input)
 
@@ -3528,11 +3528,11 @@ async def test_oracle_clients_screen_renders_platform_and_tables(tmp_config_dir)
 async def test_oracle_clients_empty_state_action_focuses_available_table(
     tmp_config_dir, monkeypatch
 ):
-    """The EmptyState's "Instalar client" button must not be a dead end.
+    """The EmptyState's "Escolher client" button must not be a dead end.
 
     With zero installed clients, it should send focus to the "Disponiveis
     para download" table — installing requires picking a package there
-    first, so that's the real next step.
+    first, so the label names that step (not the install itself).
     """
     from textual.widgets import Button, DataTable
 
@@ -3549,7 +3549,7 @@ async def test_oracle_clients_empty_state_action_focuses_available_table(
         installed = screen.query_one("#oc-installed-table", DataTable)
         assert installed.display is False
 
-        screen.query_one("#instalar-client", Button).press()
+        screen.query_one("#escolher-client", Button).press()
         await pilot.pause()
         assert app.focused is screen.query_one("#oc-available-table", DataTable)
 
@@ -4001,6 +4001,52 @@ async def test_group_run_screen_with_folders(tmp_config_dir):
         buttons = folder_bar.query(Button)
         # "Todas" + "Folder A" + "Folder B" = 3
         assert len(buttons) >= 3
+
+
+@pytest.mark.asyncio
+async def test_group_run_filtered_empty_state_action_resets_filter(tmp_config_dir):
+    """A folder filter matching zero groups must not fall back to a fake
+    row inside the ListView: an EmptyState replaces it, and its "Ver
+    todos os grupos" button must not be a dead end."""
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "g1",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["status"],
+                "folder": "F1",
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        from textual.widgets import Button, ListView
+        from dbqm.ui.widgets.empty_state import EmptyState
+
+        screen = app.query_one(GroupRunScreen)
+        # Simulate a folder filter matching nothing (reachable e.g. via a
+        # stale folder button after a sanitize_id collision) without
+        # depending on that collision mechanics here.
+        screen._populate_group_list([])
+        await pilot.pause()
+
+        empty = screen.query_one("#gr-filter-empty", EmptyState)
+        assert empty.display is True
+        assert screen.query_one("#gr-group-list", ListView).display is False
+
+        screen.query_one("#ver-todos-grupos", Button).press()
+        await pilot.pause()
+
+        assert empty.display is False
+        group_list = screen.query_one("#gr-group-list", ListView)
+        assert group_list.display is True
+        assert len(group_list.children) == 1
 
 
 @pytest.mark.asyncio

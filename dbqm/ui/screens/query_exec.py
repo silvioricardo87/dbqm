@@ -11,7 +11,7 @@ from textual import work
 from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.progress import ProgressIndicator
-from dbqm.ui.widgets.query_list import QueryListWidget, QuerySelected
+from dbqm.ui.widgets.query_list import ClearFiltersRequested, QueryListWidget, QuerySelected
 from dbqm.ui.widgets.result_table import ResultTable
 
 from dbqm.core.query_engine import QueryResult
@@ -270,6 +270,24 @@ class QueryExecScreen(Vertical):
         """React to the connection filter selection."""
         if event.select.id == "qe-filter-conn":
             self._apply_filters()
+
+    def on_clear_filters_requested(self, message: ClearFiltersRequested) -> None:
+        """The QueryListWidget's filtered-to-nothing EmptyState asked to
+        clear the filters that live up here (folder tab, connection,
+        free-text search) — the widget already cleared its own inline
+        search box."""
+        if self._folder_buttons:
+            self._active_folder_idx = 0
+            self._activate_folder_button(self._folder_buttons[0])
+        try:
+            self.query_one("#qe-filter-text", Input).value = ""
+        except Exception:
+            pass
+        try:
+            self.query_one("#qe-filter-conn", Select).clear()
+        except Exception:
+            pass
+        self._apply_filters()
 
     # ------------------------------------------------------------------
     # Query selected → parameterize & execute

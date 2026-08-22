@@ -7,7 +7,9 @@ from typing import Any
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
-from textual.widgets import Input, ListView, ListItem, Static
+from textual.widgets import Button, Input, ListView, ListItem, Static
+
+from dbqm.ui.widgets.empty_state import EmptyState
 
 
 class QuerySelected(Message):
@@ -16,6 +18,14 @@ class QuerySelected(Message):
     def __init__(self, query_name: str) -> None:
         self.query_name = query_name
         super().__init__()
+
+
+class ClearFiltersRequested(Message):
+    """Posted when the user asks, from the filtered-to-nothing EmptyState,
+    to clear whatever is hiding the queries. The widget already clears its
+    own inline search box; folder/connection/text filters above it belong
+    to the host screen, which is the only side that knows how to reset
+    them."""
 
 
 def _attr(obj: Any, key: str, default: Any = "") -> Any:
@@ -123,12 +133,21 @@ class QueryListWidget(Vertical, can_focus=False):
     def compose(self):
         with Horizontal(id="ql-search"):
             yield Input(placeholder="Filtrar consultas...", id="ql-search-input")
+        yield EmptyState(
+            o_que="Consultas",
+            porque="Os filtros aplicados escondem as consultas que existem",
+            acao_rotulo="Limpar filtros",
+            acao_id="limpar-filtros-consultas",
+            id="ql-filter-empty",
+        )
         yield ListView(id="ql-listview")
 
     def on_mount(self) -> None:
         self._composed = True
-        if self._all_queries:
-            self._refresh_items()
+        # Always sync visibility, even with zero queries loaded so far —
+        # ``_refresh_items`` is what decides EmptyState vs ListView, and
+        # skipping it here left both in their compose-time default state.
+        self._refresh_items()
 
     def load_queries(self, queries: list[Any]) -> None:
         """Populate the list with queries. Sorts favorites first, then by name."""
@@ -150,6 +169,7 @@ class QueryListWidget(Vertical, can_focus=False):
 
     def _refresh_items(self) -> None:
         listview = self.query_one("#ql-listview", ListView)
+        empty = self.query_one("#ql-filter-empty", EmptyState)
         listview.clear()
         filtered = self._all_queries
         if self._current_folder is not None:
@@ -165,8 +185,14 @@ class QueryListWidget(Vertical, can_focus=False):
 
         sorted_queries = self._sorted(filtered)
         if not sorted_queries:
-            listview.append(ListItem(Static("[dim]Nenhuma consulta configurada[/]", markup=True)))
+            # A ListItem can't host a widget, so the empty case is an
+            # EmptyState sitting beside the ListView, not a fake row inside
+            # it.
+            empty.display = True
+            listview.display = False
             return
+        empty.display = False
+        listview.display = True
         for q in sorted_queries:
             listview.append(_QueryListItem(q))
 
@@ -175,6 +201,21 @@ class QueryListWidget(Vertical, can_focus=False):
         item = event.item
         if isinstance(item, _QueryListItem):
             self.post_message(QuerySelected(item.query_name))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "limpar-filtros-consultas":
+            # Clear what the widget owns itself (its own inline search);
+            # folder/connection/text filters living in the host screen are
+            # its own to reset, hence the message.
+            self._search_text = ""
+            try:
+                search_input = self.query_one("#ql-search-input", Input)
+                search_input.value = ""
+                self.query_one("#ql-search", Horizontal).remove_class("visible")
+            except Exception:
+                pass
+            self.post_message(ClearFiltersRequested())
+            self._refresh_items()
 
     def action_start_search(self) -> None:
         """Show the search input."""

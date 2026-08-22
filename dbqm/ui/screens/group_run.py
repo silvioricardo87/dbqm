@@ -13,6 +13,7 @@ from textual import work
 from dbqm.ui.utils import sanitize_id, escape_markup
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
@@ -218,24 +219,53 @@ class GroupRunScreen(Vertical):
             self._active_folder_idx = 0
 
         selection.mount(group_list)
+        filtered_empty = EmptyState(
+            o_que="Grupos",
+            porque="A pasta selecionada esconde os grupos que existem",
+            acao_rotulo="Ver todos os grupos",
+            acao_id="ver-todos-grupos",
+            id="gr-filter-empty",
+        )
+        filtered_empty.display = False
+        selection.mount(filtered_empty)
         self._populate_group_list(groups)
 
     def _populate_group_list(self, groups: list) -> None:
-        """Populate the group ListView."""
+        """Populate the group ListView.
+
+        Reached with an empty ``groups`` only via a folder filter with no
+        matches (the "no groups at all" case is handled earlier, by
+        ``#gr-empty-message``, before this is ever called) — a ListItem
+        can't host a widget, so the empty case is an EmptyState sitting
+        beside the ListView instead of inside it.
+        """
         group_list = self.query_one("#gr-group-list", ListView)
         group_list.clear()
         sorted_groups = sorted(groups, key=lambda g: g.name.lower())
+        try:
+            filtered_empty = self.query_one("#gr-filter-empty", EmptyState)
+        except Exception:
+            filtered_empty = None
         if not sorted_groups:
-            group_list.append(
-                ListItem(Static("[dim]Nenhum grupo configurado[/]", markup=True))
-            )
+            if filtered_empty is not None:
+                filtered_empty.display = True
+            group_list.display = False
             return
+        if filtered_empty is not None:
+            filtered_empty.display = False
+        group_list.display = True
         for g in sorted_groups:
             group_list.append(_GroupListItem(g))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle folder filter button presses."""
+        """Handle folder filter button presses and the filtered-empty action."""
         btn_id = event.button.id or ""
+        if btn_id == "ver-todos-grupos":
+            if self._folder_buttons:
+                self._active_folder_idx = 0
+                self._activate_folder_button(self._folder_buttons[0])
+            return
+
         if not btn_id.startswith("gr-folder-"):
             return
 

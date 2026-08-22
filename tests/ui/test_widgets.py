@@ -367,14 +367,67 @@ async def test_query_list_loads_items():
 
 @pytest.mark.asyncio
 async def test_query_list_empty():
+    """A ListItem can't host a widget, so an empty/filtered-to-nothing
+    list shows an EmptyState beside the ListView (which hides), never a
+    fake row inside it."""
+    from textual.widgets import ListItem, ListView
+    from dbqm.ui.widgets.empty_state import EmptyState
+
     app = QueryListTestApp()
     async with app.run_test() as pilot:
         ql = app.query_one(QueryListWidget)
         ql.load_queries([])
         await pilot.pause()
-        from textual.widgets import ListItem
-        items = ql.query(ListItem)
-        assert len(items) == 1  # empty-state item
+        assert len(ql.query(ListItem)) == 0
+        assert ql.query_one("#ql-filter-empty", EmptyState).display is True
+        assert ql.query_one("#ql-listview", ListView).display is False
+
+
+@pytest.mark.asyncio
+async def test_query_list_filtered_empty_state_clears_search_and_notifies_host():
+    """The EmptyState shown when a filter matches nothing must not be a
+    dead end: it clears the widget's own inline search AND tells the host
+    screen (which owns folder/connection filters up there) to clear its
+    own."""
+    from textual.widgets import Button, ListView
+    from dbqm.ui.widgets.empty_state import EmptyState
+    from dbqm.ui.widgets.query_list import ClearFiltersRequested
+
+    notified = []
+
+    class _HostApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield QueryListWidget()
+
+        def on_clear_filters_requested(self, message: ClearFiltersRequested) -> None:
+            notified.append(True)
+
+    queries = [
+        {
+            "name": "q1", "connection": "c1", "table": "", "description": "",
+            "is_favorite": False, "folder": None,
+        },
+    ]
+
+    app = _HostApp()
+    async with app.run_test() as pilot:
+        ql = app.query_one(QueryListWidget)
+        ql.load_queries(queries)
+        await pilot.pause()
+
+        ql._search_text = "no-such-query"
+        ql._refresh_items()
+        await pilot.pause()
+        assert ql.query_one("#ql-filter-empty", EmptyState).display is True
+        assert ql.query_one("#ql-listview", ListView).display is False
+
+        ql.query_one("#limpar-filtros-consultas", Button).press()
+        await pilot.pause()
+
+        assert ql._search_text == ""
+        assert ql.query_one("#ql-filter-empty", EmptyState).display is False
+        assert ql.query_one("#ql-listview", ListView).display is True
+        assert notified == [True]
 
 
 @pytest.mark.asyncio

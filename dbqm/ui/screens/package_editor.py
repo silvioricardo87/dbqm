@@ -436,8 +436,8 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
             yield EmptyState(
                 o_que="Rotinas",
                 porque="Cada rotina adicionada aqui vira uma entrada no esqueleto do pacote",
-                acao_rotulo="Adicionar rotina",
-                acao_id="adicionar-rotina",
+                acao_rotulo="Informar nome da rotina",
+                acao_id="informar-nome-rotina",
                 id="wizard-empty",
             )
             yield Static("", id="wizard-list")
@@ -453,7 +453,12 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
             self._handle_add()
         elif event.button.id == "wizard-done":
             self.dismiss(self._routines if self._routines else None)
-        elif event.button.id == "adicionar-rotina":
+        elif event.button.id == "informar-nome-rotina":
+            # O rotulo descreve exatamente o que este botao faz: leva o
+            # cursor ate o campo de nome. "Adicionar rotina" prometeria a
+            # rotina pronta, mas _handle_add exige o nome preenchido
+            # primeiro (senao e um no-op silencioso) — entao o passo real
+            # de um unico Enter e chegar ao campo, nao adicionar.
             self.query_one("#wizard-routine-name", Input).focus()
 
     def _handle_add(self) -> None:

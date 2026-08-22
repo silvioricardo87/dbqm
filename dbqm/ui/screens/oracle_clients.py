@@ -108,8 +108,8 @@ class OracleClientsScreen(Vertical):
             yield EmptyState(
                 o_que="Clients instalados",
                 porque="O Oracle Instant Client permite conectar a bancos Oracle sem instalacao completa",
-                acao_rotulo="Instalar client",
-                acao_id="instalar-client",
+                acao_rotulo="Escolher client",
+                acao_id="escolher-client",
                 id="oc-installed-empty",
             )
             yield DataTable(id="oc-installed-table", cursor_type="row")
@@ -195,9 +195,12 @@ class OracleClientsScreen(Vertical):
             self._start_remove()
         elif event.button.id == "oc-use-btn":
             self._use_selected()
-        elif event.button.id == "instalar-client":
-            # Leva o foco ate a lista de pacotes disponiveis: instalar exige
-            # escolher um pacote primeiro, entao a acao real e chegar la.
+        elif event.button.id == "escolher-client":
+            # O rotulo descreve exatamente o que este botao faz: leva o
+            # foco ate a lista de pacotes disponiveis. Instalar de fato
+            # exige uma linha selecionada la (_start_install), entao
+            # prometer "Instalar client" aqui seria prometer mais do que
+            # um unico Enter entrega.
             self.query_one("#oc-available-table", DataTable).focus()
 
     def _use_selected(self) -> None:
