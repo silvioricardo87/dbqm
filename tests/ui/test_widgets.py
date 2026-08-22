@@ -157,30 +157,79 @@ def test_marcar_veredito_texto_troca_rotulo_mantem_glifo_e_token():
     assert customizado.split("]")[1].split(" ", 1)[0] == padrao.split("]")[1].split(" ", 1)[0]
 
 
+def test_marcar_veredito_escapa_texto_para_nao_vazar_markup():
+    """`texto` existe para um rotulo, nao para injetar markup. Nenhum
+    chamador de hoje passa texto vindo de dado (todos sao literais fixos),
+    mas nada impede um chamador futuro de passar algo derivado de dado —
+    e um `[/]` ou um `$token` dentro desse valor nao pode fechar a tag do
+    componente mais cedo nem abrir um estilo diferente no meio do
+    marcador.
+    """
+    from textual.content import Content
+    from dbqm.ui.widgets.veredito import marcar_veredito
+
+    perigoso = "fim[/][$op-falha]injetado"
+    saida = marcar_veredito("igual", texto=perigoso)
+
+    # so o fechamento legitimo do proprio componente sobra sem escape
+    assert saida.count("[/]") == 1
+    assert saida.endswith("[/]")
+
+    # o markup inteiro resolve como UM UNICO span, com o token do estado —
+    # se o texto perigoso tivesse escapado do escape, apareceria um
+    # segundo span (o "[$op-falha]" injetado abrindo um estilo por conta
+    # propria) ou o texto "injetado" ficaria fora de qualquer span.
+    conteudo = Content.from_markup(saida)
+    assert len(conteudo.spans) == 1
+    assert conteudo.spans[0].style == "$veredito-igual"
+    assert "fim" in conteudo.plain
+    assert "injetado" in conteudo.plain
+
+
 def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
     """Fecha a porta que sobrou depois da primeira rodada da Task 11: nada
     fora de `veredito.py` pode escrever `$veredito-*`/`$op-falha` direto no
-    markup. Um marcador desses carrega cor mas nao glifo — exatamente o
-    problema de acessibilidade que este componente existe para fechar — e
-    sem este teste nada acusa um quinto marcador desses aparecendo amanha.
+    markup sem que este teste acuse — nem hoje, nem um quinto caso amanha.
 
-    O eixo veredito (`$veredito-*`) esta com zero ocorrencias fora do
-    componente hoje, entao fica de porta fechada de verdade: qualquer
-    ocorrencia nova falha.
+    A distincao que decide o que entra em `PROSA_DE_ERRO_FORA_DO_ESCOPO`
+    abaixo: um MARCADOR nomeia um estado dentro de um vocabulario fechado
+    (`igual`/`difere`/`ausente`/`ok`/`falha`/...) e por isso PRECISA de
+    glifo — a cor sozinha nunca basta, porque o vocabulario e finito e
+    repetido em toda a interface. PROSA ja nomeia a falha em palavras
+    proprias, escritas uma vez para aquele erro especifico ("DDL executado
+    com erros de compilacao", "Erro na execucao") — a cor so reforca o que
+    a frase ja diz, entao pintar essa prosa com `$op-falha` nao e o mesmo
+    buraco que este teste fecha.
 
-    O eixo operacao (`$op-falha`) ainda tem uso legado pre-existente em
-    telas que a Task 11 nunca tocou (DDL, rotina, client Oracle,
-    configuracoes) — fora do escopo desta tarefa, entao nao convertido
-    aqui. `PERMITIDO_LEGADO` trava o numero exato de ocorrencias por
-    arquivo para que a porta feche para qualquer ocorrencia NOVA (neles ou
-    em qualquer outro arquivo) sem barrar o debito que ja existia. Reduzir
-    o debito legado tambem deve atualizar o numero aqui — o teste acusa
-    os dois sentidos.
+    O eixo veredito (`$veredito-*`) e so marcador, nunca prosa, em toda a
+    interface hoje — por isso fica de porta fechada de verdade, sem
+    excecao: qualquer ocorrencia fora de `veredito.py` falha.
+
+    O eixo operacao (`$op-falha`) tem os dois usos: `marcar_operacao` para
+    marcador (convertido) e, em cinco telas que a Task 11 nunca tocou
+    (DDL, rotina, client Oracle, configuracoes), coloracao de prosa de erro
+    que ja nomeia a falha em palavras — fora do escopo de
+    `marcar_operacao` por natureza, nao por preguica; converter essas
+    telas prependeria "x FALHA" na frente de frases como "Erro na
+    execucao", a mesma duplicacao que o parametro `texto` acabou de tirar
+    do resumo da comparacao. `PROSA_DE_ERRO_FORA_DO_ESCOPO` trava o numero
+    exato de ocorrencias por arquivo para que a porta feche para qualquer
+    ocorrencia NOVA (nesses arquivos ou em qualquer outro) sem reabrir a
+    conversa sobre esses cinco. Se um deles for reescrito para citar um
+    estado do vocabulario fechado em vez de prosa, o numero aqui muda
+    junto — o teste acusa nos dois sentidos.
 
     Trechos de `DEFAULT_CSS` sao ignorados: sao declaracao estatica de
     estilo do widget (o mesmo uso que `theme.py` faz dos tokens), nao
     markup dinamico — nao tem o problema de "estado comunicado so por
     cor" que este teste vigia.
+
+    Limite deliberado deste teste, aceito na revisao (nao amplie sem
+    reabrir a conversa): e uma varredura de texto sobre `dbqm/ui/`, entao
+    nao pega um token remontado por interpolacao ou partido entre
+    literais concatenados, nao pega uma constante de token definida fora
+    de `dbqm/ui` e so referenciada aqui, e nao pega markup montado em
+    `dbqm/core`/`dbqm/cli.py` e apenas renderizado por um widget da UI.
     """
     import re
     from pathlib import Path
@@ -189,15 +238,16 @@ def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
     padrao_token = re.compile(r"\$veredito-[a-z]+|\$op-falha")
     padrao_css = re.compile(r'DEFAULT_CSS\s*=\s*""".*?"""', re.DOTALL)
 
-    # Debito pre-existente, fora do escopo da Task 11 (arquivos nunca
-    # editados nesta tarefa). Caminho relativo a dbqm/ui -> numero exato de
-    # ocorrencias de `$op-falha` em markup hoje.
-    PERMITIDO_LEGADO: dict[str, int] = {
-        "screens/adhoc.py": 2,
-        "screens/exec_routine.py": 2,
-        "screens/oracle_clients.py": 1,
-        "screens/package_editor.py": 2,
-        "screens/settings.py": 1,
+    # Prosa de erro que ja nomeia a falha em palavras proprias — fora do
+    # escopo de marcar_operacao por natureza (ver docstring). Caminho
+    # relativo a dbqm/ui -> numero exato de ocorrencias de `$op-falha`
+    # hoje.
+    PROSA_DE_ERRO_FORA_DO_ESCOPO: dict[str, int] = {
+        "screens/adhoc.py": 2,  # cabecalho + detalhe de erro de compilacao DDL
+        "screens/exec_routine.py": 2,  # cabecalho + detalhe de erro de execucao
+        "screens/oracle_clients.py": 1,  # nivel info/ok/err de mensagens livres
+        "screens/package_editor.py": 2,  # contagem + mensagem de erro de compilacao
+        "screens/settings.py": 1,  # texto de excecao embutido num rotulo
     }
 
     ofensores = []
@@ -208,13 +258,13 @@ def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
         texto_fonte = arquivo.read_text(encoding="utf-8")
         texto_sem_css = padrao_css.sub("", texto_fonte)
         n = len(padrao_token.findall(texto_sem_css))
-        permitido = PERMITIDO_LEGADO.get(rel, 0)
+        permitido = PROSA_DE_ERRO_FORA_DO_ESCOPO.get(rel, 0)
         if n != permitido:
             ofensores.append(f"{rel}: {n} ocorrencia(s), esperado {permitido}")
 
     assert not ofensores, (
         "markup de veredito/operacao montado a mao fora de veredito.py, "
-        f"alem do debito legado documentado em PERMITIDO_LEGADO: {ofensores}"
+        f"alem da prosa de erro documentada em PROSA_DE_ERRO_FORA_DO_ESCOPO: {ofensores}"
     )
 
 

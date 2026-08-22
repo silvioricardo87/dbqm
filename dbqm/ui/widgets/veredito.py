@@ -13,6 +13,8 @@ O eixo inteiro (`$veredito-*`/`$op-falha` fora daqui) e vigiado por
 """
 from __future__ import annotations
 
+from dbqm.ui.utils import escape_markup
+
 VEREDITOS: dict[str, tuple[str, str]] = {
     # status -> (glifo, token)
     "igual": ("=", "$veredito-igual"),
@@ -41,11 +43,16 @@ def marcar_veredito(status: str, *, texto: str | None = None) -> str:
     pinta-la sem duplicar o rotulo padrao do componente ao lado dela. Nao
     expõe o token em si — so o componente sabe qual token vai com qual
     status, entao a cor nunca se descola do estado que ela representa.
+    `texto` e sempre escapado antes de entrar no markup: o parametro existe
+    para um rotulo, nunca para injetar markup novo, e nenhum chamador de
+    hoje passa nada alem de literal fixo — mas nada impede um futuro
+    chamador de passar texto vindo de dado, e um `[/]`/token ali dentro
+    fecharia a tag cedo demais.
     """
     if status not in VEREDITOS:
         raise ValueError(f"status desconhecido: {status!r}; use {sorted(VEREDITOS)}")
     glifo, token = VEREDITOS[status]
-    rotulo = texto if texto is not None else {
+    rotulo = escape_markup(texto) if texto is not None else {
         "igual": "OK",
         "igual-normalizado": "OK*",
         "difere": "DIFERE",
@@ -61,12 +68,13 @@ def marcar_operacao(estado: str, *, texto: str | None = None) -> str:
     `falha` recebe cor de erro. `executando` recebe a cor de identidade,
     para diferenciar "em andamento" de "resultado".
 
-    `texto`, se passado, troca so o ROTULO (mesma razao de `marcar_veredito`).
+    `texto`, se passado, troca so o ROTULO (mesma razao e mesmo escape de
+    `marcar_veredito`).
     """
     if estado not in OPERACOES:
         raise ValueError(f"estado desconhecido: {estado!r}; use {sorted(OPERACOES)}")
     glifo, token = OPERACOES[estado]
-    rotulo = texto if texto is not None else {
+    rotulo = escape_markup(texto) if texto is not None else {
         "ok": "OK", "falha": "FALHA", "executando": "executando",
     }[estado]
     return f"[{token}]{(glifo + ' ') if glifo else ''}{rotulo}[/]"
