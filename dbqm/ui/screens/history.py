@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.content import Content
 from textual.widgets import DataTable, Static
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
@@ -103,17 +104,17 @@ class HistoryScreen(Vertical):
             if e.entry_type == "group":
                 tipo = "grupo"
                 if e.all_match is True:
-                    status = "[green]OK[/green]"
+                    status = "[$veredito-igual]OK[/]"
                 elif e.all_match is False:
-                    status = "[red]DIFF[/red]"
+                    status = "[$veredito-difere]DIFF[/]"
                 else:
                     status = "-"
             else:
                 tipo = "query"
                 if e.success:
-                    status = "[green]OK[/green]"
+                    status = "OK"
                 else:
-                    status = "[red]ERRO[/red]"
+                    status = "[$op-falha]ERRO[/]"
 
             table.add_row(
                 str(e.timestamp) if e.timestamp else "",
@@ -121,7 +122,11 @@ class HistoryScreen(Vertical):
                 tipo,
                 str(e.name) if e.name else "",
                 f"{e.elapsed:.1f}s",
-                status,
+                # DataTable formata celulas string com o parser puro do Rich,
+                # que nao conhece `$token` (so o markup de conteudo do
+                # Textual conhece). Content.from_markup resolve o token antes
+                # de a celula chegar la.
+                Content.from_markup(status),
                 key=str(i),
             )
 
@@ -182,9 +187,9 @@ class HistoryScreen(Vertical):
         elif entry.entry_type == "group":
             if entry.all_match is not None:
                 status = (
-                    "[green]CONSISTENTE[/green]"
+                    "[$veredito-igual]CONSISTENTE[/]"
                     if entry.all_match
-                    else "[red]DIVERGENTE[/red]"
+                    else "[$veredito-difere]DIVERGENTE[/]"
                 )
                 lines.append(f"[bold]Resultado:[/bold] {status}")
             if entry.summary:

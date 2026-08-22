@@ -34,7 +34,7 @@ def _format_plsql_message(result: AdhocResult) -> str:
 
     Only the success header — DBMS_OUTPUT lines render in the dedicated panel.
     """
-    return f"[green bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"
+    return f"Bloco PL/SQL executado ({result.elapsed:.2f}s)"
 
 
 class AdhocScreen(Vertical):
@@ -612,13 +612,13 @@ class AdhocScreen(Vertical):
 
         if result.success:
             dml_static.update(
-                f"[green bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"
+                f"DDL executado com sucesso ({result.elapsed:.2f}s)"
             )
         else:
             errors = result.error or "Erro desconhecido"
             dml_static.update(
-                f"[yellow bold]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
-                f"[red]{errors}[/]"
+                f"[bold $op-falha]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
+                f"[$op-falha]{errors}[/]"
             )
 
         try:

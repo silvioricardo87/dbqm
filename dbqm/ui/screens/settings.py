@@ -194,11 +194,11 @@ class SettingsScreen(Vertical):
         try:
             path, origin = resolve_oracle_client_dir()
         except OracleClientConfigError as e:
-            label.update(f"[b]Client em uso:[/] [red]{e}[/]")
+            label.update(f"[b]Client em uso:[/] [$op-falha]{e}[/]")
             return
         if not path:
             label.update(
-                "[b]Client em uso:[/] [yellow]nenhum encontrado[/] "
+                "[b]Client em uso:[/] [$texto-apoio]nenhum encontrado[/] "
                 "[dim](thick mode indisponivel)[/]"
             )
             return
@@ -210,7 +210,7 @@ class SettingsScreen(Vertical):
 
         status = self.query_one("#settings-fernet-status", Static)
         exists = KEY_FILE.exists()
-        state = "[green]Presente[/green]" if exists else "[yellow]Sera gerada no primeiro uso[/yellow]"
+        state = "Presente" if exists else "[$texto-apoio]Sera gerada no primeiro uso[/]"
         status.update(
             f"[b]Status:[/b] {state}\n"
             f"[b]Local:[/b] [dim]{KEY_FILE}[/]\n\n"

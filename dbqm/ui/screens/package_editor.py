@@ -869,7 +869,7 @@ class PackageEditorScreen(Vertical):
         if errors:
             # Show compilation errors
             lines = [
-                f"[bold red]  {len(errors)} erro(s) de compilacao ({target.upper()})[/]"
+                f"[bold $op-falha]  {len(errors)} erro(s) de compilacao ({target.upper()})[/]"
             ]
             for err in errors:
                 lines.append(
@@ -878,11 +878,11 @@ class PackageEditorScreen(Vertical):
             error_panel.update("\n".join(lines))
             error_panel.display = True
         elif not success:
-            error_panel.update(f"[bold red]Erro: {error_msg}[/]")
+            error_panel.update(f"[bold $op-falha]Erro: {error_msg}[/]")
             error_panel.display = True
         else:
             error_panel.update(
-                f"[bold green]  {target.capitalize()} compilado com sucesso![/]"
+                f"  {target.capitalize()} compilado com sucesso!"
             )
             error_panel.display = True
             self.notify(

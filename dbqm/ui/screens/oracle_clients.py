@@ -159,7 +159,9 @@ class OracleClientsScreen(Vertical):
             table.add_row(pkg.version, pkg.arch_key, pkg.archive_type)
 
     def _set_status(self, text: str, level: str = "info") -> None:
-        color = {"info": "$text-muted", "ok": "green", "err": "red"}.get(level, "$text-muted")
+        color = {"info": "$texto-apoio", "ok": "$texto-apoio", "err": "$op-falha"}.get(
+            level, "$texto-apoio"
+        )
         self.query_one("#oc-status", Static).update(f"[{color}]{text}[/]")
 
     def _set_busy(self, busy: bool) -> None:

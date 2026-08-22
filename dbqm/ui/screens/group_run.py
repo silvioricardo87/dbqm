@@ -65,7 +65,7 @@ class _GroupListItem(ListItem):
         parts = [f"[bold]{name}[/bold]"]
         if desc:
             parts.append(f"[dim]{desc}[/dim]")
-        parts.append(f"[#e3b341]{queries_label}[/#e3b341]")
+        parts.append(f"[$identidade]{queries_label}[/]")
 
         line = "  |  ".join(parts)
         yield Static(line, markup=True)
@@ -498,7 +498,7 @@ class GroupRunScreen(Vertical):
 
         # Update info bar
         overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
-        overall_color = "green" if group_result.all_match else "yellow"
+        overall_color = "$veredito-igual" if group_result.all_match else "$veredito-difere"
         group_name = str(group_result.group_name) if group_result.group_name else ""
         info = self.query_one("#gr-result-info", Static)
         info.update(
@@ -640,7 +640,7 @@ class GroupRunScreen(Vertical):
         group_name = str(new_gr.group_name) if new_gr.group_name else ""
         if self._showing_mapped:
             overall = "CONSISTENTE" if new_gr.all_match else "DIVERGENTE"
-            overall_color = "green" if new_gr.all_match else "yellow"
+            overall_color = "$veredito-igual" if new_gr.all_match else "$veredito-difere"
             info.update(
                 f"[bold]{escape_markup(group_name)}[/] | "
                 f"{len(new_gr.query_results)} consultas | "

@@ -1981,6 +1981,31 @@ async def test_settings_no_settings_section_boxes(tmp_config_dir):
         assert len(screen.query(".settings-section")) == 0
 
 
+@pytest.mark.asyncio
+async def test_settings_nao_usa_cor_literal_no_status_do_client(tmp_config_dir, monkeypatch):
+    """O estado 'nenhum encontrado' e informativo, nao um aviso amarelo.
+
+    Forca resolve_oracle_client_dir a "nenhum encontrado": sem o monkeypatch
+    o teste passa vazio em qualquer maquina com Instant Client instalado (ex.:
+    a maquina de desenvolvimento), porque o ramo amarelo nunca e alcancado.
+    """
+    from textual.widgets import Static
+
+    monkeypatch.setattr(
+        "dbqm.core.db_manager.resolve_oracle_client_dir", lambda: (None, "none")
+    )
+
+    app = SettingsTestApp()
+    async with app.run_test():
+        rotulo = app.query_one(SettingsScreen).query_one(
+            "#settings-oracle-client-current", Static
+        )
+        bruto = str(rotulo._Static__content)
+        assert "[yellow]" not in bruto
+        assert "[green]" not in bruto
+        assert "[red]" not in bruto
+
+
 # ======================================================================
 # ConfigPortScreen tests
 # ======================================================================

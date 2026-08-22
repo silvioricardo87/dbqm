@@ -478,7 +478,7 @@ class ExecRoutineScreen(Vertical):
         result_area.remove_children()
 
         if result.success:
-            lines = [f"[green bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]
+            lines = [f"Executado com sucesso ({result.elapsed:.2f}s)"]
             if result.return_value is not None:
                 lines.append(f"\n[bold]Retorno:[/] {result.return_value}")
             if result.output_lines:
@@ -489,8 +489,8 @@ class ExecRoutineScreen(Vertical):
                 lines.append("\n[dim]Sem retorno ou output DBMS_OUTPUT[/]")
         else:
             lines = [
-                f"[red bold]Erro na execucao[/] ({result.elapsed:.2f}s)",
-                f"\n[red]{escape_markup(result.error)}[/]",
+                f"[bold $op-falha]Erro na execucao[/] ({result.elapsed:.2f}s)",
+                f"\n[$op-falha]{escape_markup(result.error)}[/]",
             ]
 
         result_area.mount(Static("\n".join(lines), markup=True))
