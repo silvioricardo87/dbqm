@@ -87,9 +87,15 @@ VALIDO_SOBRE: Final[dict[str, tuple[str, ...]]] = {
     "borda-forte": SUPERFICIES,
     "identidade": SUPERFICIES,
     "op-falha": ("painel", "superficie"),
-    "veredito-igual": ("painel", "superficie", "superficie-elevada"),
-    "veredito-difere": ("painel", "superficie", "superficie-elevada"),
-    "veredito-ausente": ("painel", "superficie", "superficie-elevada"),
+    # "fundo" entra aqui porque `core/html_report.py` desenha `.ok`/`.diff`/
+    # `.absent` direto sobre `body { background: var(--fundo) }` — o par
+    # mais comum do relatorio. Ficar de fora era narrowing gratuito: o
+    # teste de contraste so calcula pares declarados, entao um par
+    # composto real (e o mais frequente do relatorio) ficava invisivel
+    # para a catraca. Os tres passam nas duas variantes, minimo 5.42:1.
+    "veredito-igual": ("painel", "superficie", "superficie-elevada", "fundo"),
+    "veredito-difere": ("painel", "superficie", "superficie-elevada", "fundo"),
+    "veredito-ausente": ("painel", "superficie", "superficie-elevada", "fundo"),
 }
 
 # Tokens julgados pelo piso de interface (3:1) em vez do de texto (4.5:1).
