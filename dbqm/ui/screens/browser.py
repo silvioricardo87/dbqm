@@ -141,8 +141,10 @@ class BrowserScreen(Vertical):
                     id="obj-list-empty",
                 )
                 # A forma da lista que vem, nao um rodopio: reserva o
-                # espaco certo enquanto a conexao busca os objetos.
-                yield Esqueleto(linhas=10, colunas=2, id="obj-list-skeleton")
+                # espaco certo enquanto a conexao busca os objetos. Uma
+                # coluna so: `#obj-list` e um OptionList, uma string por
+                # linha (`_populate_list`), nao uma tabela de duas colunas.
+                yield Esqueleto(linhas=10, colunas=1, id="obj-list-skeleton")
                 yield OptionList(id="obj-list")
 
             with Panel("📋  COLUNAS", id="obj-columns-panel"):

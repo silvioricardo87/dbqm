@@ -1,7 +1,14 @@
-"""Temas do Textual, construidos a partir de dbqm/design/tokens.py.
+"""Temas do Textual, construidos a partir de dbqm/design/tokens.py, mais o
+CSS global de estados inertes (ESTADOS_INERTES_CSS) que os consome.
 
 Nenhuma cor e escrita aqui: este modulo so traduz os tokens semanticos para o
 formato que o Textual espera. Trocar a paleta e trocar tokens.py.
+
+ESTADOS_INERTES_CSS vive aqui, nao em dbqm/ui/app.py, porque DBQMApp e
+ThemedTestApp (tests/ui/_helpers.py) sao irmas — as duas estendem
+textual.app.App diretamente, sem parentesco entre si — entao uma constante
+definida so em DBQMApp nunca chegaria aos testes de tela que montam
+ThemedTestApp. As duas importam daqui.
 """
 from __future__ import annotations
 
