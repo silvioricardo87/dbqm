@@ -15,6 +15,10 @@ class Settings:
     default_export_dir: str = ""  # empty = use current working directory
     export_dir_prompted: bool = False  # has the user been asked about the dir?
     create_export_subdirs: bool = True  # create category subdirs for groups/DDL/SQL (queries are always flat)
+    # Oracle Instant Client directory. Empty = auto-detect (see core.db_manager).
+    # Takes precedence over ORACLE_HOME so a 32-bit client installed by another
+    # tool (e.g. PL/SQL Developer) cannot hijack the 64-bit client dbqm needs.
+    oracle_client_dir: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -27,6 +31,7 @@ class Settings:
             default_export_dir=data.get("default_export_dir", ""),
             export_dir_prompted=data.get("export_dir_prompted", False),
             create_export_subdirs=data.get("create_export_subdirs", True),
+            oracle_client_dir=data.get("oracle_client_dir", ""),
         )
 
 

@@ -27,12 +27,13 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execution history** — Browse recent executions with timing, row counts, and status
 - **Error handling** — Global error modal displays details instead of crashing the app
 - **Audit logging** — Opt-in append-only JSON log of all executions
-- **Oracle Instant Client manager** — In-app downloader/installer that detects the host OS/arch and offers compatible Basic packages (Windows x64/x86, macOS ARM64/Intel, Linux x86_64/ARM64) — installed into `~/.dbqm/clients/` and auto-picked up by the thick-mode loader
+- **Oracle Instant Client manager** — In-app downloader/installer that detects the host OS/arch and offers compatible Basic packages (Windows x64/x86, macOS ARM64/Intel, Linux x86_64/ARM64) — installed into `~/.dbqm/clients/` and auto-picked up by the thick-mode loader; "Usar este client" pins an install as the configured one
+- **Configurable Instant Client path** — Settings › Oracle Instant Client stores the client directory in dbqm's own `settings.json`, taking precedence over the system `ORACLE_HOME`. This keeps a 32-bit client wired in by another tool (e.g. an old PL/SQL Developer) from hijacking the 64-bit client dbqm needs. The path is architecture-checked before it is saved, an unusable configured path fails loudly instead of silently falling back, and a failed thick-mode init is reported on connection errors instead of surfacing as a bare network failure
 
 ## Requirements
 
 - Python 3.10+
-- Oracle Instant Client (optional, for Oracle connections only)
+- Oracle Instant Client (optional, for Oracle connections only) — install it from Settings › Oracle Instant Client, or point dbqm at an existing one there
 
 ## Installation
 
@@ -263,7 +264,8 @@ dbqm/
 │   │   │   ├── confirm.py         # Yes/No confirmation
 │   │   │   ├── text_input.py      # Single text input
 │   │   │   ├── export_picker.py   # Export format selector
-│   │   │   ├── connection_form.py # Connection create/edit form
+│   │   │   ├── export_dir_setup.py     # Default export directory
+│   │   │   ├── oracle_client_dir.py    # Oracle Instant Client directory
 │   │   │   ├── column_maps.py     # DE-PARA value mapping
 │   │   │   ├── error.py           # Error display modal
 │   │   │   └── help.py            # Keyboard shortcuts overlay
@@ -294,7 +296,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (762+ tests)
+└── tests/                         # Test suite (793 tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests

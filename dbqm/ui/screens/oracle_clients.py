@@ -106,6 +106,7 @@ class OracleClientsScreen(Vertical):
             yield Static("Clients instalados", classes="oc-label")
             yield DataTable(id="oc-installed-table", cursor_type="row")
             with Horizontal():
+                yield Button("Usar este client", variant="primary", id="oc-use-btn")
                 yield Button("Remover selecionado", variant="error", id="oc-remove-btn")
                 yield Button("Atualizar lista", variant="default", id="oc-refresh-btn")
 
@@ -178,6 +179,30 @@ class OracleClientsScreen(Vertical):
             self._start_install()
         elif event.button.id == "oc-remove-btn":
             self._start_remove()
+        elif event.button.id == "oc-use-btn":
+            self._use_selected()
+
+    def _use_selected(self) -> None:
+        """Pin the selected install in dbqm settings so it wins over ORACLE_HOME."""
+        from dbqm.core.db_manager import validate_oracle_client_dir
+        from dbqm.models.settings import load_settings, save_settings
+
+        selected = self._selected_installed()
+        if selected is None:
+            self._set_status("Selecione um client instalado.", "err")
+            return
+        problem = validate_oracle_client_dir(str(selected.path))
+        if problem:
+            self._set_status(problem, "err")
+            return
+        settings = load_settings()
+        settings.oracle_client_dir = str(selected.path)
+        save_settings(settings)
+        self._set_status(
+            f"Client definido: {selected.path.name}. "
+            "Reabra o dbqm para que a mudanca tenha efeito.",
+            "ok",
+        )
 
     def _selected_available(self) -> oci.ClientPackage | None:
         if not self._available:

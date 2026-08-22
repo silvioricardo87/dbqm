@@ -64,3 +64,22 @@ class TestSettings:
         assert s.default_export_dir == ""
         assert s.export_dir_prompted is False
         assert s.create_export_subdirs is True
+
+    def test_oracle_client_dir_defaults_to_empty(self):
+        assert Settings().oracle_client_dir == ""
+
+    def test_oracle_client_dir_round_trip(self):
+        s2 = Settings.from_dict(Settings(oracle_client_dir="/opt/instantclient_19").to_dict())
+        assert s2.oracle_client_dir == "/opt/instantclient_19"
+
+    def test_oracle_client_dir_save_and_load(self, tmp_config_dir):
+        save_settings(Settings(oracle_client_dir=str(tmp_config_dir)))
+        assert load_settings().oracle_client_dir == str(tmp_config_dir)
+
+    def test_load_missing_oracle_client_dir_uses_default(self, tmp_config_dir):
+        """settings.json written before the field existed must still load."""
+        import json
+        from dbqm.core.paths import SETTINGS_FILE
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SETTINGS_FILE.write_text(json.dumps({"theme": "github-light"}), encoding="utf-8")
+        assert load_settings().oracle_client_dir == ""

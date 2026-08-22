@@ -3946,3 +3946,109 @@ async def test_group_run_screen_with_template_group(tmp_config_dir):
         from textual.widgets import ListView
         group_list = screen.query_one("#gr-group-list", ListView)
         assert len(group_list.children) == 1
+
+
+# ======================================================================
+# Oracle Instant Client configuration (settings + clients manager)
+# ======================================================================
+
+
+def _fake_oracle_client(base, name="instantclient_19_x64"):
+    """Create a client directory whose oci.dll matches the running Python."""
+    import struct
+    d = base / name
+    d.mkdir(parents=True, exist_ok=True)
+    machine = 0x8664 if struct.calcsize("P") * 8 == 64 else 0x014C
+    pe_offset = 0x80
+    buf = bytearray(pe_offset + 8)
+    buf[0:2] = b"MZ"
+    buf[0x3C:0x40] = pe_offset.to_bytes(4, "little")
+    buf[pe_offset:pe_offset + 4] = b"PE\x00\x00"
+    buf[pe_offset + 4:pe_offset + 6] = machine.to_bytes(2, "little")
+    (d / "oci.dll").write_bytes(bytes(buf))
+    return d
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_shows_oracle_client_in_use(tmp_config_dir):
+    """Settings must state which Instant Client is active and where it came from."""
+    from textual.widgets import Static
+
+    app = SettingsTestApp()
+    async with app.run_test():
+        screen = app.query_one(SettingsScreen)
+        label = screen.query_one("#settings-oracle-client-current", Static)
+        assert label.render().plain.strip() != ""
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_shows_configured_oracle_client_path(tmp_config_dir):
+    """A path configured in dbqm settings is shown as the source, not ORACLE_HOME."""
+    from textual.widgets import Static
+    from dbqm.models.settings import Settings, save_settings
+
+    client = _fake_oracle_client(tmp_config_dir)
+    save_settings(Settings(oracle_client_dir=str(client)))
+
+    app = SettingsTestApp()
+    async with app.run_test():
+        screen = app.query_one(SettingsScreen)
+        rendered = screen.query_one("#settings-oracle-client-current", Static).render().plain
+        assert client.name in rendered
+        assert "config" in rendered.lower()
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_reports_unusable_configured_client(tmp_config_dir):
+    """A configured path that cannot be used must be flagged, not hidden."""
+    from textual.widgets import Static
+    from dbqm.models.settings import Settings, save_settings
+
+    save_settings(Settings(oracle_client_dir=str(tmp_config_dir / "gone")))
+
+    app = SettingsTestApp()
+    async with app.run_test():
+        screen = app.query_one(SettingsScreen)
+        rendered = screen.query_one("#settings-oracle-client-current", Static).render().plain
+        assert "nao existe" in rendered.lower()
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_has_oracle_client_dir_button(tmp_config_dir):
+    from textual.widgets import Button
+
+    app = SettingsTestApp()
+    async with app.run_test():
+        screen = app.query_one(SettingsScreen)
+        assert screen.query_one("#btn-oracle-client-dir", Button) is not None
+
+
+@pytest.mark.asyncio
+async def test_oracle_clients_screen_has_use_button(tmp_config_dir):
+    from textual.widgets import Button
+
+    app = OracleClientsTestApp()
+    async with app.run_test():
+        screen = app.query_one(OracleClientsScreen)
+        assert screen.query_one("#oc-use-btn", Button) is not None
+
+
+@pytest.mark.asyncio
+async def test_oracle_clients_use_button_persists_selected_client(tmp_config_dir, monkeypatch):
+    """"Usar este client" writes the selected install into dbqm settings."""
+    from textual.widgets import Button, DataTable
+    from dbqm.models.settings import load_settings
+
+    clients_root = tmp_config_dir / "clients"
+    client = _fake_oracle_client(clients_root)
+    monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", clients_root)
+
+    app = OracleClientsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(OracleClientsScreen)
+        screen.query_one("#oc-installed-table", DataTable).cursor_coordinate = (0, 0)
+        await pilot.pause()
+        screen.query_one("#oc-use-btn", Button).press()
+        await pilot.pause()
+
+    assert load_settings().oracle_client_dir == str(client)

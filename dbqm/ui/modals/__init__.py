@@ -9,6 +9,7 @@ from dbqm.ui.modals.param_input import ParamModal
 from dbqm.ui.modals.text_input import TextInputModal
 from dbqm.ui.modals.column_maps import ColumnMapsModal
 from dbqm.ui.modals.error import ErrorModal
+from dbqm.ui.modals.oracle_client_dir import OracleClientDirModal
 
 __all__ = [
     "ColumnMapsModal",
@@ -17,6 +18,7 @@ __all__ = [
     "ExportDirSetupModal",
     "ExportPickerModal",
     "HelpModal",
+    "OracleClientDirModal",
     "ParamModal",
     "TextInputModal",
 ]

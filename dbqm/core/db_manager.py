@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -70,81 +72,195 @@ def _parse_tns_entry(tns_path: str, tns_name: str) -> dict | None:
 
 from dbqm.core.paths import CLIENTS_DIR
 
+# A `clients/` directory shipped next to the package (source checkouts).
+_PKG_CLIENTS_DIR = Path(__file__).resolve().parent.parent.parent / "clients"
 
-def _find_oracle_client_dir() -> str | None:
-    """Auto-detect Oracle Instant Client directory matching the current platform."""
-    import platform
+_INSTANT_CLIENT_URL = "https://www.oracle.com/database/technologies/instant-client/downloads.html"
+# Marks the messages that carry actionable Instant Client guidance, so callers
+# that shorten errors know not to cut it away.
+_CLIENT_GUIDANCE = "Config > Oracle Instant Client"
+
+# COFF machine identifiers from the PE header of oci.dll.
+_PE_MACHINE_I386 = 0x014C
+_PE_MACHINE_AMD64 = 0x8664
+_PE_MACHINE_ARM64 = 0xAA64
+
+
+class OracleClientConfigError(RuntimeError):
+    """The Oracle client directory configured in dbqm settings is unusable.
+
+    Raised instead of falling back to the other sources: an explicit setting
+    that gets silently ignored is worse than a clear failure.
+    """
+
+
+def _python_is_64bit() -> bool:
     import struct
-    import sys
+    return struct.calcsize("P") * 8 == 64
 
-    machine = platform.machine().lower()
-    if sys.platform == "darwin":
-        platform_tags = ("arm64", "aarch64") if machine in ("arm64", "aarch64") else ("x86_64", "x64", "intel")
-    elif sys.platform.startswith("linux"):
-        platform_tags = ("arm64", "aarch64") if machine in ("aarch64", "arm64") else ("x86_64", "x64")
-    else:
-        platform_tags = ("x64",) if struct.calcsize("P") * 8 == 64 else ("x86",)
 
-    def _best_instantclient(base_dir: Path) -> str | None:
-        """Find best matching instantclient subdirectory in base_dir."""
-        if not base_dir.exists():
-            return None
-        candidates = [e for e in base_dir.iterdir() if e.is_dir() and "instantclient" in e.name.lower()]
-        if not candidates:
-            return None
-        matching = [e for e in candidates if any(tag in e.name.lower() for tag in platform_tags)]
-        if matching:
-            return str(sorted(matching, key=lambda e: e.name, reverse=True)[0])
-        # On Windows, legacy directories like `instantclient_19_x64` predate platform tags;
-        # accept any candidate so existing installs keep working.
-        if sys.platform == "win32":
-            return str(sorted(candidates, key=lambda e: e.name, reverse=True)[0])
+def _pe_machine(dll: Path) -> int | None:
+    """Read the COFF machine field of a PE binary. None when unreadable."""
+    try:
+        with open(dll, "rb") as f:
+            f.seek(0x3C)
+            pe_offset = int.from_bytes(f.read(4), "little")
+            f.seek(pe_offset + 4)
+            return int.from_bytes(f.read(2), "little")
+    except Exception:
         return None
 
-    # 1. Check DBQM_HOME clients/ directory
-    result = _best_instantclient(CLIENTS_DIR)
-    if result:
-        return result
-    # 2. Check package-local clients/ directory (next to dbqm/ package)
-    pkg_clients = Path(__file__).resolve().parent.parent.parent / "clients"
-    result = _best_instantclient(pkg_clients)
-    if result:
-        return result
-    # 3. Check ORACLE_HOME env var — validate architecture via oci.dll
-    oracle_home = os.environ.get("ORACLE_HOME")
-    if oracle_home:
-        oh_path = Path(oracle_home)
-        if oh_path.exists():
-            oci_dll = oh_path / "oci.dll"
-            if oci_dll.exists():
-                try:
-                    with open(oci_dll, "rb") as f:
-                        f.seek(0x3C)
-                        pe_offset = int.from_bytes(f.read(4), "little")
-                        f.seek(pe_offset + 4)
-                        machine = int.from_bytes(f.read(2), "little")
-                        # 0x8664 = AMD64, 0x14c = i386
-                        dll_is_64 = machine == 0x8664
-                        python_is_64 = struct.calcsize("P") * 8 == 64
-                        if dll_is_64 == python_is_64:
-                            return oracle_home
-                except Exception:
-                    pass
-            else:
-                return oracle_home
-    # 4. Search common locations
-    search_paths = [
-        Path(os.environ.get("LOCALAPPDATA", "")),
-        Path("C:/oracle"),
-        Path("C:/app/oracle"),
-    ]
-    for base in search_paths:
+
+def _find_oci_dll(client_dir: Path) -> Path | None:
+    """Locate oci.dll for a client directory.
+
+    Instant Client keeps it at the root; a full Oracle Home keeps it under
+    `bin/`. Only looking at the root is what let a 32-bit Oracle Home through
+    unvalidated on machines running an old PL/SQL Developer.
+    """
+    for candidate in (client_dir / "oci.dll", client_dir / "bin" / "oci.dll"):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def validate_oracle_client_dir(path: str) -> str | None:
+    """Return why `path` is unusable as an Oracle client, or None when it is fine.
+
+    On Windows the architecture is checked against oci.dll's PE header: loading
+    a 32-bit client from 64-bit Python (or the reverse) is exactly the failure
+    this setting exists to prevent. Other platforms have no equally cheap probe,
+    so only the directory itself is verified.
+    """
+    if not path:
+        return None
+    p = Path(path).expanduser()
+    if not p.exists():
+        return f"Diretorio nao existe: {p}"
+    if not p.is_dir():
+        return f"O caminho nao e um diretorio: {p}"
+    if sys.platform != "win32":
+        return None
+    dll = _find_oci_dll(p)
+    if dll is None:
+        return (
+            f"oci.dll nao encontrado em {p} nem em {p / 'bin'}: "
+            "o diretorio nao parece um Oracle Client."
+        )
+    machine = _pe_machine(dll)
+    if machine is None:
+        return None
+    dll_is_64 = machine in (_PE_MACHINE_AMD64, _PE_MACHINE_ARM64)
+    if dll_is_64 is _python_is_64bit():
+        return None
+    return (
+        f"Arquitetura incompativel: o client em {p} e de "
+        f"{'64' if dll_is_64 else '32'} bits e o Python que executa o dbqm e de "
+        f"{'64' if _python_is_64bit() else '32'} bits."
+    )
+
+
+def _platform_tags() -> tuple[str, ...]:
+    """Directory-name tags that identify a client built for this platform."""
+    machine = platform.machine().lower()
+    if sys.platform == "darwin":
+        if machine in ("arm64", "aarch64"):
+            return ("arm64", "aarch64")
+        return ("x86_64", "x64", "intel")
+    if sys.platform.startswith("linux"):
+        if machine in ("aarch64", "arm64"):
+            return ("arm64", "aarch64")
+        return ("x86_64", "x64")
+    return ("x64",) if _python_is_64bit() else ("x86",)
+
+
+def _best_instantclient(base_dir: Path) -> str | None:
+    """Pick the instantclient_* subdirectory of `base_dir` matching this platform."""
+    if not base_dir.exists():
+        return None
+    candidates = [e for e in base_dir.iterdir() if e.is_dir() and "instantclient" in e.name.lower()]
+    if not candidates:
+        return None
+    tags = _platform_tags()
+    matching = [e for e in candidates if any(tag in e.name.lower() for tag in tags)]
+    if matching:
+        return str(sorted(matching, key=lambda e: e.name, reverse=True)[0])
+    # On Windows, legacy directories like `instantclient_19_x64` predate platform
+    # tags; accept any candidate so existing installs keep working.
+    if sys.platform == "win32":
+        return str(sorted(candidates, key=lambda e: e.name, reverse=True)[0])
+    return None
+
+
+def _scan_common_locations() -> str | None:
+    """Last-resort sweep of well-known Instant Client install roots."""
+    local_appdata = os.environ.get("LOCALAPPDATA", "")
+    bases = [Path("C:/oracle"), Path("C:/app/oracle")]
+    if local_appdata:
+        bases.insert(0, Path(local_appdata))
+    for base in bases:
         if not base.exists():
             continue
         for entry in base.iterdir():
             if entry.is_dir() and "instantclient" in entry.name.lower():
-                return str(entry)
+                if validate_oracle_client_dir(str(entry)) is None:
+                    return str(entry)
     return None
+
+
+def _configured_client_dir() -> str:
+    """Client directory chosen in dbqm settings; empty when unset or unreadable."""
+    try:
+        from dbqm.models.settings import load_settings
+        return (load_settings().oracle_client_dir or "").strip()
+    except Exception:
+        return ""
+
+
+def resolve_oracle_client_dir() -> tuple[str | None, str]:
+    """Locate the Oracle Instant Client to load, and report where it came from.
+
+    Order: dbqm settings, the clients directory dbqm manages, a `clients/`
+    directory shipped next to the package, ORACLE_HOME, then a scan of common
+    install roots. ORACLE_HOME sits near the end on purpose — on machines with
+    an old PL/SQL Developer it points at a 32-bit client that 64-bit dbqm
+    cannot load, and it is now architecture-checked before being accepted.
+
+    Returns:
+        (client_dir, origin) where origin is one of "config", "clients",
+        "package", "ORACLE_HOME", "scan" or "none".
+
+    Raises:
+        OracleClientConfigError: a path is configured in settings but unusable.
+    """
+    configured = _configured_client_dir()
+    if configured:
+        problem = validate_oracle_client_dir(configured)
+        if problem:
+            raise OracleClientConfigError(
+                f"O Oracle Instant Client configurado no dbqm nao pode ser usado. {problem}\n"
+                "Ajuste o caminho em Config > Oracle Instant Client."
+            )
+        return str(Path(configured).expanduser()), "config"
+
+    for base, origin in ((CLIENTS_DIR, "clients"), (_PKG_CLIENTS_DIR, "package")):
+        found = _best_instantclient(base)
+        if found:
+            return found, origin
+
+    oracle_home = os.environ.get("ORACLE_HOME")
+    if oracle_home and validate_oracle_client_dir(oracle_home) is None:
+        return oracle_home, "ORACLE_HOME"
+
+    scanned = _scan_common_locations()
+    if scanned:
+        return scanned, "scan"
+    return None, "none"
+
+
+def _find_oracle_client_dir() -> str | None:
+    """Oracle Instant Client directory for the current platform, if any."""
+    return resolve_oracle_client_dir()[0]
 
 
 _thick_mode_error: str | None = None
@@ -203,6 +319,22 @@ def _needs_thick_mode(error: Exception) -> bool:
     return "DPY-3015" in msg or "password verifier type" in msg
 
 
+def _thick_mode_detail() -> str:
+    """Explain a failed thick-mode init, so the thin-mode fallback is not silent.
+
+    Without this the user only sees whatever thin mode reported (a DNS or
+    DPY-6005 network error), with nothing pointing at the real cause: the
+    Instant Client never loaded.
+    """
+    if not _thick_mode_error:
+        return ""
+    return (
+        "\n\n[!] O Oracle Instant Client nao foi carregado - o dbqm esta em thin mode.\n"
+        f"    Motivo: {_thick_mode_error}\n"
+        f"    Configure o caminho em {_CLIENT_GUIDANCE}."
+    )
+
+
 # Eagerly initialize thick mode at import time — must happen before any connection
 _init_thick_mode()
 
@@ -246,15 +378,20 @@ def get_oracle_connection(conn: Connection) -> Any:
     try:
         return oracledb.connect(user=conn.user, password=password, dsn=dsn)
     except Exception as err:
-        if not _needs_thick_mode(err):
-            raise
-        # DPY-3015 in thin mode and thick mode was not available
-        thick_detail = f"\nErro ao inicializar thick mode: {_thick_mode_error}" if _thick_mode_error else ""
-        raise RuntimeError(
-            "Thin mode nao suportado por este servidor (DPY-3015). "
-            "Instale o Oracle Instant Client e defina ORACLE_HOME para usar thick mode.\n"
-            f"Download: https://www.oracle.com/database/technologies/instant-client/downloads.html{thick_detail}"
-        ) from err
+        if _needs_thick_mode(err):
+            # DPY-3015 in thin mode and thick mode was not available
+            raise RuntimeError(
+                "Thin mode nao suportado por este servidor (DPY-3015). "
+                "E preciso um Oracle Instant Client compativel para usar thick mode.\n"
+                "Configure o caminho em Config > Oracle Instant Client "
+                "(a mesma tela permite baixar e instalar um client).\n"
+                f"Download: {_INSTANT_CLIENT_URL}"
+                f"{_thick_mode_detail()}"
+            ) from err
+        detail = _thick_mode_detail()
+        if detail:
+            raise RuntimeError(f"{err}{detail}") from err
+        raise
 
 
 def get_sqlserver_connection(conn: Connection) -> Any:
@@ -425,6 +562,10 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
         )
     except Exception as e:
         err_msg = str(e)
+        if _CLIENT_GUIDANCE in err_msg:
+            # Our Instant Client guidance is multi-line by design; truncating to
+            # the first line would hide exactly what the user has to act on.
+            return False, f"Erro ao conectar: {err_msg}"
         sanitized = err_msg.split('\n')[0][:200]
         return False, f"Erro ao conectar: {sanitized}"
     finally:

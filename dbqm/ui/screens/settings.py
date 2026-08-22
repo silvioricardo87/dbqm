@@ -69,6 +69,14 @@ class SettingsScreen(Vertical):
     }
     """
 
+    ORACLE_CLIENT_ORIGINS = {
+        "config": "configuracao do dbqm",
+        "clients": "clients instalados pelo dbqm",
+        "package": "pasta clients/ do pacote",
+        "ORACLE_HOME": "variavel de ambiente ORACLE_HOME",
+        "scan": "deteccao automatica no sistema",
+    }
+
     def compose(self) -> ComposeResult:
         with Horizontal(id="settings-columns"):
             with Panel("⚙️  CONFIG DA APLICACAO", id="settings-panel-config"):
@@ -121,12 +129,15 @@ class SettingsScreen(Vertical):
                 # Oracle Instant Client manager
                 yield Static("Oracle Instant Client", classes="settings-label")
                 yield Static(
-                    "[dim]Baixe, extraia e instale o Oracle Instant Client compativel "
-                    "com seu sistema operacional[/]",
+                    "[dim]Diretorio do client carregado pelo dbqm. Definir aqui tem "
+                    "prioridade sobre a variavel ORACLE_HOME do sistema, que outras "
+                    "ferramentas podem apontar para um client de outra arquitetura.[/]",
                     markup=True,
                 )
+                yield Static("", id="settings-oracle-client-current", markup=True)
                 with Horizontal(classes="port-buttons"):
-                    yield Button("Gerenciar clients", variant="primary", id="btn-oracle-clients")
+                    yield Button("Definir caminho", variant="primary", id="btn-oracle-client-dir")
+                    yield Button("Gerenciar clients", variant="default", id="btn-oracle-clients")
 
             with Vertical(id="settings-right-column"):
                 with Panel("🔑  FERNET KEY", id="settings-panel-fernet"):
@@ -157,6 +168,7 @@ class SettingsScreen(Vertical):
         subdirs_switch.value = settings.create_export_subdirs
 
         self._refresh_export_dir_label(settings.default_export_dir)
+        self._refresh_oracle_client_status()
         self._refresh_fernet_status()
 
         self.call_after_refresh(self._set_initial_focus)
@@ -167,6 +179,30 @@ class SettingsScreen(Vertical):
             label.update(f"[b]Diretorio atual:[/] {configured}")
         else:
             label.update(f"[b]Diretorio atual:[/] [dim](usando o diretorio de execucao: {Path.cwd()})[/]")
+
+    def _refresh_oracle_client_status(self) -> None:
+        """Show which Instant Client is active and where the choice came from.
+
+        A configured-but-unusable path is reported as an error instead of
+        silently falling back — that silence is what made the ORACLE_HOME
+        conflict so hard to diagnose.
+        """
+        from dbqm.core.db_manager import OracleClientConfigError, resolve_oracle_client_dir
+
+        label = self.query_one("#settings-oracle-client-current", Static)
+        try:
+            path, origin = resolve_oracle_client_dir()
+        except OracleClientConfigError as e:
+            label.update(f"[b]Client em uso:[/] [red]{e}[/]")
+            return
+        if not path:
+            label.update(
+                "[b]Client em uso:[/] [yellow]nenhum encontrado[/] "
+                "[dim](thick mode indisponivel)[/]"
+            )
+            return
+        source = self.ORACLE_CLIENT_ORIGINS.get(origin, origin)
+        label.update(f"[b]Client em uso:[/] {path}\n[b]Origem:[/] {source}")
 
     def _refresh_fernet_status(self) -> None:
         from dbqm.core.paths import KEY_FILE
@@ -230,6 +266,8 @@ class SettingsScreen(Vertical):
             self._open_portability("import")
         elif event.button.id == "btn-oracle-clients":
             self._open_oracle_clients()
+        elif event.button.id == "btn-oracle-client-dir":
+            self._open_oracle_client_dir_modal()
         elif event.button.id == "btn-export-dir":
             self._open_export_dir_modal()
 
@@ -253,6 +291,20 @@ class SettingsScreen(Vertical):
         settings = load_settings()
         self._refresh_export_dir_label(settings.default_export_dir)
         self.notify("Diretorio de exportacao atualizado!")
+
+    def _open_oracle_client_dir_modal(self) -> None:
+        """Open the Instant Client directory modal seeded with the current setting."""
+        from dbqm.models.settings import load_settings
+        from dbqm.ui.modals.oracle_client_dir import OracleClientDirModal
+
+        modal = OracleClientDirModal(initial_path=load_settings().oracle_client_dir)
+        self.app.push_screen(modal, callback=self._on_oracle_client_dir_saved)
+
+    def _on_oracle_client_dir_saved(self, saved: bool | None) -> None:
+        if not saved:
+            return
+        self._refresh_oracle_client_status()
+        self.notify("Oracle Instant Client atualizado! Reabra o dbqm para aplicar.")
 
     def _open_portability(self, mode: str) -> None:
         """Load ConfigPortScreen directly in the chosen mode (skip mode selection)."""

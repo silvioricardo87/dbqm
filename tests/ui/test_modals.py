@@ -449,3 +449,94 @@ async def test_request_export_skips_setup_after_prompted(tmp_config_dir):
     async with app.run_test() as pilot:
         await pilot.pause()
         assert isinstance(app.screen, ExportPickerModal)
+
+
+# --- OracleClientDirModal ---
+
+
+def _fake_client(base, name="instantclient_19_x64"):
+    """Create a client directory whose oci.dll matches the running Python."""
+    import struct
+    d = base / name
+    d.mkdir(parents=True, exist_ok=True)
+    machine = 0x8664 if struct.calcsize("P") * 8 == 64 else 0x014C
+    pe_offset = 0x80
+    buf = bytearray(pe_offset + 8)
+    buf[0:2] = b"MZ"
+    buf[0x3C:0x40] = pe_offset.to_bytes(4, "little")
+    buf[pe_offset:pe_offset + 4] = b"PE\x00\x00"
+    buf[pe_offset + 4:pe_offset + 6] = machine.to_bytes(2, "little")
+    (d / "oci.dll").write_bytes(bytes(buf))
+    return d
+
+
+@pytest.mark.asyncio
+async def test_oracle_client_dir_modal_starts_in_auto_mode(tmp_config_dir):
+    """With nothing configured, auto-detect is checked and the input disabled."""
+    from textual.widgets import Checkbox
+    from dbqm.ui.modals.oracle_client_dir import OracleClientDirModal
+
+    app = ModalTestApp(OracleClientDirModal())
+    async with app.run_test():
+        assert app.screen.query_one("#use-auto-checkbox", Checkbox).value is True
+        assert app.screen.query_one("#oracle-client-dir-input", Input).disabled is True
+
+
+@pytest.mark.asyncio
+async def test_oracle_client_dir_modal_rejects_invalid_dir(tmp_config_dir):
+    """An unusable path keeps the modal open and persists nothing."""
+    from textual.widgets import Button, Checkbox
+    from dbqm.models.settings import load_settings
+    from dbqm.ui.modals.oracle_client_dir import OracleClientDirModal
+
+    app = ModalTestApp(OracleClientDirModal())
+    async with app.run_test() as pilot:
+        app.screen.query_one("#use-auto-checkbox", Checkbox).value = False
+        await pilot.pause()
+        app.screen.query_one("#oracle-client-dir-input", Input).value = "Z:/nope/xyz"
+        await pilot.pause()
+        app.screen.query_one("#save", Button).press()
+        await pilot.pause()
+        assert isinstance(app.screen, OracleClientDirModal)
+    assert load_settings().oracle_client_dir == ""
+
+
+@pytest.mark.asyncio
+async def test_oracle_client_dir_modal_saves_valid_client(tmp_config_dir):
+    from textual.widgets import Button, Checkbox
+    from dbqm.models.settings import load_settings
+    from dbqm.ui.modals.oracle_client_dir import OracleClientDirModal
+
+    client = _fake_client(tmp_config_dir)
+    app = ModalTestApp(OracleClientDirModal())
+    async with app.run_test() as pilot:
+        app.screen.query_one("#use-auto-checkbox", Checkbox).value = False
+        await pilot.pause()
+        app.screen.query_one("#oracle-client-dir-input", Input).value = str(client)
+        await pilot.pause()
+        app.screen.query_one("#save", Button).press()
+        await pilot.pause()
+    assert app.result is True
+    assert load_settings().oracle_client_dir == str(client)
+
+
+@pytest.mark.asyncio
+async def test_oracle_client_dir_modal_auto_mode_clears_configured_path(tmp_config_dir):
+    """Re-checking auto-detect wipes the stored path."""
+    from textual.widgets import Button
+    from dbqm.models.settings import Settings, load_settings, save_settings
+    from dbqm.ui.modals.oracle_client_dir import OracleClientDirModal
+
+    client = _fake_client(tmp_config_dir)
+    save_settings(Settings(oracle_client_dir=str(client)))
+
+    app = ModalTestApp(OracleClientDirModal(initial_path=str(client)))
+    async with app.run_test() as pilot:
+        from textual.widgets import Checkbox
+        assert app.screen.query_one("#use-auto-checkbox", Checkbox).value is False
+        app.screen.query_one("#use-auto-checkbox", Checkbox).value = True
+        await pilot.pause()
+        app.screen.query_one("#save", Button).press()
+        await pilot.pause()
+    assert app.result is True
+    assert load_settings().oracle_client_dir == ""
