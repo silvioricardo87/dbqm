@@ -39,6 +39,8 @@ dbqm/
 ├── __main__.py        # `python -m dbqm` — routes to CLI or TUI
 ├── cli.py             # Non-interactive CLI (sql, run, group, list, history, ...)
 ├── _version.py        # __version__ (SemVer; read by pyproject.toml)
+├── design/            # Design tokens (colors, contrast floors); imports nothing from dbqm
+│   └── tokens.py       # TOKENS_CLARO / TOKENS_ESCURO / TEMAS, one source for TUI + CLI + HTML report
 ├── core/              # Business logic (no UI imports)
 │   ├── db_manager.py          # Connection dispatcher for all 4 DBs; NLS_LANG=.AL32UTF8; Oracle thick mode
 │   ├── query_engine.py        # SQL classification (classify_sql), execution (execute_adhoc/query/explain)
@@ -74,6 +76,10 @@ dbqm/
 
 **Layering rule:** `core/` is UI-agnostic and must never import from `ui/`.
 Both the TUI (`ui/app.py`) and the CLI (`cli.py`) call into `core/`.
+`design/` sits below both: it imports nothing from `dbqm`, and is imported by
+the TUI (`ui/theme.py`), the CLI (`cli.py`), and the HTML report
+(`core/html_report.py`) — one source of color/contrast truth for all three
+consumers, none of them importing each other.
 
 ## Development Workflow (MANDATORY)
 
@@ -109,7 +115,7 @@ Conventional Commits: `<type>(<scope>): <description>`
   `testpaths=["tests"]`, `pythonpath=["."]`)
 - Layout mirrors `dbqm/`: `tests/core/`, `tests/models/`, `tests/ui/`, `tests/api/`,
   plus `tests/test_cli.py` and shared fixtures in `tests/conftest.py`
-- Run: `python -m pytest tests/ -x -q` (currently **738+** tests)
+- Run: `python -m pytest tests/ -x -q` (currently **846** tests)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory
 - Prefer pure, directly-testable functions in `core/` (e.g. `classify_sql`,

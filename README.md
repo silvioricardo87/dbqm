@@ -17,6 +17,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execution plan (`--explain`)** — From the CLI: `dbqm sql "<query>" <conn> --explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` on Oracle (or native `EXPLAIN` on PostgreSQL/MySQL) and prints the plan in one step.
 - **Dark/Light themes** — "Plano" design system (dark default, light variant), switchable in settings; shared design tokens (`dbqm/design/tokens.py`) drive the TUI, CLI output, and HTML reports so all three stay visually consistent
 - **Design tokens** — 15 semantic color tokens (surfaces, text, borda, identidade, and a veredito axis for OK/DIFF/AUSENTE) shared across the TUI, Rich-based CLI output, and HTML report CSS; WCAG contrast-checked against every surface it declares as valid
+- **Shared components** — `Dialog` (floating-layer chrome), `EmptyState` (mandatory what/why/first-action for empty lists), and `Veredito`/`StatusOperacao` (match/diff/absent + op-result markup) are the single implementation for their respective jobs across the TUI; zero literal colors remain outside the token layer, and a component-inventory test locks all three against a second hand-rolled copy reappearing
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
 - **Data export** — Export results to CSV, JSON, TXT, PNG, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
@@ -230,6 +231,8 @@ dbqm/
 │   ├── main.py                    # Entry point (TUI + CLI dispatch)
 │   ├── __main__.py                # python -m dbqm support
 │   ├── cli.py                     # Non-interactive CLI
+│   ├── design/
+│   │   └── tokens.py               # Design tokens — one source consumed by TUI, CLI and HTML report
 │   ├── ui/
 │   │   ├── app.py                 # Main Textual App (layout, routing, keybindings)
 │   │   ├── theme.py               # Plano Dark/Light theme definitions (built on dbqm/design/tokens.py)
@@ -251,7 +254,7 @@ dbqm/
 │   │   │   ├── config_port.py     # Config export/import (used by settings)
 │   │   │   └── oracle_clients.py  # Download/extract/remove Oracle Instant Clients
 │   │   ├── widgets/               # Reusable UI components
-│   │   │   ├── sidebar.py         # Collapsible sidebar with keyboard nav
+│   │   │   ├── templates_sidebar.py  # Collapsible templates sidebar with keyboard nav
 │   │   │   ├── breadcrumb.py      # Navigation breadcrumb
 │   │   │   ├── result_table.py    # DataTable with pagination + vertical view
 │   │   │   ├── query_list.py      # Query ListView with search/filter
@@ -259,7 +262,12 @@ dbqm/
 │   │   │   ├── sql_viewer.py      # Syntax-highlighted SQL display
 │   │   │   ├── action_bar.py      # Contextual keyboard shortcuts bar
 │   │   │   ├── status_bar.py      # Connection status + counters
-│   │   │   └── progress.py        # Loading indicator
+│   │   │   ├── progress.py        # Loading indicator
+│   │   │   ├── panel.py           # Bordered panel consuming $painel/$borda tokens
+│   │   │   ├── dialog.py          # Dialog chrome for floating layers (replaces 29 hand-copied frames)
+│   │   │   ├── empty_state.py     # EmptyState — mandatory "what/why/first action" for empty lists
+│   │   │   ├── veredito.py        # Veredito/StatusOperacao markup (match/diff/absent, op result color)
+│   │   │   └── esqueleto.py       # Loading skeleton + distinct disabled/read-only states
 │   │   ├── modals/                # Dialog screens
 │   │   │   ├── param_input.py     # Query parameter input
 │   │   │   ├── confirm.py         # Yes/No confirmation
@@ -297,7 +305,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (793 tests)
+└── tests/                         # Test suite (846 tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     └── ui/                        # TUI widget/screen/modal tests
