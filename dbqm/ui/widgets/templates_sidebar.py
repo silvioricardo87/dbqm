@@ -19,14 +19,14 @@ class TemplatesSidebar(Vertical):
     DEFAULT_CSS = """
     TemplatesSidebar {
         width: 26;
-        border-right: solid $border;
+        border-right: solid $borda;
         background: $panel;
         padding: 0;
     }
     TemplatesSidebar.-collapsed { display: none; }
     TemplatesSidebar > #tpl-title {
         height: auto; background: $surface; color: $accent; text-style: bold;
-        border-bottom: solid $border; padding: 0 1;
+        border-bottom: solid $borda; padding: 0 1;
     }
     TemplatesSidebar OptionList { border: none; background: $panel; height: 1fr; }
     TemplatesSidebar > #tpl-empty {

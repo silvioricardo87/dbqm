@@ -14,7 +14,7 @@ from textual.widgets import Label
 class Panel(Vertical):
     DEFAULT_CSS = """
     Panel {
-        border: round $border;
+        border: round $borda;
         background: $panel;
         height: 1fr;
         padding: 0;
@@ -28,7 +28,7 @@ class Panel(Vertical):
         color: $primary;
         text-style: bold;
         background: $surface;
-        border-bottom: solid $border;
+        border-bottom: solid $borda;
         padding: 0 1;
     }
     Panel.accent-focus > #panel-title { color: $accent; }

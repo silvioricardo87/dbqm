@@ -39,6 +39,18 @@ class DBQMApp(App):
         # initial mount focus-storm window.
         self._user_switched_tab = False
 
+        # Tema precisa estar de pe antes do primeiro compose/mount: o
+        # DEFAULT_CSS dos widgets (Panel etc.) e aplicado assim que eles sao
+        # montados, o que acontece antes de on_mount rodar. Se o tema so
+        # fosse trocado em on_mount, qualquer `$token` que nao seja tambem
+        # variavel embutida do Textual (ex.: $borda) falharia ao resolver no
+        # primeiro render.
+        from dbqm.models.settings import load_settings
+
+        for tema in TEMAS_TEXTUAL.values():
+            self.register_theme(tema)
+        self.theme = get_theme(load_settings().theme).name
+
     BINDINGS = [
         Binding("f1", "switch_tab('tab-coleta')", "Coleta", show=False),
         Binding("f2", "switch_tab('tab-conexoes')", "Conexoes", show=False),
@@ -116,17 +128,11 @@ class DBQMApp(App):
         yield StatusBar()
 
     def on_mount(self) -> None:
-        """Load settings, register themes, and set initial state."""
-        from dbqm.models.settings import load_settings
+        """Load connections/queries/groups and set initial state. O tema ja
+        foi registrado e aplicado em __init__, antes do primeiro mount."""
         from dbqm.models.connection import load_connections
         from dbqm.models.query import load_queries
         from dbqm.models.group import load_groups
-
-        settings = load_settings()
-
-        for tema in TEMAS_TEXTUAL.values():
-            self.register_theme(tema)
-        self.theme = get_theme(settings.theme).name
 
         connections = load_connections()
         queries = load_queries()

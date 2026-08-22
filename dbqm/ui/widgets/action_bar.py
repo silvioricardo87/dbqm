@@ -33,7 +33,7 @@ class ActionBar(Static):
         height: auto;
         padding: 0 1;
         background: $surface;
-        border-top: solid $border;
+        border-top: solid $borda;
         dock: bottom;
     }
     """
