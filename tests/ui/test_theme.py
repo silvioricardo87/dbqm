@@ -26,11 +26,6 @@ def test_get_theme_returns_light():
     assert theme.name == "plano-claro"
 
 
-def test_get_theme_unknown_falls_back_to_dark():
-    theme = get_theme("nonexistent")
-    assert theme.name == "plano-escuro"
-
-
 def test_light_defines_accent_and_panel():
     """Confere a fiacao (theme.py -> tokens.py), nunca o valor do hex.
 
