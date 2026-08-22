@@ -23,9 +23,6 @@ class TemplateEditModal(ModalScreen[dict | None]):
     TemplateEditModal {
         align: center middle;
     }
-    TemplateEditModal #dialog {
-        height: 85%;
-    }
     TemplateEditModal Input {
         width: 100%;
         margin-bottom: 1;
@@ -69,7 +66,7 @@ class TemplateEditModal(ModalScreen[dict | None]):
         self._name_readonly = name_readonly
 
     def compose(self) -> ComposeResult:
-        with Dialog(self._title_text, largura="lg", id="dialog"):
+        with Dialog(self._title_text, largura="tela", id="dialog"):
             yield Input(
                 value=self._name_value,
                 placeholder="Nome do template",

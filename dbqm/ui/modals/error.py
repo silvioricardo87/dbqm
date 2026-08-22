@@ -17,9 +17,6 @@ class ErrorModal(ModalScreen[None]):
     ErrorModal {
         align: center middle;
     }
-    ErrorModal #error-dialog {
-        max-height: 80%;
-    }
     ErrorModal #error-scroll {
         height: 1fr;
         margin-bottom: 1;
