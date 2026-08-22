@@ -17,6 +17,7 @@ from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
+from dbqm.ui.widgets.veredito import marcar_operacao
 
 from dbqm.core.group_engine import GroupResult
 
@@ -398,6 +399,7 @@ class GroupRunScreen(Vertical):
         """Start group execution in a worker thread."""
         self._current_params = params
         self.query_one(ProgressIndicator).start(
+            f"{marcar_operacao('executando')} "
             f"Executando grupo [bold]{escape_markup(group.name)}[/] ({len(group.queries)} consultas)..."
         )
         self._run_group(group, params)
@@ -444,6 +446,7 @@ class GroupRunScreen(Vertical):
 
                 self.app.call_from_thread(
                     self._update_progress,
+                    f"{marcar_operacao('executando')} "
                     f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
                 )
 

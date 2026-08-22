@@ -3,11 +3,41 @@
 from __future__ import annotations
 
 from textual.containers import Vertical, VerticalScroll
+from textual.content import Content
 from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
 from dbqm.core.group_engine import GroupResult, ComparisonResult
 from dbqm.ui.utils import sanitize_id
+from dbqm.ui.widgets.veredito import marcar_veredito
+
+# Os status internos do motor de comparacao (dbqm.core.group_engine) usam um
+# vocabulario proprio, historico; o componente de veredito usa outro. Este
+# dict e a unica ponte entre os dois — nao se espalha essa traducao pelo
+# resto do arquivo.
+_STATUS_PARA_VEREDITO: dict[str, str] = {
+    "OK": "igual",
+    "OK*": "igual-normalizado",
+    "DIFF": "difere",
+    "ABSENT": "ausente",
+}
+
+
+def _status_cell(status: str) -> Content:
+    """Celula de status pronta para `DataTable.add_row`.
+
+    `add_row` parseia string com o Rich puro, que nao resolve `$token`
+    (levanta `rich.errors.MarkupError`); por isso o markup do veredito
+    precisa passar por `Content.from_markup` antes de chegar la — o mesmo
+    padrao usado em `dbqm/ui/screens/history.py`.
+
+    Um status fora do vocabulario conhecido explode aqui (KeyError vira
+    ValueError via `marcar_veredito`), nunca renderiza uma celula sem cor
+    silenciosamente.
+    """
+    if status not in _STATUS_PARA_VEREDITO:
+        raise ValueError(f"status de comparacao desconhecido: {status!r}")
+    return Content.from_markup(marcar_veredito(_STATUS_PARA_VEREDITO[status]))
 
 
 class GroupResultWidget(Vertical, can_focus=False):
@@ -116,22 +146,6 @@ class GroupResultWidget(Vertical, can_focus=False):
         except Exception:
             pass
 
-    def _status_markup(self, status: str) -> str:
-        """Rotula o status da comparacao com o token do eixo de veredito.
-
-        OK ainda recebe tinta hoje. Quando o valor de $veredito-igual for
-        igualado ao texto neutro numa tarefa futura, OK deixa de ter tinta
-        sem que este codigo mude — o nome do token e que fica, o valor e
-        que muda depois.
-        """
-        marcas = {
-            "OK": "[$veredito-igual]OK[/]",
-            "OK*": "[$veredito-igual]OK*[/]",
-            "DIFF": "[$veredito-difere]DIFF[/]",
-            "ABSENT": "[$veredito-ausente]ABSENT[/]",
-        }
-        return marcas.get(status, status)
-
     def _render_flat(self, container) -> None:
         """Render flat mode: one DataTable per compare column."""
         gr = self._group_result
@@ -160,8 +174,8 @@ class GroupResultWidget(Vertical, can_focus=False):
                     val = row.values.get(qn)
                     cells.append(str(val) if val is not None else "-")
                 if not self._hide_status:
-                    cells.append(str(row.status))
-                table.add_row(*cells)
+                    cells.append(_status_cell(row.status))
+                table.add_row(*cells, key=str(row.key_value))
 
             container.mount(table)
 
@@ -213,7 +227,7 @@ class GroupResultWidget(Vertical, can_focus=False):
                     cells.append(str(val) if val is not None else "-")
                 if not self._hide_status:
                     cells.append("")  # no per-query status
-                table.add_row(*cells)
+                table.add_row(*cells, key=f"q::{qn}")
 
             # Result row at the bottom (only when showing status)
             if not self._hide_status:
@@ -223,11 +237,11 @@ class GroupResultWidget(Vertical, can_focus=False):
                     cr = lookup.get((key, col))
                     status = str(cr.status) if cr else "ABSENT"
                     worst_statuses.append(status)
-                    result_cells.append(status)
+                    result_cells.append(_status_cell(status))
                 priority = {"ABSENT": 3, "DIFF": 2, "OK*": 1, "OK": 0}
                 overall = max(worst_statuses, key=lambda s: priority.get(s, 0))
-                result_cells.append(str(overall))
-                table.add_row(*result_cells)
+                result_cells.append(_status_cell(overall))
+                table.add_row(*result_cells, key="__resultado__")
 
             container.mount(table)
 
@@ -245,17 +259,17 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         lines = []
         overall = "CONSISTENTE" if gr.all_match else "DIVERGENTE"
-        overall_token = "$veredito-igual" if gr.all_match else "$veredito-difere"
-        lines.append(f"[{overall_token} bold]{overall}[/]")
+        overall_status = "igual" if gr.all_match else "difere"
+        lines.append(f"{marcar_veredito(overall_status)} [bold]{overall}[/]")
         lines.append("")
 
         for comp in gr.comparisons:
             col_name = str(comp.column) if comp.column is not None else ""
             lines.append(f"[bold]{col_name}[/]:")
-            lines.append(f"  [$veredito-igual]Iguais:[/]      {comp.equal_count}/{comp.total_keys}")
+            lines.append(f"  {marcar_veredito('igual')} Iguais:      {comp.equal_count}/{comp.total_keys}")
             if comp.normalized_count > 0:
-                lines.append(f"  [$veredito-igual]Normalizados:[/] {comp.normalized_count}/{comp.total_keys}")
-            lines.append(f"  [$veredito-difere]Diferentes:[/]  {comp.diff_count}/{comp.total_keys}")
-            lines.append(f"  [$veredito-ausente]Ausentes:[/]    {comp.absent_count}/{comp.total_keys}")
+                lines.append(f"  {marcar_veredito('igual-normalizado')} Normalizados: {comp.normalized_count}/{comp.total_keys}")
+            lines.append(f"  {marcar_veredito('difere')} Diferentes:  {comp.diff_count}/{comp.total_keys}")
+            lines.append(f"  {marcar_veredito('ausente')} Ausentes:    {comp.absent_count}/{comp.total_keys}")
 
         summary.update("\n".join(lines))

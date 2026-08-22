@@ -95,6 +95,47 @@ async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
 
 
 # ---------------------------------------------------------------------------
+# Veredito / StatusOperacao tests
+# ---------------------------------------------------------------------------
+
+def test_veredito_comunica_estado_alem_da_cor():
+    """Piso de acessibilidade: cor sozinha nao comunica estado."""
+    from dbqm.ui.widgets.veredito import marcar_veredito
+
+    glifos = {marcar_veredito(v).split("]")[1].split("[")[0] for v in
+              ("igual", "igual-normalizado", "difere", "ausente")}
+    assert len(glifos) == 4, f"glifos repetidos: {glifos}"
+
+
+def test_veredito_igual_usa_o_token_do_proprio_eixo():
+    from dbqm.ui.widgets.veredito import marcar_veredito
+
+    assert "$veredito-igual" in marcar_veredito("igual")
+
+
+def test_veredito_rejeita_status_desconhecido():
+    from dbqm.ui.widgets.veredito import marcar_veredito
+
+    with pytest.raises(ValueError, match="status"):
+        marcar_veredito("talvez")
+
+
+def test_operacao_bem_sucedida_nao_recebe_tinta():
+    """Sucesso e a ausencia de alarme."""
+    from dbqm.ui.widgets.veredito import marcar_operacao
+
+    assert "$op-falha" not in marcar_operacao("ok")
+    assert "$op-falha" in marcar_operacao("falha")
+
+
+def test_operacao_rejeita_estado_desconhecido():
+    from dbqm.ui.widgets.veredito import marcar_operacao
+
+    with pytest.raises(ValueError, match="estado"):
+        marcar_operacao("talvez")
+
+
+# ---------------------------------------------------------------------------
 # ActionBar tests
 # ---------------------------------------------------------------------------
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected, Action
@@ -630,6 +671,70 @@ async def test_group_result_summary_shows(sample_group_result):
         rendered = str(summary._Static__content)
         assert "DIVERGENTE" in rendered
         assert "status" in rendered
+
+
+@pytest.mark.asyncio
+async def test_group_result_status_column_resolves_veredito_colors():
+    """O ganho visivel da tarefa: a coluna Status da tabela de comparacao
+    tem que sair colorida, uma cor por veredito.
+
+    Testa a cor RESOLVIDA de cada celula (nao a string de markup): um teste
+    de string nao pegaria a celula continuando cinza/sem cor por `add_row`
+    ter recebido `str(row.status)` cru em vez de `Content.from_markup(...)`.
+    """
+    from textual.style import Style
+    from textual.widgets import DataTable
+
+    from dbqm.core.group_engine import ComparisonResult, ComparisonRow, GroupResult
+    from dbqm.design.tokens import TEMAS
+
+    gr = GroupResult(
+        group_name="todos_status",
+        query_results={},
+        comparisons=[
+            ComparisonResult(
+                column="status",
+                rows=[
+                    ComparisonRow(key_value=1, values={}, status="OK"),
+                    ComparisonRow(key_value=2, values={}, status="OK*"),
+                    ComparisonRow(key_value=3, values={}, status="DIFF"),
+                    ComparisonRow(key_value=4, values={}, status="ABSENT"),
+                ],
+                total_keys=4,
+                equal_count=1,
+                diff_count=1,
+                absent_count=1,
+                normalized_count=1,
+            )
+        ],
+        all_match=False,
+        summary_lines=[],
+    )
+
+    esperado = {
+        "1": TEMAS["plano-escuro"]["veredito-igual"],
+        "2": TEMAS["plano-escuro"]["veredito-igual"],
+        "3": TEMAS["plano-escuro"]["veredito-difere"],
+        "4": TEMAS["plano-escuro"]["veredito-ausente"],
+    }
+
+    app = GroupResultTestApp()
+    async with app.run_test() as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(gr)
+        await pilot.pause()
+        table = w.query(DataTable).first()
+
+        for chave, hex_esperado in esperado.items():
+            conteudo = table.get_cell(chave, "status")
+            pecas = list(
+                conteudo.render(Style.null(), end="", parse_style=Style.parse)
+            )
+            cor = next(estilo.foreground for texto, estilo in pecas if texto.strip())
+            assert cor.hex.lower() == hex_esperado.lower(), (
+                f"celula da chave {chave}: esperava {hex_esperado}, "
+                f"resolveu {cor.hex}"
+            )
 
 
 # ---------------------------------------------------------------------------

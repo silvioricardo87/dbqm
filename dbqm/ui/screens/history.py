@@ -9,6 +9,7 @@ from textual.widgets import Button, DataTable, Static
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
+from dbqm.ui.widgets.veredito import marcar_operacao, marcar_veredito
 
 
 class HistoryScreen(Vertical):
@@ -104,17 +105,14 @@ class HistoryScreen(Vertical):
             if e.entry_type == "group":
                 tipo = "grupo"
                 if e.all_match is True:
-                    status = "[$veredito-igual]OK[/]"
+                    status = marcar_veredito("igual")
                 elif e.all_match is False:
-                    status = "[$veredito-difere]DIFF[/]"
+                    status = marcar_veredito("difere")
                 else:
                     status = "-"
             else:
                 tipo = "query"
-                if e.success:
-                    status = "OK"
-                else:
-                    status = "[$op-falha]ERRO[/]"
+                status = marcar_operacao("ok") if e.success else marcar_operacao("falha")
 
             table.add_row(
                 str(e.timestamp) if e.timestamp else "",
