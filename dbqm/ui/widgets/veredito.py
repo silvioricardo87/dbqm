@@ -24,8 +24,8 @@ VEREDITOS: dict[str, tuple[str, str]] = {
 }
 
 OPERACOES: dict[str, tuple[str, str]] = {
-    # estado -> (glifo, token)
-    "ok": ("", "$texto-apoio"),
+    # estado -> (glifo, token); token vazio ("") significa "sem cor, so peso"
+    "ok": ("", ""),
     "falha": ("x", "$op-falha"),
     "executando": ("*", "$identidade"),
 }
@@ -65,8 +65,11 @@ def marcar_operacao(estado: str, *, texto: str | None = None) -> str:
     """Markup do status de uma operacao (execucao de consulta/grupo).
 
     `ok` sai sem tinta de alarme — sucesso e a ausencia de alarme, so
-    `falha` recebe cor de erro. `executando` recebe a cor de identidade,
-    para diferenciar "em andamento" de "resultado".
+    `falha` recebe cor de erro — mas mantem o PESO (`[bold]`): sem cor nao
+    e sem legibilidade. A mesma regra que os call sites manuais de
+    `adhoc.py`, `exec_routine.py` e `package_editor.py` ja aplicam com
+    `[bold]` cravado ao lado do texto de sucesso. `executando` recebe a cor
+    de identidade, para diferenciar "em andamento" de "resultado".
 
     `texto`, se passado, troca so o ROTULO (mesma razao e mesmo escape de
     `marcar_veredito`).
@@ -77,4 +80,7 @@ def marcar_operacao(estado: str, *, texto: str | None = None) -> str:
     rotulo = escape_markup(texto) if texto is not None else {
         "ok": "OK", "falha": "FALHA", "executando": "executando",
     }[estado]
-    return f"[{token}]{(glifo + ' ') if glifo else ''}{rotulo}[/]"
+    corpo = f"{(glifo + ' ') if glifo else ''}{rotulo}"
+    if not token:
+        return f"[bold]{corpo}[/]"
+    return f"[{token}]{corpo}[/]"
