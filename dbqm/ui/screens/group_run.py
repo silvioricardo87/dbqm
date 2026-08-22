@@ -928,12 +928,7 @@ class _IndividualResultModal(ModalScreen[None]):
         self._result = result
 
     def compose(self) -> ComposeResult:
-        # Precisa preencher a tela (tabela de resultado), nao uma das larguras
-        # fixas do Dialog — a largura/altura sao sobrescritas apos construir.
-        dialog = Dialog(self._query_name, id="ir-dialog")
-        dialog.styles.width = "90%"
-        dialog.styles.height = "80%"
-        with dialog:
+        with Dialog(self._query_name, largura="tela", id="ir-dialog"):
             yield Static(
                 f"{self._result.row_count} registros | "
                 f"{self._result.elapsed:.2f}s | "
@@ -1078,11 +1073,7 @@ class _RenderedTemplateModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import TextArea
 
-        # Mesmo motivo do _IndividualResultModal: precisa preencher a tela.
-        dialog = Dialog("Template Gerado", id="rt-dialog")
-        dialog.styles.width = "90%"
-        dialog.styles.height = "85%"
-        with dialog:
+        with Dialog("Template Gerado", largura="tela", id="rt-dialog"):
             yield TextArea(self._rendered_text, id="rt-content", read_only=True)
             with Horizontal(id="rt-buttons"):
                 yield Button("Copiar", variant="primary", id="rt-copy")

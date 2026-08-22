@@ -634,6 +634,53 @@ async def test_dialog_renderiza_o_titulo():
         assert "Confirmar exclusao" in titulo.render().plain
 
 
+def test_dialog_variante_tela_preenche_a_viewport():
+    """A quarta variante e a resposta do sistema aos casos que antes
+    burlavam o enum escrevendo `.styles.width`/`.styles.height` depois de
+    construir. Ela existe, e usa porcentagem (nao celulas) porque e
+    conteudo a ser exibido, nao um formulario compacto."""
+    from dbqm.ui.widgets.dialog import LARGURAS
+
+    assert LARGURAS["tela"] == "90%"
+    d = Dialog("Titulo", largura="tela")
+    # Textual guarda porcentagem como escalar "w"/"h" (viewport width/height);
+    # comparar com a representacao efetivamente resolvida, nao com a string
+    # de entrada.
+    assert str(d.styles.width) == "90w"
+    assert str(d.styles.height) == "85h"
+
+
+def test_dialog_nao_tem_override_de_estilo_fora_do_componente():
+    """Fecha a CLASSE, nao so a instancia: `largura`/`tom` sao validados no
+    __init__, mas nada no Python impede escrever `dialog.styles.width =`
+    depois — a atribuicao inline vence qualquer coisa que o __init__ tenha
+    decidido, e nenhum teste nem validacao consegue ver essa escrita
+    tardia. Guarda no mesmo formato de
+    `test_toda_variavel_css_e_token_ou_builtin_documentado`: silencioso ate
+    alguem reintroduzir o atalho, e ai falha alto. Precisar de mais espaco
+    e sinal de variante nova em `LARGURAS` (ver "tela"), nunca de excecao
+    local."""
+    import re
+    from pathlib import Path
+
+    raiz_ui = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
+    padrao = re.compile(r"\.styles\.(width|height)\s*=")
+
+    ofensores = []
+    for arquivo in sorted(raiz_ui.rglob("*.py")):
+        if arquivo.name == "dialog.py":
+            continue
+        texto = arquivo.read_text(encoding="utf-8")
+        for m in padrao.finditer(texto):
+            linha = texto.count(chr(10), 0, m.start()) + 1
+            ofensores.append(f"{arquivo.relative_to(raiz_ui)}:{linha}")
+
+    assert not ofensores, (
+        "styles.width/height de Dialog so pode ser atribuido dentro de "
+        f"dialog.py; achei override(s) fora do componente: {ofensores}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # TemplatesSidebar tests
 # ---------------------------------------------------------------------------
