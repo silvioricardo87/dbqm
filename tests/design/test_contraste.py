@@ -15,25 +15,8 @@ from dbqm.design.tokens import (
 )
 from tests.design._contraste import razao
 
-# Todas no tema claro, todas herdadas do tema GitHub. Quitadas na Task 8.
-DIVIDA_CONHECIDA = {
-    ("plano-claro", "texto-desabilitado", "fundo"),
-    ("plano-claro", "texto-desabilitado", "superficie"),
-    ("plano-claro", "texto-desabilitado", "painel"),
-    ("plano-claro", "texto-desabilitado", "superficie-elevada"),
-    ("plano-claro", "borda-forte", "fundo"),
-    ("plano-claro", "borda-forte", "superficie"),
-    ("plano-claro", "borda-forte", "painel"),
-    ("plano-claro", "borda-forte", "superficie-elevada"),
-    ("plano-claro", "identidade", "fundo"),
-    ("plano-claro", "identidade", "superficie"),
-    ("plano-claro", "identidade", "painel"),
-    ("plano-claro", "identidade", "superficie-elevada"),
-    ("plano-claro", "veredito-igual", "superficie"),
-    ("plano-claro", "veredito-igual", "superficie-elevada"),
-    ("plano-claro", "veredito-difere", "superficie"),
-    ("plano-claro", "veredito-difere", "superficie-elevada"),
-}
+# Quitada na Task 8: paleta Plano zera a divida herdada do tema GitHub.
+DIVIDA_CONHECIDA: set[tuple[str, str, str]] = set()
 
 
 def _falhas() -> set[tuple[str, str, str]]:

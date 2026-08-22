@@ -57,12 +57,19 @@ def test_status_bar_inverted_primary_background():
 
 
 @pytest.mark.asyncio
-async def test_status_bar_usa_token_de_identidade_para_conexao_ativa():
-    """A bolinha de conexao e identidade, nao 'verde de sucesso'.
+async def test_status_bar_bolinha_usa_foreground_da_barra_nao_identidade():
+    """A bolinha de conexao usa o foreground da propria barra, nao identidade.
+
+    A barra inteira ja e preenchida com $primary (= identidade) — pintar a
+    bolinha em $identidade tambem e ambar sobre ambar, invisivel. $identidade
+    so e valida sobre fundo/superficie/painel/superficie-elevada (ver
+    VALIDO_SOBRE em dbqm/design/tokens.py), nao sobre um preenchimento solido
+    de $primary. A bolinha usa $background — o mesmo tom que o texto da
+    conexao ao lado dela ja usa por heranca do `color: $background` da barra.
 
     Resolve o markup contra o tema ativo (via ThemedTestApp) em vez de
     procurar o nome do token na string crua: uma asserção sobre texto
-    fonte so prova que alguem digitou "$identidade" em algum lugar, nao
+    fonte so prova que alguem digitou "$background" em algum lugar, nao
     que a cor renderizada e a do token.
     """
     from textual.style import Style
@@ -77,7 +84,7 @@ async def test_status_bar_usa_token_de_identidade_para_conexao_ativa():
         cor_bolinha = next(
             estilo.foreground for texto, estilo in pecas if "●" in texto
         )
-        assert cor_bolinha == Style.parse("$identidade").foreground
+        assert cor_bolinha == Style.parse("$background").foreground
         assert cor_bolinha != Style.parse("green").foreground
 
 

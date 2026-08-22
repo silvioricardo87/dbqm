@@ -33,10 +33,10 @@ def test_get_theme_unknown_falls_back_to_dark():
 
 def test_light_defines_accent_and_panel():
     light = get_theme("plano-claro")
-    assert light.variables["identidade"] == "#e3b341"
+    assert light.variables["identidade"] == "#7d5600"
     assert light.panel == "#ffffff"
-    assert light.surface == "#ebedf0"
-    assert light.background == "#f6f8fa"
+    assert light.surface == "#eaeef3"
+    assert light.background == "#f4f6f9"
 
 
 def test_tema_expoe_todo_token_como_variavel_css():

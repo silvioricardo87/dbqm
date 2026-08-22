@@ -45,7 +45,7 @@ class StatusBar(Static):
     def _rebuild(self) -> None:
         """Rebuild the status bar content."""
         if self._connection:
-            left = f"[$identidade]●[/] {self._connection}"
+            left = f"[$background]●[/] {self._connection}"
         else:
             left = "[dim]●[/dim] sem conexão"
 
