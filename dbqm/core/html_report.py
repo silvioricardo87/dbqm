@@ -44,7 +44,7 @@ def _status_class(status: str) -> str:
 
 
 def _status_label(status: str) -> str:
-    return {"OK": "OK", "OK*": "OK*", "DIFF": "DIFF", "ABSENT": "AUSENTE"}.get(status, status)
+    return {"OK": "OK", "OK*": "OK*", "DIFF": "DIFERE", "ABSENT": "AUSENTE"}.get(status, status)
 
 
 def _build_html(group_result: GroupResult, query_names: list[str], params: dict | None) -> str:

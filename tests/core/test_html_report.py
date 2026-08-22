@@ -14,7 +14,7 @@ class TestHelpers:
 
     def test_status_label(self):
         assert _status_label("OK") == "OK"
-        assert _status_label("DIFF") == "DIFF"
+        assert _status_label("DIFF") == "DIFERE"
         assert _status_label("ABSENT") == "AUSENTE"
 
 
