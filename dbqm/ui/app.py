@@ -544,6 +544,12 @@ class DBQMApp(App):
                 if screen.query_one("#results-phase").display:
                     screen.go_back_to_selection()
                     self.query_one(ActionBar).set_actions([])
+            elif screen_id == "settings-screen":
+                # `OracleClientsScreen` nunca teve botao de voltar: sem esta
+                # rota de teclado ela seria um beco sem saida dentro da aba.
+                # E botao de voltar seria botao fazendo navegacao, que a
+                # secao 7 da gramatica proibe.
+                screen.voltar_ao_inicio()
         except Exception:
             pass
 

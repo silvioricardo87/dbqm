@@ -2447,43 +2447,282 @@ async def test_settings_secao_oracle_alcancavel(tmp_config_dir, altura):
         )
 
 
-@pytest.mark.asyncio
-async def test_settings_two_column_panels(tmp_config_dir):
-    """CONFIG DA APLICACAO and PORTABILIDADE panels both exist."""
+def _titulos_de_painel(raiz):
+    """Os titulos dos paineis como a tela os PINTA.
+
+    `Panel` nao guarda o titulo em `render()` — `Panel` e um `Vertical`, e
+    `Vertical.render()` devolve o preenchimento do fundo, nao texto. O
+    titulo mora num `Label` de id `#panel-title`, montado por
+    `Panel.compose`. O plano da Task 7 supunha `p.render()`; o caminho
+    real e este, o mesmo que os testes anteriores desta tela ja usavam.
+    """
     from dbqm.ui.widgets.panel import Panel
+
+    return [p.query_one("#panel-title").render().plain for p in raiz.query(Panel)]
+
+
+@pytest.mark.asyncio
+async def test_cada_assunto_de_configuracoes_tem_seu_painel(tmp_config_dir):
+    """Um painel por assunto — nao um painel-saco com quatro assuntos dentro.
+
+    A queixa que originou esta fase foi textual: "a tela de configuracoes
+    esta horrivel com um monte de botao alinhado no centro e dentro da tela
+    de configuracoes do sistema, esta tudo muito confuso". A confusao tinha
+    causa medivel: tema, auditoria, exportacao e Oracle Instant Client
+    dividiam UM painel chamado "CONFIG DA APLICACAO", separados so por um
+    rotulo em negrito. Sem moldura por assunto nao ha onde o olho parar, e
+    a secao Oracle — que existe para desfazer um ORACLE_HOME de 32 bits que
+    derrubava conexoes em producao — nascia no fim de uma coluna rolante.
+    """
+    app = SettingsTestApp()
+    async with app.run_test(size=(120, 40)):
+        titulos = " ".join(_titulos_de_painel(app.query_one(SettingsScreen))).lower()
+        for assunto in ("tema", "auditoria", "exporta", "oracle"):
+            assert assunto in titulos, "%s sem painel proprio: %r" % (assunto, titulos)
+
+
+@pytest.mark.asyncio
+async def test_configuracoes_a_80x24_pinta_todos_os_assuntos(tmp_config_dir):
+    """O terminal padrao e 80x24, e e nele que a tela precisa funcionar.
+
+    Afirma o que a tela PINTA, e nao `region`: a secao Oracle ja teve
+    `region.height == 3` sem ser desenhada, recortada por um ancestral com
+    `overflow: hidden`. Aqui os quatro assuntos precisam estar visiveis de
+    uma vez, sem rolar, num terminal de 24 linhas.
+    """
+    from tests.ui._helpers import texto_renderizado
 
     app = SettingsTestApp()
-    async with app.run_test() as pilot:
-        screen = app.query_one(SettingsScreen)
-        panels = screen.query(Panel)
-        titles = [p.query_one("#panel-title").render().plain for p in panels]
-        assert any("CONFIG DA APLICACAO" in t for t in titles)
-        assert any("PORTABILIDADE" in t for t in titles)
-        assert any("FERNET KEY" in t for t in titles)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+        pintado = texto_renderizado(app).upper()
+        for assunto in ("TEMA", "AUDITORIA", "EXPORTACAO", "ORACLE INSTANT CLIENT"):
+            assert assunto in pintado, (
+                "o assunto %r nao e desenhado num terminal de 80x24" % assunto
+            )
 
 
 @pytest.mark.asyncio
-async def test_settings_export_import_buttons_in_panel(tmp_config_dir):
-    """Export/import buttons and theme select exist and route through panel bodies."""
-    from dbqm.ui.widgets.panel import Panel
+async def test_configuracoes_nao_tem_botao_que_navega(tmp_config_dir):
+    """Botao e acao; quem leva a outra tela e a lista (secao 7 da gramatica).
+
+    Os tres botoes que abriam OUTRA TELA (`#btn-export`, `#btn-import`,
+    `#btn-oracle-clients`) estavam mortos desde a v1.17.0 — consultavam um
+    `#screen-area` removido em e02b8a8 e so notificavam erro. O conserto
+    nao foi reapontar o botao: navegacao virou lista, e os botoes que
+    sobram na tela sao acoes de verdade (abrem um dialogo sobre o assunto
+    do proprio painel).
+    """
     from textual.widgets import Button
 
     app = SettingsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(SettingsScreen)
-        theme_select = screen.query_one("#settings-theme-select", Select)
-        export_btn = screen.query_one("#btn-export", Button)
-        import_btn = screen.query_one("#btn-import", Button)
-        assert theme_select is not None
-        assert export_btn is not None
-        assert import_btn is not None
+        ids = {b.id for b in screen.query(Button)}
+        assert "btn-export" not in ids
+        assert "btn-import" not in ids
+        assert "btn-oracle-clients" not in ids
+        # As acoes reais continuam: cada uma abre um modal sobre o assunto
+        # do painel em que vive.
+        assert {"btn-export-dir", "btn-oracle-client-dir"} <= ids
 
-        # Every widget of interest lives inside a Panel's #panel-body — no
-        # leftover .settings-section box-in-box container remains.
-        for widget in (theme_select, export_btn, import_btn):
+
+@pytest.mark.asyncio
+async def test_settings_widgets_moram_dentro_de_um_painel(tmp_config_dir):
+    """Nada fica solto no fundo — secao 4 da gramatica."""
+    from dbqm.ui.widgets.panel import Panel
+    from textual.widgets import Button, OptionList
+
+    app = SettingsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(SettingsScreen)
+        alvos = [
+            screen.query_one("#settings-theme-select", Select),
+            screen.query_one("#btn-export-dir", Button),
+            screen.query_one("#btn-oracle-client-dir", Button),
+            screen.query_one("#settings-ferramentas-list", OptionList),
+        ]
+        for widget in alvos:
             panel = next(a for a in widget.ancestors if isinstance(a, Panel))
             body = panel.query_one("#panel-body")
-            assert widget in body.query("*") or widget.parent is body or body in widget.ancestors
+            assert body in widget.ancestors, "%s fora do corpo do painel" % widget.id
+
+
+@pytest.mark.asyncio
+async def test_lista_de_mais_configuracoes_nao_quebra_a_80_colunas(tmp_config_dir):
+    """Cada entrada da lista cabe em duas linhas, com o recuo intacto.
+
+    `item_hierarquico` recua a desambiguacao para dizer "isto pertence a
+    entrada acima". Quando o texto e mais largo que a coluna, o Textual
+    quebra sozinho no render e a continuacao volta para a coluna 0 — a
+    MESMA da identidade da proxima entrada, que e o defeito que originou
+    esta fase (Task 4 ja pagou por ele em `connections`). Aqui a saida nao
+    e constante de largura: e texto curto. Este teste e quem cobra isso,
+    medido nas colunas que a lista tem a 80 (30, medidas no widget
+    montado), e nao numa suposicao.
+    """
+    from textual.widgets import OptionList
+    from tests.ui._helpers import linhas_renderizadas
+
+    app = SettingsTestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        tela = app.query_one(SettingsScreen)
+        lista = tela.query_one("#settings-ferramentas-list", OptionList)
+        lista.focus()
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        pintado = linhas_renderizadas(app)
+        r = lista.content_region
+        linhas = [
+            pintado[y][r.x:r.x + r.width].rstrip()
+            for y in range(r.y, r.y + r.height)
+        ]
+        linhas = [linha for linha in linhas if linha]
+        assert len(linhas) == 2 * len(SettingsScreen.FERRAMENTAS), (
+            "alguma entrada quebrou em mais de duas linhas: %r" % linhas
+        )
+        identidades = [linha for linha in linhas if not linha.startswith(" ")]
+        assert len(identidades) == len(SettingsScreen.FERRAMENTAS), (
+            "uma continuacao voltou para a coluna 0 da identidade: %r" % linhas
+        )
+
+
+@pytest.mark.asyncio
+async def test_redimensionar_reelide_e_nao_varre_o_disco(tmp_config_dir, monkeypatch):
+    """A elisao acompanha a largura — e alargar a janela devolve caminho.
+
+    Elidir contra uma constante acertaria uma largura e erraria as outras,
+    entao a largura e medida no rotulo montado e repintada no `resize`. O
+    que o repintar NAO pode fazer e refazer a deteccao do Instant Client:
+    `resolve_oracle_client_dir` varre os diretorios de instalacao do
+    sistema, e amarrar isso a cada quadro de um arrastar de janela seria
+    trocar um defeito visual por um de desempenho.
+    """
+    from textual.widgets import Static
+    from dbqm.models.settings import Settings, save_settings
+
+    chamadas = []
+    import dbqm.core.db_manager as dbm
+
+    real = dbm.resolve_oracle_client_dir
+
+    def contando():
+        chamadas.append(1)
+        return real()
+
+    monkeypatch.setattr(dbm, "resolve_oracle_client_dir", contando)
+
+    fundo = tmp_config_dir / "um" / "diretorio" / "bem" / "fundo" / "na" / "arvore"
+    fundo.mkdir(parents=True)
+    save_settings(Settings(default_export_dir=str(fundo)))
+
+    app = SettingsTestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        rotulo = app.query_one(SettingsScreen).query_one(
+            "#settings-export-dir-current", Static
+        )
+        estreito = rotulo.render().plain
+        detectou = len(chamadas)
+
+        await pilot.resize_terminal(160, 40)
+        await pilot.pause()
+        await pilot.pause()
+        largo = rotulo.render().plain
+
+        assert chr(8230) in estreito, "a 80 colunas o caminho tem de ser elidido"
+        assert len(largo) > len(estreito), (
+            "alargar a janela nao devolveu caminho: %r -> %r" % (estreito, largo)
+        )
+        assert len(chamadas) == detectou, (
+            "redimensionar refez a deteccao do Instant Client %d vez(es)"
+            % (len(chamadas) - detectou)
+        )
+
+
+def test_caminho_longo_e_elidido_no_meio():
+    """O inicio e o fim identificam um caminho; o meio e o descartavel."""
+    from dbqm.ui.screens.settings import elidir_caminho
+
+    longo = "C:/Users/ricar/AppData/Local/Temp/claude/muito/fundo/exports"
+    curto = elidir_caminho(longo, 40)
+    assert len(curto) <= 40
+    assert curto.startswith("C:/Users")
+    assert curto.endswith("exports")
+    assert "..." in curto or chr(8230) in curto
+
+
+def test_caminho_que_cabe_nao_e_tocado():
+    """Elidir o que cabe seria esconder informacao de graca."""
+    from dbqm.ui.screens.settings import elidir_caminho
+
+    assert elidir_caminho("C:/exports", 40) == "C:/exports"
+    assert elidir_caminho("C:/exports", 10) == "C:/exports"
+
+
+def test_elisao_corta_no_separador_e_nunca_passa_da_largura():
+    """Corta entre segmentos: meio caminho de um nome nao identifica nada.
+
+    E o limite e limite em qualquer largura — inclusive nas absurdas, onde
+    a aritmetica de "metade para cada lado" e onde um off-by-one moraria.
+    """
+    from dbqm.ui.screens.settings import elidir_caminho
+
+    caminho = "C:/Users/ricar/AppData/Local/Temp/claude/muito/fundo/exports"
+    assert elidir_caminho(caminho, 40) == (
+        "C:/Users" + chr(8230) + "Temp/claude/muito/fundo/exports"
+    )
+    for largura in range(1, len(caminho) + 2):
+        assert len(elidir_caminho(caminho, largura)) <= largura, largura
+    assert elidir_caminho(caminho, 0) == ""
+
+    # Sem separador aproveitavel ainda se corta no MEIO, por caractere.
+    corrido = "a" * 60
+    assert elidir_caminho(corrido, 21) == "a" * 10 + chr(8230) + "a" * 10
+
+
+@pytest.mark.asyncio
+async def test_caminho_de_exportacao_cabe_na_coluna(tmp_config_dir):
+    """Um caminho longo nao pode quebrar no meio de um nome e sumir.
+
+    Antes desta tarefa a Fernet Key pintava `...\\Local\\Tem` numa linha e
+    `p\\pytest-of-ricar\\...` na seguinte — quebra automatica no meio da
+    palavra, e o FIM do caminho (o unico pedaco que diz de que diretorio se
+    trata) caia fora do painel. A afirmacao e sobre a linha PINTADA.
+    """
+    from textual.widgets import Button, Static
+    from dbqm.models.settings import Settings, save_settings
+    from tests.ui._helpers import recorte
+
+    fundo = tmp_config_dir / "um" / "diretorio" / "bem" / "fundo" / "na" / "arvore"
+    fundo.mkdir(parents=True)
+    save_settings(Settings(default_export_dir=str(fundo)))
+
+    app = SettingsTestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        tela = app.query_one(SettingsScreen)
+        # A 80x24 a coluna da esquerda transborda e ROLA (secao 4): o
+        # caminho vive no terceiro painel dela. Focar o botao do painel e o
+        # que um Tab faz, e e o `set_focus` que manda o Textual rolar ate la.
+        tela.query_one("#btn-export-dir", Button).focus()
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+        rotulo = tela.query_one("#settings-export-dir-current", Static)
+        linhas = [linha.rstrip() for linha in recorte(app, rotulo)]
+        assert any("arvore" in linha for linha in linhas), (
+            "o fim do caminho — o que identifica o diretorio — nao e pintado: %r"
+            % linhas
+        )
+        assert any(chr(8230) in linha for linha in linhas), (
+            "o caminho longo nao foi elidido: %r" % linhas
+        )
 
 
 @pytest.mark.asyncio

@@ -145,3 +145,163 @@ def test_dbqm_app_registra_e_ativa_tema_na_construcao(tmp_config_dir):
     for nome in TEMAS_TEXTUAL:
         assert nome in app.available_themes, f"tema {nome} nao registrado na construcao"
     assert app.theme in TEMAS_TEXTUAL, f"tema ativo ({app.theme!r}) nao e um dos nossos"
+
+
+# ======================================================================
+# Rotas de Configuracoes -> telas hospedadas
+#
+# Estas telas ficaram INALCANCAVEIS da v1.17.0 ate aqui. `#screen-area`
+# saiu em e02b8a8 ("single tabbed shell") e tres chamadas continuaram
+# consultando-o: `settings._open_portability`, `settings._open_oracle_
+# clients` e `config_port._go_back_to_settings`. Todas caiam no
+# `except Exception` e notificavam "Erro: No nodes match '#screen-area'".
+#
+# Por que os testes daqui montam a DBQMApp REAL, e nao a tela sozinha:
+# um teste que fizesse `yield OracleClientsScreen()` num harness proprio
+# teria passado verde durante as seis semanas em que o produto nao tinha
+# como chegar naquela tela. O defeito nao estava na tela — estava no
+# caminho ate ela. Entao o caminho e o que se exercita: trocar de aba,
+# escolher na lista, e afirmar o que a tela PINTA.
+# ======================================================================
+
+
+async def _abrir_ferramenta_de_config(pilot, app, chave):
+    """Percorre o caminho real: aba Configuracoes -> lista -> Enter."""
+    from textual.widgets import OptionList
+
+    await pilot.press("f6")
+    await pilot.pause()
+    lista = app.query_one("#settings-ferramentas-list", OptionList)
+    lista.focus()
+    await pilot.pause()
+    alvo = next(
+        i
+        for i in range(lista.option_count)
+        if lista.get_option_at_index(i).nome == chave
+    )
+    lista.highlighted = alvo
+    await pilot.press("enter")
+    await pilot.pause()
+    await pilot.wait_for_scheduled_animations()
+    await pilot.pause()
+    return lista
+
+
+@pytest.mark.asyncio
+async def test_configuracoes_abre_o_gerenciador_de_oracle_clients(tmp_config_dir):
+    """A tela que gerencia o Instant Client precisa ser alcancavel.
+
+    Nao e arrumacao: o Instant Client e o assunto da correcao da v1.18.0,
+    para conflitos de ORACLE_HOME 32/64 bits que derrubavam conexoes como
+    MGORA7ORA9 em producao. Com a rota morta, a unica saida do usuario era
+    editar a configuracao na mao.
+    """
+    from dbqm.ui.screens.oracle_clients import OracleClientsScreen
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+
+        assert app.query(OracleClientsScreen), (
+            "a tela de Oracle Instant Clients nao foi montada pela rota real"
+        )
+        pintado = texto_renderizado(app)
+        assert "PLATAFORMA DETECTADA" in pintado, (
+            "a tela montou mas nao e desenhada: %r" % pintado[:400]
+        )
+        assert "No nodes match" not in pintado
+
+
+@pytest.mark.asyncio
+async def test_configuracoes_abre_exportar_importar(tmp_config_dir):
+    """Exportar/Importar configuracao tambem estava morto desde a v1.17.0."""
+    from dbqm.ui.screens.config_port import ConfigPortScreen
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+
+        assert app.query(ConfigPortScreen), (
+            "a tela de Exportar/Importar nao foi montada pela rota real"
+        )
+        assert "EXPORTAR" in texto_renderizado(app).upper()
+
+
+@pytest.mark.asyncio
+async def test_escape_volta_da_ferramenta_para_as_configuracoes(tmp_config_dir):
+    """Voltar e tecla, nao botao: `Esc` desfaz a ida (secao 7 da gramatica).
+
+    `OracleClientsScreen` nunca teve botao de voltar — sem esta rota de
+    teclado ela seria um beco sem saida dentro da aba.
+    """
+    from dbqm.ui.screens.oracle_clients import OracleClientsScreen
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        assert app.query(OracleClientsScreen)
+
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        pintado = texto_renderizado(app)
+        assert "PLATAFORMA DETECTADA" not in pintado, "Esc nao voltou"
+        assert "ORACLE INSTANT CLIENT" in pintado.upper(), (
+            "voltou para lugar nenhum: %r" % pintado[:400]
+        )
+
+
+@pytest.mark.asyncio
+async def test_voltar_do_config_port_devolve_as_configuracoes(tmp_config_dir):
+    """O "Voltar" do proprio config_port (config_port.py:177) tambem estava morto."""
+    from textual.widgets import Button
+    from dbqm.ui.screens.config_port import ConfigPortScreen
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+        tela = app.query_one(ConfigPortScreen)
+
+        # A fase de escolha de modo e a inicial quando se entra pela lista.
+        tela.query_one("#cp-btn-export", Button).press()
+        await pilot.pause()
+        tela.query_one("#cp-export-back", Button).press()
+        await pilot.pause()
+        # Primeiro Voltar: volta uma FASE, dentro da propria tela.
+        assert tela.query_one("#cp-mode-phase").display is True
+
+        # O segundo sai da tela e devolve as Configuracoes.
+        app.action_go_back()
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+        # A tela segue montada (um worker de exportacao pode estar vivo);
+        # o que tem de mudar e o que a aba PINTA.
+        pintado = texto_renderizado(app).upper()
+        assert "EXPORTAR OU IMPORTAR" not in pintado, "o Voltar nao voltou"
+        assert "MAIS CONFIGURACOES" in pintado
+
+
+@pytest.mark.asyncio
+async def test_nenhuma_rota_de_configuracoes_notifica_erro(tmp_config_dir):
+    """Nada de `#screen-area`: o sintoma era um toast de erro, nao um crash.
+
+    Um teste que so afirmasse "a tela montou" passaria mesmo com um erro
+    notificado no caminho. Aqui o toast e o que se vigia.
+    """
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        for chave in ("portabilidade", "oracle-clients"):
+            await _abrir_ferramenta_de_config(pilot, app, chave)
+            app.action_go_back()
+            await pilot.pause()
+        erros = [
+            n.message for n in app._notifications if n.severity == "error"
+        ]
+        assert not erros, "rota de Configuracoes notificou erro: %r" % erros

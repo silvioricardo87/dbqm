@@ -168,20 +168,27 @@ class ConfigPortScreen(Vertical):
         self.query_one("#cp-import-phase").display = True
 
     def _go_back_to_settings(self) -> None:
-        """Navigate back to the Settings screen."""
-        try:
-            from dbqm.ui.screens.settings import SettingsScreen
-            from textual.containers import Container
-            from dbqm.ui.widgets.breadcrumb import Breadcrumb
+        """Devolve o controle a tela de Configuracoes que hospeda esta.
 
-            screen_area = self.app.query_one("#screen-area", Container)
-            screen_area.remove_children()
-            self.app.query_one(Breadcrumb).set_path(["Sistema", "Config"])
+        Antes daqui este metodo montava uma `SettingsScreen` nova dentro de
+        `#screen-area` — um container removido em e02b8a8 (v1.17.0), quando
+        o app virou uma shell de abas unica. Ninguem migrou a chamada, o
+        `except` engolia o `NoMatches` e o "Voltar" so notificava
+        "Erro: No nodes match '#screen-area'".
 
-            settings = SettingsScreen(id="settings-screen")
-            screen_area.mount(settings)
-        except Exception as e:
-            self.notify(f"Erro: {e}", severity="error")
+        Agora a tela nao se remonta: ela e HOSPEDADA, e so pede ao
+        hospedeiro que volte a mostrar os paineis. Procurar o hospedeiro
+        entre os ancestrais (em vez de consultar o app por id) e o que faz
+        isto continuar valendo se um dia esta tela for hospedada noutro
+        lugar.
+        """
+        from dbqm.ui.screens.settings import SettingsScreen
+
+        for ancestral in self.ancestors:
+            if isinstance(ancestral, SettingsScreen):
+                ancestral.voltar_ao_inicio()
+                return
+        self.notify("Nao ha para onde voltar daqui.", severity="warning")
 
     # ------------------------------------------------------------------
     # Button handlers

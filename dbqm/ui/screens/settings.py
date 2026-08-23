@@ -1,72 +1,151 @@
-"""Settings screen — theme, audit log, exports, and config portability."""
+"""Settings screen — um painel por assunto (gramatica de layout, secao 4).
+
+Antes desta tarefa a tela tinha UM painel chamado "CONFIG DA APLICACAO" com
+quatro assuntos dentro (tema, auditoria, exportacao e Oracle Instant Client),
+separados so por um rotulo em negrito, e tres botoes que fingiam ser menu. A
+queixa do mantenedor foi textual: "a tela de configuracoes esta horrivel com
+um monte de botao alinhado no centro e dentro da tela de configuracoes do
+sistema, esta tudo muito confuso".
+
+Agora cada assunto tem sua moldura, e a navegacao para as duas telas mais
+fundas (portabilidade e gerenciador de clients) e uma LISTA, nao um botao —
+secao 7 da gramatica: botao e acao, nunca navegacao. Os botoes que sobram
+abrem um dialogo sobre o assunto do painel em que vivem.
+"""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Button, Select, Static, Switch
+from textual.widgets import Button, ContentSwitcher, OptionList, Select, Static, Switch
 
 from dbqm.ui.theme import get_theme
-from dbqm.ui.utils import NavSelect
+from dbqm.ui.utils import NavSelect, NavVerticalScroll
+from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
 from dbqm.ui.widgets.panel import Panel
+
+#: Um caractere, e nao "...": o rotulo de caminho tem 30 celulas num
+#: terminal de 80, e cada coluna gasta com o marcador e uma coluna a
+#: menos de caminho.
+RETICENCIA = "\u2026"
+
+#: Separadores de caminho das duas familias, capturados para que o corte
+#: possa remontar o texto original byte a byte (um caminho do Windows pode
+#: misturar os dois: `C:\\Users\\ricar/exports`).
+_SEPARADOR = re.compile(r"([\\/])")
+
+
+def elidir_caminho(caminho: str, largura: int) -> str:
+    """Encurta *caminho* para caber em *largura* colunas cortando o MEIO.
+
+    O inicio e o fim de um caminho sao o que o identificam — a raiz diz de
+    que arvore ele vem, o ultimo segmento diz de que diretorio ou arquivo se
+    trata. O meio e o descartavel. A alternativa que o Textual da de graca
+    (deixar o texto quebrar sozinho) faz o contrario do que se precisa:
+    quebra no meio de um NOME e, quando o painel acaba, e justamente o fim do
+    caminho que some. A tela pintava
+    `C:\\Users\\ricar\\AppData\\Local\\Tem` / `p\\pytest-of-ricar\\pytest-626\\tes`
+    e nada depois disso.
+
+    O corte prefere cair entre segmentos: metade de um nome de diretorio nao
+    identifica nada, e ainda parece um nome de verdade. So quando nao ha
+    separador aproveitavel e que se corta por caractere — que continua sendo
+    melhor que cortar so o fim.
+
+    O resultado nunca passa de *largura*, inclusive nas larguras absurdas: e
+    dai que vem o teste que varre largura por largura.
+    """
+    texto = str(caminho)
+    if largura <= 0:
+        return ""
+    if len(texto) <= largura:
+        return texto
+    if largura <= len(RETICENCIA):
+        return RETICENCIA[:largura]
+
+    # `split` com grupo capturante intercala segmentos e separadores:
+    # ['C:', '/', 'Users', '/', ...]. Indice par = segmento, impar = separador.
+    pecas = _SEPARADOR.split(texto)
+    if len(pecas) >= 5:  # raiz + separador + ao menos dois segmentos
+        cabeca = "".join(pecas[:3])
+        if len(cabeca) + len(RETICENCIA) < largura:
+            cauda = ""
+            i = len(pecas) - 1
+            while i >= 3:
+                candidata = "".join(pecas[i:])
+                if len(cabeca) + len(RETICENCIA) + len(candidata) > largura:
+                    break
+                cauda = candidata
+                i -= 2
+            if cauda:
+                return cabeca + RETICENCIA + cauda
+
+    sobra = largura - len(RETICENCIA)
+    frente = (sobra + 1) // 2
+    fim = sobra - frente
+    return texto[:frente] + RETICENCIA + (texto[len(texto) - fim:] if fim else "")
 
 
 class SettingsScreen(Vertical):
-    """Screen widget for application settings.
+    """Tela de configuracoes: um painel por assunto, em duas colunas.
 
-    Laid out as two columns of Panels: application config on the left,
-    Fernet key status and config portability stacked on the right.
+    Hospeda tambem as duas telas mais fundas da area de configuracao
+    (`ConfigPortScreen` e `OracleClientsScreen`) num `ContentSwitcher` —
+    mesmo mecanismo que `FerramentasScreen` ja usa para hospedar telas
+    inteiras dentro de uma aba. Ver `_abrir_ferramenta`.
     """
 
     DEFAULT_CSS = """
     SettingsScreen {
         height: 1fr;
-        padding: 1 2;
     }
-    SettingsScreen #settings-columns {
+    SettingsScreen ContentSwitcher {
         height: 1fr;
     }
-    SettingsScreen #settings-columns > Panel {
+    SettingsScreen #settings-main {
+        height: 1fr;
+    }
+    SettingsScreen .settings-coluna {
         width: 1fr;
-    }
-    SettingsScreen #settings-right-column {
-        width: 1fr;
         height: 1fr;
+        padding: 1 1;
     }
-    SettingsScreen #settings-right-column > Panel {
-        height: 1fr;
-    }
-    SettingsScreen .settings-label {
+    /* `auto` mede o conteudo desde a Task 6; a coluna e que rola quando a
+       soma dos paineis passa da tela. Sem isto cada painel esticaria ate a
+       altura da COLUNA e so o primeiro de cada uma apareceria. */
+    SettingsScreen .settings-coluna > Panel {
         height: auto;
         margin-bottom: 1;
-        text-style: bold;
+    }
+    /* O padding vertical do corpo custa 2 linhas POR PAINEL, e agora sao
+       seis paineis: 12 linhas de uma tela de 24 gastas em ar. O padding
+       horizontal fica — e ele que separa o texto da borda. */
+    SettingsScreen .settings-coluna > Panel > #panel-body {
+        padding: 0 1;
+    }
+    SettingsScreen .settings-hospede {
+        height: 1fr;
     }
     SettingsScreen #settings-theme-select {
-        width: 40;
+        width: 1fr;
     }
-    SettingsScreen .audit-row {
+    SettingsScreen .settings-linha {
         height: auto;
     }
-    SettingsScreen .audit-row Static {
-        width: auto;
-        padding: 0 1 0 0;
+    SettingsScreen .settings-nota {
+        height: auto;
+        color: $texto-apoio;
     }
-    SettingsScreen .port-buttons {
+    SettingsScreen .settings-acoes {
         height: auto;
     }
-    SettingsScreen .port-buttons Button {
+    SettingsScreen .settings-acoes Button {
         margin: 0 1 0 0;
     }
-    SettingsScreen .export-subgroup {
+    SettingsScreen #settings-ferramentas-list {
         height: auto;
-        margin-bottom: 1;
-    }
-    SettingsScreen .export-subgroup-label {
-        height: auto;
-        text-style: italic;
-        color: $text-muted;
-        margin-bottom: 1;
     }
     """
 
@@ -78,81 +157,131 @@ class SettingsScreen(Vertical):
         "scan": "deteccao automatica no sistema",
     }
 
+    #: As telas hospedadas: (chave, identidade, desambiguacao). A chave
+    #: viaja como DADO na opcao (`OpcaoNomeada.nome`), nunca como `id` — o
+    #: motivo esta na docstring de `OpcaoNomeada`.
+    #:
+    #: O texto e CURTO por exigencia de layout, nao por gosto: a coluna da
+    #: lista tem 30 celulas num terminal de 80, e uma linha mais larga que
+    #: isso quebra sozinha no render — a continuacao volta para a coluna 0,
+    #: a mesma da identidade da entrada seguinte, que e exatamente a
+    #: confusao que esta fase existe para desfazer. `item_hierarquico` nao
+    #: tem como recuar a quebra automatica (esta escrito na docstring dele).
+    #: `test_lista_de_mais_configuracoes_nao_quebra_a_80_colunas` cobra.
+    FERRAMENTAS = (
+        (
+            "oracle-clients",
+            "Oracle Instant Clients",
+            "instalar, remover, escolher",
+        ),
+        (
+            "portabilidade",
+            "Exportar / Importar",
+            "bundle .dbqm com senha",
+        ),
+    )
+
+    #: Chave -> id do container onde aquela tela e montada.
+    _HOSPEDES = {
+        "oracle-clients": "settings-host-oracle-clients",
+        "portabilidade": "settings-host-portabilidade",
+    }
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._dir_exportacao = ""
+        self._montadas: set[str] = set()
+        self._client_oracle: tuple[str | None, str] = (None, "none")
+        self._client_oracle_erro = ""
+
     def compose(self) -> ComposeResult:
-        with Horizontal(id="settings-columns"):
-            with Panel("⚙️  CONFIG DA APLICACAO", id="settings-panel-config"):
-                # Theme
-                yield Static("Tema", classes="settings-label")
-                yield NavSelect(
-                    [
-                        ("Plano Escuro", "plano-escuro"),
-                        ("Plano Claro", "plano-claro"),
-                    ],
-                    id="settings-theme-select",
-                    allow_blank=False,
-                )
-
-                # Audit log
-                yield Static("Log de auditoria", classes="settings-label")
-                with Vertical(classes="audit-row"):
-                    yield Switch(id="settings-audit-switch")
-                    yield Static(
-                        "[dim]Registra execucoes de consultas e grupos[/]",
-                        id="settings-audit-desc",
-                        markup=True,
-                    )
-
-                # Export directory
-                yield Static("Exportacao", classes="settings-label")
-
-                # Group 1: directory path + change button
-                with Vertical(classes="export-subgroup"):
-                    yield Static(
-                        "[dim]Local onde os arquivos exportados sao salvos. "
-                        "Por padrao, o diretorio atual de execucao.[/]",
-                        markup=True,
-                    )
-                    yield Static("", id="settings-export-dir-current", markup=True)
-                    with Horizontal(classes="port-buttons"):
-                        yield Button("Alterar diretorio", variant="primary", id="btn-export-dir")
-
-                # Group 2: subdirectory toggle (independent option)
-                with Vertical(classes="export-subgroup"):
-                    yield Static("Estrutura de pastas", classes="export-subgroup-label")
-                    with Vertical(classes="audit-row"):
-                        yield Switch(id="settings-export-subdirs-switch")
-                        yield Static(
-                            "[dim]Criar subdiretorios por tipo (grupos, DDL, SQL). "
-                            "Consultas sempre vao direto no diretorio configurado.[/]",
-                            markup=True,
+        with ContentSwitcher(initial="settings-main"):
+            with Horizontal(id="settings-main"):
+                with NavVerticalScroll(
+                    id="settings-col-esquerda", classes="settings-coluna"
+                ):
+                    with Panel("🎨  TEMA", id="settings-panel-tema"):
+                        yield NavSelect(
+                            [
+                                ("Plano Escuro", "plano-escuro"),
+                                ("Plano Claro", "plano-claro"),
+                            ],
+                            id="settings-theme-select",
+                            allow_blank=False,
                         )
 
-                # Oracle Instant Client manager
-                yield Static("Oracle Instant Client", classes="settings-label")
-                yield Static(
-                    "[dim]Diretorio do client carregado pelo dbqm. Definir aqui tem "
-                    "prioridade sobre a variavel ORACLE_HOME do sistema, que outras "
-                    "ferramentas podem apontar para um client de outra arquitetura.[/]",
-                    markup=True,
-                )
-                yield Static("", id="settings-oracle-client-current", markup=True)
-                with Horizontal(classes="port-buttons"):
-                    yield Button("Definir caminho", variant="primary", id="btn-oracle-client-dir")
-                    yield Button("Gerenciar clients", variant="default", id="btn-oracle-clients")
+                    with Panel("📋  AUDITORIA", id="settings-panel-auditoria"):
+                        with Vertical(classes="settings-linha"):
+                            yield Switch(id="settings-audit-switch")
+                            yield Static(
+                                "Registra execucoes de consultas e grupos.",
+                                id="settings-audit-desc",
+                                classes="settings-nota",
+                            )
 
-            with Vertical(id="settings-right-column"):
-                with Panel("🔑  FERNET KEY", id="settings-panel-fernet"):
-                    yield Static("", id="settings-fernet-status", markup=True)
+                    with Panel("📁  EXPORTACAO", id="settings-panel-exportacao"):
+                        yield Static(
+                            "Onde os arquivos exportados sao salvos.",
+                            classes="settings-nota",
+                        )
+                        yield Static(
+                            "", id="settings-export-dir-current", markup=True
+                        )
+                        with Horizontal(classes="settings-acoes"):
+                            yield Button(
+                                "Alterar diretorio",
+                                variant="primary",
+                                id="btn-export-dir",
+                            )
+                        with Vertical(classes="settings-linha"):
+                            yield Switch(id="settings-export-subdirs-switch")
+                            yield Static(
+                                "Subdiretorios por tipo (grupos, DDL, SQL).",
+                                classes="settings-nota",
+                            )
 
-                with Panel("📦  PORTABILIDADE", id="settings-panel-portability"):
-                    yield Static(
-                        "[dim]Exporte conexoes, consultas e grupos como bundle .dbqm "
-                        "ou importe de um arquivo existente[/]",
-                        markup=True,
-                    )
-                    with Horizontal(classes="port-buttons"):
-                        yield Button("Exportar", variant="primary", id="btn-export")
-                        yield Button("Importar", variant="warning", id="btn-import")
+                with NavVerticalScroll(
+                    id="settings-col-direita", classes="settings-coluna"
+                ):
+                    with Panel(
+                        "🔌  ORACLE INSTANT CLIENT", id="settings-panel-oracle"
+                    ):
+                        # Curto de proposito: cada linha de prosa aqui e
+                        # uma linha a menos para a lista de MAIS
+                        # CONFIGURACOES, que num terminal de 24 fica logo
+                        # abaixo deste painel.
+                        yield Static(
+                            "Prioritario sobre o ORACLE_HOME do sistema, "
+                            "que pode apontar para outra arquitetura.",
+                            classes="settings-nota",
+                        )
+                        yield Static(
+                            "", id="settings-oracle-client-current", markup=True
+                        )
+                        with Horizontal(classes="settings-acoes"):
+                            yield Button(
+                                "Definir caminho",
+                                variant="primary",
+                                id="btn-oracle-client-dir",
+                            )
+
+                    # Logo abaixo do painel de Oracle de proposito: a
+                    # entrada do gerenciador de clients fica encostada no
+                    # status que faz alguem querer abri-lo.
+                    with Panel(
+                        "🧰  MAIS CONFIGURACOES", id="settings-panel-ferramentas"
+                    ):
+                        yield OptionList(id="settings-ferramentas-list")
+
+                    with Panel("🔑  FERNET KEY", id="settings-panel-fernet"):
+                        yield Static("", id="settings-fernet-status", markup=True)
+
+            yield Vertical(
+                id="settings-host-portabilidade", classes="settings-hospede"
+            )
+            yield Vertical(
+                id="settings-host-oracle-clients", classes="settings-hospede"
+            )
 
     def on_mount(self) -> None:
         from dbqm.models.settings import load_settings
@@ -168,54 +297,127 @@ class SettingsScreen(Vertical):
         subdirs_switch = self.query_one("#settings-export-subdirs-switch", Switch)
         subdirs_switch.value = settings.create_export_subdirs
 
-        self._refresh_export_dir_label(settings.default_export_dir)
+        lista = self.query_one("#settings-ferramentas-list", OptionList)
+        lista.clear_options()
+        for chave, identidade, desambiguacao in self.FERRAMENTAS:
+            lista.add_option(
+                OpcaoNomeada(item_hierarquico(identidade, desambiguacao), chave)
+            )
+
+        self._dir_exportacao = settings.default_export_dir
         self._refresh_oracle_client_status()
-        self._refresh_fernet_status()
+        self._pintar_caminhos()
 
         self.call_after_refresh(self._set_initial_focus)
 
+    def on_resize(self, event) -> None:
+        """Repinta os caminhos: a largura util mudou.
+
+        As duas colunas sao `1fr`, entao a largura de um rotulo depende do
+        terminal — 30 celulas a 80 colunas, 52 a 120. Elidir contra uma
+        constante acertaria uma largura e erraria as outras.
+        `call_after_refresh` porque durante o proprio evento de resize as
+        regioes dos filhos ainda sao as antigas.
+        """
+        self.call_after_refresh(self._pintar_caminhos)
+
+    # ------------------------------------------------------------------
+    # Caminhos longos
+    # ------------------------------------------------------------------
+
+    def _pintar_caminhos(self) -> None:
+        """Repinta os tres rotulos que carregam caminho.
+
+        Repintar e so formatar: nenhuma destas funcoes vai ao disco. A
+        deteccao do Instant Client (`resolve_oracle_client_dir`) VAI — ela
+        varre os diretorios de instalacao comuns do sistema — e por isso
+        mora em `_refresh_oracle_client_status`, chamada quando a resposta
+        pode ter mudado, e nao aqui, que roda a cada resize do terminal.
+        """
+        self._pintar_dir_exportacao()
+        self._pintar_client_oracle()
+        self._pintar_fernet()
+
+    @staticmethod
+    def _largura_util(rotulo: Static) -> int:
+        """Quantas colunas o rotulo tem para pintar.
+
+        Medido no widget montado: `content_region` ja desconta a borda do
+        painel, o padding do corpo e o do proprio rotulo. Enquanto o layout
+        nao aconteceu ela mede 0 — e nesse estado nao se elide nada, porque
+        elidir contra zero apagaria o caminho inteiro. `on_resize` repinta
+        assim que a regiao existe.
+        """
+        return rotulo.content_region.width
+
     def _refresh_export_dir_label(self, configured: str) -> None:
-        label = self.query_one("#settings-export-dir-current", Static)
-        if configured:
-            label.update(f"[b]Diretorio atual:[/] {configured}")
+        self._dir_exportacao = configured
+        self._pintar_dir_exportacao()
+
+    def _pintar_dir_exportacao(self) -> None:
+        rotulo = self.query_one("#settings-export-dir-current", Static)
+        largura = self._largura_util(rotulo)
+        if self._dir_exportacao:
+            caminho = self._dir_exportacao
+            sufixo = ""
         else:
-            label.update(f"[b]Diretorio atual:[/] [dim](usando o diretorio de execucao: {Path.cwd()})[/]")
+            caminho = str(Path.cwd())
+            sufixo = "\n[$texto-desabilitado](diretorio de execucao)[/]"
+        if largura:
+            caminho = elidir_caminho(caminho, largura)
+        rotulo.update(f"[b]Diretorio atual:[/]\n{caminho}{sufixo}")
 
     def _refresh_oracle_client_status(self) -> None:
-        """Show which Instant Client is active and where the choice came from.
+        """Redescobre qual Instant Client esta em uso, e de onde veio.
 
-        A configured-but-unusable path is reported as an error instead of
-        silently falling back — that silence is what made the ORACLE_HOME
-        conflict so hard to diagnose.
+        Faz I/O (ver `resolve_oracle_client_dir`): so e chamada quando a
+        resposta pode ter mudado — na montagem e depois de o modal de
+        caminho salvar. Um caminho configurado mas inutilizavel e reportado
+        como ERRO, e nao substituido em silencio: esse silencio e o que
+        tornava o conflito de ORACLE_HOME tao dificil de diagnosticar.
         """
         from dbqm.core.db_manager import OracleClientConfigError, resolve_oracle_client_dir
 
-        label = self.query_one("#settings-oracle-client-current", Static)
         try:
-            path, origin = resolve_oracle_client_dir()
+            self._client_oracle = resolve_oracle_client_dir()
+            self._client_oracle_erro = ""
         except OracleClientConfigError as e:
-            label.update(f"[b]Client em uso:[/] [$op-falha]{e}[/]")
+            self._client_oracle = (None, "none")
+            self._client_oracle_erro = str(e)
+        self._pintar_client_oracle()
+
+    def _pintar_client_oracle(self) -> None:
+        label = self.query_one("#settings-oracle-client-current", Static)
+        if self._client_oracle_erro:
+            label.update(f"[b]Client em uso:[/] [$op-falha]{self._client_oracle_erro}[/]")
             return
+        path, origin = self._client_oracle
         if not path:
             label.update(
                 "[b]Client em uso:[/] [$texto-apoio]nenhum encontrado[/] "
-                "[dim](thick mode indisponivel)[/]"
+                "[$texto-desabilitado](thick mode indisponivel)[/]"
             )
             return
         source = self.ORACLE_CLIENT_ORIGINS.get(origin, origin)
-        label.update(f"[b]Client em uso:[/] {path}\n[b]Origem:[/] {source}")
+        largura = self._largura_util(label)
+        mostrado = elidir_caminho(str(path), largura) if largura else str(path)
+        label.update(f"[b]Client em uso:[/]\n{mostrado}\n[b]Origem:[/] {source}")
 
-    def _refresh_fernet_status(self) -> None:
+    def _pintar_fernet(self) -> None:
         from dbqm.core.paths import KEY_FILE
 
         status = self.query_one("#settings-fernet-status", Static)
         exists = KEY_FILE.exists()
         state = "Presente" if exists else "[$texto-apoio]Sera gerada no primeiro uso[/]"
+        largura = self._largura_util(status)
+        local = str(KEY_FILE)
+        if largura:
+            local = elidir_caminho(local, largura)
         status.update(
             f"[b]Status:[/b] {state}\n"
-            f"[b]Local:[/b] [dim]{KEY_FILE}[/]\n\n"
-            "[dim]Chave usada para criptografar senhas de conexao salvas. "
-            "Nao ha acao manual necessaria — ela e criada automaticamente.[/]"
+            f"[b]Local:[/b] [$texto-desabilitado]{local}[/]\n\n"
+            "[$texto-desabilitado]Criptografa as senhas de conexao salvas. "
+            "Nao ha acao manual: ela e criada automaticamente.[/]"
         )
 
     def _set_initial_focus(self) -> None:
@@ -223,6 +425,76 @@ class SettingsScreen(Vertical):
             self.query_one("#settings-theme-select", Select).focus()
         except Exception:
             pass
+
+    # ------------------------------------------------------------------
+    # Telas hospedadas
+    # ------------------------------------------------------------------
+
+    def _construir(self, chave: str):
+        if chave == "oracle-clients":
+            from dbqm.ui.screens.oracle_clients import OracleClientsScreen
+
+            return OracleClientsScreen(id="settings-oracle-clients-screen")
+        if chave == "portabilidade":
+            from dbqm.ui.screens.config_port import ConfigPortScreen
+
+            return ConfigPortScreen(id="settings-config-port-screen")
+        raise ValueError(f"ferramenta de configuracao desconhecida: {chave}")
+
+    def _abrir_ferramenta(self, chave: str) -> None:
+        """Troca a area de configuracoes pela tela *chave*, montando na 1a vez.
+
+        Estas duas telas ficaram INALCANCAVEIS da v1.17.0 ate aqui: os
+        botoes que as abriam consultavam `#screen-area`, removido em
+        e02b8a8 quando o app virou uma shell de abas unica, e o
+        `except Exception` transformava a falha num toast de erro. Elas
+        voltam pelo mecanismo que a shell ja tem para hospedar uma tela
+        inteira dentro de uma aba — o mesmo `ContentSwitcher` de
+        `FerramentasScreen` — em vez de um `push_screen`, que tiraria da
+        vista o cabecalho, as abas e a barra de acoes.
+        """
+        hospede = self.query_one(f"#{self._HOSPEDES[chave]}", Vertical)
+        if chave not in self._montadas:
+            hospede.mount(self._construir(chave))
+            self._montadas.add(chave)
+        self.query_one(ContentSwitcher).current = self._HOSPEDES[chave]
+
+    def voltar_ao_inicio(self) -> bool:
+        """Volta da tela hospedada para os paineis. `False` se ja estava la.
+
+        Devolve bool porque quem chama pelo `Esc` (`DBQMApp.action_go_back`)
+        precisa saber se o `Esc` foi consumido aqui.
+
+        A tela hospedada continua MONTADA, so escondida — como
+        `FerramentasScreen` ja faz com as suas cinco. Desmontar seria
+        arrancar o widget debaixo de um worker vivo: a instalacao de um
+        Instant Client baixa 150+ MB em background e escreve progresso
+        nesta arvore. Voltar nao pode ser cancelar.
+        """
+        switcher = self.query_one(ContentSwitcher)
+        if switcher.current == "settings-main":
+            return False
+        switcher.current = "settings-main"
+        self.call_after_refresh(self._focar_lista_de_ferramentas)
+        return True
+
+    def _focar_lista_de_ferramentas(self) -> None:
+        try:
+            self.query_one("#settings-ferramentas-list", OptionList).focus()
+        except Exception:
+            pass
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        if event.option_list.id != "settings-ferramentas-list":
+            return
+        event.stop()
+        chave = getattr(event.option, "nome", "")
+        if chave in self._HOSPEDES:
+            self._abrir_ferramenta(chave)
+
+    # ------------------------------------------------------------------
+    # Controles
+    # ------------------------------------------------------------------
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id != "settings-theme-select":
@@ -261,13 +533,7 @@ class SettingsScreen(Vertical):
             self.notify(f"Subdiretorios por tipo: {status}")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-export":
-            self._open_portability("export")
-        elif event.button.id == "btn-import":
-            self._open_portability("import")
-        elif event.button.id == "btn-oracle-clients":
-            self._open_oracle_clients()
-        elif event.button.id == "btn-oracle-client-dir":
+        if event.button.id == "btn-oracle-client-dir":
             self._open_oracle_client_dir_modal()
         elif event.button.id == "btn-export-dir":
             self._open_export_dir_modal()
@@ -306,33 +572,3 @@ class SettingsScreen(Vertical):
             return
         self._refresh_oracle_client_status()
         self.notify("Oracle Instant Client atualizado! Reabra o dbqm para aplicar.")
-
-    def _open_portability(self, mode: str) -> None:
-        """Load ConfigPortScreen directly in the chosen mode (skip mode selection)."""
-        from dbqm.ui.screens.config_port import ConfigPortScreen
-        try:
-            from textual.containers import Container
-            from dbqm.ui.widgets.breadcrumb import Breadcrumb
-
-            screen_area = self.app.query_one("#screen-area", Container)
-            screen_area.remove_children()
-            self.app.query_one(Breadcrumb).set_path(["Sistema", "Config", "Exportar/Importar"])
-
-            port_screen = ConfigPortScreen(initial_mode=mode, id="config-port-screen")
-            screen_area.mount(port_screen)
-        except Exception as e:
-            self.notify(f"Erro: {e}", severity="error")
-
-    def _open_oracle_clients(self) -> None:
-        """Open the Oracle Instant Client manager screen."""
-        from dbqm.ui.screens.oracle_clients import OracleClientsScreen
-        try:
-            from textual.containers import Container
-            from dbqm.ui.widgets.breadcrumb import Breadcrumb
-
-            screen_area = self.app.query_one("#screen-area", Container)
-            screen_area.remove_children()
-            self.app.query_one(Breadcrumb).set_path(["Sistema", "Config", "Oracle Clients"])
-            screen_area.mount(OracleClientsScreen(id="oracle-clients-screen"))
-        except Exception as e:
-            self.notify(f"Erro: {e}", severity="error")
