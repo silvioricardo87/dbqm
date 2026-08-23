@@ -904,3 +904,142 @@ async def test_descricao_de_consulta_nunca_cai_na_coluna_da_identidade(
             "a descricao coube numa linha so; sem transbordo nao ha o que "
             "provar: %r" % linhas
         )
+
+
+# ======================================================================
+# A lista de Grupos (Ferramentas -> Executar Grupo): a TERCEIRA e ultima
+# ocorrencia do mesmo defeito.
+#
+# Conexoes foi curada na Task 4, Consultas no commit anterior, e esta
+# lista seguia doente pelo mesmo motivo exato: `_group_option` entregava
+# a descricao do grupo — texto livre do usuario — inteira para
+# `item_hierarquico`, o painel era elastico, e a quebra automatica do
+# Textual (feita no render, depois do `Content` montado) nao tem como
+# recuar a continuacao. Medido na DBQMApp real, com a lista rolando:
+#
+#   ANTES, 80x24                                ANTES, 120x34
+#   indent 0 :: 'Grupo 00'                      indent 0 :: 'Grupo 00'
+#   indent 2 :: '  2 consultas'                 indent 2 :: '  2 consultas'
+#   indent 2 :: '  Descricao longa o bast...'   indent 2 :: '  Descricao longa o ba...'
+#   indent 0 :: 'provar a hierarquia do ...'    indent 0 :: 'uma quebra por largura.'
+#   indent 0 :: 'Grupo 01'                      indent 0 :: 'Grupo 01'
+#
+# A quarta linha e a CONTINUACAO da terceira e sai na coluna 0 — a mesma
+# coluna da identidade do grupo seguinte.
+#
+# Mesma dupla de testes das outras duas listas: o de cima prova a
+# ARITMETICA contra o widget montado, o de baixo prova o RENDERIZADO.
+# ======================================================================
+
+
+def _grupos_de_descricao_longa(quantidade: int = 24):
+    """Grupos suficientes pra lista ROLAR, metade com descricao que nao
+    cabe numa linha do painel."""
+    from dbqm.models.group import Group
+
+    longa = (
+        "Descricao longa o bastante para transbordar a largura do painel "
+        "e provar a hierarquia do item em mais de uma quebra por largura."
+    )
+    return [
+        Group(
+            name=f"Grupo {i:02d}",
+            description=longa if i % 2 == 0 else "curta",
+            queries=["q1", "q2"],
+            join_key="ID",
+        )
+        for i in range(quantidade)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_largura_de_quebra_da_lista_de_grupos_cabe_rolando(tmp_config_dir):
+    """`_LARGURA_TEXTO` de `group_run` foi derivada assumindo o pior caso
+    (barra de rolagem presente). Prova a suposicao contra o widget montado.
+
+    Mede COM A LISTA ROLANDO e le `scrollable_content_region`, nao
+    `content_region`: a licao que custou tres rodadas em Conexoes e que
+    `content_region` NAO desconta a barra de rolagem — uma largura
+    derivada dele numa lista curta passa no teste e sai errada em uso. A
+    afirmacao e a RELACAO (texto + recuo cabe no que sobra), nao um
+    numero cravado, que envelheceria junto com o CSS sem avisar.
+    """
+    from textual.widgets import OptionList
+    from dbqm.models.group import save_groups
+    from dbqm.ui.screens.group_run import _LARGURA_TEXTO
+    from dbqm.ui.widgets.lista_hierarquica import _RECUO
+
+    save_groups(_grupos_de_descricao_longa())
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _abrir_ferramenta(pilot, app, "executar")
+        lista = app.query_one("#gr-group-list", OptionList)
+        assert lista.show_vertical_scrollbar, (
+            "o teste so prova o pior caso se a lista estiver realmente "
+            "rolando"
+        )
+        assert _LARGURA_TEXTO + len(_RECUO) <= lista.scrollable_content_region.width
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
+async def test_descricao_de_grupo_nunca_cai_na_coluna_da_identidade(
+    tmp_config_dir, tamanho
+):
+    """Nenhuma linha de descricao pode comecar na coluna da identidade.
+
+    Afirma o que a tela PINTA, na DBQMApp real, dentro da regiao util do
+    proprio `OptionList` — e nao um atributo do `Content`, que continuava
+    verde com o defeito presente (o `Content` sempre teve o recuo; quem o
+    perdia era a quebra do render).
+
+    A identidade aqui nao tem estrela de favorito como a de Consultas,
+    entao a linha da coluna 0 e checada contra os NOMES dos grupos: so
+    eles podem encostar nela. As duas larguras estao aqui porque a quebra
+    automatica cai em pontos diferentes em cada uma — uma so nao prova
+    que a largura de quebra vale nas outras.
+    """
+    from textual.widgets import OptionList
+    from dbqm.models.group import save_groups
+    from tests.ui._helpers import linhas_renderizadas
+
+    grupos = _grupos_de_descricao_longa()
+    save_groups(grupos)
+    identidades = {g.name for g in grupos}
+
+    app = DBQMApp()
+    async with app.run_test(size=tamanho) as pilot:
+        await _abrir_ferramenta(pilot, app, "executar")
+        lista = app.query_one("#gr-group-list", OptionList)
+        assert lista.show_vertical_scrollbar, (
+            "o defeito so aparece com a lista rolando (a barra rouba 2 "
+            "colunas): o teste nao partiu do estado que descreve"
+        )
+
+        regiao = lista.scrollable_content_region
+        painted = linhas_renderizadas(app)
+        linhas = [
+            painted[y][regiao.x : regiao.x + regiao.width]
+            for y in range(regiao.y, min(regiao.y + regiao.height, len(painted)))
+        ]
+
+        continuacoes = [
+            linha for linha in linhas
+            if linha.strip() and not linha.startswith(" ")
+            and linha.strip() not in identidades
+        ]
+        assert not continuacoes, (
+            "linha de descricao na coluna da identidade em %sx%s: %r"
+            % (tamanho[0], tamanho[1], continuacoes)
+        )
+
+        # E a lista realmente pintou uma descricao de mais de uma linha —
+        # senao o teste passaria por nao ter o que checar.
+        recuadas = [linha for linha in linhas if linha.startswith("  Descricao longa")]
+        assert recuadas, "nenhuma descricao longa foi pintada: %r" % linhas
+        continuacao = [linha for linha in linhas if linha.startswith("  provar a hierarquia")]
+        assert continuacao, (
+            "a descricao coube numa linha so; sem transbordo nao ha o que "
+            "provar: %r" % linhas
+        )

@@ -5490,7 +5490,15 @@ async def test_group_run_item_montado_tem_hierarquia_visivel(tmp_config_dir):
     test_widgets.py). Este e o par que faltava: a descricao vai inteira,
     sem corte artificial, e as cores sao resolvidas com o `Style.parse` do
     tema ativo — o mesmo mecanismo que o Textual usa antes de pintar.
-    Prova a FIACAO ate a opcao montada, nao a pintura de pixel."""
+    Prova a FIACAO ate a opcao montada, nao a pintura de pixel.
+
+    A descricao pode ocupar MAIS DE UMA linha: desde que a lista de grupos
+    pre-quebra o texto em linhas logicas na largura do painel (o conserto da
+    continuacao que caia na coluna da identidade), o numero de linhas
+    depende do comprimento do texto. O que este teste afirma nao e a
+    contagem, e a GRAMATICA — identidade sozinha na primeira linha, todo o
+    resto recuado — e que a quebra nao perde caractere: as linhas de
+    contexto, remontadas, sao a descricao original."""
     from textual.style import Style
     from textual.widgets import OptionList
 
@@ -5528,9 +5536,18 @@ async def test_group_run_item_montado_tem_hierarquia_visivel(tmp_config_dir):
         conteudo = group_list.get_option_at_index(0).prompt
         texto = conteudo.plain
 
-        assert texto.count(chr(10)) == 2, "nome, contagem e descricao em 3 linhas"
+        linhas = texto.split(chr(10))
+        assert linhas[0] == "grupo_faturamento", "identidade sozinha na 1a linha"
+        assert linhas[1] == "  3 consultas", "desambiguacao recuada na 2a"
+        assert len(linhas) > 2, "a descricao tem linha propria"
+        assert all(linha.startswith("  ") for linha in linhas[2:]), (
+            "toda linha de descricao paga o recuo, inclusive a continuacao: %r"
+            % linhas
+        )
         assert " | " not in texto, "a concatenacao com | saiu de cena"
-        assert descricao in texto, "a descricao vai inteira, sem truncagem"
+        assert " ".join(linha.strip() for linha in linhas[2:]) == descricao, (
+            "a descricao vai inteira: houve QUEBRA, nao corte — %r" % linhas[2:]
+        )
 
         cor_forte = Style.parse("$texto-forte").foreground
         cor_apoio = Style.parse("$texto-apoio").foreground

@@ -16,7 +16,12 @@ from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.group_result import GroupResultWidget
-from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
+from dbqm.ui.widgets.lista_hierarquica import (
+    OpcaoNomeada,
+    item_hierarquico,
+    largura_de_quebra,
+    quebrar_em_linhas,
+)
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.veredito import marcar_operacao, marcar_veredito
@@ -27,6 +32,40 @@ from dbqm.core.group_engine import GroupResult
 # ---------------------------------------------------------------------------
 # Small helper widget for group items in the list
 # ---------------------------------------------------------------------------
+
+# Largura do painel que hospeda a lista de grupos (`#gr-selection-phase`,
+# no CSS logo abaixo). Constante de modulo porque o CSS e a quebra de
+# texto precisam ser literalmente o mesmo numero — divergir e o defeito
+# de volta, so que silencioso.
+#
+# O PRECO, escrito porque e escolha e nao ganho puro: o painel de
+# selecao DEIXA DE SER ELASTICO (crescia com o terminal, 116 colunas num
+# terminal de 120; agora para em 76). Foi a troca aceita nas listas de
+# Conexoes e de Consultas e e a mesma aqui: recuo garantido na
+# continuacao exige quebra em `\n` antes do render (ver
+# `item_hierarquico`), e quebrar em `\n` exige saber a largura antes do
+# render.
+#
+# 76, e nao 42: esta lista e da FORMA de Consultas, nao da de Conexoes.
+# Conexoes usa 42 por ser a coluna esquerda de um master-detail (a lista
+# divide a tela com o formulario de edicao); aqui a selecao ocupa a tela
+# inteira e da lugar a fase de resultados quando um grupo e escolhido —
+# a mesma troca de fases de `QueryExecScreen`. E 76 e o numero medido, e
+# nao inventado: e a largura que `#gr-selection-phase` JA tinha a 80
+# colunas, o terminal mais estreito que o produto suporta (80 menos as 4
+# do `margin: 1 2 0 2`). A 80x24 nada muda de lugar; so terminais mais
+# largos pagam o preco.
+_LARGURA_PAINEL_LISTA = 76
+
+# Colunas de texto que sobram dentro desse painel. A derivacao (borda do
+# Panel, padding do corpo, padding do OptionList, barra de rolagem no
+# pior caso, recuo da linha) mora em `largura_de_quebra`, compartilhada
+# com Conexoes e Consultas; o que e desta tela e so a largura do painel
+# acima. Ver la tambem a armadilha que custou quatro rodadas:
+# `content_region` NAO desconta a barra de rolagem,
+# `scrollable_content_region` desconta.
+_LARGURA_TEXTO = largura_de_quebra(_LARGURA_PAINEL_LISTA)
+
 
 class _GroupSelected(Message):
     """Posted when a group is selected from the list."""
@@ -45,19 +84,32 @@ def _group_option(group: Any) -> OpcaoNomeada:
     concatenada com `|` que este item usava antes. A contagem de consultas
     e o que desambigua dois grupos de nome parecido (facilmente confundivel
     entre si nesta tela); a descricao e contexto livre, sem corte
-    artificial (`item_hierarquico` cuida da legibilidade dando a ela sua
-    propria linha).
+    artificial — o que ela leva e QUEBRA em linhas logicas, na largura do
+    painel, para que a continuacao continue recuada em vez de cair na
+    coluna da identidade do grupo seguinte (ver o comentario no corpo).
 
     O nome do grupo viaja no atributo `nome` da opcao, e nao no `id` — ver
     `OpcaoNomeada`: dois grupos de mesmo nome num `groups.json` editado a
     mao sao dado ambiguo, mas dado ambiguo nao pode derrubar a tela.
     """
     name = group.name
-    desc = " ".join((group.description or "").split())
     n_queries = len(group.queries)
     queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
 
-    conteudo = item_hierarquico(name, queries_label, desc)
+    # QUEBRA, nao corte: nenhum caractere se perde, a descricao so ganha
+    # `\n` a cada `_LARGURA_TEXTO` colunas. Sem isso ela chegava a
+    # `item_hierarquico` como UMA linha longa, o Textual a quebrava no
+    # render — depois do `Content` montado, quando ja nao ha como recuar
+    # a continuacao — e a segunda linha saia na coluna 0, a MESMA coluna
+    # da identidade do grupo seguinte. O olho nao distinguia uma da
+    # outra: e o defeito que abriu esta fase, aqui pela terceira vez.
+    #
+    # So a descricao passa por aqui. `queries_label` e gerado ("2
+    # consultas"), nao e texto do usuario e nao tem como transbordar 66
+    # colunas; quebra-lo seria cerimonia sem defeito que a justifique.
+    contexto = quebrar_em_linhas(group.description or "", _LARGURA_TEXTO)
+
+    conteudo = item_hierarquico(name, queries_label, contexto)
     return OpcaoNomeada(conteudo, name)
 
 
@@ -77,9 +129,18 @@ class GroupRunScreen(Vertical):
     GroupRunScreen {
         height: 1fr;
     }
+    /* Largura FIXA, e nao elastica: a lista de grupos quebra a descricao
+       em `\\n` antes do render para que toda linha de continuacao pague o
+       recuo, e para quebrar e preciso saber a largura de antemao. O
+       numero vem de `_LARGURA_PAINEL_LISTA` — a mesma constante que a
+       quebra usa, para que CSS e aritmetica nao possam divergir. O preco
+       (o painel para de crescer com o terminal) esta escrito la.
+       `#gr-results-phase` continua elastico: tabela de comparacao precisa
+       de toda a largura que houver. */
     GroupRunScreen #gr-selection-phase {
         height: 1fr;
         margin: 1 2 0 2;
+        width: __LARGURA_PAINEL_LISTA__;
     }
     GroupRunScreen #gr-results-phase {
         height: 1fr;
@@ -101,7 +162,7 @@ class GroupRunScreen(Vertical):
     GroupRunScreen #gr-group-list {
         height: 1fr;
     }
-    """
+    """.replace("__LARGURA_PAINEL_LISTA__", str(_LARGURA_PAINEL_LISTA))
 
     def __init__(
         self,
