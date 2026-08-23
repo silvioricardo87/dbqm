@@ -86,3 +86,25 @@ def texto_renderizado(app) -> str:
             texto = texto.replace(de, para)
         linhas.append(texto.replace("\xa0", " "))
     return "\n".join(linhas)
+
+
+def linhas_renderizadas(app) -> list[str]:
+    """As linhas da tela como o compositor as PINTA, com posicao.
+
+    Complementa `texto_renderizado`: aquele acha uma frase, este diz o que
+    ha em (x, y) — o que e o unico jeito de afirmar sobre MOLDURA, que nao
+    e texto. `Region.height` de um painel nao prova que a linha de baixo
+    foi desenhada: `#er-select-phase` media 24 de altura numa tela de 24
+    linhas comecando em y=1, e a borda inferior simplesmente nao existia.
+    """
+    return [
+        "".join(segmento.text for segmento in faixa)
+        for faixa in app.screen._compositor.render_strips()
+    ]
+
+
+def recorte(app, widget) -> list[str]:
+    """As linhas pintadas dentro da regiao de *widget*."""
+    linhas = linhas_renderizadas(app)
+    r = widget.region
+    return [linha[r.x : r.x + r.width] for linha in linhas[r.y : r.y + r.height]]

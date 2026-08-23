@@ -27,14 +27,26 @@ class OracleClientsScreen(Vertical):
     OracleClientsScreen {
         height: 1fr;
         padding: 1 2;
-        /* Tres secoes empilhadas de altura automatica passam de 24 linhas
-           assim que ha um client instalado: a tela rola, com o transbordo
-           visivel, em vez de cortar a ultima secao em silencio. */
+        /* Com um client instalado as tres secoes emolduradas passam
+           da dobra de um terminal de 24 linhas (41 medidas em 80x24, ver
+           `tests/design/test_transbordo_vertical.py`) e a tela rola, com o
+           transbordo visivel. A versao sem moldura desta tela media 59 e
+           NAO rolava — `Vertical` nasce com `overflow: hidden`, e a secao
+           DISPONIVEIS simplesmente nao existia para quem so tinha 24
+           linhas. E este `overflow-y` que paga a moldura. */
         overflow-y: auto;
     }
     OracleClientsScreen Panel {
         height: auto;
         margin-bottom: 1;
+    }
+    /* Uma barra de botoes e alta como um botao. Sem isto ela herda o
+       `height: 1fr` do proprio `Horizontal` e, dentro de um corpo de
+       painel de altura automatica, estica ate a altura do CONTAINER: os
+       dois paineis de baixo nasciam com 23 linhas cada (em vez de 12 e 14)
+       e empurravam a secao DISPONIVEIS para y=23, abaixo da dobra. */
+    OracleClientsScreen .oc-acoes {
+        height: auto;
     }
     OracleClientsScreen #oc-platform {
         height: auto;
@@ -108,14 +120,14 @@ class OracleClientsScreen(Vertical):
                 id="oc-installed-empty",
             )
             yield DataTable(id="oc-installed-table", cursor_type="row")
-            with Horizontal():
+            with Horizontal(classes="oc-acoes"):
                 yield Button("Usar este client", variant="primary", id="oc-use-btn")
                 yield Button("Remover selecionado", variant="error", id="oc-remove-btn")
                 yield Button("Atualizar lista", variant="default", id="oc-refresh-btn")
 
         with Panel("⬇️  DISPONIVEIS PARA DOWNLOAD", id="oc-available-panel"):
             yield DataTable(id="oc-available-table", cursor_type="row")
-            with Horizontal():
+            with Horizontal(classes="oc-acoes"):
                 yield Button("Instalar selecionado", variant="primary", id="oc-install-btn")
 
         yield Static("", id="oc-status", markup=True)

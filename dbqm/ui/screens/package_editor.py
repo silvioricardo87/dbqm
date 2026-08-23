@@ -546,10 +546,26 @@ class PackageEditorScreen(Vertical):
         height: 1fr;
         margin: 0 1;
     }
+    /* Re-derivado depois da moldura, e continua 8 — por outra conta.
+       Antes `#pe-error-panel` era o proprio Static: `max-height: 8` com
+       `padding: 0 1` valia 8 LINHAS DE TEXTO. Emoldurado, a caixa gasta 4
+       linhas de cromo (2 de borda + 1 de titulo + 1 da regua do titulo) e o
+       corpo gastaria mais 2 de padding vertical — 8 viraria 2 linhas de
+       texto, e com dois erros de compilacao aparecia so o cabecalho e o
+       primeiro. Manter as 8 linhas de texto pediria `max-height: 14`, e ai
+       `#pe-editor-area` cai de 4 para 1 linha num terminal de 24 (medido):
+       o painel de erro comeria o editor. A saida foi tirar o padding
+       VERTICAL deste corpo — lista densa de diagnostico nao pede respiro —
+       que devolve 4 linhas de texto (cabecalho + 3 erros) sem tomar nada do
+       editor. O resto nao some: `Panel` desconta o cromo do teto, o corpo
+       cabe exato e rola. Medidas em `test_transbordo_vertical.py`. */
     PackageEditorScreen #pe-error-panel {
         height: auto;
         max-height: 8;
         margin: 0 2 1 2;
+    }
+    PackageEditorScreen #pe-error-panel #panel-body {
+        padding: 0 1;
     }
     PackageEditorScreen #pe-error-text {
         height: auto;
@@ -589,6 +605,11 @@ class PackageEditorScreen(Vertical):
         # `#pe-error-text`.
         with Panel("⚠  COMPILACAO", id="pe-error-panel"):
             yield Static("", id="pe-error-text")
+        # SOLTOS de proposito, fora de qualquer painel — a excecao a §4
+        # ("nada fica solto no fundo") esta escrita por extenso no docstring
+        # de `ProgressIndicator`. Resumo: os dois pintam o estado da TELA
+        # enquanto ela nao tem conteudo, nao uma secao dela; e emoldurar o
+        # indicador o amarraria a visibilidade do painel que o hospedasse.
         yield ProgressIndicator()
         yield Static(
             "[dim]Carregando editor de packages...[/dim]",

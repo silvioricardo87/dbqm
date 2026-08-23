@@ -24,9 +24,13 @@ class ConfigPortScreen(Vertical):
     ConfigPortScreen {
         height: 1fr;
         padding: 1 2;
-        /* O formulario de importacao passa da dobra num terminal de 24
-           linhas assim que os dois campos e a barra de acoes se somam a
-           moldura: a tela rola, em vez de esconder o botao Importar. */
+        /* Medido em 80x24 (`tests/design/test_transbordo_vertical.py`):
+           quem passa da dobra e o formulario de EXPORTACAO — 29 linhas,
+           tres checkboxes mais dois pares rotulo+senha mais a barra de
+           acoes, contra 22 do de importacao e 22 da escolha de modo, que
+           cabem. Como `Panel` tem `height: auto` aqui, o painel cresce
+           alem da tela e e ESTE `overflow-y` que rola: sem ele o botao
+           Exportar ficaria fora de alcance. */
         overflow-y: auto;
     }
     ConfigPortScreen Panel {

@@ -29,8 +29,14 @@ MOLDURAS = {
 # e o que separa a declaracao da PROSA: `connections.py` explica a largura
 # do Panel citando "`border: round`" em comentario, e uma varredura sem
 # terminador acusa tres falsos positivos so nesse arquivo.
+#
+# `outline` entra junto porque DESENHA A MESMA CAIXA: `outline: round
+# $accent` pinta os quatro lados no Textual, so que por dentro da area do
+# widget em vez de fora. Uma varredura que so olhasse `border` deixaria a
+# porta aberta — trocar uma palavra passava o guarda com a caixa intacta.
 BORDA = re.compile(
-    r"\bborder(?P<lado>-top|-bottom|-left|-right)?\s*:\s*(?P<valor>[^;{}\n]*?)\s*[;}]"
+    r"\b(?:border|outline)(?P<lado>-top|-bottom|-left|-right)?"
+    r"\s*:\s*(?P<valor>[^;{}\n]*?)\s*[;}]"
 )
 ABRE_REGRA = re.compile(r"^\s*(?P<seletor>[^{}]+?)\s*\{")
 
@@ -38,15 +44,25 @@ ABRE_REGRA = re.compile(r"^\s*(?P<seletor>[^{}]+?)\s*\{")
 # por arquivo de proposito: uma caixa de secao nova no mesmo arquivo
 # continua sendo reprovada.
 ISENTOS = {
-    # Contorno de UM controle de entrada, nao moldura de secao. O `Select`
-    # de conexao vive DENTRO do Panel "PARAMETROS"; a borda e a afordancia
-    # do campo, e a troca para `$identidade` e o sinal de "conexao
-    # escolhida" — nao ha secao para virar Panel aqui.
-    ("dbqm/ui/screens/adhoc.py", "AdhocScreen #adhoc-conn-select"),
-    ("dbqm/ui/screens/adhoc.py", "AdhocScreen #adhoc-conn-select.--conn-selected"),
-    # Idem: `Checkbox` de opt-in do DBMS_OUTPUT, um controle dentro do
-    # mesmo Panel.
-    ("dbqm/ui/screens/adhoc.py", "AdhocScreen #adhoc-dbms-toggle"),
+    # RECOLORE a afordancia que o widget ja desenha sozinho — nao soma
+    # caixa nenhuma. O `SelectCurrent` do Textual nasce com `border: tall`;
+    # aqui so a COR muda, para `$identidade`, como sinal de "conexao
+    # escolhida". Duas coisas fazem esta isencao diferente das que estavam
+    # aqui antes e nao eram verdade:
+    #   - a geometria nao muda (a caixa ja existia, e do proprio controle);
+    #   - `tall` nao e `round`: o vocabulario da moldura de secao continua
+    #     exclusivo de Panel/Dialog.
+    # A redacao anterior isentava `#adhoc-conn-select` alegando que "a borda
+    # e a afordancia do campo". Nao era: `Panel #panel-body Select { border:
+    # none }` tem especificidade maior e apagava aquela regra — a isencao
+    # protegia CSS morto. E `#adhoc-dbms-toggle` desenhava `border: round
+    # $primary`, byte a byte o mesmo que `Panel:focus-within`: um checkbox
+    # parado com cara de painel focado. Os dois sairam do CSS; sobrou este,
+    # que e real.
+    (
+        "dbqm/ui/screens/adhoc.py",
+        "AdhocScreen #adhoc-conn-select.--conn-selected SelectCurrent",
+    ),
 }
 
 # Limites conhecidos, escolhidos e nao descuidados (mesma disciplina da
@@ -56,7 +72,13 @@ ISENTOS = {
 #   - quatro `border-<lado>` somados desenham uma caixa e passam, porque
 #     UM lado e regua de separacao (o proprio `Panel` usa `border-bottom`
 #     no titulo, a `ActionBar` no topo e a `TemplatesSidebar` na lateral)
-#     e distinguir os dois casos exigiria interpretar o bloco inteiro.
+#     e distinguir os dois casos exigiria interpretar o bloco inteiro;
+#   - a varredura e LINHA A LINHA, entao uma declaracao quebrada em duas
+#     (`border:` numa linha, `round $accent;` na seguinte) escapa — e CSS
+#     valido, e o Textual desenha a caixa. Nao esta fechado porque juntar
+#     linhas antes de varrer exigiria distinguir quebra de declaracao de
+#     fim de bloco sem um parser de CSS, e o guarda passaria a depender de
+#     um. Se aparecer um caso real, o caminho e o parser, nao mais regex.
 
 
 def _rel(arquivo: Path) -> str:
@@ -109,3 +131,17 @@ def test_sem_borda_crua_fora_de_componente_de_moldura():
     assert not fora, "caixa desenhada fora de Panel/Dialog:\n" + "\n".join(
         f"  {rel}:{n}  [{sel}]  {decl}" for rel, n, sel, decl in fora
     )
+
+
+def test_o_guarda_ve_outline_como_caixa():
+    """`outline: round $accent` desenha os quatro lados — e nao e `border`.
+
+    Escrito porque a primeira redacao so varria `border`: renderizado, um
+    `outline: round $accent;` pinta laterais e base exatamente como a
+    moldura, e trocar uma palavra fazia uma caixa nova passar pelo guarda.
+    Os `outline-<lado>` continuam sendo regua, como os `border-<lado>`.
+    """
+    caixa = BORDA.search("    #qualquer-tela { outline: round $accent; }")
+    assert caixa is not None and caixa.group("lado") is None
+    regua = BORDA.search("    #qualquer-tela { outline-bottom: solid $borda; }")
+    assert regua is not None and regua.group("lado") == "-bottom"

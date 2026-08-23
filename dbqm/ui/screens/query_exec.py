@@ -159,7 +159,12 @@ class QueryExecScreen(Vertical):
         selection.mount(
             Horizontal(
                 Input(
-                    placeholder="Filtrar por nome ou descricao...",
+                    # Sem as reticencias: com a moldura, este `1fr` mede 35
+                    # colunas em 80 (eram 43) e o texto saia cortado como
+                    # "...descricao..", que parece defeito. 29 caracteres
+                    # cabem inteiros na largura mais estreita que o
+                    # produto suporta.
+                    placeholder="Filtrar por nome ou descricao",
                     id="qe-filter-text",
                 ),
                 NavSelect(conn_options, prompt="Todas as conexoes", id="qe-filter-conn"),

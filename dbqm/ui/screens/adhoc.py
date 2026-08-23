@@ -62,18 +62,21 @@ class AdhocScreen(Vertical):
     }
     AdhocScreen #adhoc-conn-select {
         width: 100%;
-        border: round $borda;
     }
-    AdhocScreen #adhoc-conn-select.--conn-selected {
-        border: round $identidade;
+    /* "Conexao escolhida" RECOLORE a afordancia que o proprio Select ja
+       desenha (o bloco `tall` do `SelectCurrent`, ▊▔▁▎), em vez de somar
+       uma caixa. A redacao anterior punha `border: round $identidade` no
+       Select: `round` e o vocabulario da MOLDURA (Panel/Dialog), e o
+       controle escolhido passava a parecer um painel — alem de perder duas
+       colunas e quebrar o nome da conexao em duas linhas. Aqui a geometria
+       nao muda; muda a cor. */
+    AdhocScreen #adhoc-conn-select.--conn-selected SelectCurrent {
+        border: tall $identidade;
     }
     AdhocScreen #adhoc-dbms-toggle {
         width: 100%;
         height: auto;
         margin: 1 0 0 0;
-        padding: 0 1;
-        border: round $primary;
-        background: $surface;
         content-align: left middle;
     }
     AdhocScreen #adhoc-editor-panel {
