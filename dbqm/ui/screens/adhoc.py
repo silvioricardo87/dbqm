@@ -93,9 +93,15 @@ class AdhocScreen(Vertical):
            a barra comeca em x=34 e `Executar` comecava em x=35 —
            centralizar gastava uma coluna de recuo numa barra que ja nao
            cabia. O transbordo em si e anterior a esta fase e continua:
-           os quatro botoes somam 81 colunas contra as 44 da barra, e
-           `Gerar SQL` so aparece inteiro a partir de 100 colunas de
-           terminal, `Salvar como consulta` a partir de 120. */
+           os quatro botoes somam 81 colunas contra as 44 da barra.
+           Remedido uma coluna por vez na DBQMApp real (aba Coleta, 24
+           linhas, uma conexao salva), porque os numeros da primeira
+           redacao — 100 e 120 — nao se reproduziram: a CAIXA de `Gerar
+           SQL` so fecha inteira a partir de 92 colunas (o rotulo ja
+           aparece completo em 90), e a de `Salvar como consulta` a partir
+           de 115, com o rotulo completo em 116. Os dois criterios estao
+           escritos porque divergem: a caixa e o que o olho ve como botao,
+           o rotulo e o que se consegue ler. */
     }
     AdhocScreen #adhoc-btn-bar Button {
         /* Margem so a direita: a esquerda e o alinhamento com o editor. */

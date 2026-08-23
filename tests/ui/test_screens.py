@@ -451,37 +451,11 @@ async def test_rotulo_de_pasta_mostra_caminho_inteiro_com_duas_familias(
         ]
 
 
-def test_listview_saiu_do_vocabulario():
-    """ListView fazia o mesmo que OptionList em dois lugares.
-
-    Varre por QUALQUER mencao a `ListView`, nao so por chamadas
-    `ListView(`: a versao anterior deste guard so via o construtor, e por
-    isso passou verde por cima de tres residuos que nao constroem nada —
-    um seletor CSS `Panel #panel-body ListView` casando com nada, um
-    `isinstance(w, (..., ListView, ...))` cujo ramo nao pode disparar, e
-    prosa de docstring narrando o widget como se ainda estivesse em uso.
-    Residuo assim custa exatamente o que um guard de vocabulario existe
-    pra evitar: o proximo leitor procura o ListView que o codigo promete e
-    nao acha.
-
-    A raiz e ancorada em `__file__`, nao em `Path("dbqm/ui")` relativo ao
-    cwd — mesmo idioma de `tests/design/_varredura.py`. Rodado de outro
-    diretorio, o caminho relativo nao existe, `rglob` devolve vazio e o
-    guard passa sem ter lido uma linha: exatamente a falha silenciosa que
-    ele deveria denunciar.
-    """
-    from pathlib import Path
-
-    raiz = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
-    fontes = sorted(raiz.rglob("*.py"))
-    assert fontes, "varredura nao achou fonte nenhuma em %s" % raiz
-
-    achados = [
-        p.as_posix()
-        for p in fontes
-        if "ListView" in p.read_text(encoding="utf-8")
-    ]
-    assert not achados, "ListView ainda mencionado em: %s" % achados
+# O guarda `test_listview_saiu_do_vocabulario` mora agora em
+# `tests/design/test_inventario_layout.py`, junto com os outros guardas
+# de vocabulario da gramatica de layout. Aqui ele ficava escondido no
+# meio de milhares de linhas de teste de tela — longe de quem vai
+# quebrar a regra.
 
 
 # ======================================================================

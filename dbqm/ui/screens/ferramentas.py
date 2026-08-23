@@ -71,9 +71,19 @@ class FerramentasScreen(Vertical):
         height: 1fr;
         margin: 1 2;
     }
-    /* `auto`: a lista mede as cinco entradas e para. Com `1fr` ela
-       esticaria ate o fim do painel e a moldura viraria uma caixa quase
-       vazia com o conteudo no topo. */
+    /* `auto`: a lista mede as cinco entradas e para.
+       Medido, e nao suposto: com `1fr` a REGIAO da lista cresce (altura
+       10 -> 28 a 120x40), mas o pintado fica byte a byte igual, porque
+       `#ferr-menu` ja e `height: 1fr` e as linhas extras sao vazias sobre
+       o mesmo fundo. Apagar a regra tambem nao muda nada: `auto` e o
+       padrao do OptionList. A redacao anterior dizia que com `1fr` "a
+       moldura viraria uma caixa quase vazia com o conteudo no topo" — o
+       painel ja e essa caixa, com ou sem a regra, e a frase descrevia
+       `config_port.py`, onde o Panel e `height: auto` e a mesma troca
+       MUDA a tela.
+       A regra fica por ser a unica coisa que prende a altura da lista ao
+       conteudo dela: no dia em que algo for montado abaixo da lista
+       dentro deste painel, `1fr` engoliria o espaco e `auto` nao. */
     FerramentasScreen #ferr-menu-list {
         height: auto;
     }

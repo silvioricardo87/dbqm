@@ -18,6 +18,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Dark/Light themes** — "Plano" design system (dark default, light variant), switchable in settings; shared design tokens (`dbqm/design/tokens.py`) drive the TUI, CLI output, and HTML reports so all three stay visually consistent
 - **Design tokens** — 15 semantic color tokens (surfaces, text, borda, identidade, and a veredito axis for OK/DIFF/AUSENTE) shared across the TUI, Rich-based CLI output, and HTML report CSS; WCAG contrast-checked against every surface it declares as valid (`VALIDO_SOBRE` in `dbqm/design/tokens.py`). Known gap outside that check: Textual's built-in `$text-muted` and Rich's `[dim]` modifier sit outside the token layer and are not contrast-checked
 - **Shared components** — `Dialog` (floating-layer chrome), `EmptyState` (mandatory what/why/first-action for empty lists), `Veredito`/`StatusOperacao` (match/diff/absent + op-result markup), and `Esqueleto` (loading skeleton + distinct disabled/read-only states) are the single implementation for their respective jobs across the TUI; zero literal colors remain outside the token layer, and a component-inventory test locks all four against a second hand-rolled copy reappearing
+- **Layout grammar** — Structure is decided once for the whole TUI, not per screen: `Panel` is the only section frame (a screen taller than the terminal scrolls instead of truncating in silence); navigation follows cardinality (tabs → `Select` with counts → `OptionList` → `DataTable`, with `ListView` out of the vocabulary); a list item is a 2–3 line hierarchy (identity / disambiguation / context) instead of a concatenated string; a result table pins its key column, stripes its rows and scrolls sideways rather than truncating; and actions are anchored to the panel they operate, with destructive ones set apart. Six repo-wide guards in `tests/design/test_inventario_layout.py` enforce it — each one verified by breaking the rule it protects, and each one documenting in code what it cannot see
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
 - **Data export** — Export results to CSV, JSON, TXT, PNG, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
@@ -257,14 +258,15 @@ dbqm/
 │   │   ├── widgets/               # Reusable UI components
 │   │   │   ├── templates_sidebar.py  # Collapsible templates sidebar with keyboard nav
 │   │   │   ├── breadcrumb.py      # Navigation breadcrumb
-│   │   │   ├── result_table.py    # DataTable with pagination + vertical view
-│   │   │   ├── query_list.py      # Query ListView with search/filter
+│   │   │   ├── result_table.py    # DataTable with pinned key column, zebra, pagination + record mode
+│   │   │   ├── query_list.py      # Query OptionList with search/filter
 │   │   │   ├── group_result.py    # Flat/pivoted comparison display
 │   │   │   ├── sql_viewer.py      # Syntax-highlighted SQL display
 │   │   │   ├── action_bar.py      # Contextual keyboard shortcuts bar
 │   │   │   ├── status_bar.py      # Connection status + counters
 │   │   │   ├── progress.py        # Loading indicator
-│   │   │   ├── panel.py           # Bordered panel consuming $painel/$borda tokens
+│   │   │   ├── panel.py           # Bordered panel consuming $painel/$borda tokens — the only section frame
+│   │   │   ├── lista_hierarquica.py  # item_hierarquico — 2-3 line list item (identity/disambiguation/context)
 │   │   │   ├── dialog.py          # Dialog chrome for floating layers (replaces 29 hand-copied frames)
 │   │   │   ├── empty_state.py     # EmptyState — mandatory "what/why/first action" for empty lists
 │   │   │   ├── veredito.py        # Veredito/StatusOperacao markup (match/diff/absent, op result color)
@@ -306,9 +308,10 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (846 tests)
+└── tests/                         # Test suite (931 tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
+    ├── design/                    # Design-system guards (color tokens, contrast, layout grammar)
     └── ui/                        # TUI widget/screen/modal tests
 ```
 

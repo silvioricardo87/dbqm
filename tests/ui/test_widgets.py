@@ -1132,6 +1132,87 @@ async def test_group_result_filter_status_clear(sample_group_result):
 
 
 @pytest.mark.asyncio
+async def test_group_result_chave_permanece_renderizada_ao_rolar():
+    """A coluna "Chave" da tabela de comparacao nao sai de vista ao rolar.
+
+    Mesma regra do `ResultTable` (secao 6 da gramatica) aplicada onde ela
+    mais importa: a tabela de comparacao de grupo tem UMA coluna por
+    consulta do grupo, entao a largura cresce com o grupo. Sem a chave
+    fixa, rolar para a direita apaga o valor que diz de qual registro sao
+    as celulas restantes — e comparar e a unica coisa que esta tela faz.
+
+    Afirma o RENDERIZADO, nao `fixed_columns`: o atributo pode continuar em
+    1 e a fixacao parar de pintar (upgrade do Textual, CSS novo). O
+    cenario e montado largo de proposito e a rolagem e verificada
+    (`scroll_x > 0`) antes de a asercao final valer alguma coisa.
+    """
+    from textual.widgets import DataTable
+
+    nomes = [f"CONSULTA_LONGA_{i:02d}" for i in range(1, 6)] + ["FIM_DA_TABELA"]
+    resultados = {
+        nome: QueryResult(
+            query_name=nome, connection_name="conn",
+            columns=["id", "status"], rows=[[1, "ativa"]],
+            row_count=1, elapsed=0.1,
+        )
+        for nome in nomes
+    }
+    comparacao = ComparisonResult(
+        column="status",
+        rows=[
+            ComparisonRow(
+                key_value="REG-0001",
+                values={
+                    nome: (
+                        "valor-fim"
+                        if nome == "FIM_DA_TABELA"
+                        else "valor-comprido-%s" % nome[-2:]
+                    )
+                    for nome in nomes
+                },
+                status="OK",
+            )
+        ],
+        total_keys=1, equal_count=1, diff_count=0, absent_count=0,
+        normalized_count=0,
+    )
+    largo = GroupResult(
+        group_name="grupo_largo",
+        query_results=resultados,
+        comparisons=[comparacao],
+        all_match=True,
+        summary_lines=["Coluna: status"],
+    )
+
+    app = GroupResultTestApp()
+    async with app.run_test(size=(40, 15)) as pilot:
+        w = app.query_one(GroupResultWidget)
+        w.load_result(largo)
+        await pilot.pause()
+        tabela = w.query_one(DataTable)
+        tabela.focus()
+        await pilot.pause()
+
+        # O cenario so prova alguma coisa se ele de fato nao couber.
+        antes = app.export_screenshot()
+        assert "Chave" in antes
+        assert "FIM_DA_TABELA" not in antes
+
+        for _ in range(60):
+            await pilot.press("right")
+        await pilot.pause()
+        assert tabela.scroll_x > 0
+
+        depois = app.export_screenshot()
+        assert "Chave" in depois
+        assert "REG-0001" in depois
+        # O nome da ultima coluna e curto de proposito: rolando ate o fim,
+        # uma coluna de cabecalho longo apareceria recortada ("ULTA_...") e
+        # a asercao falharia por largura, nao por fixacao.
+        assert "FIM_DA_TABELA" in depois
+
+
+@pytest.mark.asyncio
 async def test_group_result_summary_shows(sample_group_result):
     """Summary section should contain comparison stats."""
     app = GroupResultTestApp()

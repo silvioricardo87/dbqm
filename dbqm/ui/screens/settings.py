@@ -543,10 +543,13 @@ class SettingsScreen(Vertical):
     def voltar_ao_inicio(self) -> None:
         """Volta da tela hospedada para os paineis; nao faz nada se ja estava la.
 
-        Nao devolve mais um "o `Esc` foi consumido aqui": os tres chamadores
-        (`DBQMApp.action_go_back`, `ConfigPortScreen._go_back_to_settings` e
-        o clique em Voltar da barra de acoes) descartavam o bool, e nenhum
-        deles tem uma segunda rota de `Esc` para tentar caso esta nao pegue.
+        Nao devolve mais um "o `Esc` foi consumido aqui": os dois chamadores
+        (`DBQMApp.action_go_back` e o `Voltar` da barra de acoes, que chega
+        por `on_action_selected`) descartavam o bool, e nenhum deles tem uma
+        segunda rota de `Esc` para tentar caso esta nao pegue. Eram tres ate
+        `ConfigPortScreen._go_back_to_settings` ser removido na tarefa que
+        ressuscitou as rotas mortas; um terceiro chamador citado e que nao
+        existe manda a proxima pessoa procurar codigo que nao ha.
         Documentar um valor como load-bearing e ninguem carrega nada com ele
         e a mesma classe de mentira silenciosa que o resto desta fase
         vem desfazendo.

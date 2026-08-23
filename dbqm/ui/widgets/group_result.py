@@ -164,6 +164,22 @@ class GroupResultWidget(Vertical, can_focus=False):
             if not self._hide_status:
                 table.add_column("Status", key="status")
 
+            # Chave fixa (secao 6 da gramatica): a coluna "Chave" e a
+            # identidade do registro comparado, e as colunas seguintes sao
+            # uma por consulta do grupo — quantas o grupo tiver. Ao rolar
+            # para a direita sem fixar, some justamente o valor que diz DE
+            # QUAL registro sao as celulas que restaram na tela. Fixada
+            # depois de montar as colunas porque so aqui a contagem final e
+            # conhecida; com uma coluna so, fixar nao protege nada e rouba
+            # largura (mesma regra do `result_table.py`).
+            #
+            # Zebra NAO entra aqui, e a ausencia e deliberada: estas
+            # celulas de status sao pintadas por `_status_cell`, e o
+            # blend do zebra acontece em runtime, invisivel ao teste de
+            # contraste da fase 1 — o contraste do veredito deixaria de
+            # ser o valor calculado e ninguem seria avisado.
+            table.fixed_columns = 1 if len(table.columns) > 1 else 0
+
             rows = comp.rows
             if self._status_filter and not self._hide_status:
                 rows = [r for r in rows if r.status in self._status_filter]
@@ -217,6 +233,10 @@ class GroupResultWidget(Vertical, can_focus=False):
                 table.add_column(str(col), key=f"__col_{col}__")
             if not self._hide_status:
                 table.add_column("Status", key="__status__")
+
+            # Chave fixa, mesma razao do modo plano: aqui a identidade da
+            # linha e o nome da consulta, na coluna "Consulta".
+            table.fixed_columns = 1 if len(table.columns) > 1 else 0
 
             # One row per query
             for qn in query_names:

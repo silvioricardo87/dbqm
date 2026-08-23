@@ -197,7 +197,15 @@ class ConnectionsScreen(Vertical):
        (`#conn-form-buttons Button`) vale 1 id + 1 tipo e o `margin`
        curto dela zera o `margin-left`. Com um id so esta regra PERDIA e
        virava CSS morto — visto no renderizado a 120 colunas, onde o
-       espaco antes de Excluir continuava sendo de uma coluna. */
+       espaco antes de Excluir continuava sendo de uma coluna.
+
+       O que as tres colunas custam, medido na DBQMApp real (aba Conexoes,
+       30 linhas, uma largura por vez): a caixa do `Excluir` so fica
+       inteira a partir de 97 colunas com esta margem, contra 94 sem ela;
+       o rotulo, 94 contra 93. Nenhum acesso se perde — `X Excluir`
+       continua na ActionBar, e a 80x24 o botao ja estava fora de vista
+       antes desta fase. Fica escrito porque a separacao da acao
+       destrutiva e uma escolha com preco, nao um ganho puro. */
     ConnectionsScreen #conn-form-buttons #conn-btn-delete {
         margin-left: 4;
     }

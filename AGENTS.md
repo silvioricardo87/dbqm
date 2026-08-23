@@ -65,8 +65,8 @@ dbqm/
     ├── theme.py  utils.py
     ├── screens/       # One Vertical-widget screen per feature (adhoc, query_exec,
     │                  #   group_exec, browser, ddl, connections, history, settings, ...)
-    ├── widgets/       # Reusable components (sidebar, result_table, action_bar,
-    │                  #   breadcrumb, sql_viewer, status_bar, progress, ...)
+    ├── widgets/       # Reusable components (panel, sidebar, result_table, action_bar,
+    │                  #   lista_hierarquica, sql_viewer, status_bar, progress, ...)
     └── modals/        # Dialog screens (confirm, param_input, export_picker,
                        #   connection_form, error, help, ...)
 ```
@@ -114,8 +114,10 @@ Conventional Commits: `<type>(<scope>): <description>`
 - Framework: **pytest + pytest-asyncio** (`pytest.ini_options` in `pyproject.toml`;
   `testpaths=["tests"]`, `pythonpath=["."]`)
 - Layout mirrors `dbqm/`: `tests/core/`, `tests/models/`, `tests/ui/`, `tests/api/`,
-  plus `tests/test_cli.py` and shared fixtures in `tests/conftest.py`
-- Run: `python -m pytest tests/ -x -q` (currently **846** tests)
+  plus `tests/design/` (the design-system guards), `tests/test_cli.py` and shared
+  fixtures in `tests/conftest.py`
+- Run: `python -m pytest tests/ -x -q` (currently **931** tests, of which
+  35 in `tests/design/` are the color and layout guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory
 - Prefer pure, directly-testable functions in `core/` (e.g. `classify_sql`,
@@ -175,6 +177,108 @@ Conventional Commits: `<type>(<scope>): <description>`
 ### UI conventions
 - Interactive UI labels **intentionally omit accents** (e.g. `Historico`,
   `conexao`, `Nao`). This is deliberate — **do not "fix" them**.
+
+## Layout grammar (read before touching `dbqm/ui`)
+
+The TUI has a **grammar**, not a per-screen style. Phase 1 fixed color (15
+semantic tokens); phase 2 fixed **structure**. Four questions each screen used
+to answer on its own are now answered once, and each answer has a guard in
+`tests/design/test_inventario_layout.py`.
+
+**1. What is a section?** `Panel` is the *only* section frame (`Dialog` is its
+modal twin). Nothing floats loose on the background, and no screen draws its own
+box. A screen taller than the viewport **scrolls** — it never truncates in
+silence, which is how the Oracle Instant Client section stayed invisible for
+weeks (`tests/design/test_transbordo_vertical.py`).
+
+**2. How do you navigate a set?** By **cardinality**, not by taste: up to ~7
+fixed items → tabs; a variable number → `Select` with counts; choosable things →
+`OptionList` with a 2–3 line hierarchy; tabular data → `DataTable`. `ListView`
+is out of the vocabulary — it did the same job as `OptionList`.
+A list item is **never a concatenated string**: identity (bold, alone),
+disambiguation (indented, `$texto-apoio`), context (indented,
+`$texto-desabilitado`, optional). Build it with `item_hierarquico`
+(`dbqm/ui/widgets/lista_hierarquica.py`).
+
+**3. How dense is a row?** A **result** table never truncates to fit: key column
+pinned (`fixed_columns=1` when there is more than one column), zebra stripes,
+horizontal scrolling, and the record mode (`V`) that already existed. The reason
+is the domain — dbqm exists to *compare*, and a row whose key scrolled out of
+sight compares nothing.
+
+**4. Where do actions live?** Anchored to the panel they operate, left-aligned
+with its content; destructive actions separated from the rest. Centring a
+cluster only makes sense when the cluster **is** the screen — a dialog. And a
+**button is an action, never navigation or a menu**.
+
+### The guards, and how far each one reaches
+
+| Guard | Rejects | Enforcement |
+|---|---|---|
+| `sem_borda_crua` | `border:`/`outline:` outside `Panel`/`Dialog` | mechanical, 1 written exemption |
+| `sem_listview` | any mention of `ListView` in `dbqm/ui` | mechanical, no exemptions |
+| `sem_cluster_centralizado` | layout centring outside a dialog | mechanical, 5 written exemptions |
+| `rotulo_nao_achatado` | list item built as one flat string | mechanical, 1 written exemption |
+| `tabela_com_chave_fixa` | result table (columns built from data) without `fixed_columns` | mechanical, no exemptions |
+| `botao_nao_navega` | button handler that switches tab or opens a tool | mechanical, **4 written exemptions** |
+
+`botao_nao_navega` deserves a note, because it is the one whose exemption list is
+the interesting part. `EmptyState` requires `acao_rotulo`/`acao_id` — the four
+parameters are mandatory so that no empty list is ever a dead end. When the
+honest way out of an empty screen lives in another tab, honouring that contract
+means navigating. **Four** call-to-actions do it today (`history`, `query_exec`,
+`group_run`, `templates_sidebar`); they are listed by button id in
+`NAVEGACAO_ISENTA` with the reason. Making the action optional would touch 14
+call sites and is a flow change, out of scope for the layout phase. The guard's
+job until then is the **ceiling**: the fifth navigating button fails the suite,
+and a stale exemption (a CTA that stops navigating) also fails it.
+
+Every textual/AST scan **names its own limits in the code**, and those comments
+are load-bearing: a false reason in a comment is worse than no comment, because
+the next reader takes it for a verified fact. In short, the scans cannot see
+markup built at runtime, values assembled in another layer, CSS declarations
+split across two lines, or anything outside `dbqm/ui`. Read the limit block next
+to each guard before concluding "the guard is green, so the rule holds".
+
+### Two lessons this phase paid for
+
+- **Assert what renders, not the attribute.** `fixed_columns == 1` can stay set
+  while the pinned column stops painting; `_actions` was populated on every
+  screen while the ActionBar painted on none (the StatusBar covered it). Tests
+  that read attributes stayed green through both. Drive the app, read the
+  rendered strips or the exported screenshot (`tests/ui/_helpers.py`:
+  `texto_renderizado`, `linhas_renderizadas`, `recorte`).
+- **Measure in the state where the defect happens.** A list description was
+  sized against `content_region.width` measured on a list too short to scroll;
+  the real list has a scrollbar and the fix was two columns off. A screen test
+  gave `SettingsScreen` 24 rows when the real app gives it 20. Mount the real
+  `DBQMApp`, at the real size, with the data that triggers the bug.
+
+### Known debt, recorded on purpose (not fixed here)
+
+- On startup (Coleta tab) the ActionBar paints **Conexoes'** actions. Pre-existing
+  mis-wiring, identical at `384ea25`; making the ActionBar render finally exposed it.
+- Every app mount fires a spurious `Subdiretorios por tipo: ativado` toast:
+  `Settings.create_export_subdirs` defaults to `True` and `Switch` to `False`, so
+  the assignment in `on_mount` emits `Switch.Changed`.
+- The two Oracle Instant Client tests in `tests/core/test_db_manager.py` read the
+  **live user config** instead of `tmp_config_dir` — any user who actually sets
+  `oracle_client_dir` breaks them on their own machine.
+- `Breadcrumb` (`dbqm/ui/widgets/breadcrumb.py`) is now entirely unused, and
+  `package_editor.py:703-707` still queries for it (a fourth dead query).
+- The connection checklist in `group_exec` is the one flat list label left.
+  `SelectionList` paints **only the first line** of a prompt (measured), so
+  applying `item_hierarquico` there would delete the target instead of
+  clarifying it; the real fix is a different widget.
+- `tests/ui/test_app.py::test_f_keys_switch_tabs` and
+  `::test_gerenciador_de_clients_abre_num_painel_com_titulo` failed once in a
+  full run that took 293s (vs 214s and 234s for the runs on either side of it,
+  both green) and passed in isolation on the same tree. Timing-sensitive under
+  load — worth pinning down before it fails in CI and gets blamed on a change.
+- Fixed-schema tables (`history`, `query_manage`, `template_manage`, …) are out
+  of `tabela_com_chave_fixa` by design. The spec's line about giving `history`
+  a pinned key and zebra was never implemented; zebra there would blend the
+  `marcar_veredito` cells at runtime, invisible to the contrast guard.
 
 ## Git Policy
 
