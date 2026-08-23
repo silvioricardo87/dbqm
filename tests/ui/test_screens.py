@@ -471,7 +471,7 @@ def test_format_description_helper():
     # A description past the old 60-char ceiling but that still fits inside
     # the two-line budget survives whole, with no ellipsis: the limit is
     # LINES, not characters.
-    media = "Producao prod-day, somente leitura via dblink, ambiente compartilhado"
+    media = "Producao - ambiente critico, somente leitura via VPN dedicada"
     assert len(media) > 60
     out_media = _format_description(media)
     assert "..." not in out_media
@@ -570,6 +570,41 @@ async def test_lista_de_conexoes_montada_distingue_identidade_de_desambiguacao(
         assert cor_no_offset(conteudo, pos_identidade) == cor_forte
         assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
         assert cor_no_offset(conteudo, pos_contexto) == cor_desabilitado
+
+
+@pytest.mark.asyncio
+async def test_descricao_largura_cabe_mesmo_com_a_lista_rolando(tmp_config_dir):
+    """`_DESCRICAO_LARGURA` foi derivada assumindo o pior caso (barra de
+    rolagem do OptionList presente). Este teste prova a suposicao contra o
+    widget montado de verdade, nao so no papel: numa lista longa o
+    suficiente pra rolar, a largura de texto assumida (mais o recuo que
+    toda linha paga) nao pode passar da largura real disponivel — foi
+    exatamente essa conta errada (34 assumidos contra 34 reais DEPOIS do
+    recuo, ou seja 36 precisando caber em 34) que fez uma linha de
+    descricao ("...ambiente") sair sem recuo, alinhada com a coluna da
+    identidade da entrada seguinte."""
+    from textual.widgets import OptionList
+    from dbqm.models.connection import Connection, save_connections
+    from dbqm.ui.screens.connections import _DESCRICAO_LARGURA
+    from dbqm.ui.widgets.lista_hierarquica import _RECUO
+
+    conexoes = [
+        Connection(name=f"CONN{i}", db_type="oracle", user="u", password="p",
+                   mode="tns", tns_name=f"TNS{i}")
+        for i in range(20)
+    ]
+    save_connections(conexoes)
+
+    app = ConnectionsTestApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        lista = app.query_one("#conn-list", OptionList)
+        assert lista.show_vertical_scrollbar, (
+            "o teste so prova o pior caso se a lista estiver realmente "
+            "rolando"
+        )
+        largura_real = lista.scrollable_content_region.width
+        assert _DESCRICAO_LARGURA + len(_RECUO) <= largura_real
 
 
 @pytest.mark.asyncio

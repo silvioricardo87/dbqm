@@ -69,6 +69,22 @@ _BORDA_PANEL = 2
 _PADDING_PANEL_BODY = 2
 _PADDING_OPTION_LIST = 2
 
+# A barra de rolagem vertical do OptionList - 2 colunas, o padrao do
+# proprio Textual (Widget().styles.scrollbar_size_vertical == 2; nada em
+# #conn-list sobrescreve scrollbar-size-vertical, entao vale o padrao).
+# So aparece quando a lista transborda verticalmente, o que depende de
+# quantas conexoes existem - fora do controle desta tela. Descontada
+# incondicionalmente: o pior caso (lista rolavel) e o caso comum em uso
+# real, e nao descontar significa que a largura calculada so bate pra
+# uma lista curta demais pra rolar (foi assim que a linha "ambiente"
+# saiu sem recuo na entrada real que expos este defeito). Medido nos
+# dois estados: com poucas conexoes (sem rolagem),
+# OptionList.content_region.width fica em 36 (bate com a conta sem este
+# desconto); com conexoes suficientes pra rolar,
+# OptionList.scrollable_content_region.width cai pra 34 - exatamente
+# estes 2 a menos.
+_SCROLLBAR_VERTICAL = 2
+
 # O recuo que `item_hierarquico` (dbqm/ui/widgets/lista_hierarquica.py)
 # antepoe as linhas de desambiguacao/contexto — mesma constante, nao um
 # "2" solto aqui, pra nao poder divergir dela.
@@ -76,12 +92,14 @@ _RECUO_CONTEXTO = len(_RECUO)
 
 # Largura de fato disponivel pro TEXTO da descricao: o que sobra do
 # painel depois da borda do Panel, do padding do corpo, do padding do
-# OptionList e do recuo que a propria linha de contexto consome.
+# OptionList, da barra de rolagem (pior caso) e do recuo que a propria
+# linha de contexto consome.
 _DESCRICAO_LARGURA = (
     _LARGURA_PAINEL_LISTA
     - _BORDA_PANEL
     - _PADDING_PANEL_BODY
     - _PADDING_OPTION_LIST
+    - _SCROLLBAR_VERTICAL
     - _RECUO_CONTEXTO
 )
 _DESCRICAO_MAX_LINHAS = 2
