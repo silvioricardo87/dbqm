@@ -176,6 +176,14 @@ class ResultTable(Vertical, can_focus=False):
             self._vertical_view.update("(sem resultados)")
             return
         str_columns = [str(c) for c in columns]
+        # A largura vem do texto ORIGINAL (identificador de coluna de
+        # verdade) - nao do texto escapado. Escapar DEPOIS de formatar a
+        # largura, como a primeira versao fazia, acrescenta barras a um
+        # rotulo ja alinhado e so desalinha as colunas cujo nome tem
+        # colchete (improvavel em identificador Oracle, mas a ordem errada
+        # e so uma linha). Aqui a ordem inverte: escapa primeiro, alinha o
+        # resultado escapado; a largura continua ancorada no nome real da
+        # coluna, entao o caso comum (sem colchete) fica identico a antes.
         max_col_len = max(len(c) for c in str_columns)
         blocks: list[str] = []
         base = self.current_page * self.page_size
@@ -189,7 +197,7 @@ class ResultTable(Vertical, can_focus=False):
             lines = [f"[bold $texto-forte]{cabecalho}[/]"]
             for col, val in zip(str_columns, row):
                 display_val = str(val) if val is not None else ""
-                rotulo = escape_markup(f"{col:>{max_col_len}}")
+                rotulo = f"{escape_markup(col):>{max_col_len}}"
                 valor = escape_markup(display_val)
                 lines.append(f"  [$texto-apoio]{rotulo}[/]: [$texto]{valor}[/]")
             blocks.append("\n".join(lines))

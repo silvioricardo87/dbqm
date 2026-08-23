@@ -2778,6 +2778,41 @@ async def test_registro_vertical_usa_tokens_de_texto(tmp_config_dir):
         assert cor_no_offset(conteudo, pos_valor) == cor_texto
 
 
+@pytest.mark.asyncio
+async def test_registro_vertical_alinha_rotulos_a_direita_apos_escapar(tmp_config_dir):
+    """O rotulo tem de ser escapado ANTES de alinhado, nao depois.
+
+    Escapar depois de alinhar acrescenta barras a um rotulo que ja tinha o
+    tamanho certo, desalinhando so a coluna cujo nome tem colchete. Aqui
+    "id" (2 chars) e "nome_da_coluna" (14 chars) sao o caso comum, sem
+    colchete: o rotulo de "id" tem de vir com exatamente 14 caracteres,
+    todos os 12 primeiros sendo espaco — o mesmo resultado de antes da
+    task, byte a byte, provando que a ordem nova nao regride o caso comum.
+    """
+    qr = QR(
+        query_name="test", connection_name="c1",
+        columns=["id", "nome_da_coluna"],
+        rows=[[1, "x"]],
+        row_count=1, elapsed=0.05,
+    )
+
+    class TestApp(ThemedTestApp):
+        def compose(self_):
+            yield ResultTable()
+
+    app = TestApp()
+    async with app.run_test():
+        rt = app.query_one(ResultTable)
+        rt.load_result(qr)
+        rt.toggle_vertical()
+
+        texto = rt._vertical_view.content.plain
+        linha_id = next(l for l in texto.splitlines() if l.strip().startswith("id:"))
+        rotulo_id = linha_id.split(":", 1)[0][2:]  # tira o prefixo "  "
+        assert rotulo_id == "            id"
+        assert len(rotulo_id) == len("nome_da_coluna")
+
+
 # ======================================================================
 # History detail view test
 # ======================================================================

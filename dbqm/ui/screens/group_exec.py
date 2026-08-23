@@ -99,9 +99,14 @@ class GroupExecScreen(Vertical):
                 with Panel("📊  COMPARACAO DE RESULTADOS", id="ge-results-panel"):
                     # A forma da comparacao que vem, nao um rodopio: reserva
                     # o espaco certo enquanto as conexoes executam.
-                    # 9 e a mediana medida das consultas salvas (min 1, max
-                    # 36). Um esqueleto com a forma errada causa o salto de
-                    # layout que ele existe para impedir.
+                    # 9 e a mediana das 68 consultas salvas do mantenedor (min
+                    # 1, max 36), levantada na fase 1 deste plano — nao
+                    # reproduzivel a partir de config/queries.json deste
+                    # repositorio, que e outro conjunto, menor. E o melhor
+                    # palpite disponivel (bem melhor que os 4 arbitrarios),
+                    # nao uma verdade do dominio: um esqueleto com a forma
+                    # errada causa o salto de layout que ele existe para
+                    # impedir.
                     yield Esqueleto(linhas=8, colunas=9, id="ge-results-skeleton")
                     yield GroupResultWidget(id="group-results")
         yield ProgressIndicator()
