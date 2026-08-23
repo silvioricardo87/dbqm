@@ -1297,3 +1297,72 @@ async def test_somente_leitura_e_visualmente_distinto_de_desabilitado():
         ro = app.query_one("#ro", Input)
         off = app.query_one("#off", Input)
         assert ro.styles.color != off.styles.color
+
+
+# ---------------------------------------------------------------------------
+# item_hierarquico tests
+# ---------------------------------------------------------------------------
+
+def test_item_hierarquico_poe_identidade_sozinha_na_primeira_linha():
+    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+
+    c = item_hierarquico("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day")
+    linhas = str(c).split("\n")
+    assert linhas[0].strip() == "MGORA7ORA9"
+    assert "Oracle/TNS" in linhas[1]
+    assert "Producao" in linhas[2]
+
+
+def test_item_hierarquico_omite_linhas_vazias():
+    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+
+    assert len(str(item_hierarquico("SO_NOME")).split("\n")) == 1
+
+
+def test_item_hierarquico_escapa_o_conteudo():
+    """Nome de conexao ou descricao vem de dado do usuario."""
+    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+
+    c = item_hierarquico("[/]quebra", "x")
+    assert "quebra" in str(c)
+
+
+@pytest.mark.asyncio
+async def test_item_hierarquico_usa_a_hierarquia_de_cor_da_gramatica():
+    """Identidade, desambiguacao e contexto tem que sair com tres cores
+    diferentes de fato resolvidas no tema ativo — nao apenas o nome do
+    token aparecendo na string de markup (licao da Task 1)."""
+    from textual.style import Style
+
+    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+
+    def cor_no_offset(conteudo, offset):
+        estilo = Style()
+        for start, end, span_style in conteudo.spans:
+            if start <= offset < end:
+                estilo = estilo + Style.parse(span_style)
+        return estilo.foreground
+
+    class _App(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield from ()
+
+    app = _App()
+    async with app.run_test():
+        conteudo = item_hierarquico(
+            "MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day"
+        )
+        texto = conteudo.plain
+
+        cor_forte = Style.parse("$texto-forte").foreground
+        cor_apoio = Style.parse("$texto-apoio").foreground
+        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
+
+        pos_identidade = texto.index("MGORA7ORA9")
+        pos_desambiguacao = texto.index("Oracle/TNS")
+        pos_contexto = texto.index("Producao")
+
+        assert cor_no_offset(conteudo, pos_identidade) == cor_forte
+        assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
+        assert cor_no_offset(conteudo, pos_contexto) == cor_desabilitado
