@@ -348,10 +348,10 @@ class DBQMApp(App):
     def on_key(self, event) -> None:
         """Use arrow keys to navigate between widgets in the active tab.
 
-        DataTable, ListView, TextArea, and OptionList handle arrows
-        internally. For other widgets (Button, Switch, Input, Select),
-        arrows move focus. Disabled when a modal is active so modals
-        handle their own navigation.
+        DataTable, OptionList, and TextArea handle arrows internally.
+        For other widgets (Button, Switch, Input, Select), arrows move
+        focus. Disabled when a modal is active so modals handle their
+        own navigation.
         """
         if event.key not in ("up", "down"):
             return
@@ -359,7 +359,7 @@ class DBQMApp(App):
         if len(self.screen_stack) > 1:
             return
 
-        from textual.widgets import DataTable, ListView, TextArea, OptionList
+        from textual.widgets import DataTable, OptionList, TextArea
 
         focused = self.focused
         if focused is None:
@@ -367,7 +367,7 @@ class DBQMApp(App):
 
         widget_chain = [focused] + list(focused.ancestors)
         for w in widget_chain:
-            if isinstance(w, (DataTable, ListView, TextArea, OptionList)):
+            if isinstance(w, (DataTable, OptionList, TextArea)):
                 return
 
         self._focus_within_section(forward=(event.key == "down"))

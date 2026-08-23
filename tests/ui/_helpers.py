@@ -35,3 +35,26 @@ class ThemedTestApp(App):
         for tema in TEMAS_TEXTUAL.values():
             self.register_theme(tema)
         self.theme = PADRAO
+
+
+_ESTRELAS = "★☆ "
+
+
+def nomes_renderizados(option_list) -> list[str]:
+    """Os nomes de uma lista de consultas/grupos como ela os PINTA.
+
+    Le a primeira linha (a identidade, na gramatica de `item_hierarquico`)
+    do `prompt` de cada opcao montada, sem a estrela de favorito. Existe
+    porque a alternativa obvia — ler `Option.id` — mede um atributo e nao
+    o que a pessoa ve: os nomes deixaram de viajar no `id` justamente
+    porque dois itens de mesmo nome derrubavam a tela inteira com
+    `DuplicateID`, e um teste que le `id` teria seguido verde enquanto a
+    lista nao montava mais.
+    """
+    nomes = []
+    for i in range(option_list.option_count):
+        prompt = option_list.get_option_at_index(i).prompt
+        texto = prompt.plain if hasattr(prompt, "plain") else str(prompt)
+        linhas = texto.splitlines() or [""]
+        nomes.append(linhas[0].lstrip(_ESTRELAS).rstrip())
+    return nomes

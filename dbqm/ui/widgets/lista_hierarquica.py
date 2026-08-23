@@ -3,11 +3,11 @@ r"""item_hierarquico — item de lista com hierarquia de ate tres linhas.
 O problema que este componente resolve (gramatica de layout, Task 3): uma
 lista de conexoes com mais de duas linhas ficava ilegivel porque identidade e
 metadado disputavam a mesma linha — `connections.py` montava
-`nome (tipo - alvo) | descricao` como uma unica string, o ListView quebrava
-essa string onde coubesse, e sem hierarquia visual o olho nao distinguia uma
-continuacao de uma entrada nova. `query_list.py` tinha o mesmo problema e um
-remendo em cima dele: truncar a descricao em 35 caracteres com o comentario
-"keep line readable".
+`nome (tipo - alvo) | descricao` como uma unica string, a lista quebrava essa
+string onde coubesse na largura disponivel, e sem hierarquia visual o olho nao
+distinguia uma continuacao de uma entrada nova. `query_list.py` tinha o mesmo
+problema e um remendo em cima dele: truncar a descricao em 35 caracteres com o
+comentario "keep line readable".
 
 A cura nao e um separador — e hierarquia. Cada linha diz o que ela e pela
 cor, nao por pontuacao:
@@ -28,10 +28,15 @@ Isso evita de raiz a assimetria conhecida do parser do Textual entre `\[` e
 `\]` (documentada em `result_table.py`, onde a compensacao de largura foi
 construida em cima desse comportamento) sem tocar em `escape_markup` — que e
 compartilhada com seis outros chamadores e nao e usada aqui.
+
+Ao lado do `Content`, o modulo entrega `OpcaoNomeada` — a `Option` que
+leva esse conteudo pro `OptionList` carregando o nome do item como dado,
+e nao como `id`. A razao esta na docstring da classe.
 """
 from __future__ import annotations
 
 from textual.content import Content
+from textual.widgets.option_list import Option
 
 _RECUO = "  "
 
@@ -94,3 +99,29 @@ def item_hierarquico(
     if contexto:
         linha = linha + "\n" + _campo_recuado(contexto, "$texto-desabilitado")
     return linha
+
+
+class OpcaoNomeada(Option):
+    """`Option` que carrega o nome do item como DADO, nao como `id`.
+
+    Nome e a chave de busca do dbqm (`find_query`/`find_group`), entao a
+    tentacao e passa-lo como `Option(conteudo, id=nome)` e recupera-lo em
+    `event.option.id`. Mas `OptionList.add_option` levanta `DuplicateID`
+    num id repetido: duas consultas de mesmo nome num `queries.json`
+    editado a mao (os fluxos de criacao da UI barram duplicatas, um
+    arquivo legado ou editado no editor nao) faziam a TELA INTEIRA falhar
+    ao montar. Dado ambiguo continua ambiguo — nao da pra tornar a
+    selecao inequivoca, e nao e papel da lista tentar; o que ela deve e
+    NAO QUEBRAR: pintar as duas linhas e resolver a selecao pelo nome
+    exatamente como fazia antes, deixando a ambiguidade aparecer no
+    resultado da busca, nao numa tela morta.
+
+    Guardar o nome num atributo proprio tira o `id` da jogada por
+    completo: nao ha id para colidir, e `nome` continua sendo "" quando o
+    dado tem nome vazio, em vez de virar `None` e produzir uma linha
+    silenciosamente morta.
+    """
+
+    def __init__(self, conteudo: Content, nome: str) -> None:
+        super().__init__(conteudo)
+        self.nome = nome

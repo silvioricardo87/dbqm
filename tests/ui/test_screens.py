@@ -11,7 +11,7 @@ from dbqm.ui.screens.connections import ConnectionsScreen
 from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
 
-from tests.ui._helpers import ThemedTestApp
+from tests.ui._helpers import ThemedTestApp, nomes_renderizados
 
 
 class QueryExecTestApp(ThemedTestApp):
@@ -246,7 +246,7 @@ async def test_query_exec_text_filter_narrows_list(tmp_config_dir):
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 1
-        assert str(option_list.get_option_at_index(0).id) == "Estoque"
+        assert nomes_renderizados(option_list) == ["Estoque"]
 
 
 @pytest.mark.asyncio
@@ -260,7 +260,7 @@ async def test_query_exec_text_filter_matches_description(tmp_config_dir):
         screen.query_one("#qe-filter-text", Input).value = "faturados"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
-        assert [str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)] == ["Pedidos"]
+        assert nomes_renderizados(option_list) == ["Pedidos"]
 
 
 @pytest.mark.asyncio
@@ -274,7 +274,7 @@ async def test_query_exec_connection_filter_narrows_list(tmp_config_dir):
         screen.query_one("#qe-filter-conn", Select).value = "homolog"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
-        assert [str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)] == ["Estoque"]
+        assert nomes_renderizados(option_list) == ["Estoque"]
 
 
 @pytest.mark.asyncio
@@ -293,7 +293,7 @@ async def test_query_exec_text_and_connection_combined(tmp_config_dir):
         screen.query_one("#qe-filter-text", Input).value = "ped"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
-        assert [str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)] == ["Pedidos"]
+        assert nomes_renderizados(option_list) == ["Pedidos"]
 
 
 @pytest.mark.asyncio
@@ -308,18 +308,130 @@ async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
             screen.query_one("#qe-filter-text", Input)
 
 
+def _rotulos_pintados_do_select(seletor):
+    """Os rotulos do select como o menu aberto os PINTA.
+
+    `seletor._options` e a lista que o widget guardou; o que a pessoa le e
+    o `OptionList` do overlay, so existente com o menu aberto. Ler dali e o
+    que faz um erro de montagem do rotulo aparecer."""
+    from textual.widgets._select import SelectOverlay
+
+    overlay = seletor.query_one(SelectOverlay)
+    return [
+        str(overlay.get_option_at_index(i).prompt)
+        for i in range(overlay.option_count)
+    ]
+
+
 @pytest.mark.asyncio
 async def test_pastas_viram_select_com_contagem(tmp_config_dir):
-    """16 pastas nao cabem em aba nenhuma; a barra de botoes rolava lateral."""
+    """As pastas viram um Select com a contagem em cada rotulo.
+
+    A cardinalidade real do mantenedor sao 16 pastas para 68 consultas —
+    numa HorizontalScroll de botoes isso rolava lateralmente e escondia a
+    maioria das opcoes. O fixture aqui e uma reducao dessa forma, nao dos
+    16 numeros: quatro pastas com contagens 2/5/6/7. As contagens sao
+    deliberadamente diferentes do numero de pastas (4) e do numero de
+    opcoes (5), porque a versao anterior deste teste era
+    `any("(3)" in r ...)` com 3 pastas — um bug que pintasse
+    `len(folders)` no lugar da contagem passaria igual. A asercao e a lista
+    EXATA de rotulos, na ordem em que o menu os pinta."""
+    from textual.widgets import Select
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.screens.query_exec import QueryExecScreen
+    from tests.ui._helpers import ThemedTestApp
+
+    contagens = {"Alfa": 5, "Beta": 2, "Delta": 7, "Gama": 6}
+    consultas = []
+    for pasta, quantas in contagens.items():
+        for i in range(quantas):
+            consultas.append(
+                Query(name="%s-q%d" % (pasta, i), sql="select 1 from dual",
+                      connection="c", folder=pasta)
+            )
+    save_queries(consultas)
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield QueryExecScreen()
+
+    app = App_()
+    async with app.run_test(size=(120, 40)) as pilot:
+        seletor = app.query_one("#folder-select", Select)
+        seletor.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert _rotulos_pintados_do_select(seletor) == [
+            "Todas (20)",
+            "Alfa (5)",
+            "Beta (2)",
+            "Delta (7)",
+            "Gama (6)",
+        ]
+        assert not app.query("#folder-bar"), "a barra de botoes some"
+
+
+@pytest.mark.asyncio
+async def test_rotulo_de_pasta_elide_o_prefixo_comum(tmp_config_dir):
+    """Com uma familia unica de pastas, o rotulo pintado perde o prefixo.
+
+    Nenhuma pasta da suite continha "/" antes deste teste, entao o ramo de
+    elisao (`prefixo_comum_de_pastas`) nunca rodava: trocar a funcao por
+    `lambda pastas: ""` deixava tudo verde. Aqui o que se le e o rotulo
+    PINTADO no menu aberto — "Alpha (3)", nao "Projeto/Alpha (3)"."""
+    from textual.widgets import Select
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.screens.query_exec import QueryExecScreen
+    from tests.ui._helpers import ThemedTestApp
+
+    contagens = {"Projeto/Alpha": 3, "Projeto/Beta": 1, "Projeto/Gama": 2}
+    consultas = []
+    for pasta, quantas in contagens.items():
+        for i in range(quantas):
+            consultas.append(
+                Query(name="%s-%d" % (pasta.replace("/", "-"), i),
+                      sql="select 1 from dual", connection="c", folder=pasta)
+            )
+    save_queries(consultas)
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield QueryExecScreen()
+
+    app = App_()
+    async with app.run_test(size=(120, 40)) as pilot:
+        seletor = app.query_one("#folder-select", Select)
+        seletor.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert _rotulos_pintados_do_select(seletor) == [
+            "Todas (6)",
+            "Alpha (3)",
+            "Beta (1)",
+            "Gama (2)",
+        ]
+
+
+@pytest.mark.asyncio
+async def test_rotulo_de_pasta_mostra_caminho_inteiro_com_duas_familias(
+    tmp_config_dir,
+):
+    """Duas familias lado a lado: o prefixo comum encolhe e o caminho volta.
+
+    E o outro lado do teste acima, e a razao de o prefixo ser calculado a
+    cada carga contra as pastas reais em vez de fixado como literal: no dia
+    em que uma segunda familia aparecer, a lista volta sozinha a mostrar o
+    caminho inteiro, sem mudanca de codigo."""
     from textual.widgets import Select
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.screens.query_exec import QueryExecScreen
     from tests.ui._helpers import ThemedTestApp
 
     save_queries([
-        Query(name="q%d" % i, sql="select 1 from dual", connection="c",
-              folder="Pasta%d" % (i % 3))
-        for i in range(9)
+        Query(name="a", sql="select 1 from dual", connection="c",
+              folder="Projeto/Alpha"),
+        Query(name="b", sql="select 1 from dual", connection="c",
+              folder="Interno/Backlog"),
     ])
 
     class App_(ThemedTestApp):
@@ -327,23 +439,49 @@ async def test_pastas_viram_select_com_contagem(tmp_config_dir):
             yield QueryExecScreen()
 
     app = App_()
-    async with app.run_test():
+    async with app.run_test(size=(120, 40)) as pilot:
         seletor = app.query_one("#folder-select", Select)
-        rotulos = [str(r) for r, _ in seletor._options]
-        assert any("(3)" in r for r in rotulos), "cada pasta mostra a contagem"
-        assert not app.query("#folder-bar"), "a barra de botoes some"
+        seletor.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert _rotulos_pintados_do_select(seletor) == [
+            "Todas (2)",
+            "Interno/Backlog (1)",
+            "Projeto/Alpha (1)",
+        ]
 
 
 def test_listview_saiu_do_vocabulario():
-    """ListView fazia o mesmo que OptionList em dois lugares."""
+    """ListView fazia o mesmo que OptionList em dois lugares.
+
+    Varre por QUALQUER mencao a `ListView`, nao so por chamadas
+    `ListView(`: a versao anterior deste guard so via o construtor, e por
+    isso passou verde por cima de tres residuos que nao constroem nada —
+    um seletor CSS `Panel #panel-body ListView` casando com nada, um
+    `isinstance(w, (..., ListView, ...))` cujo ramo nao pode disparar, e
+    prosa de docstring narrando o widget como se ainda estivesse em uso.
+    Residuo assim custa exatamente o que um guard de vocabulario existe
+    pra evitar: o proximo leitor procura o ListView que o codigo promete e
+    nao acha.
+
+    A raiz e ancorada em `__file__`, nao em `Path("dbqm/ui")` relativo ao
+    cwd — mesmo idioma de `tests/design/_varredura.py`. Rodado de outro
+    diretorio, o caminho relativo nao existe, `rglob` devolve vazio e o
+    guard passa sem ter lido uma linha: exatamente a falha silenciosa que
+    ele deveria denunciar.
+    """
     from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
+    fontes = sorted(raiz.rglob("*.py"))
+    assert fontes, "varredura nao achou fonte nenhuma em %s" % raiz
 
     achados = [
         p.as_posix()
-        for p in Path("dbqm/ui").rglob("*.py")
-        if "ListView(" in p.read_text(encoding="utf-8")
+        for p in fontes
+        if "ListView" in p.read_text(encoding="utf-8")
     ]
-    assert not achados, "ListView ainda usado em: %s" % achados
+    assert not achados, "ListView ainda mencionado em: %s" % achados
 
 
 # ======================================================================
@@ -548,10 +686,18 @@ async def test_lista_de_conexoes_tem_hierarquia_e_nao_concatena(tmp_config_dir):
 
 
 def test_query_list_nao_trunca_mais_a_descricao():
-    """A truncagem em 35 caracteres existia para caber numa linha so."""
+    """A truncagem em 35 caracteres existia para caber numa linha so.
+
+    Raiz ancorada em `__file__` (idioma de `tests/design/_varredura.py`):
+    com um caminho relativo ao cwd, rodar a suite de outro diretorio
+    levantaria `FileNotFoundError` em vez de checar coisa alguma.
+    """
     from pathlib import Path
 
-    fonte = Path("dbqm/ui/widgets/query_list.py").read_text(encoding="utf-8")
+    raiz = Path(__file__).resolve().parents[2]
+    fonte = (raiz / "dbqm" / "ui" / "widgets" / "query_list.py").read_text(
+        encoding="utf-8"
+    )
     assert "[:32]" not in fonte, "a truncagem deixou de ser necessaria"
 
 
@@ -2513,7 +2659,7 @@ async def test_query_exec_folder_select_narrows_list(tmp_config_dir):
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 1
-        assert str(option_list.get_option_at_index(0).id) == "q1"
+        assert nomes_renderizados(option_list) == ["q1"]
 
         seletor.value = ""
         await pilot.pause()
@@ -3526,7 +3672,17 @@ async def test_query_exec_loads_queries(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_exec_folder_navigation(tmp_config_dir):
-    """Choosing a folder in the select narrows the query list."""
+    """Escolher uma pasta PELO TECLADO estreita a lista de consultas.
+
+    Escrever `seletor.value = "A"` nao exercita nada do que esta tarefa
+    introduziu. `NavSelect` re-liga `enter,space` a `show_overlay` — e o
+    que permite as setas continuarem navegando entre widgets em vez de
+    abrirem o menu — e uma atribuicao de atributo nao passa por binding
+    nenhum: a interacao real (abrir o menu, andar, escolher) ficava sem
+    teste algum enquanto os tres testes de pasta escreviam o valor direto.
+
+    Aqui o caminho e o mesmo do usuario, dentro da DBQMApp inteira, e o que
+    se verifica no fim e a lista PINTADA, nao o valor do widget."""
     from textual.widgets import OptionList
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
@@ -3544,13 +3700,31 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
         await pilot.pause()
         screen = app.query_one(QueryExecScreen)
         seletor = screen.query_one("#folder-select", Select)
-        assert seletor.value == ""
-        seletor.value = "A"
+        assert nomes_renderizados(app.query_one("#ql-listview", OptionList)) == [
+            "q1", "q2",
+        ]
+
+        # Todas -> A: abrir o menu com enter, descer uma opcao, confirmar.
+        seletor.focus()
+        await pilot.press("enter")
         await pilot.pause()
-        assert app.query_one("#ql-listview", OptionList).option_count == 1
-        seletor.value = ""
+        assert seletor.expanded, "enter tem de abrir o menu (binding do NavSelect)"
+        await pilot.press("down")
+        await pilot.press("enter")
         await pilot.pause()
-        assert app.query_one("#ql-listview", OptionList).option_count == 2
+        assert not seletor.expanded
+        assert nomes_renderizados(app.query_one("#ql-listview", OptionList)) == ["q1"]
+
+        # A -> Todas: mesmo caminho, subindo.
+        seletor.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("up")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert nomes_renderizados(app.query_one("#ql-listview", OptionList)) == [
+            "q1", "q2",
+        ]
 
 
 # --- 4. Query manage shortcuts ---
@@ -4497,7 +4671,7 @@ async def test_group_run_folder_select_narrows_list(tmp_config_dir):
         await pilot.pause()
         group_list = screen.query_one("#gr-group-list", OptionList)
         assert group_list.option_count == 1
-        assert str(group_list.get_option_at_index(0).id) == "g1"
+        assert nomes_renderizados(group_list) == ["g1"]
 
         seletor.value = ""
         await pilot.pause()
@@ -4564,6 +4738,169 @@ async def test_group_run_folder_select_is_a_select(tmp_config_dir):
         screen = app.query_one(GroupRunScreen)
         folder_select = screen.query_one("#gr-folder-select")
         assert isinstance(folder_select, Select)
+        # A metade que faltava: sem isto o teste passava com as abas de
+        # volta ao lado do Select, que e exatamente a regressao que ele diz
+        # guardar. Mesmo par de asercoes do irmao de consultas
+        # (test_pastas_viram_select_com_contagem).
+        assert not app.query("#gr-folder-bar"), "a barra de botoes some"
+        assert not app.query("#gr-folder-hint"), "a dica das setas some junto"
+
+
+@pytest.mark.asyncio
+async def test_group_run_pinta_dois_grupos_de_mesmo_nome(tmp_config_dir):
+    """Dois grupos homonimos nao podem derrubar a tela.
+
+    Mesmo defeito de `test_query_list_pinta_duas_consultas_de_mesmo_nome`:
+    com o nome viajando como `Option(conteudo, id=nome)`,
+    `OptionList.add_option` levantava `DuplicateID` e a tela nao montava.
+    `groups.json` e editavel a mao, entao o dado ambiguo existe; a lista
+    pinta as duas linhas e deixa a ambiguidade para a busca por nome."""
+    from textual.widgets import OptionList
+
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "dup",
+                "description": "primeiro",
+                "queries": ["q1"],
+                "join_key": "id",
+                "compare_columns": ["s"],
+            },
+            {
+                "name": "dup",
+                "description": "segundo",
+                "queries": ["q1", "q2"],
+                "join_key": "id",
+                "compare_columns": ["s"],
+            },
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        group_list = screen.query_one("#gr-group-list", OptionList)
+        assert group_list.option_count == 2
+        assert nomes_renderizados(group_list) == ["dup", "dup"]
+        pintado = [group_list.get_option_at_index(i).prompt.plain for i in range(2)]
+        assert "primeiro" in pintado[0] and "1 consulta" in pintado[0]
+        assert "segundo" in pintado[1] and "2 consultas" in pintado[1]
+
+
+@pytest.mark.asyncio
+async def test_group_run_seleciona_por_nome_mesmo_com_nomes_repetidos(
+    tmp_config_dir,
+):
+    """A selecao de grupo resolve pelo nome, como antes dos ids.
+
+    Caso normal (nomes unicos) e caso ambiguo no mesmo teste: escolher a
+    linha posta o nome daquela linha, e escolher uma das duas homonimas
+    posta o nome homonimo em vez de nao fazer nada."""
+    from textual.widgets import OptionList
+
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {"name": "alpha", "queries": ["q1"], "join_key": "id",
+             "compare_columns": ["s"]},
+            {"name": "dup", "queries": ["q1"], "join_key": "id",
+             "compare_columns": ["s"]},
+            {"name": "dup", "queries": ["q1", "q2"], "join_key": "id",
+             "compare_columns": ["s"]},
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    escolhidos = []
+
+    class EspiaGroupRun(GroupRunScreen):
+        def _on_group_chosen(self, group_name: str) -> None:
+            escolhidos.append(group_name)
+
+    class EspiaApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield EspiaGroupRun()
+
+    app = EspiaApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(EspiaGroupRun)
+        group_list = screen.query_one("#gr-group-list", OptionList)
+        group_list.focus()
+        group_list.highlighted = 0
+        await pilot.press("enter")
+        group_list.highlighted = 2
+        await pilot.press("enter")
+        await pilot.pause()
+        assert escolhidos == ["alpha", "dup"]
+
+
+@pytest.mark.asyncio
+async def test_group_run_item_montado_tem_hierarquia_visivel(tmp_config_dir):
+    """A entrada de grupo montada de verdade ocupa mais de uma linha e cada
+    papel sai numa cor distinta — nome, contagem de consultas, descricao.
+
+    A lista de grupos trocou a string concatenada com "|" pelo mesmo
+    `item_hierarquico` da lista de consultas, mas so a de consultas tinha
+    guard (`test_query_list_item_montado_tem_hierarquia_visivel`, em
+    test_widgets.py). Este e o par que faltava: a descricao vai inteira,
+    sem corte artificial, e as cores sao resolvidas com o `Style.parse` do
+    tema ativo — o mesmo mecanismo que o Textual usa antes de pintar.
+    Prova a FIACAO ate a opcao montada, nao a pintura de pixel."""
+    from textual.style import Style
+    from textual.widgets import OptionList
+
+    def cor_no_offset(conteudo, offset):
+        estilo = Style()
+        for start, end, span_style in conteudo.spans:
+            if start <= offset < end:
+                estilo = estilo + Style.parse(span_style)
+        return estilo.foreground
+
+    descricao = (
+        "Compara o saldo de faturamento entre producao e homologacao no "
+        "fechamento do mes"
+    )
+    config_dir = tmp_config_dir / "config"
+    groups_data = {
+        "groups": [
+            {
+                "name": "grupo_faturamento",
+                "description": descricao,
+                "queries": ["q1", "q2", "q3"],
+                "join_key": "id",
+                "compare_columns": ["s"],
+            }
+        ]
+    }
+    (config_dir / "groups.json").write_text(
+        json.dumps(groups_data, ensure_ascii=False), encoding="utf-8"
+    )
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        group_list = screen.query_one("#gr-group-list", OptionList)
+        conteudo = group_list.get_option_at_index(0).prompt
+        texto = conteudo.plain
+
+        assert texto.count(chr(10)) == 2, "nome, contagem e descricao em 3 linhas"
+        assert " | " not in texto, "a concatenacao com | saiu de cena"
+        assert descricao in texto, "a descricao vai inteira, sem truncagem"
+
+        cor_forte = Style.parse("$texto-forte").foreground
+        cor_apoio = Style.parse("$texto-apoio").foreground
+        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
+
+        assert cor_no_offset(conteudo, texto.index("grupo_faturamento")) == cor_forte
+        assert cor_no_offset(conteudo, texto.index("3 consultas")) == cor_apoio
+        assert cor_no_offset(conteudo, texto.index("Compara")) == cor_desabilitado
 
 
 @pytest.mark.asyncio

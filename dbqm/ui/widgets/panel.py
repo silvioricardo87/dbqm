@@ -40,7 +40,6 @@ class Panel(Vertical):
     /* guideline 5: inner widgets carry no border of their own */
     Panel #panel-body DataTable,
     Panel #panel-body OptionList,
-    Panel #panel-body ListView,
     Panel #panel-body TextArea,
     Panel #panel-body Input,
     Panel #panel-body Select { border: none; }

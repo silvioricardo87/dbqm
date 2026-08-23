@@ -9,10 +9,9 @@ from textual.containers import Horizontal, Vertical
 from textual.content import Content
 from textual.message import Message
 from textual.widgets import Button, Input, OptionList, Static
-from textual.widgets.option_list import Option
 
 from dbqm.ui.widgets.empty_state import EmptyState
-from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
 
 
 class QuerySelected(Message):
@@ -38,16 +37,15 @@ def _attr(obj: Any, key: str, default: Any = "") -> Any:
     return getattr(obj, key, default)
 
 
-def _query_option(query: Any) -> Option:
-    """Monta a `Option` de uma consulta pra dentro do `OptionList`.
+def _query_option(query: Any) -> OpcaoNomeada:
+    """Monta a `OpcaoNomeada` de uma consulta pra dentro do `OptionList`.
 
     Renders com a hierarquia de linhas do layout grammar
     (`item_hierarquico`): nome sozinho na identidade, conexao+tabela como
     desambiguacao (o que separa duas consultas de nome parecido), descricao
-    como contexto opcional. O `id` da opcao e o nome da consulta — o mesmo
-    padrao de `connections.py` (`Option(item, id=conn.name)`), que e como
-    `on_option_list_option_selected` recupera qual consulta foi escolhida
-    sem precisar de um mapa auxiliar.
+    como contexto opcional. O nome da consulta viaja no atributo `nome` da
+    opcao, e nao no `id` — ver `OpcaoNomeada`: duas consultas de mesmo nome
+    sao dado ambiguo, mas dado ambiguo nao pode derrubar a tela.
     """
     is_fav = _attr(query, "is_favorite", False)
     star = Content.assemble(
@@ -70,7 +68,7 @@ def _query_option(query: Any) -> Option:
     contexto = " ".join(desc.split())
 
     conteudo = star + item_hierarquico(name, desambiguacao, contexto)
-    return Option(conteudo, id=name or None)
+    return OpcaoNomeada(conteudo, name)
 
 
 class QueryListWidget(Vertical, can_focus=False):
@@ -184,9 +182,12 @@ class QueryListWidget(Vertical, can_focus=False):
         """When an item is selected, post QuerySelected if it's a real query item."""
         if event.option_list.id != "ql-listview":
             return
-        name = str(event.option.id) if event.option.id else None
-        if name:
-            self.post_message(QuerySelected(name))
+        if not isinstance(event.option, OpcaoNomeada):
+            return
+        # Nome vazio tambem e postado: a tela responde "Consulta '' nao
+        # encontrada", que e informacao. Engolir a selecao aqui daria uma
+        # linha visivel que nao faz nada ao ser escolhida.
+        self.post_message(QuerySelected(event.option.nome))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "limpar-filtros-consultas":

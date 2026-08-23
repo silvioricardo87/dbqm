@@ -8,7 +8,6 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Button, OptionList, Select, Static
-from textual.widgets.option_list import Option
 from textual import work
 
 from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect, prefixo_comum_de_pastas
@@ -16,7 +15,7 @@ from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.group_result import GroupResultWidget
-from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.veredito import marcar_operacao, marcar_veredito
@@ -36,8 +35,8 @@ class _GroupSelected(Message):
         super().__init__()
 
 
-def _group_option(group: Any) -> Option:
-    """Monta a `Option` de um grupo pra dentro do `OptionList`.
+def _group_option(group: Any) -> OpcaoNomeada:
+    """Monta a `OpcaoNomeada` de um grupo pra dentro do `OptionList`.
 
     Mesma hierarquia de linhas de `_query_option`
     (dbqm/ui/widgets/query_list.py) e `connections.py`: identidade sozinha,
@@ -47,6 +46,10 @@ def _group_option(group: Any) -> Option:
     entre si nesta tela); a descricao e contexto livre, sem corte
     artificial (`item_hierarquico` cuida da legibilidade dando a ela sua
     propria linha).
+
+    O nome do grupo viaja no atributo `nome` da opcao, e nao no `id` — ver
+    `OpcaoNomeada`: dois grupos de mesmo nome num `groups.json` editado a
+    mao sao dado ambiguo, mas dado ambiguo nao pode derrubar a tela.
     """
     name = group.name
     desc = " ".join((group.description or "").split())
@@ -54,7 +57,7 @@ def _group_option(group: Any) -> Option:
     queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
 
     conteudo = item_hierarquico(name, queries_label, desc)
-    return Option(conteudo, id=name or None)
+    return OpcaoNomeada(conteudo, name)
 
 
 # ---------------------------------------------------------------------------
@@ -274,9 +277,12 @@ class GroupRunScreen(Vertical):
         """Handle group selection from the list."""
         if event.option_list.id != "gr-group-list":
             return
-        name = str(event.option.id) if event.option.id else None
-        if name:
-            self._on_group_chosen(name)
+        if not isinstance(event.option, OpcaoNomeada):
+            return
+        # Nome vazio tambem segue adiante: `_on_group_chosen` responde
+        # "Grupo nao encontrado", que e informacao — melhor que uma linha
+        # visivel que nao faz nada ao ser escolhida.
+        self._on_group_chosen(event.option.nome)
 
     # ------------------------------------------------------------------
     # Group selected -> parameterize & execute

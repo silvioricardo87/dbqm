@@ -2,7 +2,7 @@
 import pytest
 from textual.app import ComposeResult
 
-from tests.ui._helpers import ThemedTestApp
+from tests.ui._helpers import ThemedTestApp, nomes_renderizados
 
 
 # ---------------------------------------------------------------------------
@@ -684,8 +684,7 @@ async def test_query_list_loads_items():
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 2
         # Favorites should be first
-        assert str(option_list.get_option_at_index(0).id) == "q2"
-        assert str(option_list.get_option_at_index(1).id) == "q1"
+        assert nomes_renderizados(option_list) == ["q2", "q1"]
 
 
 @pytest.mark.asyncio
@@ -771,8 +770,7 @@ async def test_query_list_filter_folder():
         await pilot.pause()
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 2
-        names = {str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)}
-        assert names == {"q1", "q3"}
+        assert set(nomes_renderizados(option_list)) == {"q1", "q3"}
 
 
 @pytest.mark.asyncio
@@ -795,6 +793,13 @@ async def test_query_list_filter_folder_none_shows_all():
 
 @pytest.mark.asyncio
 async def test_query_list_posts_query_selected():
+    """Clicar numa linha posta QuerySelected com o nome daquela linha.
+
+    O clique e o ponto: a lista antiga era testada com `pilot.click`, e a
+    conversao para OptionList trocou isso por focar + `enter`. Sao caminhos
+    de entrada diferentes (mouse e teclado), e a troca deixou o do mouse
+    descoberto; o do teclado esta coberto em
+    `test_query_list_seleciona_por_nome_mesmo_com_nomes_repetidos`."""
     from textual.widgets import OptionList
 
     queries = [
@@ -810,6 +815,91 @@ async def test_query_list_posts_query_selected():
             messages.append(event.query_name)
 
     app = CapturingApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        ql = app.query_one(QueryListWidget)
+        ql.load_queries(queries)
+        await pilot.pause()
+        option_list = ql.query_one("#ql-listview", OptionList)
+        # O offset do clique conta do canto do WIDGET, e a primeira linha
+        # da primeira opcao comeca no canto da area de CONTEUDO (o
+        # OptionList traz borda propria por padrao). Derivar o desvio da
+        # geometria em vez de chuta-lo evita um clique que cai na borda e
+        # nao seleciona nada — e o centro do widget cairia no vazio abaixo
+        # da unica opcao.
+        dx = option_list.content_region.x - option_list.region.x
+        dy = option_list.content_region.y - option_list.region.y
+        await pilot.click(option_list, offset=(dx + 1, dy))
+        await pilot.pause()
+        assert messages == ["my_query"]
+
+
+@pytest.mark.asyncio
+async def test_query_list_pinta_duas_consultas_de_mesmo_nome():
+    """Duas consultas homonimas nao podem derrubar a tela.
+
+    Nome e a chave de busca do dbqm, e enquanto ele viajava como
+    `Option(conteudo, id=nome)` um `queries.json` com duas consultas `dup`
+    fazia `OptionList.add_option` levantar `DuplicateID` — a tela inteira
+    deixava de montar. Os fluxos de criacao da UI barram nome repetido, mas
+    o arquivo e editavel a mao e existe historico legado.
+
+    Dado ambiguo continua ambiguo: nao da pra saber qual das duas a pessoa
+    quis, e a lista nao tenta adivinhar. O que ela deve e nao quebrar —
+    pintar as DUAS linhas, cada uma com sua propria desambiguacao, como a
+    lista antiga fazia. Medido no estado em que o defeito acontecia: a
+    montagem com o dado duplicado ja carregado."""
+    from textual.widgets import OptionList
+
+    queries = [
+        {"name": "dup", "connection": "c1", "table": "t1", "description": "",
+         "is_favorite": False, "folder": ""},
+        {"name": "dup", "connection": "c2", "table": "t2", "description": "",
+         "is_favorite": False, "folder": ""},
+    ]
+    app = QueryListTestApp()
+    async with app.run_test() as pilot:
+        ql = app.query_one(QueryListWidget)
+        ql.load_queries(queries)
+        await pilot.pause()
+        option_list = ql.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 2
+        assert nomes_renderizados(option_list) == ["dup", "dup"]
+        # As duas linhas continuam distinguiveis pelo que as desambigua.
+        pintado = [
+            option_list.get_option_at_index(i).prompt.plain for i in range(2)
+        ]
+        assert "c1 - t1" in pintado[0]
+        assert "c2 - t2" in pintado[1]
+
+
+@pytest.mark.asyncio
+async def test_query_list_seleciona_por_nome_mesmo_com_nomes_repetidos():
+    """A selecao resolve pelo nome, exatamente como antes dos ids.
+
+    Caso normal (nomes unicos): a linha escolhida posta o proprio nome.
+    Caso ambiguo: escolher qualquer uma das duas homonimas posta o mesmo
+    nome — a ambiguidade aparece depois, na busca, e nao como uma linha
+    morta ou uma tela que nao monta."""
+    from textual.widgets import OptionList
+
+    messages = []
+
+    class CapturingApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield QueryListWidget()
+
+        def on_query_selected(self, event: QuerySelected) -> None:
+            messages.append(event.query_name)
+
+    queries = [
+        {"name": "alpha", "connection": "c1", "table": "t1", "description": "",
+         "is_favorite": False, "folder": ""},
+        {"name": "dup", "connection": "c2", "table": "t2", "description": "",
+         "is_favorite": False, "folder": ""},
+        {"name": "dup", "connection": "c3", "table": "t3", "description": "",
+         "is_favorite": False, "folder": ""},
+    ]
+    app = CapturingApp()
     async with app.run_test() as pilot:
         ql = app.query_one(QueryListWidget)
         ql.load_queries(queries)
@@ -818,9 +908,47 @@ async def test_query_list_posts_query_selected():
         option_list.focus()
         option_list.highlighted = 0
         await pilot.press("enter")
+        option_list.highlighted = 2
+        await pilot.press("enter")
         await pilot.pause()
-        assert len(messages) == 1
-        assert messages[0] == "my_query"
+        assert messages == ["alpha", "dup"]
+
+
+@pytest.mark.asyncio
+async def test_query_list_consulta_sem_nome_ainda_responde():
+    """Uma consulta de nome vazio posta QuerySelected("") em vez de nada.
+
+    Nome vazio nao e criavel pela UI, mas com o nome viajando como `id` o
+    `or None` transformava a linha numa linha visivel que nao fazia NADA ao
+    ser escolhida. Postar o nome vazio faz a tela responder "Consulta ''
+    nao encontrada" — informacao, que e o que a versao com ListView
+    entregava."""
+    from textual.widgets import OptionList
+
+    messages = []
+
+    class CapturingApp(ThemedTestApp):
+        def compose(self) -> ComposeResult:
+            yield QueryListWidget()
+
+        def on_query_selected(self, event: QuerySelected) -> None:
+            messages.append(event.query_name)
+
+    app = CapturingApp()
+    async with app.run_test() as pilot:
+        ql = app.query_one(QueryListWidget)
+        ql.load_queries([
+            {"name": "", "connection": "c1", "table": "t1", "description": "",
+             "is_favorite": False, "folder": ""},
+        ])
+        await pilot.pause()
+        option_list = ql.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 1
+        option_list.focus()
+        option_list.highlighted = 0
+        await pilot.press("enter")
+        await pilot.pause()
+        assert messages == [""]
 
 
 @pytest.mark.asyncio
@@ -836,7 +964,7 @@ async def test_query_list_accepts_objects():
         await pilot.pause()
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 1
-        assert str(option_list.get_option_at_index(0).id) == "obj_q"
+        assert nomes_renderizados(option_list) == ["obj_q"]
 
 
 @pytest.mark.asyncio
