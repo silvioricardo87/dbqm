@@ -181,18 +181,50 @@ Conventional Commits: `<type>(<scope>): <description>`
 - Interactive UI labels **intentionally omit accents** (e.g. `Historico`,
   `conexao`, `Nao`). This is deliberate — **do not "fix" them**.
 
+### Language: English in code, Portuguese only on screen
+
+This is not a style preference — it is the line between *what the program is
+made of* and *what the user reads*.
+
+**English** — everything that is code:
+- identifiers: modules, classes, functions, constants, fixtures, test names
+- design token names and the `$var` references to them
+- comments and docstrings
+- commit messages
+
+**Portuguese, without accents** — everything the user sees:
+- widget labels, panel titles, button text, tab names
+- notifications, error and confirmation messages
+- CLI output text
+
+Assertion messages in tests are the one deliberate grey area: they are read by
+whoever the test failed on, not by the user. Write them in English, like the
+rest of the test.
+
+**Why it is written down.** It was never written down before, and it held
+anyway — until it didn't. A design-system series added ~370 Portuguese comments,
+59 Portuguese docstrings, 34 Portuguese identifiers and 15 Portuguese design
+tokens across ~70 commits, and every one of them passed review, because the rule
+lived only in the code's own consistency. Before that series `main` had 5
+Portuguese comments against 215 English and **zero** Portuguese docstrings
+against 406. A convention that strong is easy to break precisely because nobody
+ever has to state it.
+
+If you are working in Portuguese with the maintainer, the conversation is not
+the codebase. Write the code in English anyway.
+
 ## Layout grammar (read before touching `dbqm/ui`)
 
 The TUI has a **grammar**, not a per-screen style. Phase 1 fixed color (15
 semantic tokens); phase 2 fixed **structure**. Four questions each screen used
 to answer on its own are now answered once, and each answer has a guard in
-`tests/design/test_inventario_layout.py`.
+`tests/design/test_layout_inventory.py`.
 
 **1. What is a section?** `Panel` is the *only* section frame (`Dialog` is its
 modal twin). Nothing floats loose on the background, and no screen draws its own
 box. A screen taller than the viewport **scrolls** — it never truncates in
 silence, which is how the Oracle Instant Client section stayed invisible for
-weeks (`tests/design/test_transbordo_vertical.py`).
+weeks (`tests/design/test_vertical_overflow.py`).
 
 **2. How do you navigate a set?** By **cardinality**, not by taste: up to ~7
 fixed items → tabs; a variable number → `Select` with counts; choosable things →
@@ -318,7 +350,7 @@ to each guard before concluding "the guard is green, so the rule holds".
   broke with nobody having touched anything; now the file only changes when someone
   actually picks a theme.
 - **Guard 6 (`test_button_does_not_navigate`) has an `elif`-chain hole.** `_ids_do_ramo`
-  (`tests/design/test_inventario_layout.py:764-776`) gathers the literal ids from
+  (`tests/design/test_layout_inventory.py:764-776`) gathers the literal ids from
   every enclosing `if` test and takes `sorted(ids)[0]`. In an `if/elif` chain the
   `elif` is an `If` nested in the previous one's `orelse`, so walking up the parents
   also picks up the sibling branch's id: a navigating branch whose id sorts AFTER an

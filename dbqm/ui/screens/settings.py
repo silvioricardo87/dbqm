@@ -1,16 +1,16 @@
-"""Settings screen — um painel por assunto (gramatica de layout, secao 4).
+"""Settings screen — one panel per subject (layout grammar, section 4).
 
-Antes desta tarefa a tela tinha UM painel chamado "CONFIG DA APLICACAO" com
-quatro assuntos dentro (tema, auditoria, exportacao e Oracle Instant Client),
-separados so por um rotulo em negrito, e tres botoes que fingiam ser menu. A
-queixa do mantenedor foi textual: "a tela de configuracoes esta horrivel com
-um monte de botao alinhado no centro e dentro da tela de configuracoes do
+Before this task the screen had ONE panel called "CONFIG DA APLICACAO" with
+four subjects inside it (theme, auditing, export and Oracle Instant Client),
+separated only by a bold label, and three buttons that pretended to be a menu.
+The maintainer's complaint was literal: "a tela de configuracoes esta horrivel
+com um monte de botao alinhado no centro e dentro da tela de configuracoes do
 sistema, esta tudo muito confuso".
 
-Agora cada assunto tem sua moldura, e a navegacao para as duas telas mais
-fundas (portabilidade e gerenciador de clients) e uma LISTA, nao um botao —
-secao 7 da gramatica: botao e acao, nunca navegacao. Os botoes que sobram
-abrem um dialogo sobre o assunto do painel em que vivem.
+Now each subject has its own frame, and the navigation to the two deeper
+screens (portability and the clients manager) is a LIST, not a button —
+section 7 of the grammar: a button is an action, never navigation. The buttons
+that remain open a dialog about the subject of the panel they live in.
 """
 from __future__ import annotations
 
@@ -27,36 +27,37 @@ from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 
-#: Um caractere, e nao "...": o rotulo de caminho tem 30 celulas num
-#: terminal de 80, e cada coluna gasta com o marcador e uma coluna a
-#: menos de caminho.
+#: One character, and not "...": the path label has 30 cells in a
+#: terminal of 80, and each column spent on the marker is one column
+#: less of path.
 RETICENCIA = "\u2026"
 
-#: Separadores de caminho das duas familias, capturados para que o corte
-#: possa remontar o texto original byte a byte (um caminho do Windows pode
-#: misturar os dois: `C:\\Users\\ricar/exports`).
+#: Path separators of both families, captured so that the cut can
+#: reassemble the original text byte by byte (a Windows path may mix the
+#: two: `C:\\Users\\ricar/exports`).
 _SEPARATOR = re.compile(r"([\\/])")
 
 
 def elide_path(path: str, width: int) -> str:
-    """Encurta *caminho* para caber em *largura* colunas cortando o MEIO.
+    """Shortens *path* so it fits in *width* columns by cutting the MIDDLE.
 
-    O inicio e o fim de um caminho sao o que o identificam — a raiz diz de
-    que arvore ele vem, o ultimo segmento diz de que diretorio ou arquivo se
-    trata. O meio e o descartavel. A alternativa que o Textual da de graca
-    (deixar o texto quebrar sozinho) faz o contrario do que se precisa:
-    quebra no meio de um NOME e, quando o painel acaba, e justamente o fim do
-    caminho que some. A tela pintava
+    The start and the end of a path are what identify it — the root says
+    which tree it comes from, the last segment says which directory or file
+    it is about. The middle is the disposable part. The alternative Textual
+    gives for free (letting the text wrap on its own) does the opposite of
+    what is needed: it breaks in the middle of a NAME and, when the panel
+    runs out, it is precisely the end of the path that disappears. The screen
+    was painting
     `C:\\Users\\ricar\\AppData\\Local\\Tem` / `p\\pytest-of-ricar\\pytest-626\\tes`
-    e nada depois disso.
+    and nothing after that.
 
-    O corte prefere cair entre segmentos: metade de um nome de diretorio nao
-    identifica nada, e ainda parece um nome de verdade. So quando nao ha
-    separador aproveitavel e que se corta por caractere — que continua sendo
-    melhor que cortar so o fim.
+    The cut prefers to fall between segments: half of a directory name
+    identifies nothing, and still looks like a real name. Only when there is
+    no usable separator is the cut made by character — which is still better
+    than cutting only the end.
 
-    O resultado nunca passa de *largura*, inclusive nas larguras absurdas: e
-    dai que vem o teste que varre largura por largura.
+    The result never exceeds *width*, including at the absurd widths: that is
+    where the test that sweeps width by width comes from.
     """
     texto = str(path)
     if width <= 0:
@@ -66,22 +67,22 @@ def elide_path(path: str, width: int) -> str:
     if width <= len(RETICENCIA):
         return RETICENCIA[:width]
 
-    # `split` com grupo capturante intercala segmentos e separadores:
-    # ['C:', '/', 'Users', '/', ...]. Indice par = segmento, impar = separador.
+    # `split` with a capturing group interleaves segments and separators:
+    # ['C:', '/', 'Users', '/', ...]. Even index = segment, odd = separator.
     pecas = _SEPARATOR.split(texto)
 
-    # A cabeca vai ate o primeiro segmento COM NOME. Num caminho comum isso
-    # e `pecas[:3]` (`C:` + `\` + `Users`). Num UNC nao: `\\servidor\share`
-    # parte em ['', '\\', '', '\\', 'servidor', ...] — os dois primeiros
-    # segmentos sao vazios — e parar no terceiro daria uma cabeca de uma
-    # barra so. Duas pastas em dois servidores diferentes elidiriam
-    # IDENTICAS, e num UNC o servidor e justamente a raiz que esta funcao
-    # promete preservar ("de que arvore o caminho vem").
+    # The head goes up to the first NAMED segment. In an ordinary path that
+    # is `pecas[:3]` (`C:` + `\` + `Users`). In a UNC it is not:
+    # `\\servidor\share` splits into ['', '\\', '', '\\', 'servidor', ...] —
+    # the first two segments are empty — and stopping at the third would
+    # give a head of a single slash. Two folders on two different servers
+    # would elide IDENTICALLY, and in a UNC the server is precisely the root
+    # this function promises to preserve ("which tree the path comes from").
     corte = 2
     while corte + 2 < len(pecas) and not pecas[corte]:
         corte += 2
 
-    if len(pecas) >= corte + 3:  # cabeca + separador + ao menos um segmento
+    if len(pecas) >= corte + 3:  # head + separator + at least one segment
         cabeca = "".join(pecas[: corte + 1])
         if len(cabeca) + len(RETICENCIA) < width:
             cauda = ""
@@ -102,19 +103,20 @@ def elide_path(path: str, width: int) -> str:
 
 
 class PathLabel(Static):
-    """`Static` que pede repintura quando a PROPRIA largura muda.
+    """`Static` that asks for a repaint when its OWN width changes.
 
-    O `on_resize` da TELA nao cobre este caso: quem muda de tamanho aqui e
-    o rotulo, nao a tela. Na montagem a coluna ainda nao sabe que vai
-    precisar de barra de rolagem, e o rotulo mede 33 celulas onde vai ter
-    32 — elidido contra 33 o caminho passava por UMA celula e a quebra
-    automatica jogava o ultimo caractere sozinho na linha de baixo, que e
-    o defeito que `elide_path` existe para evitar, chegando por outra
-    porta. `events.Resize` nao borbulha (`bubble=False` em
-    `textual/events.py`), entao ninguem acima ficaria sabendo.
+    The SCREEN's `on_resize` does not cover this case: what changes size
+    here is the label, not the screen. At mount time the column does not
+    yet know it will need a scrollbar, and the label measures 33 cells
+    where it will have 32 — elided against 33 the path went over by ONE
+    cell and the automatic wrap threw the last character alone onto the
+    line below, which is the very defect `elide_path` exists to avoid,
+    arriving through another door. `events.Resize` does not bubble
+    (`bubble=False` in `textual/events.py`), so nobody above would find out.
 
-    So a LARGURA conta. Repintar muda a altura do rotulo, o que gera outro
-    `Resize`; sem esta comparacao o par repintura-evento se realimentaria.
+    Only the WIDTH counts. Repainting changes the label's height, which
+    generates another `Resize`; without this comparison the repaint-event
+    pair would feed itself.
     """
 
     def __init__(self, *args, **kwargs) -> None:
@@ -122,9 +124,9 @@ class PathLabel(Static):
         self._largura_vista = -1
 
     def on_resize(self, event) -> None:
-        # `event.size` e a largura NOVA; `content_region` so vira a nova
-        # depois do proximo layout — por isso a repintura e adiada, e nao
-        # feita aqui dentro.
+        # `event.size` is the NEW width; `content_region` only becomes the
+        # new one after the next layout — that is why the repaint is
+        # deferred, and not done in here.
         if event.size.width == self._largura_vista:
             return
         self._largura_vista = event.size.width
@@ -135,12 +137,12 @@ class PathLabel(Static):
 
 
 class SettingsScreen(Vertical):
-    """Tela de configuracoes: um painel por assunto, em duas colunas.
+    """Settings screen: one panel per subject, in two columns.
 
-    Hospeda tambem as duas telas mais fundas da area de configuracao
-    (`ConfigPortScreen` e `OracleClientsScreen`) num `ContentSwitcher` —
-    mesmo mecanismo que `ToolsScreen` ja usa para hospedar telas
-    inteiras dentro de uma aba. Ver `_open_tool`.
+    It also hosts the two deeper screens of the settings area
+    (`ConfigPortScreen` and `OracleClientsScreen`) in a `ContentSwitcher` —
+    the same mechanism `ToolsScreen` already uses to host whole screens
+    inside a tab. See `_open_tool`.
     """
 
     DEFAULT_CSS = """
@@ -203,17 +205,18 @@ class SettingsScreen(Vertical):
         "scan": "deteccao automatica no sistema",
     }
 
-    #: As telas hospedadas: (chave, identidade, desambiguacao). A chave
-    #: viaja como DADO na opcao (`NamedOption.nome`), nunca como `id` — o
-    #: motivo esta na docstring de `NamedOption`.
+    #: The hosted screens: (key, identity, disambiguation). The key travels
+    #: as DATA in the option (`NamedOption.nome`), never as `id` — the
+    #: reason is in `NamedOption`'s docstring.
     #:
-    #: O texto e CURTO por exigencia de layout, nao por gosto: a coluna da
-    #: lista tem 30 celulas num terminal de 80, e uma linha mais larga que
-    #: isso quebra sozinha no render — a continuacao volta para a coluna 0,
-    #: a mesma da identidade da entrada seguinte, que e exatamente a
-    #: confusao que esta fase existe para desfazer. `hierarchical_item` nao
-    #: tem como recuar a quebra automatica (esta escrito na docstring dele).
-    #: `test_more_settings_list_does_not_wrap_at_80_columns` cobra.
+    #: The text is SHORT out of a layout requirement, not out of taste: the
+    #: list column has 30 cells in a terminal of 80, and a line wider than
+    #: that wraps on its own at render — the continuation goes back to
+    #: column 0, the same one as the identity of the next entry, which is
+    #: exactly the confusion this phase exists to undo. `hierarchical_item`
+    #: has no way to indent the automatic wrap (it is written in its own
+    #: docstring). `test_more_settings_list_does_not_wrap_at_80_columns`
+    #: enforces it.
     TOOLS = (
         (
             "oracle-clients",
@@ -227,7 +230,7 @@ class SettingsScreen(Vertical):
         ),
     )
 
-    #: Chave -> id do container onde aquela tela e montada.
+    #: Key -> id of the container where that screen is mounted.
     _HOSTS = {
         "oracle-clients": "settings-host-oracle-clients",
         "portabilidade": "settings-host-portabilidade",
@@ -236,7 +239,7 @@ class SettingsScreen(Vertical):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dir_exportacao = ""
-        #: chave -> a tela hospedada ja montada (ver `_open_tool`).
+        #: key -> the hosted screen already mounted (see `_open_tool`).
         self._montadas: dict[str, Vertical] = {}
         self._client_oracle: tuple[str | None, str] = (None, "none")
         self._client_oracle_erro = ""
@@ -299,10 +302,10 @@ class SettingsScreen(Vertical):
                         id="settings-panel-oracle",
                         dense=True,
                     ):
-                        # Curto de proposito: cada linha de prosa aqui e
-                        # uma linha a menos para a lista de MAIS
-                        # CONFIGURACOES, que num terminal de 24 fica logo
-                        # abaixo deste painel.
+                        # Short on purpose: each line of prose here is one
+                        # line less for the MAIS CONFIGURACOES list, which
+                        # in a terminal of 24 sits right below this
+                        # panel.
                         yield Static(
                             "Vence o ORACLE_HOME, que pode "
                             "ser de outra arquitetura.",
@@ -318,9 +321,9 @@ class SettingsScreen(Vertical):
                                 id="btn-oracle-client-dir",
                             )
 
-                    # Logo abaixo do painel de Oracle de proposito: a
-                    # entrada do gerenciador de clients fica encostada no
-                    # status que faz alguem querer abri-lo.
+                    # Right below the Oracle panel on purpose: the clients
+                    # manager entry sits right against the status that makes
+                    # someone want to open it.
                     with Panel(
                         "🧰  MAIS CONFIGURACOES",
                         id="settings-panel-ferramentas",
@@ -370,30 +373,30 @@ class SettingsScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def on_resize(self, event) -> None:
-        """Repinta os caminhos: a largura util mudou.
+        """Repaints the paths: the usable width has changed.
 
-        As duas colunas sao `1fr`, entao a largura de um rotulo depende do
-        terminal — 30 celulas a 80 colunas, 52 a 120. Elidir contra uma
-        constante acertaria uma largura e erraria as outras.
-        `call_after_refresh` porque durante o proprio evento de resize as
-        regioes dos filhos ainda sao as antigas.
+        The two columns are `1fr`, so a label's width depends on the
+        terminal — 30 cells at 80 columns, 52 at 120. Eliding against a
+        constant would get one width right and all the others wrong.
+        `call_after_refresh` because during the resize event itself the
+        children's regions are still the old ones.
         """
         self.call_after_refresh(self._paint_paths)
 
     # ------------------------------------------------------------------
-    # Caminhos longos
+    # Long paths
     # ------------------------------------------------------------------
 
     def _paint_paths(self) -> None:
-        """Repinta os tres rotulos que carregam caminho.
+        """Repaints the three labels that carry a path.
 
-        Repintar nao faz VARREDURA de disco. Toca o disco uma vez, e so:
-        `_paint_fernet` chama `KEY_FILE.exists()` — um `stat` num caminho
-        conhecido. A deteccao do Instant Client
-        (`resolve_oracle_client_dir`) e que varre os diretorios de
-        instalacao comuns do sistema, e por isso mora em
-        `_refresh_oracle_client_status`, chamada quando a resposta pode ter
-        mudado, e nao aqui, que roda a cada resize do terminal.
+        Repainting does not SWEEP the disk. It touches the disk once, and
+        that is all: `_paint_fernet` calls `KEY_FILE.exists()` — a `stat` on
+        a known path. It is the Instant Client detection
+        (`resolve_oracle_client_dir`) that sweeps the system's common
+        installation directories, and that is why it lives in
+        `_refresh_oracle_client_status`, called when the answer may have
+        changed, and not here, which runs on every terminal resize.
         """
         self._paint_export_dir()
         self._paint_oracle_client()
@@ -401,13 +404,13 @@ class SettingsScreen(Vertical):
 
     @staticmethod
     def _usable_width(label: Static) -> int:
-        """Quantas colunas o rotulo tem para pintar.
+        """How many columns the label has to paint into.
 
-        Medido no widget montado: `content_region` ja desconta a borda do
-        painel, o padding do corpo e o do proprio rotulo. Enquanto o layout
-        nao aconteceu ela mede 0 — e nesse estado nao se elide nada, porque
-        elidir contra zero apagaria o caminho inteiro. `on_resize` repinta
-        assim que a regiao existe.
+        Measured on the mounted widget: `content_region` already discounts
+        the panel border, the body padding and the label's own. While the
+        layout has not happened it measures 0 — and in that state nothing is
+        elided, because eliding against zero would erase the whole path.
+        `on_resize` repaints as soon as the region exists.
         """
         return label.content_region.width
 
@@ -429,13 +432,13 @@ class SettingsScreen(Vertical):
         rotulo.update(f"[b]Diretorio atual:[/]\n{caminho}{sufixo}")
 
     def _refresh_oracle_client_status(self) -> None:
-        """Redescobre qual Instant Client esta em uso, e de onde veio.
+        """Rediscovers which Instant Client is in use, and where it came from.
 
-        Faz I/O (ver `resolve_oracle_client_dir`): so e chamada quando a
-        resposta pode ter mudado — na montagem e depois de o modal de
-        caminho salvar. Um caminho configurado mas inutilizavel e reportado
-        como ERRO, e nao substituido em silencio: esse silencio e o que
-        tornava o conflito de ORACLE_HOME tao dificil de diagnosticar.
+        Does I/O (see `resolve_oracle_client_dir`): it is only called when
+        the answer may have changed — at mount time and after the path modal
+        saves. A path that is configured but unusable is reported as an
+        ERROR, and not silently replaced: that silence is what made the
+        ORACLE_HOME conflict so hard to diagnose.
         """
         from dbqm.core.db_manager import OracleClientConfigError, resolve_oracle_client_dir
 
@@ -464,11 +467,11 @@ class SettingsScreen(Vertical):
         mostrado = elide_path(str(path), largura) if largura else str(path)
         label.update(f"[b]Client em uso:[/]\n{mostrado}\n[b]Origem:[/] {source}")
 
-    #: Dos tres rotulos com caminho, este e o unico que poe o caminho na
-    #: MESMA linha que o seu rotulo — os outros dois quebram a linha antes.
-    #: As celulas do prefixo nao estao disponiveis para o caminho, e cobrar
-    #: a largura inteira fazia a linha passar da caixa e queimar uma linha
-    #: na quebra automatica (37 celulas contra 32 de caixa, medidas a 80x24).
+    #: Of the three labels with a path, this is the only one that puts the
+    #: path on the SAME line as its label — the other two break the line
+    #: first. The prefix cells are not available for the path, and charging
+    #: the whole width made the line run past the box and burn a line on the
+    #: automatic wrap (37 cells against 32 of box, measured at 80x24).
     FERNET_PREFIX = "Local: "
 
     def _paint_fernet(self) -> None:
@@ -495,7 +498,7 @@ class SettingsScreen(Vertical):
             pass
 
     # ------------------------------------------------------------------
-    # Telas hospedadas
+    # Hosted screens
     # ------------------------------------------------------------------
 
     def _build_tool(self, key: str):
@@ -510,16 +513,16 @@ class SettingsScreen(Vertical):
         raise ValueError(f"ferramenta de configuracao desconhecida: {key}")
 
     def _open_tool(self, key: str) -> None:
-        """Troca a area de configuracoes pela tela *chave*, montando na 1a vez.
+        """Swaps the settings area for the *key* screen, mounting it the 1st time.
 
-        Estas duas telas ficaram INALCANCAVEIS da v1.17.0 ate aqui: os
-        botoes que as abriam consultavam `#screen-area`, removido em
-        e02b8a8 quando o app virou uma shell de abas unica, e o
-        `except Exception` transformava a falha num toast de erro. Elas
-        voltam pelo mecanismo que a shell ja tem para hospedar uma tela
-        inteira dentro de uma aba — o mesmo `ContentSwitcher` de
-        `ToolsScreen` — em vez de um `push_screen`, que tiraria da
-        vista o cabecalho, as abas e a barra de acoes.
+        These two screens were UNREACHABLE from v1.17.0 until here: the
+        buttons that opened them queried `#screen-area`, removed in
+        e02b8a8 when the app became a single tabbed shell, and the
+        `except Exception` turned the failure into an error toast. They
+        come back through the mechanism the shell already has for hosting a
+        whole screen inside a tab — the same `ContentSwitcher` as
+        `ToolsScreen` — instead of a `push_screen`, which would take the
+        header, the tabs and the action bar out of sight.
         """
         hospede = self.query_one(f"#{self._HOSTS[key]}", Vertical)
         if key not in self._montadas:
@@ -527,13 +530,13 @@ class SettingsScreen(Vertical):
             hospede.mount(tela)
             self._montadas[key] = tela
         else:
-            # Reabrir uma tela que continua montada mostrava a fase em que
-            # ela FICOU: quem exportou, saiu com `Esc` e voltou reencontrava
-            # o formulario de exportacao, enquanto a entrada da lista
-            # prometia "Exportar / Importar". Quem sabe se ha estado que
-            # precisa sobreviver ao ida-e-volta e a propria tela — o
-            # gerenciador de clients nao implementa isto justamente porque
-            # tem um download de 150+ MB escrevendo na sua arvore.
+            # Reopening a screen that is still mounted showed the phase it
+            # WAS LEFT in: whoever exported, left with `Esc` and came back
+            # would meet the export form again, while the list entry
+            # promised "Exportar / Importar". The one that knows whether
+            # there is state that must survive the round trip is the screen
+            # itself — the clients manager does not implement this precisely
+            # because it has a 150+ MB download writing into its tree.
             reabrir = getattr(self._montadas[key], "on_reopen", None)
             if callable(reabrir):
                 reabrir()
@@ -541,24 +544,25 @@ class SettingsScreen(Vertical):
         self._set_actions()
 
     def back_to_start(self) -> None:
-        """Volta da tela hospedada para os paineis; nao faz nada se ja estava la.
+        """Goes back from the hosted screen to the panels; a no-op if already there.
 
-        Nao devolve mais um "o `Esc` foi consumido aqui": os dois chamadores
-        (`DBQMApp.action_go_back` e o `Voltar` da barra de acoes, que chega
-        por `on_action_selected`) descartavam o bool, e nenhum deles tem uma
-        segunda rota de `Esc` para tentar caso esta nao pegue. Eram tres ate
-        `ConfigPortScreen._go_back_to_settings` ser removido na tarefa que
-        ressuscitou as rotas mortas; um terceiro chamador citado e que nao
-        existe manda a proxima pessoa procurar codigo que nao ha.
-        Documentar um valor como load-bearing e ninguem carrega nada com ele
-        e a mesma classe de mentira silenciosa que o resto desta fase
-        vem desfazendo.
+        It no longer returns an "the `Esc` was consumed here": the two
+        callers (`DBQMApp.action_go_back` and the action bar's `Voltar`,
+        which arrives via `on_action_selected`) discarded the bool, and
+        neither of them has a second `Esc` route to try in case this one
+        does not take. There were three until
+        `ConfigPortScreen._go_back_to_settings` was removed in the task that
+        resurrected the dead routes; a third caller that is cited and does
+        not exist sends the next person looking for code that is not there.
+        Documenting a value as load-bearing when nobody carries anything
+        with it is the same class of silent lie the rest of this phase
+        has been undoing.
 
-        A tela hospedada continua MONTADA, so escondida — como
-        `ToolsScreen` ja faz com as suas cinco. Desmontar seria
-        arrancar o widget debaixo de um worker vivo: a instalacao de um
-        Instant Client baixa 150+ MB em background e escreve progresso
-        nesta arvore. Voltar nao pode ser cancelar.
+        The hosted screen stays MOUNTED, only hidden — as `ToolsScreen`
+        already does with its five. Unmounting would be ripping the widget
+        out from under a live worker: installing an Instant Client
+        downloads 150+ MB in the background and writes progress into this
+        tree. Going back cannot mean cancelling.
         """
         switcher = self.query_one(ContentSwitcher)
         if switcher.current == "settings-main":
@@ -568,30 +572,30 @@ class SettingsScreen(Vertical):
         self.call_after_refresh(self._reenter_panels)
 
     def _reenter_panels(self) -> None:
-        """Volta a mostrar os paineis: ressincroniza e devolve o foco a lista.
+        """Shows the panels again: resyncs and gives focus back to the list.
 
-        Depois do refresh, e nao durante o `Esc`: a elisao de caminho mede a
-        largura no rotulo montado, e enquanto o `ContentSwitcher` nao
-        refez o layout essa largura ainda e a de quem estava escondido.
+        After the refresh, and not during the `Esc`: the path elision
+        measures the width on the mounted label, and while the
+        `ContentSwitcher` has not redone the layout that width is still the
+        one of whatever was hidden.
         """
         self._resync_with_disk()
         self._focus_tool_list()
 
     def _resync_with_disk(self) -> None:
-        """Reconcilia os paineis com o que as telas hospedadas gravaram.
+        """Reconciles the panels with what the hosted screens wrote.
 
-        `OracleClientsScreen._use_selected` grava `oracle_client_dir` e
-        salva — e o rotulo `Client em uso` ficava mostrando o client
-        ANTERIOR. Nao e uma desatualizacao qualquer: a rota ate o
-        gerenciador foi desenhada em volta desse rotulo (a entrada da lista
-        fica encostada nele de proposito), entao ele envelhecia exatamente
-        no momento em que a pessoa agiu sobre ele — a tela desmentindo a
-        configuracao que ela mesma acabou de gravar.
+        `OracleClientsScreen._use_selected` writes `oracle_client_dir` and
+        saves — and the `Client em uso` label kept showing the PREVIOUS
+        client. It is not just any staleness: the route to the manager was
+        drawn around that label (the list entry sits against it on
+        purpose), so it went stale exactly at the moment the person acted
+        on it — the screen contradicting the setting they had just written.
 
-        Repinta os DOIS rotulos que saem de `settings.json`, e nao so o do
-        Oracle: o custo e uma leitura de arquivo numa tecla, e a alternativa
-        e depender de alguem lembrar de acrescentar uma linha aqui na
-        proxima vez que uma tela hospedada escrever uma configuracao.
+        It repaints BOTH labels that come out of `settings.json`, and not
+        only the Oracle one: the cost is one file read on a key press, and
+        the alternative is depending on somebody remembering to add a line
+        here the next time a hosted screen writes a setting.
         """
         from dbqm.models.settings import load_settings
 
@@ -609,23 +613,25 @@ class SettingsScreen(Vertical):
             pass
 
     # ------------------------------------------------------------------
-    # Barra de acoes
+    # Action bar
     # ------------------------------------------------------------------
 
     def _set_actions(self) -> None:
-        """Anuncia o `Esc` enquanto uma tela hospedada estiver na frente.
+        """Announces the `Esc` while a hosted screen is in front.
 
-        `DBQMApp.compose` nao rende um `Footer`, entao o
-        `Binding("escape", "go_back", "Back")` do app nunca e DESENHADO: a
-        unica saida de `OracleClientsScreen` — que nao tem botao de voltar —
-        era uma tecla que nada na tela mencionava. A secao 7 da gramatica
-        proibe um BOTAO que navega; nao proibe dizer qual tecla volta, e e
-        isso que a barra de acoes faz para o resto do app.
+        `DBQMApp.compose` does not render a `Footer`, so the app's
+        `Binding("escape", "go_back", "Back")` is never DRAWN: the only
+        exit from `OracleClientsScreen` — which has no back button — was a
+        key that nothing on screen mentioned. Section 7 of the grammar
+        forbids a BUTTON that navigates; it does not forbid saying which
+        key goes back, and that is what the action bar does for the rest of
+        the app.
 
-        O nome do metodo nao e enfeite: `DBQMApp.on_tabbed_content_tab_
-        activated` procura `_set_actions`/`_set_list_actions` na tela da aba
-        recem-ativada. Sem ele, sair da aba e voltar apagaria o anuncio com
-        a tela hospedada ainda na frente.
+        The method name is not decoration: `DBQMApp.on_tabbed_content_tab_
+        activated` looks for `_set_actions`/`_set_list_actions` on the
+        screen of the tab just activated. Without it, leaving the tab and
+        coming back would erase the announcement with the hosted screen
+        still in front.
         """
         try:
             barra = self.app.query_one(ActionBar)
@@ -652,7 +658,7 @@ class SettingsScreen(Vertical):
             self._open_tool(chave)
 
     # ------------------------------------------------------------------
-    # Controles
+    # Controls
     # ------------------------------------------------------------------
 
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -665,15 +671,16 @@ class SettingsScreen(Vertical):
 
         settings = load_settings()
         new_theme = str(event.value)
-        # Comparar com o tema NORMALIZADO, nao com o texto cru do arquivo.
-        # `on_mount` enche o Select com `get_theme(settings.theme).name`, e o
-        # proprio `Select._on_mount` reemite `Changed` depois — fora do
-        # alcance de qualquer `prevent` posto aqui (medido). Na primeira
-        # abertura depois de subir da 1.17.x o arquivo ainda diz
-        # `github-dark` e o Select diz `plano-escuro`: com a comparacao crua
-        # isso passava por troca de tema, gravava e anunciava "Tema
-        # alterado: plano-escuro" a quem nao alterou tema nenhum. Sao o
-        # mesmo tema — `github-dark` foi so renomeado.
+        # Compare with the NORMALIZED theme, not with the raw text of the
+        # file. `on_mount` fills the Select with
+        # `get_theme(settings.theme).name`, and `Select._on_mount` itself
+        # re-emits `Changed` afterwards — out of reach of any `prevent` put
+        # here (measured). On the first opening after upgrading from 1.17.x
+        # the file still says `github-dark` and the Select says
+        # `plano-escuro`: with the raw comparison this passed for a theme
+        # change, wrote it and announced "Tema alterado: plano-escuro" to
+        # someone who changed no theme at all. They are the same theme —
+        # `github-dark` was only renamed.
         if new_theme == get_theme(settings.theme).name:
             return
         settings.theme = new_theme
@@ -687,21 +694,21 @@ class SettingsScreen(Vertical):
     def on_switch_changed(self, event: Switch.Changed) -> None:
         from dbqm.models.settings import load_settings, save_settings
 
-        # `Switch.Changed` nao prova que alguem mexeu no interruptor: o
-        # proprio `on_mount` atribui `Switch.value` para MOSTRAR o que ja
-        # esta salvo, e toda vez que o valor salvo difere do `False` de
-        # fabrica do `Switch` a atribuicao emite `Changed`. Acontecia em
-        # toda abertura do app, com ninguem tocando em nada:
-        # `create_export_subdirs` nasce `True` (aviso em qualquer config), e
-        # `audit_log_enabled` nasce `False` mas fica `True` assim que a
-        # pessoa liga auditoria (aviso dai em diante). Cada um virava um
-        # aviso E uma reescrita do `settings.json` — medido: 1 gravacao com
-        # config nova, 2 com auditoria ligada.
+        # `Switch.Changed` does not prove that anyone touched the switch:
+        # `on_mount` itself assigns `Switch.value` to SHOW what is already
+        # saved, and every time the saved value differs from the `Switch`'s
+        # factory `False` the assignment emits `Changed`. It happened on
+        # every opening of the app, with nobody touching anything:
+        # `create_export_subdirs` is born `True` (a notice on any config),
+        # and `audit_log_enabled` is born `False` but turns `True` as soon
+        # as the person switches auditing on (a notice from then on). Each
+        # one became a notice AND a rewrite of `settings.json` — measured: 1
+        # write with a fresh config, 2 with auditing on.
         #
-        # A guarda e por IGUALDADE, nao por instante de montagem: se o valor
-        # que chegou ja e o que esta gravado, nada aconteceu — vale tanto
-        # para o eco da montagem quanto para qualquer outro reemissor, e nao
-        # depende de acertar quando a tempestade de mount assenta.
+        # The guard is by EQUALITY, not by mount instant: if the value that
+        # arrived is already the one recorded, nothing happened — that holds
+        # both for the mount echo and for any other re-emitter, and does not
+        # depend on getting right when the mount storm settles.
         if event.switch.id == "settings-audit-switch":
             settings = load_settings()
             if settings.audit_log_enabled == event.value:

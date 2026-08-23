@@ -97,16 +97,17 @@ class GroupExecScreen(Vertical):
                 with Panel("✏️  SQL DO GRUPO", id="ge-editor-panel"):
                     yield TextArea("", language="sql", id="group-sql")
                 with Panel("📊  COMPARACAO DE RESULTADOS", id="ge-results-panel"):
-                    # A forma da comparacao que vem, nao um rodopio: reserva
-                    # o espaco certo enquanto as conexoes executam.
-                    # 9 e a mediana das 68 consultas salvas do mantenedor (min
-                    # 1, max 36), levantada na fase 1 deste plano — nao
-                    # reproduzivel a partir de config/queries.json deste
-                    # repositorio, que e outro conjunto, menor. E o melhor
-                    # palpite disponivel (bem melhor que os 4 arbitrarios),
-                    # nao uma verdade do dominio: um esqueleto com a forma
-                    # errada causa o salto de layout que ele existe para
-                    # impedir.
+                    # The shape of the comparison to come, not a spinner: it
+                    # reserves the right amount of space while the
+                    # connections execute.
+                    # 9 is the median of the maintainer's 68 saved queries
+                    # (min 1, max 36), surveyed in phase 1 of this plan — not
+                    # reproducible from the config/queries.json of this
+                    # repository, which is another, smaller set. It is the
+                    # best guess available (much better than the arbitrary
+                    # 4), not a truth of the domain: a skeleton with the
+                    # wrong shape causes the very layout jump it exists to
+                    # prevent.
                     yield Skeleton(rows=8, columns=9, id="ge-results-skeleton")
                     yield GroupResultWidget(id="group-results")
         yield ProgressIndicator()

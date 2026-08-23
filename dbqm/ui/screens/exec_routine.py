@@ -125,12 +125,12 @@ class ExecRoutineScreen(Vertical):
         self._param_inputs: dict[str, Input] = {}
 
     def compose(self) -> ComposeResult:
-        # Um Panel por fase. Nao subdividi a fase 3 em tres paineis
-        # irmaos (detalhe / parametros / resultado) de proposito: os
-        # filhos dela sao dimensionados em `1fr` dentro de um unico
-        # container, e reparti-los mudaria a altura de cada um e ainda
-        # poria um `VerticalScroll` focavel dentro de um corpo de painel
-        # que tambem rola — rolagem aninhada, que prende o teclado.
+        # One Panel per phase. Phase 3 was deliberately not subdivided into
+        # three sibling panels (detail / parameters / result): its children
+        # are sized in `1fr` inside a single container, and splitting them
+        # up would change the height of each one and would also put a
+        # focusable `VerticalScroll` inside a panel body that scrolls too —
+        # nested scrolling, which traps the keyboard.
         # Phase 1: Connection + type selection
         with Panel("🔌  CONEXAO E TIPO", id="er-select-phase"):
             yield Label("Selecione a conexao:")

@@ -13,8 +13,8 @@ from textual.widgets import Label
 
 
 class Panel(Vertical):
-    #: Linhas que a moldura consome antes do corpo: 2 de borda (topo e
-    #: base) + 1 de titulo + 1 da regua `border-bottom` do titulo.
+    #: Lines the chrome consumes before the body: 2 of border (top and
+    #: bottom) + 1 of title + 1 of the title's `border-bottom` rule.
     CHROME = 4
 
     DEFAULT_CSS = """
@@ -39,35 +39,37 @@ class Panel(Vertical):
     Panel.accent-focus > #panel-title { color: $accent; }
 
     Panel > #panel-body {
-        /* `1fr` e o caso comum: o painel recebe uma altura e o corpo a
-           preenche. Quando o PROPRIO painel pede `height: auto` este `1fr`
-           vira a mentira silenciosa descrita em `_adjust_body`, e a
-           classe `-content` (logo abaixo) toma o lugar dele. */
+        /* `1fr` is the common case: the panel is given a height and the
+           body fills it. When the PANEL ITSELF asks for `height: auto`
+           this `1fr` becomes the silent lie described in `_adjust_body`,
+           and the `-content` class (just below) takes its place. */
         height: 1fr;
         padding: 1 1;
-        /* Transbordo vertical VISIVEL: um painel mais alto que a caixa
-           rola, em vez de cortar em silencio. A secao Oracle Instant
-           Client das Configuracoes nascia em y=39 de um corpo que nao
-           rolava — nao havia como chegar nela num terminal de 24 linhas.
-           `auto` e nao `scroll` de proposito: quando o filho ocupa `1fr`
-           (DataTable, OptionList) nada transborda, nenhuma barra aparece
-           e nao se cria rolagem aninhada em cima da do proprio widget. */
+        /* VISIBLE vertical overflow: a panel taller than the box scrolls,
+           instead of clipping in silence. The Oracle Instant Client
+           section of Configuracoes was born at y=39 of a body that did
+           not scroll — there was no way to reach it in a 24-line
+           terminal. `auto` and not `scroll` on purpose: when the child
+           takes `1fr` (DataTable, OptionList) nothing overflows, no bar
+           appears and no nested scrolling is created on top of the
+           widget's own. */
         overflow-y: auto;
     }
-    /* Densidade: corpo sem o padding VERTICAL (o horizontal fica — e ele
-       que separa o texto da borda). Duas linhas por painel e barato quando
-       ha um painel na tela e caro quando ha seis: as Configuracoes gastavam
-       12 linhas de 24 em ar. E uma DECISAO DO COMPONENTE, com nome, e nao
-       um `#panel-body { padding: 0 1 }` reescrito em cada tela que precisa
-       — a segunda copia dessas ja tinha aparecido, e "cada tela decide por
-       si" e exatamente o que a secao 4 da gramatica existe para remover. */
+    /* Density: body without the VERTICAL padding (the horizontal one stays
+       — it is what separates the text from the border). Two lines per panel
+       is cheap when there is one panel on the screen and expensive when
+       there are six: Configuracoes spent 12 lines out of 24 on air. It is a
+       COMPONENT DECISION, with a name, and not a `#panel-body { padding: 0
+       1 }` rewritten in every screen that needs it — the second such copy
+       had already shown up, and "each screen decides for itself" is exactly
+       what section 4 of the grammar exists to remove. */
     Panel.-dense > #panel-body { padding: 0 1; }
-    /* Ligada por `_adjust_body` quando o proprio painel pede
-       `height: auto`. Classe, e nao escrita direta de altura em `styles`,
-       porque `dbqm/ui` tem um guarda contra esse tipo de escrita fora do
-       componente (o tamanho de um `Dialog` so pode ser decidido dentro de
-       `dialog.py`) — furar aquele guarda para resolver este problema seria
-       trocar um silencio por outro. */
+    /* Turned on by `_adjust_body` when the panel itself asks for
+       `height: auto`. A class, and not writing the height directly into
+       `styles`, because `dbqm/ui` has a guard against that kind of write
+       outside the component (the size of a `Dialog` may only be decided
+       inside `dialog.py`) — punching through that guard to solve this
+       problem would be trading one silence for another. */
     Panel > #panel-body.-content { height: auto; }
     /* guideline 5: inner widgets carry no border of their own */
     Panel #panel-body DataTable,
@@ -117,36 +119,38 @@ class Panel(Vertical):
         self._adjust_body()
 
     def _adjust_body(self) -> None:
-        """Faz `height: auto` no painel significar mesmo "do tamanho do conteudo".
+        """Makes `height: auto` on the panel really mean "the size of the content".
 
-        `#panel-body` nasce com `height: 1fr`. Um `1fr` dentro de um pai de
-        altura automatica nao mede o conteudo: ele estica ate a altura do
-        CONTAINER do painel. O efeito e que `Panel { height: auto }` nunca
-        funcionou — e falhava em SILENCIO, que e o problema real. Tres
-        paineis de tres linhas cada, num terminal de 24 linhas:
+        `#panel-body` is born with `height: 1fr`. A `1fr` inside a parent of
+        automatic height does not measure the content: it stretches up to the
+        height of the panel's CONTAINER. The effect is that
+        `Panel { height: auto }` never worked — and it failed in SILENCE,
+        which is the real problem. Three panels of three lines each, in a
+        24-line terminal:
 
-            Vertical height:auto -> height=6  cada, y=1 / y=8  / y=15
-            Panel    height:auto -> height=24 cada, y=1 / y=24 / y=47
+            Vertical height:auto -> height=6  each, y=1 / y=8  / y=15
+            Panel    height:auto -> height=24 each, y=1 / y=24 / y=47
 
-        As duas ultimas secoes nascem abaixo da dobra sem que nada no CSS
-        pareca errado. Por isso o corpo passa a `auto` quando o painel pediu
-        `auto`: a declaracao passa a fazer o que diz. Ler `self.styles.height`
-        (e nao um modificador explicito tipo `Panel.-content`) e o que
-        mantem a regra valida para quem escreve CSS normal — ninguem precisa
-        saber que existe uma regra.
+        The last two sections are born below the fold without anything in the
+        CSS looking wrong. That is why the body switches to `auto` when the
+        panel asked for `auto`: the declaration comes to do what it says.
+        Reading `self.styles.height` (and not an explicit modifier such as
+        `Panel.-content`) is what keeps the rule valid for whoever writes
+        ordinary CSS — nobody needs to know a rule exists.
 
-        `max-height` junto com `auto` precisa da aritmetica: um corpo em
-        `auto` nao ve o teto do pai, e `max-height: 100%` no corpo erraria
-        por `CHROME` linhas (percentual resolve contra o pai INTEIRO, titulo
-        incluido) — o corpo nasceria mais alto que a caixa e as ultimas
-        linhas ficariam recortadas, fora do alcance da rolagem. Descontar
-        `CHROME` deixa o corpo caber exatamente e o excesso ROLAR, visivel.
-        Teto em unidade que nao seja celula nao tem essa conta: nesse caso o
-        corpo fica em `1fr`, que preenche a caixa e rola — nunca corta.
+        `max-height` together with `auto` needs the arithmetic: a body in
+        `auto` does not see the parent's ceiling, and `max-height: 100%` on
+        the body would be off by `CHROME` lines (a percentage resolves
+        against the WHOLE parent, title included) — the body would be born
+        taller than the box and the last lines would be clipped, out of the
+        scrolling's reach. Subtracting `CHROME` makes the body fit exactly
+        and the excess SCROLL, visibly. A ceiling in a unit other than cells
+        does not have this arithmetic: in that case the body stays at `1fr`,
+        which fills the box and scrolls — it never clips.
 
-        `tests/design/test_transbordo_vertical.py` renderiza os tres casos e
-        falha se o acoplamento se perder. Ele e a razao de isto nao poder
-        voltar a falhar calado.
+        `tests/design/test_vertical_overflow.py` renders the three cases
+        and fails if the coupling is lost. It is the reason this cannot go
+        back to failing quietly.
         """
         altura = self.styles.height
         if altura is None or not altura.is_auto:
@@ -161,13 +165,14 @@ class Panel(Vertical):
 
     @property
     def body(self) -> Vertical:
-        """O container onde o conteudo do painel vive.
+        """The container where the panel's content lives.
 
-        `compose_add_child` so roteia o que o chamador rende dentro do
-        `with Panel(...)`. Montagem em RUNTIME (`painel.mount(...)`, como a
-        barra de filtro e a lista de `query_exec`/`group_run` fazem) nao
-        passa por ele e cairia como IRMA de `#panel-title`/`#panel-body`,
-        fora da moldura. Quem monta depois do compose monta aqui.
+        `compose_add_child` only routes what the caller yields inside
+        `with Panel(...)`. RUNTIME mounting (`panel.mount(...)`, as the
+        filter bar and the list of `query_exec`/`group_run` do) does not go
+        through it and would land as a SIBLING of `#panel-title`/
+        `#panel-body`, outside the chrome. Whoever mounts after compose
+        mounts here.
         """
         return self.query_one("#panel-body", Vertical)
 

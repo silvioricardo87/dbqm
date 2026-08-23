@@ -1,45 +1,45 @@
-r"""hierarchical_item — item de lista com hierarquia de ate tres linhas.
+r"""hierarchical_item — list item with a hierarchy of up to three lines.
 
-O problema que este componente resolve (gramatica de layout, Task 3): uma
-lista de conexoes com mais de duas linhas ficava ilegivel porque identidade e
-metadado disputavam a mesma linha — `connections.py` montava
-`nome (tipo - alvo) | descricao` como uma unica string, a lista quebrava essa
-string onde coubesse na largura disponivel, e sem hierarquia visual o olho nao
-distinguia uma continuacao de uma entrada nova. `query_list.py` tinha o mesmo
-problema e um remendo em cima dele: truncar a descricao em 35 caracteres com o
-comentario "keep line readable".
+The problem this component solves (layout grammar, Task 3): a list of
+connections with more than two lines became illegible because identity and
+metadata fought over the same line — `connections.py` assembled
+`name (type - target) | description` as a single string, the list wrapped that
+string wherever it fit in the available width, and without visual hierarchy the
+eye could not tell a continuation from a new entry. `query_list.py` had the same
+problem and a patch on top of it: truncating the description at 35 characters
+with the comment "keep line readable".
 
-A cura nao e um separador — e hierarquia. Cada linha diz o que ela e pela
-cor, nao por pontuacao:
-  1. identidade — o que a pessoa esta procurando, em negrito, sozinha.
-  2. desambiguacao — tipo, alvo, conexao; recuada, em $ds-text-muted.
-  3. contexto — descricao; recuada, em $ds-text-disabled; opcional.
+The cure is not a separator — it is hierarchy. Each line says what it is by
+color, not by punctuation:
+  1. identity — what the person is looking for, in bold, alone.
+  2. disambiguation — type, target, connection; indented, in $ds-text-muted.
+  3. context — description; indented, in $ds-text-disabled; optional.
 
-Linhas vazias sao omitidas, nao renderizadas em branco: um item so com
-identidade fica com uma unica linha, nao com duas linhas fantasmas.
+Empty lines are omitted, not rendered blank: an item with identity only ends
+up with a single line, not with two ghost lines.
 
-Nome de conexao e descricao sao dado do usuario, e o texto e livre — uma tag
-de ambiente (`Proposta [PROD]`) ou referencia de ticket com colchete e padrao
-plausivel neste dominio. Por isso o `Content` e montado programaticamente com
-`Content.assemble`/tuplas `(texto, estilo)`, nunca passando o dado do usuario
-pelo parser de markup (`Content.from_markup`/`[tag]...[/]`): o parser nunca
-ve o texto, entao nao ha nada para interpretar como tag e nada para escapar.
-Isso evita de raiz a assimetria conhecida do parser do Textual entre `\[` e
-`\]` (documentada em `result_table.py`, onde a compensacao de largura foi
-construida em cima desse comportamento) sem tocar em `escape_markup` — que e
-compartilhada com seis outros chamadores e nao e usada aqui.
+A connection name and a description are user data, and the text is free — an
+environment tag (`Proposta [PROD]`) or a ticket reference with brackets is a
+plausible pattern in this domain. That is why the `Content` is assembled
+programmatically with `Content.assemble`/`(text, style)` tuples, never passing
+the user data through the markup parser (`Content.from_markup`/`[tag]...[/]`):
+the parser never sees the text, so there is nothing to interpret as a tag and
+nothing to escape. This avoids at the root the known asymmetry of Textual's
+parser between `\[` and `\]` (documented in `result_table.py`, where the width
+compensation was built on top of that behaviour) without touching
+`escape_markup` — which is shared with six other callers and is not used here.
 
-Ao lado do `Content`, o modulo entrega o par `wrap_width` /
-`wrap_lines`, que e o que torna a hierarquia verdadeira em texto
-longo: sem pre-quebra em `\n`, a continuacao de uma linha larga demais
-volta para a coluna 0 — a coluna da identidade da entrada SEGUINTE — e o
-defeito reaparece inteiro. A conta mora aqui, e nao em cada tela, porque
-so depende do CSS de `Panel`/`OptionList`; a largura do painel e que fica
-com a tela.
+Alongside the `Content`, the module delivers the `wrap_width` /
+`wrap_lines` pair, which is what makes the hierarchy true for long
+text: without pre-breaking on `\n`, the continuation of an over-wide line
+goes back to column 0 — the identity column of the NEXT entry — and the
+defect reappears in full. The arithmetic lives here, and not in each
+screen, because it only depends on the CSS of `Panel`/`OptionList`; the
+panel width is what stays with the screen.
 
-E entrega tambem `NamedOption` — a `Option` que leva esse conteudo pro
-`OptionList` carregando o nome do item como dado, e nao como `id`. A
-razao esta na docstring da classe.
+And it also delivers `NamedOption` — the `Option` that carries this content
+into the `OptionList` holding the item's name as data, and not as an `id`.
+The reason is in the class docstring.
 """
 from __future__ import annotations
 
@@ -52,68 +52,70 @@ _INDENT = "  "
 
 
 # ----------------------------------------------------------------------
-# Largura de quebra — a conta que todo chamador que pre-quebra texto
-# precisa fazer, num lugar so.
+# Wrap width — the arithmetic that every caller that pre-wraps text
+# needs to do, in a single place.
 #
-# Quem pre-quebra (ver `wrap_lines` e a docstring de
-# `hierarchical_item`) precisa saber quantas colunas sobram para o TEXTO
-# dentro de um `OptionList` que vive num `Panel`. Cada parcela abaixo e
-# lida do CSS que a declara, nenhuma medida em runtime:
+# Whoever pre-wraps (see `wrap_lines` and the docstring of
+# `hierarchical_item`) needs to know how many columns are left for the
+# TEXT inside an `OptionList` that lives in a `Panel`. Each part below is
+# read from the CSS that declares it, none measured at runtime:
 #
-#   - `Panel` (dbqm/ui/widgets/panel.py): `border: round` = 1 coluna de
-#     cada lado.
-#   - `Panel > #panel-body`: `padding: 1 1` = 1 coluna de cada lado
-#     (vertical, horizontal); o horizontal e o que importa aqui.
+#   - `Panel` (dbqm/ui/widgets/panel.py): `border: round` = 1 column on
+#     each side.
+#   - `Panel > #panel-body`: `padding: 1 1` = 1 column on each side
+#     (vertical, horizontal); the horizontal one is what matters here.
 #   - `OptionList` (textual.widgets, DEFAULT_CSS): `padding: 0 1` = 1
-#     coluna de cada lado; a borda propria dela (`border: tall`) e zerada
-#     por `Panel #panel-body OptionList { border: none; }`, entao nao
-#     entra nesta conta.
+#     column on each side; its own border (`border: tall`) is zeroed out
+#     by `Panel #panel-body OptionList { border: none; }`, so it does not
+#     enter this arithmetic.
 #
-# Cada "de cada lado" vale 2 (esquerda + direita).
+# Each "on each side" counts as 2 (left + right).
 _PANEL_BORDER = 2
 _PANEL_BODY_PADDING = 2
 _OPTION_LIST_PADDING = 2
 
-# A barra de rolagem vertical do OptionList — 2 colunas, o padrao do
-# proprio Textual (`Widget().styles.scrollbar_size_vertical == 2`; nenhuma
-# das listas sobrescreve `scrollbar-size-vertical`, entao vale o padrao).
-# So aparece quando a lista transborda verticalmente, o que depende de
-# quantos itens existem — fora do controle de quem monta a tela.
-# Descontada INCONDICIONALMENTE: o pior caso (lista rolavel) e o caso
-# comum em uso real, e nao descontar significa que a largura calculada so
-# bate pra uma lista curta demais pra rolar.
+# The OptionList's vertical scrollbar — 2 columns, Textual's own default
+# (`Widget().styles.scrollbar_size_vertical == 2`; none of the lists
+# overrides `scrollbar-size-vertical`, so the default applies). It only
+# appears when the list overflows vertically, which depends on how many
+# items exist — outside the control of whoever builds the screen.
+# Subtracted UNCONDITIONALLY: the worst case (a scrollable list) is the
+# common case in real use, and not subtracting it means the computed width
+# is only right for a list too short to scroll.
 #
-# Esta e a parcela que custou quatro rodadas na lista de Conexoes, e o
-# motivo esta na assimetria da API do Textual: `content_region` NAO
-# desconta a barra de rolagem, `scrollable_content_region` desconta. Uma
-# largura derivada de `content_region` medido numa lista curta passa em
-# teste e sai errada em uso — foi assim que a linha "...ambiente" saiu
-# sem recuo, alinhada com a coluna de identidade da entrada seguinte.
-# Quem for reverificar esta conta: meca com a lista REALMENTE rolando
-# (`show_vertical_scrollbar is True`) e leia `scrollable_content_region`.
+# This is the part that cost four rounds on the Conexoes list, and the
+# reason lies in the asymmetry of Textual's API: `content_region` does NOT
+# subtract the scrollbar, `scrollable_content_region` does. A width
+# derived from `content_region` measured on a short list passes in tests
+# and comes out wrong in use — that is how the "...ambiente" line came out
+# without an indent, aligned with the identity column of the next entry.
+# Whoever re-verifies this arithmetic: measure it with the list REALLY
+# scrolling (`show_vertical_scrollbar is True`) and read
+# `scrollable_content_region`.
 _VERTICAL_SCROLLBAR = 2
 
-# O recuo que `_indented_field` antepoe a CADA linha de
-# desambiguacao/contexto. Entra na conta porque a largura util e a do
-# texto, nao a da linha: pre-quebrar em N colunas e depois somar o recuo
-# devolve N+2 colunas de linha, que e exatamente 2 a mais do que cabe.
+# The indent that `_indented_field` prepends to EVERY disambiguation/
+# context line. It enters the arithmetic because the useful width is the
+# text's, not the line's: pre-wrapping at N columns and then adding the
+# indent gives back lines of N+2 columns, which is exactly 2 more than
+# fits.
 _CONTEXT_INDENT = len(_INDENT)
 
 
 def wrap_width(panel_width: int) -> int:
-    """Colunas de TEXTO disponiveis num item de lista, dado o painel.
+    """TEXT columns available in a list item, given the panel.
 
-    Recebe a largura do `Panel` que hospeda o `OptionList` (o valor que o
-    CSS da tela declara) e devolve o que sobra para o texto depois da
-    borda do Panel, do padding do corpo, do padding do OptionList, da
-    barra de rolagem (pior caso) e do recuo que a propria linha paga.
+    Takes the width of the `Panel` that hosts the `OptionList` (the value
+    the screen's CSS declares) and returns what is left for the text after
+    the Panel border, the body padding, the OptionList padding, the
+    scrollbar (worst case) and the indent the line itself pays.
 
-    A largura do painel FICA COM A TELA — Conexoes e Consultas tem
-    paineis de tamanhos diferentes e assim deve ser (um e a coluna
-    esquerda de um master-detail, o outro e a tela inteira). O que e
-    compartilhado e a DERIVACAO, que so depende do CSS de `Panel` e de
-    `OptionList` e e identica nos dois lugares — duplica-la seria abrir
-    espaco para as duas copias divergirem quando esse CSS mudar.
+    The panel width STAYS WITH THE SCREEN — Conexoes and Consultas have
+    panels of different sizes and that is how it should be (one is the
+    left column of a master-detail, the other is the whole screen). What
+    is shared is the DERIVATION, which only depends on the CSS of `Panel`
+    and `OptionList` and is identical in both places — duplicating it
+    would open room for the two copies to diverge when that CSS changes.
     """
     return (
         panel_width
@@ -126,14 +128,14 @@ def wrap_width(panel_width: int) -> int:
 
 
 def wrap_lines(text: str, width: int) -> str:
-    """Pre-quebra *texto* em `\\n` a cada *largura* colunas.
+    """Pre-wraps *text* on `\\n` every *width* columns.
 
-    O `\\n` e o que garante o recuo: `hierarchical_item` recua cada linha
-    logica, e so elas — a quebra automatica que o Textual faz numa linha
-    unica larga demais acontece no render e nao tem como ser recuada (ver
-    a docstring de `hierarchical_item`). Colapsa espaco em branco antes de
-    quebrar para que uma descricao com quebras proprias nao estoure a
-    gramatica de uma linha por papel.
+    The `\\n` is what guarantees the indent: `hierarchical_item` indents
+    every logical line, and only those — the automatic wrapping Textual
+    does on a single over-wide line happens at render time and there is no
+    way to indent it (see the docstring of `hierarchical_item`). Collapses
+    whitespace before wrapping so that a description with breaks of its
+    own does not blow up the grammar of one line per role.
     """
     if not text:
         return ""
@@ -142,24 +144,24 @@ def wrap_lines(text: str, width: int) -> str:
 
 
 def _indented_field(text: str, style: str) -> Content:
-    """Monta um campo (desambiguacao ou contexto) com o recuo em TODA
-    linha, nao so na primeira.
+    """Builds a field (disambiguation or context) with the indent on EVERY
+    line, not just on the first.
 
-    Um campo pode chegar aqui com quebra de linha ja embutida — por
-    exemplo `connections.py` pre-quebra uma descricao longa em duas
-    linhas logicas antes de chamar `hierarchical_item`. Se o recuo fosse
-    aplicado uma vez so, na frente do bloco inteiro (como uma unica
-    `Content.assemble` faria), a segunda linha em diante ficaria alinhada
-    a coluna 0 — a MESMA coluna da identidade da proxima entrada. Recuo e
-    a pista de "isto pertence a entrada acima"; perde-la numa continuacao
-    e o defeito que motivou esta fase inteira, so que numa escala menor.
+    A field can arrive here with line breaks already embedded — for
+    example `connections.py` pre-wraps a long description into two logical
+    lines before calling `hierarchical_item`. If the indent were applied
+    only once, in front of the whole block (as a single `Content.assemble`
+    would do), the second line onwards would end up aligned to column 0 —
+    the SAME column as the identity of the next entry. The indent is the
+    cue for "this belongs to the entry above"; losing it on a continuation
+    is the defect that motivated this whole phase, just on a smaller scale.
 
-    Cada linha vira seu proprio `Content.assemble(_INDENT, (linha, estilo))`
-    — recuo como span proprio, nao espaco somado ao texto do campo por
-    quem chama — e as linhas sao unidas com `Content("\n").join(...)`,
-    que preserva os spans de cada uma. Nenhum espaco extra entra no
-    `.plain` alem do recuo em si; `.plain` continua igual ao texto que o
-    chamador passou, so que com o recuo antes de cada linha.
+    Each line becomes its own `Content.assemble(_INDENT, (line, style))`
+    — the indent as its own span, not whitespace added to the field's text
+    by the caller — and the lines are joined with `Content("\n").join(...)`,
+    which preserves the spans of each one. No extra whitespace enters
+    `.plain` beyond the indent itself; `.plain` remains equal to the text
+    the caller passed, only with the indent before each line.
     """
     parts = [
         Content.assemble(_INDENT, (line, style))
@@ -173,28 +175,29 @@ def hierarchical_item(
     disambiguation: str = "",
     context: str = "",
 ) -> Content:
-    """Monta um item de lista com ate tres linhas de hierarquia visual.
+    """Builds a list item with up to three lines of visual hierarchy.
 
-    Devolve `Content`, nao `str`: e o que `OptionList.add_option` e
-    `DataTable` aceitam sem cair no Rich puro, que levanta `MarkupError` ao
-    ver um token `$nome` (o mesmo problema documentado em
-    `group_result.py._status_cell`). Cada campo e um trecho estilizado via
-    `Content.assemble`, nao markup parseado — o texto do usuario chega ao
-    `Content` final byte a byte, sem escape e sem risco de fechar tag.
+    Returns `Content`, not `str`: it is what `OptionList.add_option` and
+    `DataTable` accept without falling back to plain Rich, which raises
+    `MarkupError` on seeing a `$name` token (the same problem documented in
+    `group_result.py._status_cell`). Each field is a styled span via
+    `Content.assemble`, not parsed markup — the user's text reaches the
+    final `Content` byte for byte, with no escaping and no risk of closing
+    a tag.
 
-    Se `desambiguacao` ou `contexto` trouxerem `\n` (um chamador que
-    pre-quebra texto longo em varias linhas logicas), CADA linha recebe o
-    recuo — ver `_indented_field`. Isto NAO cobre a quebra automatica que
-    o proprio Textual faz quando uma linha unica (sem `\n`) e mais larga
-    que o widget: aquele wrap e feito no render, depois que este `Content`
-    ja foi montado, e o Textual nao oferece um jeito de dar indentacao
-    persistente a continuacao de uma linha assim. Quem quiser recuo
-    garantido numa linha muito longa precisa pre-quebra-la em `\n` antes
-    de chamar esta funcao — e e o que `wrap_lines` faz, na largura
-    que `wrap_width` deriva (ela ja desconta o recuo que toda
-    linha do campo passa a pagar). As listas de Conexoes e de Consultas
-    fazem isso; e por isso que os paineis das duas tem largura fixa no
-    CSS.
+    If `disambiguation` or `context` carry a `\n` (a caller that pre-wraps
+    long text into several logical lines), EVERY line gets the indent —
+    see `_indented_field`. This does NOT cover the automatic wrapping
+    Textual itself does when a single line (without `\n`) is wider than
+    the widget: that wrap is done at render time, after this `Content` has
+    already been assembled, and Textual offers no way to give persistent
+    indentation to the continuation of such a line. Whoever wants a
+    guaranteed indent on a very long line must pre-break it on `\n` before
+    calling this function — and that is what `wrap_lines` does, at the
+    width `wrap_width` derives (which already subtracts the indent that
+    every line of the field comes to pay). The Conexoes and Consultas
+    lists do this; that is why the panels of both have a fixed width in
+    the CSS.
     """
     line = Content.assemble((identity, "bold $ds-text-strong"))
     if disambiguation:
@@ -205,24 +208,24 @@ def hierarchical_item(
 
 
 class NamedOption(Option):
-    """`Option` que carrega o nome do item como DADO, nao como `id`.
+    """`Option` that carries the item's name as DATA, not as an `id`.
 
-    Nome e a chave de busca do dbqm (`find_query`/`find_group`), entao a
-    tentacao e passa-lo como `Option(conteudo, id=nome)` e recupera-lo em
-    `event.option.id`. Mas `OptionList.add_option` levanta `DuplicateID`
-    num id repetido: duas consultas de mesmo nome num `queries.json`
-    editado a mao (os fluxos de criacao da UI barram duplicatas, um
-    arquivo legado ou editado no editor nao) faziam a TELA INTEIRA falhar
-    ao montar. Dado ambiguo continua ambiguo — nao da pra tornar a
-    selecao inequivoca, e nao e papel da lista tentar; o que ela deve e
-    NAO QUEBRAR: pintar as duas linhas e resolver a selecao pelo nome
-    exatamente como fazia antes, deixando a ambiguidade aparecer no
-    resultado da busca, nao numa tela morta.
+    Name is dbqm's lookup key (`find_query`/`find_group`), so the
+    temptation is to pass it as `Option(content, id=name)` and read it back
+    from `event.option.id`. But `OptionList.add_option` raises
+    `DuplicateID` on a repeated id: two queries with the same name in a
+    hand-edited `queries.json` (the UI's creation flows block duplicates, a
+    legacy file or one edited in an editor does not) made the WHOLE SCREEN
+    fail to mount. Ambiguous data stays ambiguous — there is no way to make
+    the selection unambiguous, and it is not the list's job to try; what it
+    must do is NOT BREAK: paint both rows and resolve the selection by name
+    exactly as it did before, letting the ambiguity show up in the search
+    result, not in a dead screen.
 
-    Guardar o nome num atributo proprio tira o `id` da jogada por
-    completo: nao ha id para colidir, e `nome` continua sendo "" quando o
-    dado tem nome vazio, em vez de virar `None` e produzir uma linha
-    silenciosamente morta.
+    Keeping the name in an attribute of its own takes the `id` out of the
+    picture entirely: there is no id to collide, and `name` stays "" when
+    the data has an empty name, instead of turning into `None` and
+    producing a silently dead row.
     """
 
     def __init__(self, content: Content, name: str) -> None:

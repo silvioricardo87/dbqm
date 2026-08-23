@@ -135,10 +135,11 @@ class BrowserScreen(Vertical):
                     action_id="escolher-conexao",
                     id="obj-list-empty",
                 )
-                # A forma da lista que vem, nao um rodopio: reserva o
-                # espaco certo enquanto a conexao busca os objetos. Uma
-                # coluna so: `#obj-list` e um OptionList, uma string por
-                # linha (`_populate_list`), nao uma tabela de duas colunas.
+                # The shape of the list that is coming, not a spinner: it
+                # reserves the right space while the connection fetches the
+                # objects. One column only: `#obj-list` is an OptionList,
+                # one string per line (`_populate_list`), not a two-column
+                # table.
                 yield Skeleton(rows=10, columns=1, id="obj-list-skeleton")
                 yield OptionList(id="obj-list")
 
@@ -147,9 +148,9 @@ class BrowserScreen(Vertical):
 
             with Panel("🔍  DADOS", accent=True, id="obj-preview-panel"):
                 yield ResultTable(id="obj-preview")
-                # Fonte de PACKAGE/ROUTINE: conteudo para consumir, nao um
-                # formulario de edicao — nao usar o mesmo visual de campo
-                # desabilitado (ver `-read-only` em dbqm/ui/theme.py).
+                # PACKAGE/ROUTINE source: content to consume, not an
+                # editing form — do not use the same look as a disabled
+                # field (see `-read-only` in dbqm/ui/theme.py).
                 yield SqlViewer("", id="obj-source", classes="-read-only")
                 with Horizontal(id="obj-preview-buttons"):
                     yield Button("Extrair DDL", id="obj-ddl")
@@ -279,15 +280,16 @@ class BrowserScreen(Vertical):
         else:
             objects = self._objects
 
-        # So identidade, sem desambiguacao: o `Select` de tipo acima e
-        # `allow_blank=False` (sempre um TYPE_OPTIONS valido selecionado),
-        # entao toda linha visivel aqui e sempre do MESMO tipo — escrever
-        # o tipo por extenso em cada item repetiria o que o filtro ja
-        # fixou, ocupando uma linha por objeto sem desambiguar nada de
-        # verdade. E sem contexto tambem: `list_objects` nao devolve
-        # owner, contagem de linhas ou qualquer outro metadado por objeto
-        # (so o nome) — inventar um terceiro campo aqui seria o
-        # mapeamento mecanico que este componente existe para evitar.
+        # Identity only, no disambiguation: the type `Select` above is
+        # `allow_blank=False` (always a valid TYPE_OPTIONS selected), so
+        # every row visible here is always of the SAME type — writing the
+        # type out in full on each item would repeat what the filter has
+        # already fixed, taking up one line per object without really
+        # disambiguating anything. And with no context either:
+        # `list_objects` does not return owner, row count or any other
+        # per-object metadata (only the name) — inventing a third field
+        # here would be the mechanical mapping this component exists to
+        # avoid.
         option_list = self.query_one("#obj-list", OptionList)
         option_list.clear_options()
         for obj in objects[:500]:

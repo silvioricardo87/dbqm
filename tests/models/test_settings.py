@@ -54,16 +54,17 @@ class TestSettings:
         import json
         from dbqm.core.paths import SETTINGS_FILE
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        # "github-light" e de proposito: e o nome do tema de antes da migracao
-        # para design tokens. Este teste prova que um settings.json gravado
-        # antes dela ainda carrega sem erro — nao "corrigir" para plano-claro.
+        # "github-light" is on purpose: it is the theme name from before the
+        # migration to design tokens. This test proves that a settings.json
+        # written before it still loads without error — do not "fix" it to
+        # plano-claro.
         SETTINGS_FILE.write_text(
             json.dumps({"audit_log_enabled": True, "theme": "github-light"}),
             encoding="utf-8",
         )
         s = load_settings()
         assert s.audit_log_enabled is True
-        assert s.theme == "github-light"  # passthrough cru; get_theme() e quem normaliza
+        assert s.theme == "github-light"  # raw passthrough; get_theme() is what normalizes
         assert s.default_export_dir == ""
         assert s.export_dir_prompted is False
         assert s.create_export_subdirs is True
@@ -84,6 +85,6 @@ class TestSettings:
         import json
         from dbqm.core.paths import SETTINGS_FILE
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        # De proposito: settings.json legado, de antes da migracao para tokens.
+        # On purpose: legacy settings.json, from before the migration to tokens.
         SETTINGS_FILE.write_text(json.dumps({"theme": "github-light"}), encoding="utf-8")
         assert load_settings().oracle_client_dir == ""

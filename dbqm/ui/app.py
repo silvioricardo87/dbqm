@@ -15,40 +15,40 @@ from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
 
 class MainTabs(TabbedContent):
-    """`TabbedContent` em que FOCAR nao e NAVEGAR.
+    """`TabbedContent` in which FOCUSING is not NAVIGATING.
 
-    O `TabbedContent` de fabrica trata foco como navegacao: `TabPane` posta
-    `TabPane.Focused` a cada `DescendantFocus`, e
-    `TabbedContent._on_tab_pane_focused` responde com
-    ``self.active = event.tab_pane.id``. Qualquer widget que ganhe foco
-    dentro de um painel INATIVO arrasta a aba junto — inclusive um painel
-    que o `ContentSwitcher` ja escondeu (medido: `pane.display` False, e
-    ``w.focus()`` mesmo assim leva `active` de `tab-historico` para
+    The stock `TabbedContent` treats focus as navigation: `TabPane` posts
+    `TabPane.Focused` on every `DescendantFocus`, and
+    `TabbedContent._on_tab_pane_focused` answers with
+    ``self.active = event.tab_pane.id``. Any widget that takes focus
+    inside an INACTIVE pane drags the tab along — including a pane that
+    the `ContentSwitcher` has already hidden (measured: `pane.display`
+    False, and ``w.focus()`` still moves `active` from `tab-historico` to
     `tab-conexoes`).
 
-    E exatamente o que toda tela do dbqm faz: cada uma agenda o proprio
-    foco inicial com `call_after_refresh` no seu `on_mount`. Quando a
-    pessoa troca de aba antes de a tempestade de montagem assentar, o foco
-    atrasado da tela ANTERIOR chega depois e desfaz a troca — a aba pisca
-    `tab-conexoes` -> `tab-coleta` -> `tab-conexoes` e para na errada. Foi
-    o que se mediu com um `F5` logo na abertura: `active='tab-conexoes'`
-    com sete paineis ainda desabilitados.
+    That is exactly what every dbqm screen does: each one schedules its
+    own initial focus with `call_after_refresh` in its `on_mount`. When
+    the person switches tabs before the mount storm settles, the delayed
+    focus of the PREVIOUS screen arrives later and undoes the switch — the
+    tab blinks `tab-conexoes` -> `tab-coleta` -> `tab-conexoes` and stops
+    on the wrong one. That is what was measured with an `F5` right at
+    startup: `active='tab-conexoes'` with seven panes still disabled.
 
-    Aqui a mensagem morre. Trocar de aba no dbqm e clicar no cabecalho ou
-    apertar a tecla de funcao — as duas rotas continuam intactas, porque
-    passam por `Tabs.active`, nao por foco. Nenhuma tela depende do
-    comportamento de fabrica: `DBQMApp._focus_screen_widget` so foca dentro
-    do painel que JA esta ativo.
+    Here the message dies. Switching tabs in dbqm is clicking the header
+    or pressing the function key — both routes stay intact, because they
+    go through `Tabs.active`, not through focus. No screen depends on the
+    stock behavior: `DBQMApp._focus_screen_widget` only focuses inside
+    the pane that is ALREADY active.
     """
 
     def _on_tab_pane_focused(self, event) -> None:  # type: ignore[override]
-        # `prevent_default`, nao apenas `stop`: o Textual despacha a MESMA
-        # mensagem para o handler de CADA classe da MRO
-        # (`MessagePump._get_dispatch_methods`), entao um `stop()` sozinho
-        # so barra o borbulhamento — o `_on_tab_pane_focused` do
-        # `TabbedContent` rodaria em seguida e a aba trocaria assim mesmo
-        # (medido: a correcao com `stop()` sozinho nao mudou nada). E
-        # `_no_default_action` que interrompe a varredura da MRO.
+        # `prevent_default`, not just `stop`: Textual dispatches the SAME
+        # message to the handler of EVERY class in the MRO
+        # (`MessagePump._get_dispatch_methods`), so a lone `stop()` only
+        # blocks bubbling — `TabbedContent`'s `_on_tab_pane_focused`
+        # would run next and the tab would switch anyway (measured: the
+        # fix with `stop()` alone changed nothing). It is
+        # `_no_default_action` that interrupts the MRO sweep.
         event.prevent_default()
         event.stop()
 
@@ -56,9 +56,9 @@ class MainTabs(TabbedContent):
 class DBQMApp(App):
     """DB Query Manager — single tabbed dashboard shell."""
 
-    # Estados inertes distintos (Task 12) — ver o comentario em
-    # `dbqm/ui/theme.py::INERT_STATES_CSS` para o porque de viver la e o
-    # porque de ser `DEFAULT_CSS`, nao `CSS`.
+    # Distinct inert states (Task 12) — see the comment in
+    # `dbqm/ui/theme.py::INERT_STATES_CSS` for why it lives there and why
+    # it is `DEFAULT_CSS`, not `CSS`.
     DEFAULT_CSS = INERT_STATES_CSS
 
     #: Maps each tab id to the id of the screen widget it hosts.
@@ -83,12 +83,12 @@ class DBQMApp(App):
         # initial mount focus-storm window.
         self._user_switched_tab = False
 
-        # Tema precisa estar de pe antes do primeiro compose/mount: o
-        # DEFAULT_CSS dos widgets (Panel etc.) e aplicado assim que eles sao
-        # montados, o que acontece antes de on_mount rodar. Se o tema so
-        # fosse trocado em on_mount, qualquer `$token` que nao seja tambem
-        # variavel embutida do Textual (ex.: $ds-border) falharia ao resolver no
-        # primeiro render.
+        # The theme must be up before the first compose/mount: the widgets'
+        # DEFAULT_CSS (Panel etc.) is applied as soon as they are mounted,
+        # which happens before on_mount runs. If the theme were only
+        # swapped in on_mount, any `$token` that is not also a Textual
+        # built-in variable (e.g. $ds-border) would fail to resolve on the
+        # first render.
         from dbqm.models.settings import load_settings
 
         for tema in TEXTUAL_THEMES.values():
@@ -172,8 +172,9 @@ class DBQMApp(App):
         yield StatusBar()
 
     def on_mount(self) -> None:
-        """Load connections/queries/groups and set initial state. O tema ja
-        foi registrado e aplicado em __init__, antes do primeiro mount."""
+        """Load connections/queries/groups and set initial state. The theme
+        has already been registered and applied in __init__, before the first
+        mount."""
         from dbqm.models.connection import load_connections
         from dbqm.models.query import load_queries
         from dbqm.models.group import load_groups
@@ -314,11 +315,11 @@ class DBQMApp(App):
         are restored when switching back. Everything else clears the bar.
         This is best-effort and never hard-codes phase ids.
         """
-        # A acao fixa pertence a aba que a pos (ver
-        # `ActionBar.set_pinned_action`): limpar aqui, ANTES de perguntar a
-        # tela nova, e o que impede o `Esc Voltar` das Ferramentas de
-        # aparecer em Conexoes, onde nao volta para lugar nenhum. A tela
-        # que ainda precisar dele torna a poe-lo no proprio `_set_actions`.
+        # The pinned action belongs to the tab that put it there (see
+        # `ActionBar.set_pinned_action`): clearing it here, BEFORE asking
+        # the new screen, is what stops the Ferramentas' `Esc Voltar` from
+        # showing up in Conexoes, where it goes back nowhere. The screen
+        # that still needs it puts it back in its own `_set_actions`.
         try:
             self.query_one(ActionBar).set_pinned_action(None)
         except Exception:
@@ -594,16 +595,16 @@ class DBQMApp(App):
                     screen.go_back_to_selection()
                     self.query_one(ActionBar).set_actions([])
             elif screen_id == "settings-screen":
-                # `OracleClientsScreen` nunca teve botao de voltar: sem esta
-                # rota de teclado ela seria um beco sem saida dentro da aba.
-                # E botao de voltar seria botao fazendo navegacao, que a
-                # secao 7 da gramatica proibe.
+                # `OracleClientsScreen` never had a back button: without
+                # this keyboard route it would be a dead end inside the
+                # tab. And a back button would be a button doing
+                # navigation, which section 7 of the grammar forbids.
                 screen.back_to_start()
             elif screen_id == "ferramentas-screen":
-                # Mesma razao: os cinco "Voltar" que viviam dentro dos
-                # paineis de ferramenta eram navegacao feita por botao e
-                # sairam na Task 8. `ToolsScreen._set_actions`
-                # desenha o `Esc` na barra enquanto uma delas esta aberta.
+                # Same reason: the five "Voltar" that lived inside the
+                # tool panes were navigation done by button and left in
+                # Task 8. `ToolsScreen._set_actions` draws the `Esc` in the
+                # bar while one of them is open.
                 screen.back_to_menu()
         except Exception:
             pass

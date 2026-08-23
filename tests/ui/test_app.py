@@ -110,18 +110,20 @@ async def test_all_panes_enabled_after_mount(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
-    """Ativar a aba pela API do `TabbedContent` troca a aba e deixa o
-    painel de destino habilitado.
+    """Activating the tab through the `TabbedContent` API switches the tab
+    and leaves the target pane enabled.
 
-    Nao e "simular um clique", como dizia a docstring antiga — clique de
-    mouse entra por `Tabs`, esta atribuicao entra pela reativa `active`. E
-    a rota mais NUA das duas: se ela e estavel, a do clique tambem e.
+    This is not "simulating a click", as the old docstring claimed — a
+    mouse click comes in through `Tabs`, this assignment comes in through
+    the `active` reactive. It is the BAREST of the two routes: if it is
+    stable, the click route is too.
 
-    Era ela que piscava sob carga (a revisao mediu 8 de 15 perdendo a
-    aba). O motivo estava no PRODUTO, nao aqui, e a corrida so vira
-    deterministica quando se dispara o foco atrasado a mao — por isso o
-    teste que guarda a raiz e o vizinho
-    `test_focus_in_an_inactive_pane_does_not_switch_tabs`, nao este.
+    This was the one that flickered under load (the review measured 8 out
+    of 15 losing the tab). The reason was in the PRODUCT, not here, and
+    the race only becomes deterministic when the delayed focus is fired by
+    hand — which is why the test that guards the root cause is the
+    neighbour `test_focus_in_an_inactive_pane_does_not_switch_tabs`, not
+    this one.
     """
     app = DBQMApp()
     async with app.run_test() as pilot:
@@ -136,19 +138,21 @@ async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
-    """Focar um widget de OUTRA aba nao pode arrastar a aba ativa junto.
+    """Focusing a widget from ANOTHER tab must not drag the active tab
+    along with it.
 
-    E a raiz da instabilidade das tres travessias de aba deste arquivo. O
-    `TabbedContent` de fabrica responde a `TabPane.Focused` com
-    ``self.active = pane.id``, e toda tela do dbqm agenda o proprio foco
-    inicial (`call_after_refresh` no `on_mount`). Trocar de aba durante a
-    montagem deixava o foco atrasado da tela anterior desfazer a troca.
+    This is the root of the instability of the three tab traversals in
+    this file. The stock `TabbedContent` responds to `TabPane.Focused`
+    with ``self.active = pane.id``, and every dbqm screen schedules its
+    own initial focus (`call_after_refresh` in `on_mount`). Switching
+    tabs during mount let the delayed focus of the previous screen undo
+    the switch.
 
-    O `focus()` abaixo e literalmente o que essas telas fazem — e funciona
-    mesmo com o painel ja escondido pelo `ContentSwitcher`, que era o que
-    tornava a corrida invisivel. Afirma-se o que a tela PINTA, nao so o
-    valor de `active`: com a aba errada ativa, e o conteudo de Conexoes
-    que aparece.
+    The `focus()` below is literally what those screens do — and it works
+    even with the pane already hidden by the `ContentSwitcher`, which was
+    what made the race invisible. What is asserted is what the screen
+    PAINTS, not just the value of `active`: with the wrong tab active, it
+    is the Conexoes content that shows up.
     """
     from tests.ui._helpers import rendered_text
 
@@ -173,20 +177,20 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir):
-    """Um `F5` apertado ANTES de a montagem assentar nao pode ser engolido.
+    """An `F5` pressed BEFORE the mount settles must not be swallowed.
 
-    Medido no produto antes da correcao: `f5` com zero pausas terminava em
-    `active='tab-conexoes'` com sete paineis ainda desabilitados — a tecla
-    parecia nao ter existido. Aqui a tecla e apertada no primeiro instante
-    possivel, sem nenhuma pausa de assentamento antes dela.
+    Measured in the product before the fix: `f5` with zero pauses ended up
+    at `active='tab-conexoes'` with seven panes still disabled — the key
+    looked as if it had never existed. Here the key is pressed at the
+    earliest possible instant, with no settling pause before it.
     """
     app = DBQMApp()
     async with app.run_test() as pilot:
         await pilot.press("f5")
-        # O foco atrasado que a tela de Conexoes agenda no proprio `on_mount`
-        # chega DEPOIS da tecla. Disparado aqui de proposito, para que a
-        # corrida aconteca sempre — solta, ela so aparecia uma vez a cada
-        # dez execucoes, e um teste que falha 1/10 nao guarda nada.
+        # The delayed focus that the Conexoes screen schedules in its own
+        # `on_mount` arrives AFTER the key. Fired here on purpose, so the
+        # race always happens — left loose, it only showed up once every
+        # ten runs, and a test that fails 1/10 of the time guards nothing.
         intruso = next(
             w for w in app.query_one("#connections-screen").query("*") if w.can_focus
         )
@@ -197,17 +201,18 @@ async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir)
 
 
 def test_dbqm_app_registers_and_activates_theme_on_construction(tmp_config_dir):
-    """DBQMApp precisa registrar e ativar o tema em __init__, antes do
-    primeiro compose/mount — nao em on_mount. O DEFAULT_CSS de widgets como
-    Panel usa tokens puros (ex.: `$ds-border`), que ao contrario de
-    `$accent`/`$primary` nao sao variavel embutida do Textual: so existem
-    quando um dos nossos temas esta registrado E ativo. Se o registro
-    voltar para on_mount (ou for removido), o primeiro mount quebra com
-    UnresolvedVariableError antes mesmo deste teste rodar `run_test()`.
+    """DBQMApp must register and activate the theme in __init__, before the
+    first compose/mount — not in on_mount. The DEFAULT_CSS of widgets such
+    as Panel uses pure tokens (e.g. `$ds-border`) which, unlike
+    `$accent`/`$primary`, are not built-in Textual variables: they only
+    exist when one of our themes is registered AND active. If the
+    registration moves back to on_mount (or is removed), the first mount
+    breaks with UnresolvedVariableError before this test even gets to run
+    `run_test()`.
 
-    De proposito nao usa nenhum helper/fixture que registre tema por fora
-    (ver tests/ui/_helpers.ThemedTestApp) — isso provaria so que o helper
-    funciona, nao que a DBQMApp real se vira sozinha.
+    On purpose it uses no helper/fixture that registers the theme from the
+    outside (see tests/ui/_helpers.ThemedTestApp) — that would only prove
+    that the helper works, not that the real DBQMApp manages on its own.
     """
     from dbqm.ui.theme import TEXTUAL_THEMES
 
@@ -219,25 +224,25 @@ def test_dbqm_app_registers_and_activates_theme_on_construction(tmp_config_dir):
 
 
 # ======================================================================
-# Rotas de Configuracoes -> telas hospedadas
+# Settings routes -> hosted screens
 #
-# Estas telas ficaram INALCANCAVEIS da v1.17.0 ate aqui. `#screen-area`
-# saiu em e02b8a8 ("single tabbed shell") e tres chamadas continuaram
-# consultando-o: `settings._open_portability`, `settings._open_oracle_
-# clients` e `config_port._go_back_to_settings`. Todas caiam no
-# `except Exception` e notificavam "Erro: No nodes match '#screen-area'".
+# These screens were UNREACHABLE from v1.17.0 until here. `#screen-area`
+# went away in e02b8a8 ("single tabbed shell") and three call sites kept
+# querying for it: `settings._open_portability`, `settings._open_oracle_
+# clients` and `config_port._go_back_to_settings`. All of them fell into
+# the `except Exception` and notified "Erro: No nodes match '#screen-area'".
 #
-# Por que os testes daqui montam a DBQMApp REAL, e nao a tela sozinha:
-# um teste que fizesse `yield OracleClientsScreen()` num harness proprio
-# teria passado verde durante as seis semanas em que o produto nao tinha
-# como chegar naquela tela. O defeito nao estava na tela — estava no
-# caminho ate ela. Entao o caminho e o que se exercita: trocar de aba,
-# escolher na lista, e afirmar o que a tela PINTA.
+# Why the tests here mount the REAL DBQMApp, and not the screen on its
+# own: a test that did `yield OracleClientsScreen()` in a harness of its
+# own would have stayed green during the six weeks in which the product
+# had no way of reaching that screen. The defect was not in the screen —
+# it was in the path to it. So the path is what gets exercised: switch
+# tabs, choose from the list, and assert what the screen PAINTS.
 # ======================================================================
 
 
 async def _open_config_tool(pilot, app, key):
-    """Percorre o caminho real: aba Configuracoes -> lista -> Enter."""
+    """Walk the real path: Configuracoes tab -> list -> Enter."""
     from textual.widgets import OptionList
 
     await pilot.press("f6")
@@ -260,12 +265,12 @@ async def _open_config_tool(pilot, app, key):
 
 @pytest.mark.asyncio
 async def test_settings_opens_the_oracle_clients_manager(tmp_config_dir):
-    """A tela que gerencia o Instant Client precisa ser alcancavel.
+    """The screen that manages the Instant Client has to be reachable.
 
-    Nao e arrumacao: o Instant Client e o assunto da correcao da v1.18.0,
-    para conflitos de ORACLE_HOME 32/64 bits que derrubavam conexoes como
-    MGORA7ORA9 em producao. Com a rota morta, a unica saida do usuario era
-    editar a configuracao na mao.
+    This is not tidying up: the Instant Client is the subject of the
+    v1.18.0 fix, for 32/64-bit ORACLE_HOME conflicts that were bringing
+    down connections such as MGORA7ORA9 in production. With the route
+    dead, the user's only way out was to edit the configuration by hand.
     """
     from dbqm.ui.screens.oracle_clients import OracleClientsScreen
     from tests.ui._helpers import rendered_text
@@ -286,7 +291,7 @@ async def test_settings_opens_the_oracle_clients_manager(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_settings_opens_export_import(tmp_config_dir):
-    """Exportar/Importar configuracao tambem estava morto desde a v1.17.0."""
+    """Export/Import configuration was also dead since v1.17.0."""
     from dbqm.ui.screens.config_port import ConfigPortScreen
     from tests.ui._helpers import rendered_text
 
@@ -302,10 +307,11 @@ async def test_settings_opens_export_import(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_escape_returns_from_the_tool_to_settings(tmp_config_dir):
-    """Voltar e tecla, nao botao: `Esc` desfaz a ida (secao 7 da gramatica).
+    """Going back is a key, not a button: `Esc` undoes the trip (section 7
+    of the grammar).
 
-    `OracleClientsScreen` nunca teve botao de voltar — sem esta rota de
-    teclado ela seria um beco sem saida dentro da aba.
+    `OracleClientsScreen` never had a back button — without this keyboard
+    route it would be a dead end inside the tab.
     """
     from dbqm.ui.screens.oracle_clients import OracleClientsScreen
     from tests.ui._helpers import rendered_text
@@ -329,15 +335,16 @@ async def test_escape_returns_from_the_tool_to_settings(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
-    """A saida do config_port funciona — e agora e o `Esc`, nao um botao.
+    """The way out of config_port works — and it is now `Esc`, not a button.
 
-    Historico que este teste guarda: o "Voltar" que vivia em
-    `config_port.py:177` montava uma `SettingsScreen` nova dentro de
-    `#screen-area`, um container removido na v1.17.0, e por seis semanas
-    so notificava "Erro: No nodes match". A Task 7 ressuscitou a rota; a
-    Task 8 tirou o BOTAO, porque voltar e navegacao e a secao 7 da
-    gramatica proibe botao que navega. O que se afirma aqui e a rota, que
-    e o que estava morto — nao o widget que a acionava.
+    History this test keeps: the "Voltar" that used to live at
+    `config_port.py:177` mounted a fresh `SettingsScreen` inside
+    `#screen-area`, a container removed in v1.17.0, and for six weeks it
+    only notified "Erro: No nodes match". Task 7 brought the route back to
+    life; Task 8 removed the BUTTON, because going back is navigation and
+    section 7 of the grammar forbids a button that navigates. What is
+    asserted here is the route, which is what was dead — not the widget
+    that triggered it.
     """
     from dbqm.ui.screens.config_port import ConfigPortScreen
     from tests.ui._helpers import rendered_text
@@ -347,7 +354,7 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
         await _open_config_tool(pilot, app, "portabilidade")
         tela = app.query_one(ConfigPortScreen)
 
-        # Entrar numa fase FUNDA: e de la que a volta precisa funcionar.
+        # Enter a DEEP phase: that is where going back has to work from.
         tela._show_export_phase()
         await pilot.pause()
         assert tela.query_one("#cp-export-phase").display is True
@@ -356,8 +363,8 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        # A tela segue montada (um worker de exportacao pode estar vivo);
-        # o que tem de mudar e o que a aba PINTA.
+        # The screen stays mounted (an export worker may still be alive);
+        # what has to change is what the tab PAINTS.
         pintado = rendered_text(app).upper()
         assert "EXPORTAR OU IMPORTAR" not in pintado, "o Voltar nao voltou"
         assert "MAIS CONFIGURACOES" in pintado
@@ -365,17 +372,19 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_no_settings_route_fails_silently(tmp_config_dir):
-    """A rota chega, e chega sem reportar erro por canal NENHUM.
+    """The route arrives, and it arrives without reporting an error through
+    ANY channel.
 
-    A versao anterior deste teste so olhava o toast, porque o toast era o
-    sintoma historico (`except Exception` + `notify`). Ela passava com a
-    rota REMONTADA quebrada: sem o `except`, um `NoMatches` sai do handler
-    sem virar toast, e o teste seguia verde com a tela nao abrindo. Um
-    teste que so vigia o sintoma de ontem nao vigia o defeito.
+    The previous version of this test only looked at the toast, because
+    the toast was the historical symptom (`except Exception` + `notify`).
+    It passed with the REBUILT route broken: without the `except`, a
+    `NoMatches` leaves the handler without turning into a toast, and the
+    test stayed green with the screen not opening. A test that only
+    watches yesterday's symptom does not watch the defect.
 
-    Entao aqui se cobram os tres canais por onde uma falha de rota pode
-    sair — a tela nao aparecer, um toast de erro, um modal de erro
-    empilhado — e nao so o do meio.
+    So here all three channels through which a route failure can come out
+    are checked — the screen not showing up, an error toast, a stacked
+    error modal — and not just the middle one.
     """
     from tests.ui._helpers import rendered_text
 
@@ -404,17 +413,18 @@ async def test_no_settings_route_fails_silently(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
-    """`Esc` e a unica saida de uma tela hospedada, e ela precisa ser DITA.
+    """`Esc` is the only way out of a hosted screen, and it has to be SAID.
 
-    `DBQMApp.compose` nao rende `Footer`, entao o
-    `Binding("escape", "go_back", "Back")` do app nao aparece em lugar
-    nenhum, e `OracleClientsScreen` nunca teve botao de voltar: a saida
-    existia e nada na tela a mencionava. A secao 7 da gramatica proibe um
-    BOTAO que navega — nao proibe dizer qual tecla volta.
+    `DBQMApp.compose` does not yield a `Footer`, so the app's
+    `Binding("escape", "go_back", "Back")` shows up nowhere, and
+    `OracleClientsScreen` never had a back button: the way out existed and
+    nothing on the screen mentioned it. Section 7 of the grammar forbids a
+    BUTTON that navigates — it does not forbid saying which key goes back.
 
-    A afirmacao e sobre a linha PINTADA, e nao sobre `ActionBar._actions`:
-    a barra media duas linhas e a StatusBar cobria a segunda, entao as
-    acoes estavam em `_actions` e em tela nenhuma.
+    The assertion is about the PAINTED line, and not about
+    `ActionBar._actions`: the bar measured two lines and the StatusBar
+    covered the second one, so the actions were in `_actions` and on no
+    screen at all.
     """
     from tests.ui._helpers import rendered_lines, rendered_text
 
@@ -438,9 +448,10 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
             % rendered_lines(app)[-4:]
         )
 
-        # Sair da aba e voltar nao pode apagar o anuncio: a tela hospedada
-        # continua na frente. Quem repoe e `SettingsScreen._set_actions`,
-        # que `on_tabbed_content_tab_activated` procura pelo nome.
+        # Leaving the tab and coming back must not erase the announcement:
+        # the hosted screen is still in front. What restores it is
+        # `SettingsScreen._set_actions`, which
+        # `on_tabbed_content_tab_activated` looks up by name.
         await pilot.press("f1")
         await pilot.pause()
         await pilot.press("f6")
@@ -449,13 +460,13 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
         await pilot.pause()
         assert anuncia_voltar(app), "trocar de aba e voltar apagou o anuncio"
 
-        # E o que ele anuncia funciona tambem por CLIQUE, que e a outra
-        # forma de acionar a barra. Clicado onde esta escrito, e nao
-        # chamando `action_select_action` na mao: fora do processamento de
-        # mensagem da propria barra o `_sender` da `ActionSelected` nao e a
-        # `ActionBar`, e o encaminhamento do app (que confere o remetente
-        # para nao entrar em laco) nao acontece — um teste assim mediria
-        # uma rota que o clique nao usa.
+        # And what it announces also works by CLICK, which is the other way
+        # of triggering the bar. Clicked where it is written, and not by
+        # calling `action_select_action` by hand: outside the bar's own
+        # message processing the `_sender` of `ActionSelected` is not the
+        # `ActionBar`, and the app's forwarding (which checks the sender so
+        # as not to loop) does not happen — a test like that would measure
+        # a route the click does not use.
         linhas = rendered_lines(app)
         y = next(
             i for i, linha in enumerate(linhas)
@@ -471,14 +482,15 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir):
-    """Reabrir pela lista mostra o que a lista prometeu, nao a fase antiga.
+    """Reopening from the list shows what the list promised, not the old
+    phase.
 
-    A tela continua MONTADA depois do `Esc` — isso protege o worker de
-    download de 150+ MB do gerenciador de clients, que escreve na propria
-    arvore. `ConfigPortScreen` nao tem nada disso, e ficar montada nela
-    significava reabrir na fase em que tinha parado: quem exportou uma vez
-    reencontrava o formulario de exportacao, embora a entrada que acabou de
-    escolher se chame "Exportar / Importar".
+    The screen stays MOUNTED after the `Esc` — that protects the 150+ MB
+    download worker of the clients manager, which writes into its own
+    tree. `ConfigPortScreen` has nothing of the sort, and staying mounted
+    there meant reopening at the phase where it had stopped: whoever
+    exported once ran into the export form again, even though the entry
+    they had just chosen is called "Exportar / Importar".
     """
     from dbqm.ui.screens.config_port import ConfigPortScreen
     from tests.ui._helpers import rendered_text
@@ -507,12 +519,13 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
 
 @pytest.fixture
 def dois_clients_instalados(tmp_config_dir, monkeypatch):
-    """Dois Instant Clients instalados, e a validacao de arquitetura desligada.
+    """Two Instant Clients installed, and the architecture validation off.
 
-    Sem isto o teste dependeria do que existe na maquina de quem roda:
-    `list_installed_clients` varre `CLIENTS_DIR` de verdade e
-    `validate_oracle_client_dir` abre a DLL para conferir 32/64 bits. O que
-    se quer exercitar aqui e a rota da tela, nao a deteccao.
+    Without this the test would depend on what exists on the machine of
+    whoever runs it: `list_installed_clients` really scans `CLIENTS_DIR`
+    and `validate_oracle_client_dir` opens the DLL to check 32/64 bits.
+    What we want to exercise here is the screen's route, not the
+    detection.
     """
     import dbqm.core.db_manager as dbm
     import dbqm.core.oracle_client_installer as oci
@@ -533,16 +546,18 @@ def dois_clients_instalados(tmp_config_dir, monkeypatch):
 async def test_clients_manager_opens_in_a_titled_panel(
     dois_clients_instalados, tmp_config_dir
 ):
-    """Abrir o gerenciador nao pode cair no meio de uma tabela sem cabecalho.
+    """Opening the manager must not land in the middle of a table with no
+    header.
 
-    A tela e mais alta que 24 linhas e o Textual rola ate quem recebe foco.
-    Com o foco inicial na tabela de DISPONIVEIS — o terceiro painel — o
-    gerenciador abria rolado ate la, e a primeira coisa depois de escolher
-    a entrada da lista era uma tabela sem titulo em cima: nada dizia em que
-    tela a pessoa tinha acabado de entrar.
+    The screen is taller than 24 lines and Textual scrolls to whatever
+    receives focus. With the initial focus on the AVAILABLE table — the
+    third panel — the manager opened scrolled all the way there, and the
+    first thing after choosing the list entry was a table with no title
+    above it: nothing said which screen the person had just entered.
 
-    Medido no caminho real, a 80x24, que e onde a rolagem existe: num
-    terminal alto a tela inteira cabe e o defeito nao aparece.
+    Measured on the real path, at 80x24, which is where the scrolling
+    exists: in a tall terminal the whole screen fits and the defect does
+    not show up.
     """
     from tests.ui._helpers import rendered_lines
 
@@ -550,8 +565,8 @@ async def test_clients_manager_opens_in_a_titled_panel(
     async with app.run_test(size=(80, 24)) as pilot:
         await _open_config_tool(pilot, app, "oracle-clients")
 
-        # As primeiras linhas pintadas abaixo da tira de abas: e ali que
-        # tem de haver um titulo de painel dizendo onde a pessoa entrou.
+        # The first lines painted below the tab strip: that is where there
+        # has to be a panel title saying where the person has landed.
         topo = [linha for linha in rendered_lines(app)[3:] if linha.strip()][:3]
         assert any(
             "PLATAFORMA DETECTADA" in linha or "CLIENTS INSTALADOS" in linha
@@ -563,18 +578,18 @@ async def test_clients_manager_opens_in_a_titled_panel(
 async def test_choosing_a_client_updates_the_status_on_return(
     dois_clients_instalados, tmp_config_dir
 ):
-    """O rotulo `Client em uso` nao pode contradizer o que se acabou de salvar.
+    """The `Client em uso` label must not contradict what was just saved.
 
-    Este e o pior momento possivel para o rotulo envelhecer: a rota ate o
-    gerenciador foi desenhada em volta dele — quem precisa do gerenciador
-    esta olhando para o `Client em uso`, e a entrada da lista fica encostada
-    nesse status de proposito. Se depois de escolher um client o rotulo
-    continuar mostrando o anterior, a tela desmente a configuracao que ela
-    mesma acabou de gravar.
+    This is the worst possible moment for the label to go stale: the route
+    to the manager was designed around it — whoever needs the manager is
+    looking at `Client em uso`, and the list entry sits right next to that
+    status on purpose. If after choosing a client the label keeps showing
+    the previous one, the screen contradicts the configuration it has just
+    written itself.
 
-    A afirmacao e sobre o texto PINTADO depois do `Esc`, nao sobre
-    `load_settings()`: o defeito era exatamente uma configuracao correta com
-    uma tela errada em cima dela.
+    The assertion is about the text PAINTED after the `Esc`, not about
+    `load_settings()`: the defect was exactly a correct configuration with
+    a wrong screen on top of it.
     """
     from textual.widgets import Button, DataTable
     from dbqm.models.settings import Settings, load_settings, save_settings
@@ -618,12 +633,12 @@ async def test_choosing_a_client_updates_the_status_on_return(
 
 
 # ======================================================================
-# Ferramentas — menu e lista, e a volta e tecla (gramatica, secao 7)
+# Tools — menu and list, and going back is a key (grammar, section 7)
 # ======================================================================
 
 
 async def _open_tool(pilot, app, key):
-    """Percorre o caminho real: aba Ferramentas -> lista -> Enter."""
+    """Walk the real path: Ferramentas tab -> list -> Enter."""
     from textual.widgets import OptionList
 
     await pilot.press("f8")
@@ -646,16 +661,16 @@ async def _open_tool(pilot, app, key):
 
 @pytest.mark.asyncio
 async def test_tools_shows_all_five_at_80x24(tmp_config_dir):
-    """As cinco ferramentas cabem na tela — antes, duas ficavam abaixo da dobra.
+    """All five tools fit on the screen — before, two sat below the fold.
 
-    Medido na DBQMApp real a 80x24: cinco botoes de largura total custam
-    4 linhas cada (3 de botao + 1 de margem) = 20 linhas num corpo de 14,
-    e `Executar Rotina` e `Executar Grupo` so apareciam depois de rolar.
-    Um menu cujas ultimas entradas nao aparecem nao e um menu.
+    Measured on the real DBQMApp at 80x24: five full-width buttons cost 4
+    lines each (3 of button + 1 of margin) = 20 lines in a body of 14, and
+    `Executar Rotina` and `Executar Grupo` only showed up after scrolling.
+    A menu whose last entries do not show up is not a menu.
 
-    Contra a DBQMApp e nao contra um harness de uma tela so: montada
-    sozinha, `ToolsScreen` recebe as 24 linhas inteiras; no produto
-    ela tem 20, e era nessa diferenca que o defeito morava.
+    Against the DBQMApp and not against a single-screen harness: mounted
+    on its own, `ToolsScreen` gets the whole 24 lines; in the product it
+    has 20, and it was in that difference that the defect lived.
     """
     from tests.ui._helpers import rendered_text
 
@@ -678,11 +693,12 @@ async def test_tools_shows_all_five_at_80x24(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
-    """A saida de uma ferramenta e o `Esc`, e a barra de acoes o DESENHA.
+    """The way out of a tool is `Esc`, and the action bar DRAWS it.
 
-    Afirma o PINTADO, nao `ActionBar._actions`: a barra existia em toda
-    tela e nao renderizava em nenhuma, porque a StatusBar cobria a linha
-    de texto dela — e nenhum teste viu, porque todos afirmavam o atributo.
+    Asserts the PAINTED output, not `ActionBar._actions`: the bar existed
+    on every screen and rendered on none, because the StatusBar covered
+    its text line — and no test saw it, because they all asserted the
+    attribute.
     """
     from dbqm.ui.screens.template_manage import TemplateManageScreen
     from tests.ui._helpers import rendered_text
@@ -712,13 +728,13 @@ async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir):
-    """A acao fixa pertence a aba que a pos.
+    """The pinned action belongs to the tab that put it there.
 
-    `Esc Voltar` e uma promessa: apertar Esc devolve ao menu de
-    Ferramentas. Em Conexoes ela nao volta para lugar nenhum, e uma barra
-    que promete uma saida inexistente e pior que uma barra vazia. Reprova
-    se `DBQMApp.on_tabbed_content_tab_activated` deixar de limpar a acao
-    fixa ao trocar de aba.
+    `Esc Voltar` is a promise: pressing Esc returns to the Ferramentas
+    menu. In Conexoes it goes back nowhere, and a bar that promises a way
+    out that does not exist is worse than an empty bar. Fails if
+    `DBQMApp.on_tabbed_content_tab_activated` stops clearing the pinned
+    action when switching tabs.
     """
     from dbqm.ui.widgets.action_bar import ActionBar
     from tests.ui._helpers import rendered_text
@@ -746,8 +762,8 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
             "a aba nova nem pintou suas proprias acoes: %r" % pintado[-300:]
         )
 
-        # E voltar traz as DUAS de volta: as da ferramenta (que
-        # `_reask_tool` reconstroi) e a saida.
+        # And coming back brings BOTH back: the tool's own actions (which
+        # `_reask_tool` rebuilds) and the way out.
         await pilot.press("f8")
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
@@ -765,28 +781,28 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
 
 
 # ======================================================================
-# A lista de Consultas: continuacao de descricao nunca na coluna da
-# identidade.
+# The Consultas list: a description continuation never in the identity
+# column.
 #
-# Este e o defeito que abriu a fase inteira, nas palavras do mantenedor:
-# "a lista de conexoes acima de duas linhas fica dificil de distinguir
-# quando termina o nome de uma conexao e quando comeca outra". Conexoes
-# foi curada; Consultas seguia doente em TODA largura, porque
-# `query_list` entregava a descricao como uma linha longa e a quebra
-# automatica do Textual (feita no render, depois do `Content` montado)
-# nao tem como recuar a continuacao.
+# This is the defect that opened the whole phase, in the maintainer's
+# words: "a lista de conexoes acima de duas linhas fica dificil de
+# distinguir quando termina o nome de uma conexao e quando comeca outra".
+# Conexoes was cured; Consultas stayed sick at EVERY width, because
+# `query_list` handed the description over as one long line and Textual's
+# automatic wrapping (done at render time, after the `Content` is
+# assembled) has no way of indenting the continuation.
 #
-# Os dois testes abaixo cobrem os dois lados da mesma cura: o de cima
-# prova a ARITMETICA contra o widget montado, o de baixo prova o
-# RENDERIZADO. Nenhum dos dois sozinho basta — a conta pode fechar no
-# papel e a tela sair torta, e o renderizado de um tamanho so nao diz
-# que a conta vale nos outros.
+# The two tests below cover the two sides of the same cure: the one above
+# proves the ARITHMETIC against the mounted widget, the one below proves
+# the RENDERED output. Neither on its own is enough — the sum can add up
+# on paper and the screen still come out crooked, and the rendered output
+# at a single size does not say that the sum holds at the others.
 # ======================================================================
 
 
 def _queries_with_long_description(quantidade: int = 24):
-    """Consultas suficientes pra lista ROLAR, metade com descricao que
-    nao cabe numa linha do painel."""
+    """Enough queries for the list to SCROLL, half of them with a
+    description that does not fit on one line of the panel."""
     from dbqm.models.query import Query
 
     longa = (
@@ -815,16 +831,16 @@ async def _open_queries(pilot):
 
 @pytest.mark.asyncio
 async def test_query_list_wrap_width_fits_while_scrolling(tmp_config_dir):
-    """`_TEXT_WIDTH` foi derivada assumindo o pior caso (barra de
-    rolagem presente). Prova a suposicao contra o widget montado.
+    """`_TEXT_WIDTH` was derived assuming the worst case (scrollbar
+    present). Proves the assumption against the mounted widget.
 
-    Mede COM A LISTA ROLANDO e le `scrollable_content_region`, nao
-    `content_region`: a licao que fechou a mesma correcao em Conexoes
-    depois de tres rodadas falhas e que `content_region` NAO desconta a
-    barra de rolagem — uma largura derivada dele com uma lista curta
-    passa no teste e sai errada em uso. A afirmacao e a RELACAO (texto +
-    recuo cabe no que sobra), nao um numero cravado: um numero cravado
-    envelhece junto com o CSS sem avisar.
+    Measures WITH THE LIST SCROLLING and reads `scrollable_content_region`,
+    not `content_region`: the lesson that closed the same fix in Conexoes
+    after three failed rounds is that `content_region` does NOT subtract
+    the scrollbar — a width derived from it with a short list passes the
+    test and comes out wrong in use. The assertion is the RELATION (text +
+    indent fits in what is left), not a hardcoded number: a hardcoded
+    number ages along with the CSS without warning.
     """
     from textual.widgets import OptionList
     from dbqm.models.query import save_queries
@@ -849,18 +865,18 @@ async def test_query_list_wrap_width_fits_while_scrolling(tmp_config_dir):
 async def test_query_description_never_falls_into_the_identity_column(
     tmp_config_dir, tamanho
 ):
-    """Nenhuma linha de descricao pode comecar na coluna da identidade.
+    """No description line may start in the identity column.
 
-    Afirma o que a tela PINTA, na DBQMApp real, dentro da regiao util do
-    proprio `OptionList` — e nao um atributo do `Content`, que continuava
-    verde com o defeito presente (o `Content` sempre teve o recuo; quem o
-    perdia era a quebra do render).
+    Asserts what the screen PAINTS, on the real DBQMApp, inside the usable
+    region of the `OptionList` itself — and not an attribute of the
+    `Content`, which stayed green with the defect present (the `Content`
+    always had the indent; what lost it was the render's wrapping).
 
-    Medido antes da correcao, nas duas larguras: a continuacao de
-    "Descricao longa..." saia em `indent=0`, encostada na coluna do
-    `☆ Consulta ...` seguinte. As duas larguras estao aqui porque a
-    quebra automatica cai em pontos diferentes em cada uma — uma so nao
-    prova que a largura de quebra vale nas outras.
+    Measured before the fix, at both widths: the continuation of
+    "Descricao longa..." came out at `indent=0`, right up against the
+    column of the next `☆ Consulta ...`. Both widths are here because the
+    automatic wrapping falls at different points in each one — a single
+    one does not prove that the wrap width holds at the others.
     """
     from textual.widgets import OptionList
     from dbqm.models.query import save_queries
@@ -884,8 +900,8 @@ async def test_query_description_never_falls_into_the_identity_column(
             for y in range(regiao.y, min(regiao.y + regiao.height, len(painted)))
         ]
 
-        # Identidade e a unica linha que pode encostar na coluna 0 — e ela
-        # se anuncia pela estrela de favorito.
+        # The identity is the only line allowed to touch column 0 — and it
+        # announces itself with the favourite star.
         continuacoes = [
             linha for linha in linhas
             if linha.strip() and not linha.startswith((" ", "★", "☆"))
@@ -895,8 +911,8 @@ async def test_query_description_never_falls_into_the_identity_column(
             "em %sx%s: %r" % (tamanho[0], tamanho[1], continuacoes)
         )
 
-        # E a lista realmente mostrou uma descricao de mais de uma linha —
-        # senao o teste passaria por nao ter o que checar.
+        # And the list really did show a description of more than one line
+        # — otherwise the test would pass for having nothing to check.
         recuadas = [linha for linha in linhas if linha.startswith("  Descricao longa")]
         assert recuadas, "nenhuma descricao longa foi pintada: %r" % linhas
         continuacao = [linha for linha in linhas if linha.startswith("  provar a hierarquia")]
@@ -907,34 +923,36 @@ async def test_query_description_never_falls_into_the_identity_column(
 
 
 # ======================================================================
-# A lista de Grupos (Ferramentas -> Executar Grupo): a TERCEIRA e ultima
-# ocorrencia do mesmo defeito.
+# The Grupos list (Ferramentas -> Executar Grupo): the THIRD and last
+# occurrence of the same defect.
 #
-# Conexoes foi curada na Task 4, Consultas no commit anterior, e esta
-# lista seguia doente pelo mesmo motivo exato: `_group_option` entregava
-# a descricao do grupo — texto livre do usuario — inteira para
-# `hierarchical_item`, o painel era elastico, e a quebra automatica do
-# Textual (feita no render, depois do `Content` montado) nao tem como
-# recuar a continuacao. Medido na DBQMApp real, com a lista rolando:
+# Conexoes was cured in Task 4, Consultas in the previous commit, and
+# this list stayed sick for the exact same reason: `_group_option` handed
+# the group description — free user text — whole over to
+# `hierarchical_item`, the panel was elastic, and Textual's automatic
+# wrapping (done at render time, after the `Content` is assembled) has no
+# way of indenting the continuation. Measured on the real DBQMApp, with
+# the list scrolling:
 #
-#   ANTES, 80x24                                ANTES, 120x34
+#   BEFORE, 80x24                               BEFORE, 120x34
 #   indent 0 :: 'Grupo 00'                      indent 0 :: 'Grupo 00'
 #   indent 2 :: '  2 consultas'                 indent 2 :: '  2 consultas'
 #   indent 2 :: '  Descricao longa o bast...'   indent 2 :: '  Descricao longa o ba...'
 #   indent 0 :: 'provar a hierarquia do ...'    indent 0 :: 'uma quebra por largura.'
 #   indent 0 :: 'Grupo 01'                      indent 0 :: 'Grupo 01'
 #
-# A quarta linha e a CONTINUACAO da terceira e sai na coluna 0 — a mesma
-# coluna da identidade do grupo seguinte.
+# The fourth line is the CONTINUATION of the third and comes out in
+# column 0 — the same column as the identity of the next group.
 #
-# Mesma dupla de testes das outras duas listas: o de cima prova a
-# ARITMETICA contra o widget montado, o de baixo prova o RENDERIZADO.
+# The same pair of tests as the other two lists: the one above proves the
+# ARITHMETIC against the mounted widget, the one below proves the
+# RENDERED output.
 # ======================================================================
 
 
 def _groups_with_long_description(quantidade: int = 24):
-    """Grupos suficientes pra lista ROLAR, metade com descricao que nao
-    cabe numa linha do painel."""
+    """Enough groups for the list to SCROLL, half of them with a
+    description that does not fit on one line of the panel."""
     from dbqm.models.group import Group
 
     longa = (
@@ -954,15 +972,16 @@ def _groups_with_long_description(quantidade: int = 24):
 
 @pytest.mark.asyncio
 async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
-    """`_TEXT_WIDTH` de `group_run` foi derivada assumindo o pior caso
-    (barra de rolagem presente). Prova a suposicao contra o widget montado.
+    """`group_run`'s `_TEXT_WIDTH` was derived assuming the worst case
+    (scrollbar present). Proves the assumption against the mounted widget.
 
-    Mede COM A LISTA ROLANDO e le `scrollable_content_region`, nao
-    `content_region`: a licao que custou tres rodadas em Conexoes e que
-    `content_region` NAO desconta a barra de rolagem — uma largura
-    derivada dele numa lista curta passa no teste e sai errada em uso. A
-    afirmacao e a RELACAO (texto + recuo cabe no que sobra), nao um
-    numero cravado, que envelheceria junto com o CSS sem avisar.
+    Measures WITH THE LIST SCROLLING and reads `scrollable_content_region`,
+    not `content_region`: the lesson that cost three rounds in Conexoes is
+    that `content_region` does NOT subtract the scrollbar — a width
+    derived from it on a short list passes the test and comes out wrong in
+    use. The assertion is the RELATION (text + indent fits in what is
+    left), not a hardcoded number, which would age along with the CSS
+    without warning.
     """
     from textual.widgets import OptionList
     from dbqm.models.group import save_groups
@@ -987,18 +1006,18 @@ async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
 async def test_group_description_never_falls_into_the_identity_column(
     tmp_config_dir, tamanho
 ):
-    """Nenhuma linha de descricao pode comecar na coluna da identidade.
+    """No description line may start in the identity column.
 
-    Afirma o que a tela PINTA, na DBQMApp real, dentro da regiao util do
-    proprio `OptionList` — e nao um atributo do `Content`, que continuava
-    verde com o defeito presente (o `Content` sempre teve o recuo; quem o
-    perdia era a quebra do render).
+    Asserts what the screen PAINTS, on the real DBQMApp, inside the usable
+    region of the `OptionList` itself — and not an attribute of the
+    `Content`, which stayed green with the defect present (the `Content`
+    always had the indent; what lost it was the render's wrapping).
 
-    A identidade aqui nao tem estrela de favorito como a de Consultas,
-    entao a linha da coluna 0 e checada contra os NOMES dos grupos: so
-    eles podem encostar nela. As duas larguras estao aqui porque a quebra
-    automatica cai em pontos diferentes em cada uma — uma so nao prova
-    que a largura de quebra vale nas outras.
+    The identity here has no favourite star like the one in Consultas, so
+    the column-0 line is checked against the group NAMES: only they may
+    touch it. Both widths are here because the automatic wrapping falls at
+    different points in each one — a single one does not prove that the
+    wrap width holds at the others.
     """
     from textual.widgets import OptionList
     from dbqm.models.group import save_groups
@@ -1034,8 +1053,8 @@ async def test_group_description_never_falls_into_the_identity_column(
             % (tamanho[0], tamanho[1], continuacoes)
         )
 
-        # E a lista realmente pintou uma descricao de mais de uma linha —
-        # senao o teste passaria por nao ter o que checar.
+        # And the list really did paint a description of more than one line
+        # — otherwise the test would pass for having nothing to check.
         recuadas = [linha for linha in linhas if linha.startswith("  Descricao longa")]
         assert recuadas, "nenhuma descricao longa foi pintada: %r" % linhas
         continuacao = [linha for linha in linhas if linha.startswith("  provar a hierarquia")]

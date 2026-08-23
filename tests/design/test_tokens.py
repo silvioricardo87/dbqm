@@ -1,7 +1,8 @@
-"""Teste 2 do design system: paridade de tokens entre temas.
+"""Design system test 2: token parity between themes.
 
-Sem ele, um tema fica com cor herdada errada e ninguem percebe ate alguem
-reclamar. E a regra do guia: nenhuma cor pode ter definicao unica num tema.
+Without it, a theme ends up with the wrong inherited colour and nobody
+notices until someone complains. It is the rule from the guide: no colour
+may have a single definition in one theme only.
 """
 import re
 from pathlib import Path
@@ -26,7 +27,7 @@ def test_every_registered_theme_has_the_same_keys():
 
 
 def test_every_token_has_an_explicit_hex_value():
-    """`auto 60%` nao e calculavel a partir do arquivo; hex e."""
+    """`auto 60%` is not computable from the file; hex is."""
     for nome, tokens in THEMES.items():
         for chave, valor in tokens.items():
             assert valor.startswith("#") and len(valor) == 7, f"{nome}.{chave}={valor}"
@@ -45,24 +46,26 @@ def test_every_text_token_declares_which_backgrounds_it_is_valid_over():
 
 
 # --------------------------------------------------------------------------
-# Teste 6 (do design system): toda variavel `$x` usada em DEFAULT_CSS existe.
+# Test 6 (of the design system): every `$x` variable used in DEFAULT_CSS
+# exists.
 #
-# Sem ele, uma referencia a uma variavel que ninguem mais define nao quebra
-# nada visivelmente: o Textual so cai para o proprio valor calculado embutido
-# (ex.: `$border`), e a tela renderiza uma cor completamente diferente da
-# pretendida sem erro nenhum. Foi exatamente isso que aconteceu na Task 2:
-# `theme.py` parou de gravar a chave customizada "border" no dict de
-# variaveis, e as 5 referencias a `$border` que sobraram em
-# action_bar.py/panel.py/templates_sidebar.py passaram a resolver para o
-# `border` embutido do Textual (derivado da paleta, nao de nenhum token) em
-# vez do token `borda` que era a intencao.
+# Without it, a reference to a variable that nobody defines any more breaks
+# nothing visibly: Textual simply falls back to its own built-in computed
+# value (e.g. `$border`), and the screen renders a colour completely
+# different from the intended one with no error at all. That is exactly what
+# happened in Task 2: `theme.py` stopped writing the custom "border" key into
+# the variables dict, and the 5 remaining references to `$border` in
+# action_bar.py/panel.py/templates_sidebar.py started resolving to Textual's
+# built-in `border` (derived from the palette, not from any token) instead of
+# the `borda` token that was the intention.
 #
-# O guarda casa qualquer atribuicao (de modulo ou de classe) de uma string
-# triple-quoted a um identificador, nao so `DEFAULT_CSS` literal. Antes so
-# `DEFAULT_CSS = """..."""` era varrido; `dbqm/ui/theme.py::INERT_STATES_CSS`
-# escapava por ter outro nome, e uma renomeacao de token la dentro deixaria
-# `$ds-text-disabled`/`$ds-text-muted` resolvendo em silencio para um builtin
-# do Textual — a mesma falha de `$border` que este guarda existe para pegar.
+# The guard matches any assignment (module-level or class-level) of a
+# triple-quoted string to an identifier, not just a literal `DEFAULT_CSS`.
+# Before, only `DEFAULT_CSS = """..."""` was scanned;
+# `dbqm/ui/theme.py::INERT_STATES_CSS` escaped by having another name, and a
+# token rename inside it would leave `$ds-text-disabled`/`$ds-text-muted`
+# silently resolving to a Textual builtin — the same `$border` failure this
+# guard exists to catch.
 
 UI_ROOT = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
 
@@ -71,12 +74,12 @@ _DEFAULT_CSS_BLOCK = re.compile(
 )
 _CSS_VARIABLE = re.compile(r'\$([a-zA-Z][a-zA-Z0-9_-]*)')
 
-# Campos nomeados do Theme que `dbqm/ui/theme.py::_build_theme` preenche a
-# partir de um token (accent=identidade, background=fundo, ...), mais
-# `text-muted`, variavel computada pelo proprio Textual a partir do
-# foreground e que nunca teve — nem precisa ter — um token dedicado.
-# Qualquer outro nome (border, panel-active, text-bright, text-dim, ...) e
-# resquicio do tema antigo e nao deve aparecer em CSS novo.
+# Named Theme fields that `dbqm/ui/theme.py::_build_theme` fills in from a
+# token (accent=identity, background=background, ...), plus `text-muted`, a
+# variable computed by Textual itself from the foreground which never had —
+# and does not need — a dedicated token. Any other name (border,
+# panel-active, text-bright, text-dim, ...) is a leftover from the old theme
+# and must not show up in new CSS.
 DOCUMENTED_BUILTINS = frozenset({
     "primary", "secondary", "accent", "warning", "error", "success",
     "foreground", "background", "surface", "panel", "text-muted",

@@ -1,30 +1,30 @@
-"""Toda tag de markup do Rich em cli.py precisa apontar para um estilo real.
+"""Every Rich markup tag in cli.py must point at a real style.
 
-O irmao deste teste do lado da TUI e `tests/ui/_helpers.py::ThemedTestApp`: la,
-um `$token` orfao (ex.: `$border` sem correspondente no dict de tema) derruba
-a montagem do widget, entao um teste que monta widgets de verdade ja pega o
-typo. O Rich nao tem esse mecanismo — uma tag como `[op-falha]` (hifen em vez
-de ponto) nao levanta excecao em lugar nenhum, nem em `Console.print`, nem em
-`Text.from_markup`: o nome desconhecido e resolvido silenciosamente para
-"sem estilo" e o texto sai sem cor, sem erro, sem log. Verificado direto:
+The sibling of this test on the TUI side is `tests/ui/_helpers.py::ThemedTestApp`:
+there, an orphan `$token` (e.g. `$border` with no match in the theme dict)
+brings the widget mount down, so a test that mounts real widgets already
+catches the typo. Rich has no such mechanism — a tag like `[op-falha]` (hyphen
+instead of dot) raises an exception nowhere, neither in `Console.print` nor in
+`Text.from_markup`: the unknown name is silently resolved to "no style" and the
+text comes out with no color, no error, no log. Verified directly:
 
     >>> Console(file=..., force_terminal=True).print("[not.a.real.style]x[/]")
-    'x\n'   # sem excecao, sem sequencia ANSI
+    'x\n'   # no exception, no ANSI sequence
 
-Ou seja: nenhum teste que apenas *executa* um comando do CLI pega esse typo —
-inclusive `tests/test_cli.py` inteiro, que roda os comandos e confere saida,
-passaria identico com `[op-falha]` no lugar de `[ds.op.failure]`. Este teste existe
-para ser o unico que pega, e precisa cobrir as DUAS formas que o Rich aceita
-um nome de estilo, nao so uma:
+That is: no test that merely *runs* a CLI command catches this typo — the whole
+of `tests/test_cli.py` included, which runs the commands and checks the output,
+would pass identically with `[op-falha]` in place of `[ds.op.failure]`. This test
+exists to be the only one that catches it, and it has to cover BOTH forms in
+which Rich accepts a style name, not just one:
 
-  1. tag de markup entre colchetes: `[ds.op.failure]texto[/]`
-  2. o kwarg `style=` de qualquer chamada (`console.print(..., style=...)`,
+  1. markup tag between brackets: `[ds.op.failure]texto[/]`
+  2. the `style=` kwarg of any call (`console.print(..., style=...)`,
      `Table(..., style=...)`, `add_column(..., style=...)`, `Text(..., style=...)`)
 
-A primeira rodada deste teste so cobria (1) — `style="ds-op-failure"` passado por
-kwarg teria sobrevivido inspecionado por essa rodada, porque a regex de tag
-so olha para dentro de `[...]`. Um valor de `style=` e uma string solta, sem
-colchete nenhum.
+The first round of this test only covered (1) — `style="ds-op-failure"` passed by
+kwarg would have survived inspection by that round, because the tag regex only
+looks inside `[...]`. A `style=` value is a loose string, with no bracket at
+all.
 """
 from __future__ import annotations
 
@@ -38,30 +38,29 @@ from dbqm.cli import rich_theme
 
 CLI_PATH = Path(__file__).resolve().parents[1] / "dbqm" / "cli.py"
 
-# Uma tag valida so contem palavras-identificador (letras/digitos/./-),
-# possivelmente varias separadas por espaco (ex.: "bold red"). Isso e o que
-# distingue uma tag de markup de um colchete de lista/slice do Python, que
-# quase sempre carrega parenteses, virgulas, chaves ou aspas.
+# A valid tag only contains identifier-words (letters/digits/./-), possibly
+# several of them separated by spaces (e.g. "bold red"). That is what
+# distinguishes a markup tag from a Python list/slice bracket, which almost
+# always carries parentheses, commas, braces or quotes.
 _TAG = re.compile(r"\[/?([A-Za-z][\w.\-]*(?:\s+[A-Za-z][\w.\-]*)*)\]")
 
-# Modificadores estruturais do Rich que nao sao nomes de estilo por si so.
+# Structural Rich modifiers that are not style names on their own.
 _MODIFIERS = {"on", "not"}
 
 
 def _markup_names_in(path: Path) -> set[str]:
-    """Todo nome de estilo que cli.py referencia, via tag `[...]` ou via `style=`.
+    """Every style name that cli.py references, via a `[...]` tag or via `style=`.
 
-    Anda pela AST (nao pelo texto bruto) por dois motivos:
+    Walks the AST (not the raw text) for two reasons:
 
-    - Partes literais de f-string ficam isoladas dos `{...}` interpolados,
-      entao um colchete de progresso como `f"[{atual}/{total}]"` nunca vira
-      uma tag falsa: a AST quebra esse literal em pedacos em volta do
-      `{atual}` e do `{total}`, e nenhum pedaco isolado contem um `[...]`
-      fechado.
-    - `style=` so existe como kwarg de chamada (`ast.Call`); andar pelos nos
-      de chamada e olhar `keywords` pega `console.print(..., style=...)`,
+    - Literal parts of an f-string stay isolated from the interpolated
+      `{...}`, so a progress bracket like `f"[{atual}/{total}]"` never becomes
+      a false tag: the AST breaks that literal into pieces around `{atual}`
+      and `{total}`, and no isolated piece contains a closed `[...]`.
+    - `style=` only exists as a call kwarg (`ast.Call`); walking the call
+      nodes and looking at `keywords` catches `console.print(..., style=...)`,
       `Table(..., style=...)`, `add_column(..., style=...)`, `Text(...,
-      style=...)` — qualquer chamada, sem precisar listar cada uma.
+      style=...)` — any call, with no need to list each one.
     """
     arvore = ast.parse(path.read_text(encoding="utf-8"))
     nomes: set[str] = set()

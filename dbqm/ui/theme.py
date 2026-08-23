@@ -1,14 +1,14 @@
-"""Temas do Textual, construidos a partir de dbqm/design/tokens.py, mais o
-CSS global de estados inertes (INERT_STATES_CSS) que os consome.
+"""Textual themes, built from dbqm/design/tokens.py, plus the global CSS for
+inert states (INERT_STATES_CSS) that consumes them.
 
-Nenhuma cor e escrita aqui: este modulo so traduz os tokens semanticos para o
-formato que o Textual espera. Trocar a paleta e trocar tokens.py.
+No color is written here: this module only translates the semantic tokens into
+the format Textual expects. Changing the palette means changing tokens.py.
 
-INERT_STATES_CSS vive aqui, nao em dbqm/ui/app.py, porque DBQMApp e
-ThemedTestApp (tests/ui/_helpers.py) sao irmas — as duas estendem
-textual.app.App diretamente, sem parentesco entre si — entao uma constante
-definida so em DBQMApp nunca chegaria aos testes de tela que montam
-ThemedTestApp. As duas importam daqui.
+INERT_STATES_CSS lives here, not in dbqm/ui/app.py, because DBQMApp and
+ThemedTestApp (tests/ui/_helpers.py) are siblings — both extend
+textual.app.App directly, with no kinship between them — so a constant defined
+only in DBQMApp would never reach the screen tests that mount ThemedTestApp.
+Both import it from here.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from textual.theme import Theme
 
 from dbqm.design.tokens import THEMES
 
-# Nomes gravados em settings.json antes do design system.
+# Names recorded in settings.json before the design system.
 LEGACY_NAMES: dict[str, str] = {
     "github-dark": "plano-escuro",
     "github-light": "plano-claro",
@@ -24,19 +24,19 @@ LEGACY_NAMES: dict[str, str] = {
 
 DEFAULT_THEME = "plano-escuro"
 
-# Estados inertes distintos (Task 12): um controle desabilitado e uma acao
-# indisponivel agora — o motivo precisa estar alcancavel, nunca so a cor;
-# somente-leitura e conteudo para consumir, nao um formulario quebrado. As
-# duas regras usam tokens diferentes (texto-desabilitado vs texto-apoio) e a
-# segunda tambem tira borda/fundo de controle, para que as duas nunca fiquem
-# visualmente iguais — o defeito que esta tarefa existe para prevenir.
+# Distinct inert states (Task 12): a disabled control is an action that is
+# unavailable right now — the reason has to be reachable, never just the
+# color; read-only is content to consume, not a broken form. The two rules
+# use different tokens (text-disabled vs text-muted) and the second one also
+# strips the control's border/background, so that the two never end up looking
+# alike — the defect this task exists to prevent.
 #
-# Vive aqui (nao em app.py) e e consumido tanto por `DBQMApp.DEFAULT_CSS`
-# quanto por `tests/ui/_helpers.py::ThemedTestApp.DEFAULT_CSS`: as duas Apps
-# nao tem parentesco entre si (irmas, ambas direto de `textual.app.App`), e
-# so `DEFAULT_CSS` se combina ao longo da MRO sem apagar o que uma subclasse
-# ad-hoc de teste declarar por conta propria — `CSS` (atributo unico, sem
-# merge) apagaria isso.
+# It lives here (not in app.py) and is consumed both by `DBQMApp.DEFAULT_CSS`
+# and by `tests/ui/_helpers.py::ThemedTestApp.DEFAULT_CSS`: the two Apps have
+# no kinship between them (siblings, both straight from `textual.app.App`),
+# and only `DEFAULT_CSS` combines along the MRO without erasing what an ad-hoc
+# test subclass declares on its own — `CSS` (a single attribute, with no
+# merge) would erase that.
 INERT_STATES_CSS = """
 *:disabled { color: $ds-text-disabled; }
 .-read-only { color: $ds-text-muted; border: none; background: $ds-panel; }
@@ -44,23 +44,23 @@ INERT_STATES_CSS = """
 
 
 def _build_theme(name: str, tokens: dict[str, str], dark: bool) -> Theme:
-    """Traduz os tokens semanticos para um Theme do Textual.
+    """Translates the semantic tokens into a Textual Theme.
 
-    Todo token vira variavel de CSS, inclusive os que tambem alimentam um
-    campo nomeado do Theme: os componentes referenciam sempre `$token`, e os
-    campos nomeados existem so para os widgets embutidos do Textual.
+    Every token becomes a CSS variable, including the ones that also feed a
+    named Theme field: the components always reference `$token`, and the named
+    fields exist only for Textual's built-in widgets.
 
-    Os campos nomeados (`warning`, `error`, `success`) sao eixo OPERACAO,
-    nunca eixo VEREDITO — eles pintam toast/notify e outros widgets nativos
-    do Textual que nao tem nocao de "estes dois dados diferem", so de
-    "esta acao falhou/teve sucesso/e um aviso". Alimenta-los com
-    `veredito-*` pinta chrome e notificacoes com a cor de um resultado de
-    comparacao, e destrava a alavanca de rollback documentada: reverter
-    `veredito-igual` para verde pintaria de verde toda notificacao de
-    sucesso, exatamente a superficie que o desenho manda deixar sem cor.
-    Por isso `success` e `warning` mapeiam para `texto-apoio` (sucesso sem
-    tinta, aviso informativo sem tinta) e so `error` usa um token de
-    operacao (`op-falha`).
+    The named fields (`warning`, `error`, `success`) are on the OPERATION
+    axis, never on the VERDICT axis — they paint toast/notify and other
+    Textual-native widgets that have no notion of "these two pieces of data
+    differ", only of "this action failed/succeeded/is a warning". Feeding them
+    with `verdict-*` paints chrome and notifications with the color of a
+    comparison result, and unlocks the documented rollback lever: reverting
+    `verdict-match` to green would paint every success notification green,
+    exactly the surface the design says must be left colorless. That is why
+    `success` and `warning` map to `text-muted` (success with no ink, an
+    informative warning with no ink) and only `error` uses an operation token
+    (`op-failure`).
     """
     return Theme(
         name=name,
@@ -86,6 +86,7 @@ TEXTUAL_THEMES: dict[str, Theme] = {
 
 
 def get_theme(name: str) -> Theme:
-    """Devolve um tema pelo nome, aceitando os nomes antigos e caindo no padrao."""
+    """Returns a theme by name, accepting the legacy names and falling back to
+    the default."""
     name_ = LEGACY_NAMES.get(name, name)
     return TEXTUAL_THEMES.get(name_, TEXTUAL_THEMES[DEFAULT_THEME])

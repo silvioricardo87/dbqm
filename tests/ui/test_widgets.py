@@ -58,18 +58,20 @@ def test_status_bar_inverted_primary_background():
 
 @pytest.mark.asyncio
 async def test_status_bar_dot_contrasts_with_the_bar_background():
-    """A bolinha de conexao precisa contrastar com o fundo da propria barra.
+    """The connection dot has to contrast with the background of the bar
+    itself.
 
-    O bug original nunca foi "a bolinha usa o token errado" — foi "a
-    bolinha nao contrasta com o que esta atras dela". Por isso este teste
-    nao nomeia nenhum token: nem o da bolinha (ja vem resolvido do conteudo
-    renderizado), nem o do fundo da barra. O fundo e lido de
-    `barra.styles.background` — a cor que o Textual efetivamente resolveu
-    e vai pintar atras do widget montado, seja qual for a regra CSS que a
-    produziu. Se `StatusBar.DEFAULT_CSS` trocar de `background: $primary`
-    para outro token, este teste continua medindo o par real; nomear
-    `$primary` aqui seria a mesma armadilha que a asserção anterior tinha
-    contra `$background` — presa a uma grafia, nao a relacao.
+    The original bug was never "the dot uses the wrong token" — it was "the
+    dot does not contrast with what is behind it". That is why this test
+    names no token: neither the dot's one (it already comes resolved from
+    the rendered content), nor the bar background's one. The background is
+    read from `barra.styles.background` — the colour Textual actually
+    resolved and is going to paint behind the mounted widget, whatever the
+    CSS rule that produced it. If `StatusBar.DEFAULT_CSS` switches from
+    `background: $primary` to another token, this test keeps measuring the
+    real pair; naming `$primary` here would be the same trap the previous
+    assertion had against `$background` — tied to a spelling, not to the
+    relation.
     """
     from textual.style import Style
 
@@ -99,7 +101,7 @@ async def test_status_bar_dot_contrasts_with_the_bar_background():
 # ---------------------------------------------------------------------------
 
 def test_verdict_communicates_state_beyond_color():
-    """Piso de acessibilidade: cor sozinha nao comunica estado."""
+    """Accessibility floor: colour alone does not communicate state."""
     from dbqm.ui.widgets.verdict import mark_verdict
 
     glifos = {mark_verdict(v).split("]")[1].split("[")[0] for v in
@@ -121,11 +123,12 @@ def test_verdict_rejects_an_unknown_status():
 
 
 def test_successful_operation_gets_no_ink():
-    """Sucesso e a ausencia de alarme, mas nao de peso: `ok` nao pode levar
-    NENHUM token de cor (nao so `$ds-op-failure` — qualquer `$token`, inclusive
-    um token de veredito colado por engano), e mantem `[bold]`. Uma versao
-    anterior deste teste so checava a ausencia de `$ds-op-failure`, o que passaria
-    mesmo se sucesso fosse pintado com uma cor de veredito."""
+    """Success is the absence of alarm, but not of weight: `ok` may not
+    carry ANY colour token (not just `$ds-op-failure` — any `$token`,
+    including a verdict token pasted in by mistake), and keeps `[bold]`. An
+    earlier version of this test only checked for the absence of
+    `$ds-op-failure`, which would pass even if success were painted with a
+    verdict colour."""
     from dbqm.ui.widgets.verdict import mark_operation
 
     ok = mark_operation("ok")
@@ -135,11 +138,11 @@ def test_successful_operation_gets_no_ink():
 
 
 def test_successful_operation_keeps_weight_in_manual_call_sites():
-    """Os quatro pontos que montam markup de sucesso a mao — fora de
-    `mark_operation`, porque a mensagem tambem carrega o tempo decorrido —
-    tem que seguir a mesma regra: sem token de cor, com `[bold]` preservado.
-    Nada testava isso ate agora; um `[bold]` apagado num desses sites
-    passaria a suite inteira em silencio."""
+    """The four sites that assemble success markup by hand — outside
+    `mark_operation`, because the message also carries the elapsed time —
+    have to follow the same rule: no colour token, with `[bold]` preserved.
+    Nothing tested this until now; a `[bold]` deleted at one of those sites
+    would pass the whole suite in silence."""
     from pathlib import Path
 
     raiz_screens = Path(__file__).resolve().parents[2] / "dbqm" / "ui" / "screens"
@@ -171,14 +174,15 @@ def test_operation_rejects_an_unknown_state():
 
 
 def test_mark_verdict_label_swaps_the_label_and_keeps_glyph_and_token():
-    """`texto` deixa o chamador colorir sua propria palavra sem duplicar o
-    rotulo padrao do componente ao lado dela (achado da revisao da Task 11:
-    `_render_summary` gerava "= OK Iguais:" antes deste parametro existir).
+    """`texto` lets the caller colour its own word without duplicating the
+    component's default label next to it (a finding of the Task 11 review:
+    `_render_summary` produced "= OK Iguais:" before this parameter
+    existed).
 
-    O glifo e o token continuam vindo so de `VERDICTS` — `texto` nunca
-    expõe o nome do token para o chamador montar `[$token]` por fora; se
-    expusesse, reabriria exatamente o buraco de montagem a mao que o resto
-    deste modulo fecha.
+    The glyph and the token still come only from `VERDICTS` — `texto` never
+    exposes the token name for the caller to assemble `[$token]` on the
+    outside; if it did, it would reopen exactly the hand-assembly hole that
+    the rest of this module closes.
     """
     from dbqm.ui.widgets.verdict import mark_verdict
 
@@ -188,17 +192,16 @@ def test_mark_verdict_label_swaps_the_label_and_keeps_glyph_and_token():
     assert "DIVERGENTE" in customizado
     assert "DIFERE" not in customizado
     assert "$ds-verdict-diff" in customizado
-    # mesmo glifo do padrao, sem duplicar o rotulo "DIFERE" dele
+    # same glyph as the default, without duplicating its "DIFERE" label
     assert customizado.split("]")[1].split(" ", 1)[0] == padrao.split("]")[1].split(" ", 1)[0]
 
 
 def test_mark_verdict_escapes_the_label_so_markup_cannot_leak():
-    """`texto` existe para um rotulo, nao para injetar markup. Nenhum
-    chamador de hoje passa texto vindo de dado (todos sao literais fixos),
-    mas nada impede um chamador futuro de passar algo derivado de dado —
-    e um `[/]` ou um `$token` dentro desse valor nao pode fechar a tag do
-    componente mais cedo nem abrir um estilo diferente no meio do
-    marcador.
+    """`texto` exists for a label, not to inject markup. No caller today
+    passes text coming from data (they are all fixed literals), but nothing
+    stops a future caller from passing something derived from data — and a
+    `[/]` or a `$token` inside that value must not close the component's
+    tag early nor open a different style in the middle of the marker.
     """
     from textual.content import Content
     from dbqm.ui.widgets.verdict import mark_verdict
@@ -206,14 +209,14 @@ def test_mark_verdict_escapes_the_label_so_markup_cannot_leak():
     perigoso = "fim[/][$ds-op-failure]injetado"
     saida = mark_verdict("match", label=perigoso)
 
-    # so o fechamento legitimo do proprio componente sobra sem escape
+    # only the component's own legitimate closing tag is left unescaped
     assert saida.count("[/]") == 1
     assert saida.endswith("[/]")
 
-    # o markup inteiro resolve como UM UNICO span, com o token do estado —
-    # se o texto perigoso tivesse escapado do escape, apareceria um
-    # segundo span (o "[$ds-op-failure]" injetado abrindo um estilo por conta
-    # propria) ou o texto "injetado" ficaria fora de qualquer span.
+    # the whole markup resolves as ONE SINGLE span, with the state's token —
+    # if the dangerous text had escaped the escaping, a second span would
+    # show up (the injected "[$ds-op-failure]" opening a style of its own)
+    # or the "injetado" text would end up outside any span.
     conteudo = Content.from_markup(saida)
     assert len(conteudo.spans) == 1
     assert conteudo.spans[0].style == "$ds-verdict-match"
@@ -222,49 +225,52 @@ def test_mark_verdict_escapes_the_label_so_markup_cannot_leak():
 
 
 def test_no_hand_rolled_verdict_markup_outside_the_component():
-    """Fecha a porta que sobrou depois da primeira rodada da Task 11: nada
-    fora de `verdict.py` pode escrever `$veredito-*`/`$ds-op-failure` direto no
-    markup sem que este teste acuse — nem hoje, nem um quinto caso amanha.
+    """Closes the door that was left open after the first round of Task 11:
+    nothing outside `verdict.py` may write `$veredito-*`/`$ds-op-failure`
+    straight into markup without this test calling it out — not today, and
+    not a fifth case tomorrow.
 
-    A distincao que decide o que entra em `PROSA_DE_ERRO_FORA_DO_ESCOPO`
-    abaixo: um MARCADOR nomeia um estado dentro de um vocabulario fechado
-    (`igual`/`difere`/`ausente`/`ok`/`falha`/...) e por isso PRECISA de
-    glifo — a cor sozinha nunca basta, porque o vocabulario e finito e
-    repetido em toda a interface. PROSA ja nomeia a falha em palavras
-    proprias, escritas uma vez para aquele erro especifico ("DDL executado
-    com erros de compilacao", "Erro na execucao") — a cor so reforca o que
-    a frase ja diz, entao pintar essa prosa com `$ds-op-failure` nao e o mesmo
-    buraco que este teste fecha.
+    The distinction that decides what goes into
+    `PROSA_DE_ERRO_FORA_DO_ESCOPO` below: a MARKER names a state within a
+    closed vocabulary (`igual`/`difere`/`ausente`/`ok`/`falha`/...) and for
+    that reason NEEDS a glyph — colour alone is never enough, because the
+    vocabulary is finite and repeated all over the interface. PROSE already
+    names the failure in words of its own, written once for that specific
+    error ("DDL executado com erros de compilacao", "Erro na execucao") —
+    the colour only reinforces what the sentence already says, so painting
+    that prose with `$ds-op-failure` is not the same hole this test closes.
 
-    O eixo veredito (`$veredito-*`) e so marcador, nunca prosa, em toda a
-    interface hoje — por isso fica de porta fechada de verdade, sem
-    excecao: qualquer ocorrencia fora de `verdict.py` falha.
+    The verdict axis (`$veredito-*`) is only ever a marker, never prose,
+    anywhere in the interface today — which is why it stays a genuinely
+    closed door, with no exception: any occurrence outside `verdict.py`
+    fails.
 
-    O eixo operacao (`$ds-op-failure`) tem os dois usos: `mark_operation` para
-    marcador (convertido) e, em cinco telas que a Task 11 nunca tocou
-    (DDL, rotina, client Oracle, configuracoes), coloracao de prosa de erro
-    que ja nomeia a falha em palavras — fora do escopo de
-    `mark_operation` por natureza, nao por preguica; converter essas
-    telas prependeria "x FALHA" na frente de frases como "Erro na
-    execucao", a mesma duplicacao que o parametro `texto` acabou de tirar
-    do resumo da comparacao. `PROSA_DE_ERRO_FORA_DO_ESCOPO` trava o numero
-    exato de ocorrencias por arquivo para que a porta feche para qualquer
-    ocorrencia NOVA (nesses arquivos ou em qualquer outro) sem reabrir a
-    conversa sobre esses cinco. Se um deles for reescrito para citar um
-    estado do vocabulario fechado em vez de prosa, o numero aqui muda
-    junto — o teste acusa nos dois sentidos.
+    The operation axis (`$ds-op-failure`) has both uses: `mark_operation`
+    for the marker (converted) and, on five screens Task 11 never touched
+    (DDL, routine, Oracle client, settings), colouring of error prose that
+    already names the failure in words — outside the scope of
+    `mark_operation` by nature, not out of laziness; converting those
+    screens would prepend "x FALHA" in front of sentences such as "Erro na
+    execucao", the same duplication the `texto` parameter has just removed
+    from the comparison summary. `PROSA_DE_ERRO_FORA_DO_ESCOPO` locks the
+    exact number of occurrences per file so that the door closes for any
+    NEW occurrence (in those files or in any other) without reopening the
+    conversation about these five. If one of them is rewritten to cite a
+    state from the closed vocabulary instead of prose, the number here
+    changes with it — the test calls it out in both directions.
 
-    Trechos de `DEFAULT_CSS` sao ignorados: sao declaracao estatica de
-    estilo do widget (o mesmo uso que `theme.py` faz dos tokens), nao
-    markup dinamico — nao tem o problema de "estado comunicado so por
-    cor" que este teste vigia.
+    `DEFAULT_CSS` blocks are ignored: they are static style declaration for
+    the widget (the same use `theme.py` makes of the tokens), not dynamic
+    markup — they do not have the "state communicated by colour alone"
+    problem this test watches for.
 
-    Limite deliberado deste teste, aceito na revisao (nao amplie sem
-    reabrir a conversa): e uma varredura de texto sobre `dbqm/ui/`, entao
-    nao pega um token remontado por interpolacao ou partido entre
-    literais concatenados, nao pega uma constante de token definida fora
-    de `dbqm/ui` e so referenciada aqui, e nao pega markup montado em
-    `dbqm/core`/`dbqm/cli.py` e apenas renderizado por um widget da UI.
+    Deliberate limit of this test, accepted at review (do not widen it
+    without reopening the conversation): it is a text scan over `dbqm/ui/`,
+    so it does not catch a token reassembled by interpolation or split
+    across concatenated literals, it does not catch a token constant
+    defined outside `dbqm/ui` and merely referenced here, and it does not
+    catch markup assembled in `dbqm/core`/`dbqm/cli.py` and only rendered
+    by a UI widget.
     """
     import re
     from pathlib import Path
@@ -273,16 +279,16 @@ def test_no_hand_rolled_verdict_markup_outside_the_component():
     padrao_token = re.compile(r"\$veredito-[a-z]+|\$ds-op-failure")
     padrao_css = re.compile(r'DEFAULT_CSS\s*=\s*""".*?"""', re.DOTALL)
 
-    # Prosa de erro que ja nomeia a falha em palavras proprias — fora do
-    # escopo de mark_operation por natureza (ver docstring). Caminho
-    # relativo a dbqm/ui -> numero exato de ocorrencias de `$ds-op-failure`
-    # hoje.
+    # Error prose that already names the failure in words of its own —
+    # outside the scope of mark_operation by nature (see the docstring).
+    # Path relative to dbqm/ui -> exact number of occurrences of
+    # `$ds-op-failure` today.
     PROSA_DE_ERRO_FORA_DO_ESCOPO: dict[str, int] = {
-        "screens/adhoc.py": 2,  # cabecalho + detalhe de erro de compilacao DDL
-        "screens/exec_routine.py": 2,  # cabecalho + detalhe de erro de execucao
-        "screens/oracle_clients.py": 1,  # nivel info/ok/err de mensagens livres
-        "screens/package_editor.py": 2,  # contagem + mensagem de erro de compilacao
-        "screens/settings.py": 1,  # texto de excecao embutido num rotulo
+        "screens/adhoc.py": 2,  # header + DDL compilation error detail
+        "screens/exec_routine.py": 2,  # header + execution error detail
+        "screens/oracle_clients.py": 1,  # info/ok/err level of free messages
+        "screens/package_editor.py": 2,  # count + compilation error message
+        "screens/settings.py": 1,  # exception text embedded in a label
     }
 
     ofensores = []
@@ -503,10 +509,10 @@ def _result(columns, rows):
 
 @pytest.mark.asyncio
 async def test_result_table_fixes_the_key_column_and_zebra_stripes():
-    """A primeira coluna nunca sai de vista ao rolar lateralmente.
+    """The first column never goes out of sight when scrolling sideways.
 
-    O dbqm existe para comparar: sem saber de qual registro e a linha, as
-    demais colunas nao significam nada.
+    dbqm exists to compare: without knowing which record the row belongs
+    to, the remaining columns mean nothing.
     """
     from textual.widgets import DataTable
 
@@ -529,14 +535,14 @@ async def test_result_table_fixes_the_key_column_and_zebra_stripes():
 
 @pytest.mark.asyncio
 async def test_result_table_does_not_fix_a_column_when_there_is_only_one():
-    """Fixar a unica coluna nao protege nada e rouba largura.
+    """Fixing the only column protects nothing and steals width.
 
-    Afirma a TRANSICAO (varias colunas -> uma so), nao so o valor final: o
-    padrao do Textual para fixed_columns ja e 0, entao um teste que so
-    carrega uma coluna passaria mesmo se a linha que zera fixed_columns
-    fosse apagada. Carregando primeiro um resultado largo (fixa em 1) e
-    depois o de coluna unica no MESMO widget, um fixed_columns preso em 1
-    do carregamento anterior reprova o teste pelo motivo certo.
+    Asserts the TRANSITION (several columns -> a single one), not just the
+    final value: Textual's default for fixed_columns is already 0, so a
+    test that only loads one column would pass even if the line that zeroes
+    fixed_columns were deleted. By loading a wide result first (fixes at 1)
+    and then the single-column one in the SAME widget, a fixed_columns
+    stuck at 1 from the previous load fails the test for the right reason.
     """
     from textual.widgets import DataTable
 
@@ -562,13 +568,13 @@ async def test_result_table_does_not_fix_a_column_when_there_is_only_one():
 
 @pytest.mark.asyncio
 async def test_result_table_key_column_stays_rendered_while_scrolling():
-    """A prova de renderizacao, nao so do atributo reativo.
+    """The proof of rendering, not just of the reactive attribute.
 
-    `fixed_columns == 1` pode ficar setado e mesmo assim a coluna parar de
-    pintar na tela se um upgrade do Textual ou uma mudanca de CSS quebrar a
-    renderizacao da fixacao. Este teste rola de verdade (pilot.press) e le o
-    screenshot exportado — o mesmo texto que um usuario veria — em vez de só
-    inspecionar o atributo.
+    `fixed_columns == 1` can stay set and the column still stop painting on
+    screen if a Textual upgrade or a CSS change breaks the rendering of the
+    fixing. This test really scrolls (pilot.press) and reads the exported
+    screenshot — the same text a user would see — instead of merely
+    inspecting the attribute.
     """
     from textual.widgets import DataTable
 
@@ -586,21 +592,23 @@ async def test_result_table_key_column_stays_rendered_while_scrolling():
         await pilot.pause()
         dt = rt.query_one(DataTable)
 
-        # Antes de rolar: a chave esta visivel, e a ultima coluna larga NAO
-        # esta — confirma que o cenario realmente exige rolagem lateral.
+        # Before scrolling: the key is visible and the last wide column is
+        # NOT — confirms the scenario really does require sideways
+        # scrolling.
         antes = app.export_screenshot()
         assert "CHAVE_REGISTRO" in antes
         assert "COLUNA_LARGA_NUMERO_08" not in antes
 
-        # Rola de verdade, ate o fim.
+        # Really scrolls, all the way to the end.
         for _ in range(40):
             await pilot.press("right")
         await pilot.pause()
-        assert dt.scroll_x > 0  # a rolagem lateral realmente aconteceu
+        assert dt.scroll_x > 0  # the sideways scrolling really happened
 
-        # Depois de rolar: a coluna-chave (cabecalho E valor) continua
-        # pintada na tela, e a coluna que antes estava fora de vista agora
-        # apareceu — provando que rolou colunas nao-fixas por baixo dela.
+        # After scrolling: the key column (header AND value) is still
+        # painted on screen, and the column that was previously out of sight
+        # has now shown up — proving that non-fixed columns scrolled
+        # underneath it.
         depois = app.export_screenshot()
         assert "CHAVE_REGISTRO" in depois
         assert "REG-0001" in depois
@@ -793,12 +801,12 @@ async def test_query_list_filter_folder_none_shows_all():
 
 @pytest.mark.asyncio
 async def test_query_list_posts_query_selected():
-    """Clicar numa linha posta QuerySelected com o nome daquela linha.
+    """Clicking a row posts QuerySelected with that row's name.
 
-    O clique e o ponto: a lista antiga era testada com `pilot.click`, e a
-    conversao para OptionList trocou isso por focar + `enter`. Sao caminhos
-    de entrada diferentes (mouse e teclado), e a troca deixou o do mouse
-    descoberto; o do teclado esta coberto em
+    The click is the point: the old list was tested with `pilot.click`, and
+    the conversion to OptionList swapped that for focus + `enter`. They are
+    different input paths (mouse and keyboard), and the swap left the mouse
+    one uncovered; the keyboard one is covered in
     `test_query_list_selects_by_name_even_with_repeated_names`."""
     from textual.widgets import OptionList
 
@@ -820,12 +828,13 @@ async def test_query_list_posts_query_selected():
         ql.load_queries(queries)
         await pilot.pause()
         option_list = ql.query_one("#ql-listview", OptionList)
-        # O offset do clique conta do canto do WIDGET, e a primeira linha
-        # da primeira opcao comeca no canto da area de CONTEUDO (o
-        # OptionList traz borda propria por padrao). Derivar o desvio da
-        # geometria em vez de chuta-lo evita um clique que cai na borda e
-        # nao seleciona nada — e o centro do widget cairia no vazio abaixo
-        # da unica opcao.
+        # The click offset counts from the corner of the WIDGET, and the
+        # first line of the first option starts at the corner of the CONTENT
+        # area (the OptionList brings a border of its own by default).
+        # Deriving the shift from the geometry instead of guessing it avoids
+        # a click that lands on the border and selects nothing — and the
+        # centre of the widget would fall into the empty space below the
+        # single option.
         dx = option_list.content_region.x - option_list.region.x
         dy = option_list.content_region.y - option_list.region.y
         await pilot.click(option_list, offset=(dx + 1, dy))
@@ -835,19 +844,19 @@ async def test_query_list_posts_query_selected():
 
 @pytest.mark.asyncio
 async def test_query_list_paints_two_queries_with_the_same_name():
-    """Duas consultas homonimas nao podem derrubar a tela.
+    """Two queries with the same name must not bring the screen down.
 
-    Nome e a chave de busca do dbqm, e enquanto ele viajava como
-    `Option(conteudo, id=nome)` um `queries.json` com duas consultas `dup`
-    fazia `OptionList.add_option` levantar `DuplicateID` — a tela inteira
-    deixava de montar. Os fluxos de criacao da UI barram nome repetido, mas
-    o arquivo e editavel a mao e existe historico legado.
+    The name is dbqm's lookup key, and while it travelled as
+    `Option(conteudo, id=nome)` a `queries.json` with two `dup` queries made
+    `OptionList.add_option` raise `DuplicateID` — the whole screen stopped
+    mounting. The UI's creation flows block a repeated name, but the file is
+    editable by hand and there is legacy history.
 
-    Dado ambiguo continua ambiguo: nao da pra saber qual das duas a pessoa
-    quis, e a lista nao tenta adivinhar. O que ela deve e nao quebrar —
-    pintar as DUAS linhas, cada uma com sua propria desambiguacao, como a
-    lista antiga fazia. Medido no estado em que o defeito acontecia: a
-    montagem com o dado duplicado ja carregado."""
+    Ambiguous data stays ambiguous: there is no way to know which of the two
+    the person meant, and the list does not try to guess. What it must do is
+    not break — paint BOTH rows, each with its own disambiguation, the way
+    the old list did. Measured in the state in which the defect happened:
+    the mount with the duplicated data already loaded."""
     from textual.widgets import OptionList
 
     queries = [
@@ -864,7 +873,7 @@ async def test_query_list_paints_two_queries_with_the_same_name():
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 2
         assert rendered_names(option_list) == ["dup", "dup"]
-        # As duas linhas continuam distinguiveis pelo que as desambigua.
+        # The two rows are still distinguishable by what disambiguates them.
         pintado = [
             option_list.get_option_at_index(i).prompt.plain for i in range(2)
         ]
@@ -874,12 +883,12 @@ async def test_query_list_paints_two_queries_with_the_same_name():
 
 @pytest.mark.asyncio
 async def test_query_list_selects_by_name_even_with_repeated_names():
-    """A selecao resolve pelo nome, exatamente como antes dos ids.
+    """Selection resolves by name, exactly as it did before the ids.
 
-    Caso normal (nomes unicos): a linha escolhida posta o proprio nome.
-    Caso ambiguo: escolher qualquer uma das duas homonimas posta o mesmo
-    nome — a ambiguidade aparece depois, na busca, e nao como uma linha
-    morta ou uma tela que nao monta."""
+    Normal case (unique names): the chosen row posts its own name. Ambiguous
+    case: choosing either of the two same-named rows posts the same name —
+    the ambiguity shows up later, at lookup time, and not as a dead row or
+    a screen that does not mount."""
     from textual.widgets import OptionList
 
     messages = []
@@ -916,13 +925,13 @@ async def test_query_list_selects_by_name_even_with_repeated_names():
 
 @pytest.mark.asyncio
 async def test_query_list_unnamed_query_still_responds():
-    """Uma consulta de nome vazio posta QuerySelected("") em vez de nada.
+    """A query with an empty name posts QuerySelected("") instead of nothing.
 
-    Nome vazio nao e criavel pela UI, mas com o nome viajando como `id` o
-    `or None` transformava a linha numa linha visivel que nao fazia NADA ao
-    ser escolhida. Postar o nome vazio faz a tela responder "Consulta ''
-    nao encontrada" — informacao, que e o que a versao com ListView
-    entregava."""
+    An empty name is not creatable through the UI, but with the name
+    travelling as `id` the `or None` turned the row into a visible row that
+    did NOTHING when chosen. Posting the empty name makes the screen answer
+    "Consulta '' nao encontrada" — information, which is what the ListView
+    version delivered."""
     from textual.widgets import OptionList
 
     messages = []
@@ -969,17 +978,18 @@ async def test_query_list_accepts_objects():
 
 @pytest.mark.asyncio
 async def test_query_list_mounted_item_has_visible_hierarchy():
-    """A entrada montada de verdade dentro da tela (nao so o Content que
-    `hierarchical_item` devolve isolado) ocupa mais de uma linha e a
-    identidade sai visualmente distinta da desambiguacao — cor resolvida
-    pelo `Style.parse` real do tema ativo, o mesmo mecanismo que o Textual
-    usa para resolver estilo antes de pintar.
+    """The entry as really mounted inside the screen (not just the Content
+    that `hierarchical_item` returns in isolation) takes up more than one
+    line, and the identity comes out visually distinct from the
+    disambiguation — colour resolved by the real `Style.parse` of the active
+    theme, the same mechanism Textual uses to resolve style before painting.
 
-    Prova a FIACAO ate a opcao montada de verdade dentro do `OptionList`
-    (nao o `Content` que `hierarchical_item` devolve isolado), nao a pintura
-    de pixel em si — nenhum screenshot e tirado aqui. Mesmo padrao de
+    Proves the WIRING all the way to the option really mounted inside the
+    `OptionList` (not the `Content` that `hierarchical_item` returns in
+    isolation), not the pixel painting itself — no screenshot is taken here.
+    Same pattern as
     `test_mounted_connection_list_distinguishes_identity_from_disambiguation`
-    em test_screens.py."""
+    in test_screens.py."""
     from textual.style import Style
     from textual.widgets import OptionList
 
@@ -1133,18 +1143,20 @@ async def test_group_result_filter_status_clear(sample_group_result):
 
 @pytest.mark.asyncio
 async def test_group_result_key_stays_rendered_while_scrolling():
-    """A coluna "Chave" da tabela de comparacao nao sai de vista ao rolar.
+    """The "Chave" column of the comparison table does not go out of sight
+    when scrolling.
 
-    Mesma regra do `ResultTable` (secao 6 da gramatica) aplicada onde ela
-    mais importa: a tabela de comparacao de grupo tem UMA coluna por
-    consulta do grupo, entao a largura cresce com o grupo. Sem a chave
-    fixa, rolar para a direita apaga o valor que diz de qual registro sao
-    as celulas restantes — e comparar e a unica coisa que esta tela faz.
+    The same rule as `ResultTable` (section 6 of the grammar) applied where
+    it matters most: the group comparison table has ONE column per query in
+    the group, so the width grows with the group. Without the fixed key,
+    scrolling to the right erases the value that says which record the
+    remaining cells belong to — and comparing is the only thing this screen
+    does.
 
-    Afirma o RENDERIZADO, nao `fixed_columns`: o atributo pode continuar em
-    1 e a fixacao parar de pintar (upgrade do Textual, CSS novo). O
-    cenario e montado largo de proposito e a rolagem e verificada
-    (`scroll_x > 0`) antes de a asercao final valer alguma coisa.
+    Asserts the RENDERED output, not `fixed_columns`: the attribute can stay
+    at 1 and the fixing stop painting (Textual upgrade, new CSS). The
+    scenario is mounted wide on purpose and the scrolling is verified
+    (`scroll_x > 0`) before the final assertion is worth anything.
     """
     from textual.widgets import DataTable
 
@@ -1193,7 +1205,7 @@ async def test_group_result_key_stays_rendered_while_scrolling():
         tabela.focus()
         await pilot.pause()
 
-        # O cenario so prova alguma coisa se ele de fato nao couber.
+        # The scenario only proves something if it really does not fit.
         antes = app.export_screenshot()
         assert "Chave" in antes
         assert "FIM_DA_TABELA" not in antes
@@ -1206,9 +1218,10 @@ async def test_group_result_key_stays_rendered_while_scrolling():
         depois = app.export_screenshot()
         assert "Chave" in depois
         assert "REG-0001" in depois
-        # O nome da ultima coluna e curto de proposito: rolando ate o fim,
-        # uma coluna de cabecalho longo apareceria recortada ("ULTA_...") e
-        # a asercao falharia por largura, nao por fixacao.
+        # The last column's name is short on purpose: scrolling all the way
+        # to the end, a column with a long header would show up clipped
+        # ("ULTA_...") and the assertion would fail because of width, not
+        # because of the fixing.
         assert "FIM_DA_TABELA" in depois
 
 
@@ -1229,12 +1242,12 @@ async def test_group_result_summary_shows(sample_group_result):
 
 @pytest.mark.asyncio
 async def test_group_result_status_column_resolves_verdict_colors():
-    """O ganho visivel da tarefa: a coluna Status da tabela de comparacao
-    tem que sair colorida, uma cor por veredito.
+    """The visible gain of the task: the Status column of the comparison
+    table has to come out coloured, one colour per verdict.
 
-    Testa a cor RESOLVIDA de cada celula (nao a string de markup): um teste
-    de string nao pegaria a celula continuando cinza/sem cor por `add_row`
-    ter recebido `str(row.status)` cru em vez de `Content.from_markup(...)`.
+    Tests the RESOLVED colour of each cell (not the markup string): a string
+    test would not catch the cell staying grey/colourless because `add_row`
+    received a raw `str(row.status)` instead of `Content.from_markup(...)`.
     """
     from textual.style import Style
     from textual.widgets import DataTable
@@ -1321,21 +1334,22 @@ async def test_panel_renders_title_and_body():
 
 @pytest.mark.asyncio
 async def test_dense_panel_gives_back_the_two_padding_lines():
-    """Densidade e decisao do COMPONENTE, com nome, e nao CSS por tela.
+    """Density is a decision of the COMPONENT, with a name, and not per-screen
+    CSS.
 
-    O padding vertical do corpo custa duas linhas por painel. Isso e
-    barato com um painel na tela e caro com seis — as Configuracoes
-    gastavam 12 de 24 linhas em ar. Duas telas ja tinham reescrito
-    `#panel-body { padding: 0 1 }` por conta propria, que e o "cada tela
-    decide por si" que a secao 4 da gramatica existe para remover.
+    The body's vertical padding costs two lines per panel. That is cheap
+    with one panel on screen and expensive with six — the Configuracoes
+    screen spent 12 of 24 lines on air. Two screens had already rewritten
+    `#panel-body { padding: 0 1 }` on their own, which is the "every screen
+    decides for itself" that section 4 of the grammar exists to remove.
 
-    A medida e a ALTURA pintada, e nao a regra de estilo: uma regra de CSS
-    pode ler certo e nao valer nada (foi assim que `Panel { height: auto }`
-    ficou quebrado por uma fase inteira).
+    The measure is the painted HEIGHT, and not the style rule: a CSS rule
+    can read correctly and be worth nothing (that is how
+    `Panel { height: auto }` stayed broken for a whole phase).
     """
     class _App(ThemedTestApp):
-        # `auto` para que a altura do painel seja a do conteudo: e ela que
-        # muda quando o padding do corpo sai.
+        # `auto` so that the panel height is the content's: it is the one
+        # that changes when the body padding goes away.
         CSS = "Panel { height: auto; }"
 
         def compose(self) -> ComposeResult:
@@ -1370,7 +1384,7 @@ from dbqm.ui.widgets.dialog import Dialog
 
 
 def test_dialog_rejects_an_unknown_variant():
-    """Variantes fechadas: sem porta dos fundos para estilo arbitrario."""
+    """Closed variants: no back door for arbitrary styling."""
     with pytest.raises(ValueError, match="tom"):
         Dialog("Titulo", tone="roxo")
     with pytest.raises(ValueError, match="largura"):
@@ -1391,38 +1405,37 @@ async def test_dialog_renders_the_title():
 
 
 def test_dialog_screen_variant_fills_the_viewport():
-    """A quarta variante e a resposta do sistema aos casos que antes
-    burlavam o enum escrevendo `.styles.width`/`.styles.height` depois de
-    construir. Ela existe, e usa porcentagem (nao celulas) porque e
-    conteudo a ser exibido, nao um formulario compacto."""
+    """The fourth variant is the system's answer to the cases that used to
+    bypass the enum by writing `.styles.width`/`.styles.height` after
+    construction. It exists, and it uses percentages (not cells) because it
+    is content to be displayed, not a compact form."""
     d = Dialog("Titulo", width="screen")
-    # Textual guarda porcentagem como escalar "w"/"h" (viewport width/height);
-    # comparar com a representacao efetivamente resolvida, nao com a string
-    # de entrada.
+    # Textual stores a percentage as a "w"/"h" scalar (viewport
+    # width/height); compare against the representation it actually
+    # resolved, not against the input string.
     assert str(d.styles.width) == "90w"
     assert str(d.styles.height) == "85h"
 
 
 def test_dialog_has_no_style_override_outside_the_component():
-    """Fecha a CLASSE, nao so a instancia: `largura`/`tom` sao validados no
-    __init__, mas nada no Python impede escrever `dialog.styles.width =`
-    depois — a atribuicao inline vence qualquer coisa que o __init__ tenha
-    decidido, e nenhum teste nem validacao consegue ver essa escrita
-    tardia. Guarda no mesmo formato de
-    `test_every_css_variable_is_a_token_or_a_documented_builtin`: silencioso ate
-    alguem reintroduzir o atalho, e ai falha alto. Precisar de mais espaco
-    e sinal de variante nova em `WIDTHS` (ver "screen"), nunca de excecao
-    local.
+    """Closes the CLASS, not just the instance: `largura`/`tom` are validated
+    in __init__, but nothing in Python stops anyone from writing
+    `dialog.styles.width =` afterwards — the inline assignment beats
+    anything __init__ may have decided, and no test and no validation can
+    see that late write. A guard in the same format as
+    `test_every_css_variable_is_a_token_or_a_documented_builtin`: silent
+    until someone reintroduces the shortcut, and then it fails loudly.
+    Needing more room is a sign of a new variant in `WIDTHS` (see "screen"),
+    never of a local exception.
 
-    Duas portas, nao uma: a atribuicao Python (`dialog.styles.width = ...`)
-    e a regra CSS lado-a-lado (`AlgumaTela #meu-dialog { height: 85%; }`).
-    A segunda escapava do guarda original porque ele so olhava `.styles.`;
-    `template_manage.py` e `error.py` hand-rolaram exatamente a variante
-    "screen" via CSS antes desta correcao. Todo id de Dialog neste repo
-    contem a substring "dialog" (id="dialog", "error-dialog",
-    "qp-dialog", "pkg-choice-dialog", ...), entao a regra CSS varre
-    qualquer bloco `#*dialog*{ ... }` por width/height/max-height/
-    min-height."""
+    Two doors, not one: the Python assignment (`dialog.styles.width = ...`)
+    and the CSS rule next to it (`AlgumaTela #meu-dialog { height: 85%; }`).
+    The second one escaped the original guard because it only looked at
+    `.styles.`; `template_manage.py` and `error.py` hand-rolled exactly the
+    "screen" variant via CSS before this fix. Every Dialog id in this repo
+    contains the substring "dialog" (id="dialog", "error-dialog",
+    "qp-dialog", "pkg-choice-dialog", ...), so the CSS rule scans any
+    `#*dialog*{ ... }` block for width/height/max-height/min-height."""
     import re
     from pathlib import Path
 
@@ -1549,11 +1562,11 @@ async def test_templates_sidebar_option_selected_posts_message():
 # ---------------------------------------------------------------------------
 
 def test_empty_state_requires_an_action():
-    """Um vazio que so informa que esta vazio e um defeito, nao um estado."""
+    """An empty view that only reports being empty is a defect, not a state."""
     from dbqm.ui.widgets.empty_state import EmptyState
 
     with pytest.raises(TypeError):
-        EmptyState("Consultas", "Voce ainda nao salvou nenhuma")  # sem acao
+        EmptyState("Consultas", "Voce ainda nao salvou nenhuma")  # no action
 
 
 @pytest.mark.asyncio
@@ -1582,8 +1595,8 @@ async def test_empty_state_offers_the_first_action():
 
 @pytest.mark.asyncio
 async def test_skeleton_has_the_shape_of_the_content_to_come():
-    """Do formato do conteudo, nao um rodopio centralizado: evita o salto de
-    layout quando o resultado real chega."""
+    """Shaped like the content to come, not a centred spinner: it avoids the
+    layout jump when the real result arrives."""
     from dbqm.ui.widgets.skeleton import Skeleton
 
     class _EsqueletoApp(ThemedTestApp):
@@ -1598,8 +1611,8 @@ async def test_skeleton_has_the_shape_of_the_content_to_come():
 
 @pytest.mark.asyncio
 async def test_read_only_is_visually_distinct_from_disabled():
-    """Somente leitura parece conteudo; desabilitado parece controle inerte —
-    confundir os dois e o defeito que esta tarefa existe para prevenir."""
+    """Read-only looks like content; disabled looks like an inert control —
+    confusing the two is the defect this task exists to prevent."""
     from textual.widgets import Input
 
     class _EstadosApp(ThemedTestApp):
@@ -1637,8 +1650,8 @@ def test_hierarchical_item_omits_empty_lines():
 
 
 def test_hierarchical_item_omits_only_the_middle_line_when_only_it_is_missing():
-    """Desambiguacao presente e contexto vazio tem que dar duas linhas,
-    sem buraco no meio — nao uma terceira linha em branco pulada."""
+    """A disambiguation present and an empty context have to give two lines,
+    with no hole in the middle — not a skipped third blank line."""
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
     c = hierarchical_item("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9")
@@ -1649,13 +1662,14 @@ def test_hierarchical_item_omits_only_the_middle_line_when_only_it_is_missing():
 
 
 def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
-    """Um campo (desambiguacao ou contexto) que ja chega com quebra de
-    linha embutida (ex.: connections.py pre-quebrando uma descricao longa
-    em duas linhas logicas) tem que ter o recuo em CADA linha, nao so na
-    primeira. Recuo e a pista de "isto pertence a entrada acima"; perde-la
-    numa continuacao alinha essa linha com a coluna da IDENTIDADE (a
-    proxima entrada), o mesmo defeito que motivou esta fase inteira -
-    nao dar pra saber onde uma entrada termina e a outra comeca."""
+    """A field (disambiguation or context) that already arrives with an
+    embedded line break (e.g. connections.py pre-wrapping a long description
+    into two logical lines) has to carry the indent on EVERY line, not just
+    on the first. The indent is the cue for "this belongs to the entry
+    above"; losing it on a continuation aligns that line with the IDENTITY
+    column (the next entry), the same defect that motivated this whole
+    phase - not being able to tell where one entry ends and the next
+    begins."""
     from dbqm.ui.widgets.hierarchical_list import _INDENT, hierarchical_item
 
     contexto = "\n".join([
@@ -1667,8 +1681,8 @@ def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
     linhas = str(c).split("\n")
     assert len(linhas) == 5
     assert linhas[0] == "ASDADM (ASD)"
-    # As quatro linhas de desambiguacao+contexto tem TODAS o mesmo recuo -
-    # nenhuma comeca na coluna 0, coluna da identidade.
+    # The four disambiguation+context lines ALL have the same indent -
+    # none of them starts in column 0, the identity column.
     for linha in linhas[1:]:
         assert linha.startswith(_INDENT), f"linha sem recuo: {linha!r}"
     assert linhas[1] == _INDENT + "Oracle/TNS - ATSSUS"
@@ -1678,15 +1692,16 @@ def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
 
 
 def test_hierarchical_item_does_not_read_content_brackets_as_markup():
-    """Nome de conexao ou descricao vem de dado do usuario, e texto livre
-    com colchete (tag de ambiente, referencia de ticket) e padrao plausivel
-    neste dominio — ex.: `Proposta [PROD]`.
+    """A connection name or description comes from user data, and free text
+    with a bracket (an environment tag, a ticket reference) is a plausible
+    pattern in this domain — e.g. `Proposta [PROD]`.
 
-    Passar por `Content.from_markup` trataria `[PROD]` como tentativa de tag
-    e, pela assimetria conhecida do parser do Textual entre `\\[` e `\\]`
-    (ver `result_table.py`), um escape ingenuo devolveria o texto alterado
-    (barra sobrando). A prova aqui e ida e volta: o que entra tem que sair
-    identico em `.plain`, colchete por colchete — nao so "nao explodiu".
+    Going through `Content.from_markup` would treat `[PROD]` as an attempted
+    tag and, because of the known asymmetry of Textual's parser between
+    `\\[` and `\\]` (see `result_table.py`), a naive escape would return the
+    text altered (a leftover backslash). The proof here is a round trip:
+    what goes in has to come out identical in `.plain`, bracket by bracket —
+    not just "it did not blow up".
     """
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
@@ -1698,9 +1713,9 @@ def test_hierarchical_item_does_not_read_content_brackets_as_markup():
 
 @pytest.mark.asyncio
 async def test_hierarchical_item_uses_the_grammar_color_hierarchy():
-    """Identidade, desambiguacao e contexto tem que sair com tres cores
-    diferentes de fato resolvidas no tema ativo — nao apenas o nome do
-    token aparecendo na string de markup (licao da Task 1)."""
+    """Identity, disambiguation and context have to come out with three
+    different colours actually resolved in the active theme — not merely the
+    token name showing up in the markup string (lesson from Task 1)."""
     from textual.style import Style
 
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item

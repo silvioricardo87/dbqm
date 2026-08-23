@@ -70,12 +70,13 @@ class HistoryScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
-        """Foca o que a tela esta MOSTRANDO.
+        """Focus what the screen is SHOWING.
 
-        Com historico vazio quem esta na tela e o `EmptyState`, e a unica
-        coisa acionavel nele e o botao. Focar a tabela nessa hora punha o
-        foco num widget escondido: nada visivel ficava marcado, e a tecla
-        de Enter nao alcancava a saida que a tela acabou de oferecer.
+        With an empty history what is on screen is the `EmptyState`, and the
+        only actionable thing in it is the button. Focusing the table at
+        that point put the focus on a hidden widget: nothing visible was
+        marked, and the Enter key did not reach the way out the screen had
+        just offered.
         """
         table = self.query_one("#hist-table", DataTable)
         if table.display:
@@ -107,14 +108,14 @@ class HistoryScreen(Vertical):
         table.add_column("Status", key="status", width=10)
 
         if not self._entries:
-            # Esconder a tabela e o que as outras dez listas vazias do dbqm
-            # ja faziam (`connections`, `query_list`, `browser`, ...): sem
-            # isso, o cabecalho `Data Conexao Tipo SQL Tempo Status` era
-            # pintado colado no estado vazio, prometendo uma tabela que nao
-            # existe. O painel de DETALHES some pelo mesmo motivo — nao ha
-            # registro para detalhar — e devolver as suas 8 linhas ao painel
-            # de cima e o que faz a linha de identidade (`Historico`) caber
-            # em 80x24, onde antes era recortada inteira.
+            # Hiding the table is what the other ten empty lists in dbqm
+            # already did (`connections`, `query_list`, `browser`, ...):
+            # without it, the `Data Conexao Tipo SQL Tempo Status` header was
+            # painted right against the empty state, promising a table that
+            # does not exist. The DETAIL panel goes away for the same reason
+            # — there is no record to detail — and giving its 8 lines back to
+            # the panel above is what makes the identity line (`Historico`)
+            # fit at 80x24, where before it was clipped entirely.
             empty.display = True
             table.display = False
             detail_panel.display = False
@@ -145,10 +146,10 @@ class HistoryScreen(Vertical):
                 tipo,
                 str(e.name) if e.name else "",
                 f"{e.elapsed:.1f}s",
-                # DataTable formata celulas string com o parser puro do Rich,
-                # que nao conhece `$token` (so o markup de conteudo do
-                # Textual conhece). Content.from_markup resolve o token antes
-                # de a celula chegar la.
+                # DataTable formats string cells with Rich's plain parser,
+                # which does not know about `$token` (only Textual's content
+                # markup does). Content.from_markup resolves the token before
+                # the cell gets there.
                 Content.from_markup(status),
                 key=str(i),
             )
@@ -244,8 +245,9 @@ class HistoryScreen(Vertical):
         clear_history()
         self.notify("Historico limpo!", timeout=5)
         self._reload()
-        # Limpar deixa a tela vazia: o foco tem de acompanhar a tabela que
-        # acabou de sair de cena, senao fica num widget escondido.
+        # Clearing leaves the screen empty: the focus has to follow the
+        # table that has just left the stage, otherwise it stays on a hidden
+        # widget.
         self._set_initial_focus()
 
     # ------------------------------------------------------------------

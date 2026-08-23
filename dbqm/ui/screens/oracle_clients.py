@@ -27,33 +27,34 @@ class OracleClientsScreen(Vertical):
     OracleClientsScreen {
         height: 1fr;
         padding: 1 2;
-        /* Com um client instalado as tres secoes emolduradas passam
-           da dobra de um terminal de 24 linhas (41 medidas em 80x24, ver
-           `tests/design/test_transbordo_vertical.py`) e a tela rola, com o
-           transbordo visivel. A versao sem moldura desta tela media 59 e
-           NAO rolava — `Vertical` nasce com `overflow: hidden`, e a secao
-           DISPONIVEIS simplesmente nao existia para quem so tinha 24
-           linhas. E este `overflow-y` que paga a moldura. */
+        /* With one client installed the three framed sections go past the
+           fold of a 24-line terminal (41 lines measured at 80x24, see
+           `tests/design/test_vertical_overflow.py`) and the screen
+           scrolls, with the overflow visible. The unframed version of this
+           screen measured 59 and did NOT scroll — `Vertical` is born with
+           `overflow: hidden`, and the DISPONIVEIS section simply did not
+           exist for anyone who only had 24 lines. It is this `overflow-y`
+           that pays for the chrome. */
         overflow-y: auto;
     }
     OracleClientsScreen Panel {
         height: auto;
         margin-bottom: 1;
     }
-    /* Uma barra de botoes e alta como um botao. Sem isto ela herda o
-       `height: 1fr` do proprio `Horizontal` e, dentro de um corpo de
-       painel de altura automatica, estica ate a altura do CONTAINER: os
-       dois paineis de baixo nasciam com 23 linhas cada (em vez de 12 e 14)
-       e empurravam a secao DISPONIVEIS para y=23, abaixo da dobra. */
+    /* A button bar is as tall as a button. Without this it inherits
+       `Horizontal`'s own `height: 1fr` and, inside a panel body of
+       automatic height, stretches up to the height of the CONTAINER: the
+       two bottom panels were born with 23 lines each (instead of 12 and
+       14) and pushed the DISPONIVEIS section to y=23, below the fold. */
     OracleClientsScreen .oc-actions {
         height: auto;
     }
-    /* Duas linhas de informacao nao pedem 11 linhas de caixa. Com o
-       padding vertical do corpo e uma margem por linha, este painel
-       gastava 11 para dizer a plataforma e o diretorio — e era ele que
-       empurrava CLIENTS INSTALADOS para fora da tela quando o foco
-       inicial parava la (`_set_initial_focus`). Denso e sem margens ele
-       cabe em 6, e a tela abre mostrando os dois primeiros paineis. */
+    /* Two lines of information do not call for an 11-line box. With the
+       body's vertical padding and one margin per line, this panel spent 11
+       to state the platform and the directory — and it was the one pushing
+       CLIENTS INSTALADOS off the screen when the initial focus landed
+       there (`_set_initial_focus`). Dense and marginless it fits in 6, and
+       the screen opens showing the first two panels. */
     OracleClientsScreen #oc-platform {
         height: auto;
     }
@@ -154,19 +155,21 @@ class OracleClientsScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
-        """Comeca no PRIMEIRO painel interativo, e nao no ultimo.
+        """Starts on the FIRST interactive panel, and not on the last.
 
-        A tela e mais alta que 24 linhas e rola, e o Textual rola ate o que
-        recebe foco. Focando a tabela de DISPONIVEIS — o terceiro painel —
-        o gerenciador abria ja rolado ate ela: a primeira coisa depois de
-        escolher a entrada da lista era uma tabela sem cabecalho e sem
-        titulo em cima. Focando aqui, a tela abre num painel COM titulo, e
-        quem quer instalar chega a DISPONIVEIS por Tab (ou pelo botao
-        "Escolher client" do estado vazio, que existe para isso).
+        The screen is taller than 24 lines and scrolls, and Textual scrolls
+        to whatever receives focus. Focusing the DISPONIVEIS table — the
+        third panel — made the manager open already scrolled down to it: the
+        first thing after choosing the list entry was a table with no header
+        and no title above it. Focusing here, the screen opens on a panel
+        WITH a title, and whoever wants to install reaches DISPONIVEIS by
+        Tab (or through the empty state's "Escolher client" button, which
+        exists for that).
 
-        Nao se rola para o topo a forca depois de focar: isso poe o foco
-        fora da vista, que e pior do que comecar um painel abaixo. Quem
-        paga o topo e a altura do painel de plataforma, enxugada junto.
+        We do not force a scroll to the top after focusing: that puts the
+        focus out of view, which is worse than starting one panel down. What
+        pays for the top is the height of the platform panel, trimmed along
+        with it.
         """
         try:
             if self._installed:
@@ -229,11 +232,11 @@ class OracleClientsScreen(Vertical):
         elif event.button.id == "oc-use-btn":
             self._use_selected()
         elif event.button.id == "escolher-client":
-            # O rotulo descreve exatamente o que este botao faz: leva o
-            # foco ate a lista de pacotes disponiveis. Instalar de fato
-            # exige uma linha selecionada la (_start_install), entao
-            # prometer "Instalar client" aqui seria prometer mais do que
-            # um unico Enter entrega.
+            # The label describes exactly what this button does: it takes
+            # the focus to the list of available packages. Actually
+            # installing requires a row selected there (_start_install), so
+            # promising "Instalar client" here would promise more than a
+            # single Enter delivers.
             self.query_one("#oc-available-table", DataTable).focus()
 
     def _use_selected(self) -> None:

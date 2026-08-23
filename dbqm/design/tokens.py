@@ -1,43 +1,43 @@
-"""Design tokens do dbqm — camadas 1 e 2 do design system "Plano".
+"""dbqm design tokens — layers 1 and 2 of the "Plano" design system.
 
-Este modulo e a camada mais baixa do projeto: nao importa nada de `dbqm`.
-Consumidores: `ui/theme.py` (Textual), `cli.py` (Rich) e `core/html_report.py`
-(CSS). Isso existe porque `core/` nao pode importar `ui/`, e foi por essa regra
-que o relatorio HTML acabou inventando uma paleta propria.
+This module is the lowest layer of the project: it imports nothing from `dbqm`.
+Consumers: `ui/theme.py` (Textual), `cli.py` (Rich) and `core/html_report.py`
+(CSS). This exists because `core/` cannot import `ui/`, and it was because of
+that rule that the HTML report ended up inventing a palette of its own.
 
-A paleta Plano (Task 8) substitui os valores herdados do tema GitHub. As
-chaves nao mudam — so os valores.
+The Plano palette (Task 8) replaces the values inherited from the GitHub theme.
+The keys do not change — only the values.
 """
 from __future__ import annotations
 
 from typing import Final
 
-# --------------------------------------------------------------- camada 1
-# Primitivas ordenadas por luminancia: numero maior e sempre mais escuro.
-# ardosia (escuro): 950 #0b0e14 · 900 #0f131b · 850 #151a24 · 800 #1e2531
+# ---------------------------------------------------------------- layer 1
+# Primitives ordered by luminance: a higher number is always darker.
+# slate (dark):   950 #0b0e14 · 900 #0f131b · 850 #151a24 · 800 #1e2531
 #                   700 #2b3342 · 500 #6b7688 · 450 #6b7a93 · 300 #9aa4b5
 #                   100 #d5dae4 · 050 #f2f5fa
-# neve (claro):     000 #ffffff · 050 #f4f6f9 · 100 #f2f5f8 · 150 #eaeef3
+# snow (light):     000 #ffffff · 050 #f4f6f9 · 100 #f2f5f8 · 150 #eaeef3
 #                   300 #d3dae3 · 500 #7b8798 · 600 #788291 · 700 #5b6577
 #                   900 #1c2230 · 950 #0a0e16
-# tintas:  ambar 400 #e3b341 / 800 #7d5600   (identidade, linhagem SQL*Plus)
-#          persimmon 400 #ff8a5c / 800 #a83a0c   (discorda)
-#          indigo 400 #8b9bff / 800 #3f49c4   (ausente)
-#          carmim 400 #ff6b72 / 800 #c02434   (falha)
+# inks:    amber 400 #e3b341 / 800 #7d5600   (identity, SQL*Plus lineage)
+#          persimmon 400 #ff8a5c / 800 #a83a0c   (disagrees)
+#          indigo 400 #8b9bff / 800 #3f49c4   (absent)
+#          crimson 400 #ff6b72 / 800 #c02434   (failure)
 
-# --------------------------------------------------------------- camada 2
-# Tokens semanticos: o que a cor SIGNIFICA. Componentes consomem so estes.
+# ---------------------------------------------------------------- layer 2
+# Semantic tokens: what the color MEANS. Components consume only these.
 #
-# O prefixo `ds-` nao e decoracao: sem ele, sete dos quinze nomes colidiriam
-# com variaveis EMBUTIDAS do Textual — `background`, `surface`, `panel`,
-# `border`, `text`, `text-muted`, `text-disabled`. Colisao ali nao e erro: o
-# `Theme.variables` SOBRESCREVE o builtin de mesmo nome
-# (`ColorSystem._generate` le cada um por `self.variables.get(nome, padrao)`),
-# entao `$text-muted` deixaria de ser o valor derivado que os widgets nativos
-# do Textual usam e viraria o nosso token, mudando pintura fora do dbqm sem
-# nenhum aviso. E o codigo depende dessa separacao: `tests/design/
-# test_tokens.py::DOCUMENTED_BUILTINS` existe justamente para distinguir
-# "builtin do Textual" de "token nosso" no CSS.
+# The `ds-` prefix is not decoration: without it, seven of the fifteen names
+# would collide with Textual BUILT-IN variables — `background`, `surface`,
+# `panel`, `border`, `text`, `text-muted`, `text-disabled`. A collision there
+# is not an error: `Theme.variables` OVERRIDES the builtin of the same name
+# (`ColorSystem._generate` reads each one via `self.variables.get(name,
+# default)`), so `$text-muted` would stop being the derived value that the
+# native Textual widgets use and would become our token, changing painting
+# outside dbqm with no warning whatsoever. And the code depends on this
+# separation: `tests/design/test_tokens.py::DOCUMENTED_BUILTINS` exists
+# precisely to tell "Textual builtin" apart from "our token" in the CSS.
 DARK_TOKENS: Final[dict[str, str]] = {
     "ds-background": "#0b0e14",
     "ds-surface": "#0f131b",
@@ -50,8 +50,8 @@ DARK_TOKENS: Final[dict[str, str]] = {
     "ds-text-strong": "#f2f5fa",
     "ds-text-disabled": "#6b7688",
     "ds-identity": "#e3b341",
-    # O dbqm nao tem verde: OK e a ausencia de tinta. Reverter o risco e
-    # trocar este unico valor.
+    # dbqm has no green: OK is the absence of ink. Reverting the bet is
+    # swapping this single value.
     "ds-verdict-match": "#9aa4b5",
     "ds-verdict-diff": "#ff8a5c",
     "ds-verdict-absent": "#8b9bff",
@@ -76,26 +76,27 @@ LIGHT_TOKENS: Final[dict[str, str]] = {
     "ds-op-failure": "#c02434",
 }
 
-# `plano-escuro`/`plano-claro` sao os unicos nomes PORTUGUESES que ficam, e de
-# proposito: eles nao sao identificadores de codigo, sao VALORES GRAVADOS no
-# `settings.json` de quem ja usa o dbqm. `ui/theme.py::LEGACY_NAMES` ja carrega
-# um mapa de migracao de `github-dark`/`github-light` para eles; renomea-los
-# agora quebraria a configuracao salva uma segunda vez e obrigaria a uma
-# segunda camada de migracao. As CHAVES de token acima sao internas (so o
-# codigo as le) e por isso foram traduzidas; estes dois nomes nao sao.
+# `plano-escuro`/`plano-claro` are the only PORTUGUESE names that stay, and on
+# purpose: they are not code identifiers, they are VALUES RECORDED in the
+# `settings.json` of whoever already uses dbqm. `ui/theme.py::LEGACY_NAMES`
+# already carries a migration map from `github-dark`/`github-light` to them;
+# renaming them now would break the saved configuration a second time and would
+# force a second migration layer. The token KEYS above are internal (only the
+# code reads them) and that is why they were translated; these two names are
+# not.
 THEMES: Final[dict[str, dict[str, str]]] = {
     "plano-escuro": DARK_TOKENS,
     "plano-claro": LIGHT_TOKENS,
 }
 
-# Superficies sobre as quais texto pode ser desenhado.
+# Surfaces onto which text may be drawn.
 SURFACES: Final[tuple[str, ...]] = (
     "ds-background", "ds-surface", "ds-panel", "ds-surface-raised",
 )
 
-# Regra do par (guia, secao 3): cada token de tinta declara sobre quais fundos
-# e valido. Nenhum e valido sobre preenchimento translucido — sobre translucido,
-# use o texto da superficie de baixo.
+# Pair rule (guide, section 3): each ink token declares which backgrounds it is
+# valid over. None is valid over translucent fill — over translucent, use the
+# text color of the surface underneath.
 VALID_OVER: Final[dict[str, tuple[str, ...]]] = {
     "ds-text": SURFACES,
     "ds-text-muted": SURFACES,
@@ -104,18 +105,18 @@ VALID_OVER: Final[dict[str, tuple[str, ...]]] = {
     "ds-border-strong": SURFACES,
     "ds-identity": SURFACES,
     "ds-op-failure": ("ds-panel", "ds-surface"),
-    # "ds-background" entra aqui porque `core/html_report.py` desenha `.ok`/`.diff`/
-    # `.absent` direto sobre `body { background: var(--ds-background) }` — o par
-    # mais comum do relatorio. Ficar de fora era narrowing gratuito: o
-    # teste de contraste so calcula pares declarados, entao um par
-    # composto real (e o mais frequente do relatorio) ficava invisivel
-    # para a catraca. Os tres passam nas duas variantes, minimo 5.42:1.
+    # "ds-background" is listed here because `core/html_report.py` draws `.ok`/`.diff`/
+    # `.absent` straight onto `body { background: var(--ds-background) }` — the
+    # most common pair in the report. Leaving it out was gratuitous narrowing:
+    # the contrast test only computes declared pairs, so a real composed
+    # pair (and the most frequent one in the report) stayed invisible
+    # to the ratchet. All three pass in both variants, minimum 5.42:1.
     "ds-verdict-match": ("ds-panel", "ds-surface", "ds-surface-raised", "ds-background"),
     "ds-verdict-diff": ("ds-panel", "ds-surface", "ds-surface-raised", "ds-background"),
     "ds-verdict-absent": ("ds-panel", "ds-surface", "ds-surface-raised", "ds-background"),
 }
 
-# Tokens julgados pelo piso de interface (3:1) em vez do de texto (4.5:1).
+# Tokens judged by the interface floor (3:1) instead of the text floor (4.5:1).
 INTERFACE_TOKENS: Final[frozenset[str]] = frozenset(
     {"ds-text-disabled", "ds-border-strong"}
 )

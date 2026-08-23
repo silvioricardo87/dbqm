@@ -455,11 +455,11 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
         elif event.button.id == "wizard-done":
             self.dismiss(self._routines if self._routines else None)
         elif event.button.id == "informar-nome-rotina":
-            # O rotulo descreve exatamente o que este botao faz: leva o
-            # cursor ate o campo de nome. "Adicionar rotina" prometeria a
-            # rotina pronta, mas _handle_add exige o nome preenchido
-            # primeiro (senao e um no-op silencioso) — entao o passo real
-            # de um unico Enter e chegar ao campo, nao adicionar.
+            # The label describes exactly what this button does: it takes
+            # the cursor to the name field. "Adicionar rotina" would promise
+            # the routine ready, but _handle_add requires the name filled
+            # in first (otherwise it is a silent no-op) — so the real step
+            # of a single Enter is reaching the field, not adding.
             self.query_one("#wizard-routine-name", Input).focus()
 
     def _handle_add(self) -> None:
@@ -558,7 +558,7 @@ class PackageEditorScreen(Vertical):
        VERTICAL deste corpo — lista densa de diagnostico nao pede respiro —
        que devolve 4 linhas de texto (cabecalho + 3 erros) sem tomar nada do
        editor. O resto nao some: `Panel` desconta o cromo do teto, o corpo
-       cabe exato e rola. Medidas em `test_transbordo_vertical.py`. A
+       cabe exato e rola. Medidas em `test_vertical_overflow.py`. A
        densidade em si mora no componente (`Panel(dense=True)`), nao aqui. */
     PackageEditorScreen #pe-error-panel {
         height: auto;
@@ -598,16 +598,17 @@ class PackageEditorScreen(Vertical):
                 yield Button("Spec", variant="primary", id="pe-tab-spec")
                 yield Button("Body", variant="default", id="pe-tab-body")
             yield TextArea("", language="sql", id="pe-editor-area")
-        # O id `#pe-error-panel` passou do Static para a moldura, porque e
-        # ele que os pontos de exibicao ligam e desligam; o texto vive em
-        # `#pe-error-text`.
+        # The id `#pe-error-panel` moved from the Static to the frame,
+        # because it is the frame that the display points switch on and
+        # off; the text lives in `#pe-error-text`.
         with Panel("⚠  COMPILACAO", id="pe-error-panel", dense=True):
             yield Static("", id="pe-error-text")
-        # SOLTOS de proposito, fora de qualquer painel — a excecao a §4
-        # ("nada fica solto no fundo") esta escrita por extenso no docstring
-        # de `ProgressIndicator`. Resumo: os dois pintam o estado da TELA
-        # enquanto ela nao tem conteudo, nao uma secao dela; e emoldurar o
-        # indicador o amarraria a visibilidade do painel que o hospedasse.
+        # LOOSE on purpose, outside any panel — the exception to §4
+        # ("nothing stays loose on the background") is written out in full
+        # in `ProgressIndicator`'s docstring. Summary: the two of them paint
+        # the state of the SCREEN while it has no content, not a section of
+        # it; and framing the indicator would tie it to the visibility of
+        # whichever panel hosted it.
         yield ProgressIndicator()
         yield Static(
             "[dim]Carregando editor de packages...[/dim]",

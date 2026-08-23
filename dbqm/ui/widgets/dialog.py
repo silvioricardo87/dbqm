@@ -1,16 +1,16 @@
-"""Dialog: a camada que flutua sobre o conteudo.
+"""Dialog: the layer that floats over the content.
 
-Existe porque o mesmo bloco `border: thick $accent` estava copiado 29 vezes em
-13 arquivos. Regra de uso: se flutua sobre o conteudo, e Dialog; se nao flutua,
-e Panel.
+It exists because the same `border: thick $accent` block was copied 29 times
+across 13 files. Rule of use: if it floats over the content, it is a Dialog;
+if it does not float, it is a Panel.
 
-As variantes de `largura` sao fechadas de proposito. Se um caso precisa de
-algo fora delas, isso e uma variante nova que falta no sistema — nunca uma
-excecao local (`dialog.styles.width = ...` depois de construir). A excecao
-local e como o sistema morre: silenciosamente, um caso de cada vez, e sem
-que a validacao do `__init__` veja nada, porque a escrita acontece depois
-dela. `tests/ui/test_widgets.py::test_dialog_has_no_style_override_
-outside_the_component` fecha essa porta.
+The `width` variants are closed on purpose. If a case needs something outside
+them, that is a new variant missing from the system — never a local exception
+(`dialog.styles.width = ...` after construction). The local exception is how
+the system dies: silently, one case at a time, and without `__init__`'s
+validation seeing anything, because the write happens after it.
+`tests/ui/test_widgets.py::test_dialog_has_no_style_override_
+outside_the_component` closes that door.
 """
 from __future__ import annotations
 
@@ -18,24 +18,24 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
 
-# "sm"/"md"/"lg" sao colunas de largura fixa (numero de celulas) — dialogos
-# compactos de texto/formulario. "screen" e a excecao documentada: dialogos
-# que existem para EXIBIR conteudo (tabela de resultado, texto renderizado)
-# precisam preencher a maior parte da viewport, entao a unidade muda para
-# porcentagem. Misturar celulas e porcentagem sem avisar seria a mesma
-# mentira que um degrau de luminancia fora de ordem — por isso o comentario.
+# "sm"/"md"/"lg" are fixed-width columns (a number of cells) — compact
+# text/form dialogs. "screen" is the documented exception: dialogs that exist
+# to DISPLAY content (a result table, rendered text) need to fill most of the
+# viewport, so the unit changes to a percentage. Mixing cells and percentages
+# without saying so would be the same lie as a luminance step out of order —
+# hence this comment.
 WIDTHS: dict[str, int | str] = {"sm": 50, "md": 70, "lg": 90, "screen": "90%"}
 TONES: tuple[str, ...] = ("neutral", "destructive")
 
-# Altura usada apenas pela variante "screen" — as demais ficam com o
-# `height: auto; max-height: 90%` do DEFAULT_CSS, que basta para conteudo
-# curto. Uma unica altura para os dois casos que hoje pedem "screen": a
-# diferenca entre 80% e 85% entre eles nunca foi uma decisao, so copia.
+# Height used only by the "screen" variant — the others keep DEFAULT_CSS's
+# `height: auto; max-height: 90%`, which is enough for short content. A single
+# height for the two cases that ask for "screen" today: the difference between
+# 80% and 85% between them was never a decision, just a copy.
 _SCREEN_HEIGHT = "85%"
 
 
 class Dialog(Vertical):
-    """Chrome de uma camada flutuante: moldura, titulo e area de conteudo."""
+    """Chrome of a floating layer: frame, title and content area."""
 
     DEFAULT_CSS = """
     Dialog {
@@ -74,6 +74,6 @@ class Dialog(Vertical):
             self.styles.height = _SCREEN_HEIGHT
 
     def compose(self) -> ComposeResult:
-        # Verificado nesta versao do Textual: o compose do proprio widget e os
-        # filhos passados por `with Dialog(...)` coexistem, nesta ordem.
+        # Verified in this version of Textual: the widget's own compose and
+        # the children passed via `with Dialog(...)` coexist, in this order.
         yield Static(self._title, classes="dialog-title", id=f"{self.id}-title")

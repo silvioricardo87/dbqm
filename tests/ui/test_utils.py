@@ -77,15 +77,16 @@ def test_escape_markup_nested():
 # common_folder_prefix
 # ---------------------------------------------------------------------------
 #
-# Existia sem teste nenhum: toda pasta usada na suite de UI era livre de
-# prefixo ("Grupo A", "FolderA", "Pasta0") e nenhuma continha "/", entao o
-# ramo de elisao nunca rodava — trocar o corpo da funcao por `return ""`
-# mantinha 326 testes verdes. Estes casos, mais o teste de tela que le o
-# ROTULO pintado, sao o que faz esse mutante morrer.
+# It existed with no test at all: every folder used in the UI suite was
+# prefix-free ("Grupo A", "FolderA", "Pasta0") and none contained "/", so the
+# elision branch never ran — replacing the function body with `return ""`
+# kept 326 tests green. These cases, plus the screen test that reads the
+# painted LABEL, are what kills that mutant.
 
 
 def test_common_folder_prefix_single_family():
-    """O caso que motivou a funcao: uma familia domina a lista inteira."""
+    """The case that motivated the function: one family dominates the whole
+    list."""
     assert common_folder_prefix([
         "Mapfre Sustentacao/Faturamento",
         "Mapfre Sustentacao/Apolice",
@@ -93,51 +94,50 @@ def test_common_folder_prefix_single_family():
 
 
 def test_common_folder_prefix_several_segments():
-    """O prefixo cresce por segmento, nao para no primeiro."""
+    """The prefix grows segment by segment, it does not stop at the first."""
     assert common_folder_prefix(["A/B/C", "A/B/D"]) == "A/B/"
 
 
 def test_common_folder_prefix_nothing_in_common():
-    """Duas familias lado a lado: o prefixo comum encolhe sozinho para ""
-    e a lista volta a mostrar o caminho inteiro — a razao de o prefixo ser
-    calculado a cada carga em vez de fixado como literal no codigo."""
+    """Two families side by side: the common prefix shrinks on its own to ""
+    and the list goes back to showing the whole path — the reason the prefix
+    is computed on every load instead of being hardcoded as a literal."""
     assert common_folder_prefix(["Mapfre/Faturamento", "Interno/Backlog"]) == ""
 
 
 def test_common_folder_prefix_compares_segments_not_characters():
-    """"Fatura" e prefixo de "Faturamento" em caracteres, mas nao em
-    segmentos — elidir aqui cortaria o comeco de um nome de pasta."""
+    """"Fatura" is a prefix of "Faturamento" in characters, but not in
+    segments — eliding here would cut off the start of a folder name."""
     assert common_folder_prefix(["Faturamento", "Fatura"]) == ""
 
 
 def test_common_folder_prefix_fewer_than_two():
-    """Com zero ou uma pasta nao ha redundancia a eliminar: o unico rotulo
-    da lista tem de aparecer inteiro."""
+    """With zero or one folder there is no redundancy to remove: the list's
+    only label has to show up in full."""
     assert common_folder_prefix([]) == ""
     assert common_folder_prefix(["Mapfre Sustentacao/Faturamento"]) == ""
 
 
 def test_common_folder_prefix_folder_that_prefixes_its_sibling():
-    """Caso irmao: uma pasta E o prefixo comum da outra.
+    """Sibling case: one folder IS the common prefix of the other.
 
-    O prefixo devolvido ("A/B/") nao se aplica a propria "A/B" — quem
-    chama tem de checar `startswith` antes de cortar, e e isso que impede
-    o rotulo de "A/B" de virar string vazia. A funcao devolve o prefixo
-    correto; o `startswith` do chamador (query_exec.py/group_run.py) e
-    load-bearing, nao defensivo."""
+    The returned prefix ("A/B/") does not apply to "A/B" itself — the caller
+    has to check `startswith` before cutting, and that is what stops "A/B"'s
+    label from turning into an empty string. The function returns the
+    correct prefix; the caller's `startswith`
+    (query_exec.py/group_run.py) is load-bearing, not defensive."""
     assert common_folder_prefix(["A/B", "A/B/C"]) == "A/B/"
 
 
 def test_common_folder_prefix_repeated_list_would_return_everything():
-    """Comportamento fixado, nao endossado: com a MESMA pasta repetida o
-    prefixo comum e ela inteira, e cortar isso apagaria o rotulo.
+    """Behaviour pinned down, not endorsed: with the SAME folder repeated the
+    common prefix is the whole of it, and cutting that would erase the label.
 
-    Nao ha guarda contra isso dentro da funcao de proposito — os dois
-    chamadores passam `sorted(Counter(...))`, ou seja, chaves de um
-    dicionario, que sao unicas por construcao. Com entradas unicas, o unico
-    jeito de o prefixo cobrir uma pasta inteira e o caso irmao acima, onde
-    o `startswith` do chamador ja salva o rotulo. Este teste existe para
-    que, se um terceiro chamador passar uma lista com repeticoes um dia, a
-    consequencia esteja escrita aqui em vez de aparecer como uma lista de
-    rotulos em branco."""
+    There is no guard against this inside the function on purpose — the two
+    callers pass `sorted(Counter(...))`, that is, dictionary keys, which are
+    unique by construction. With unique entries, the only way for the prefix
+    to cover a whole folder is the sibling case above, where the caller's
+    `startswith` already saves the label. This test exists so that, if a
+    third caller one day passes a list with repetitions, the consequence is
+    written down here instead of showing up as a list of blank labels."""
     assert common_folder_prefix(["A/B", "A/B"]) == "A/B/"

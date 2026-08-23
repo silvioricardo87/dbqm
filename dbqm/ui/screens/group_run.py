@@ -33,37 +33,36 @@ from dbqm.core.group_engine import GroupResult
 # Small helper widget for group items in the list
 # ---------------------------------------------------------------------------
 
-# Largura do painel que hospeda a lista de grupos (`#gr-selection-phase`,
-# no CSS logo abaixo). Constante de modulo porque o CSS e a quebra de
-# texto precisam ser literalmente o mesmo numero — divergir e o defeito
-# de volta, so que silencioso.
+# Width of the panel that hosts the group list (`#gr-selection-phase`, in
+# the CSS just below). A module constant because the CSS and the text
+# wrapping have to be literally the same number — diverging is the defect
+# back again, only silently.
 #
-# O PRECO, escrito porque e escolha e nao ganho puro: o painel de
-# selecao DEIXA DE SER ELASTICO (crescia com o terminal, 116 colunas num
-# terminal de 120; agora para em 76). Foi a troca aceita nas listas de
-# Conexoes e de Consultas e e a mesma aqui: recuo garantido na
-# continuacao exige quebra em `\n` antes do render (ver
-# `hierarchical_item`), e quebrar em `\n` exige saber a largura antes do
-# render.
+# The PRICE, written down because it is a choice and not a pure gain: the
+# selection panel STOPS BEING ELASTIC (it used to grow with the terminal,
+# 116 columns on a 120-column terminal; now it stops at 76). It was the
+# trade accepted in the Conexoes and Consultas lists and it is the same
+# one here: a guaranteed indent on the continuation requires wrapping on
+# `\n` before the render (see `hierarchical_item`), and wrapping on `\n`
+# requires knowing the width before the render.
 #
-# 76, e nao 42: esta lista e da FORMA de Consultas, nao da de Conexoes.
-# Conexoes usa 42 por ser a coluna esquerda de um master-detail (a lista
-# divide a tela com o formulario de edicao); aqui a selecao ocupa a tela
-# inteira e da lugar a fase de resultados quando um grupo e escolhido —
-# a mesma troca de fases de `QueryExecScreen`. E 76 e o numero medido, e
-# nao inventado: e a largura que `#gr-selection-phase` JA tinha a 80
-# colunas, o terminal mais estreito que o produto suporta (80 menos as 4
-# do `margin: 1 2 0 2`). A 80x24 nada muda de lugar; so terminais mais
-# largos pagam o preco.
+# 76, and not 42: this list has the SHAPE of Consultas, not that of
+# Conexoes. Conexoes uses 42 because it is the left column of a
+# master-detail (the list shares the screen with the edit form); here the
+# selection takes up the whole screen and gives way to the results phase
+# when a group is chosen — the same phase swap as `QueryExecScreen`. And
+# 76 is the measured number, not an invented one: it is the width that
+# `#gr-selection-phase` ALREADY had at 80 columns, the narrowest terminal
+# the product supports (80 minus the 4 of `margin: 1 2 0 2`). At 80x24
+# nothing moves; only wider terminals pay the price.
 _LIST_PANEL_WIDTH = 76
 
-# Colunas de texto que sobram dentro desse painel. A derivacao (borda do
-# Panel, padding do corpo, padding do OptionList, barra de rolagem no
-# pior caso, recuo da linha) mora em `wrap_width`, compartilhada
-# com Conexoes e Consultas; o que e desta tela e so a largura do painel
-# acima. Ver la tambem a armadilha que custou quatro rodadas:
-# `content_region` NAO desconta a barra de rolagem,
-# `scrollable_content_region` desconta.
+# Text columns left over inside that panel. The derivation (Panel border,
+# body padding, OptionList padding, scrollbar in the worst case, line
+# indent) lives in `wrap_width`, shared with Conexoes and Consultas; what
+# belongs to this screen is only the panel width above. See there as well
+# the trap that cost four rounds: `content_region` does NOT subtract the
+# scrollbar, `scrollable_content_region` does.
 _TEXT_WIDTH = wrap_width(_LIST_PANEL_WIDTH)
 
 
@@ -76,37 +75,41 @@ class _GroupSelected(Message):
 
 
 def _group_option(group: Any) -> NamedOption:
-    """Monta a `NamedOption` de um grupo pra dentro do `OptionList`.
+    """Build a group's `NamedOption` for the `OptionList`.
 
-    Mesma hierarquia de linhas de `_query_option`
-    (dbqm/ui/widgets/query_list.py) e `connections.py`: identidade sozinha,
-    desambiguacao recuada, contexto opcional recuado — em vez da string
-    concatenada com `|` que este item usava antes. A contagem de consultas
-    e o que desambigua dois grupos de nome parecido (facilmente confundivel
-    entre si nesta tela); a descricao e contexto livre, sem corte
-    artificial — o que ela leva e QUEBRA em linhas logicas, na largura do
-    painel, para que a continuacao continue recuada em vez de cair na
-    coluna da identidade do grupo seguinte (ver o comentario no corpo).
+    Same line hierarchy as `_query_option`
+    (dbqm/ui/widgets/query_list.py) and `connections.py`: identity on its
+    own, disambiguation indented, optional context indented — instead of
+    the `|`-concatenated string this item used before. The query count is
+    what disambiguates two groups with similar names (easily confused with
+    each other on this screen); the description is free context, with no
+    artificial truncation — what it gets is WRAPPING into logical lines,
+    at the panel width, so that the continuation stays indented instead of
+    falling into the identity column of the next group (see the comment in
+    the body).
 
-    O nome do grupo viaja no atributo `nome` da opcao, e nao no `id` — ver
-    `NamedOption`: dois grupos de mesmo nome num `groups.json` editado a
-    mao sao dado ambiguo, mas dado ambiguo nao pode derrubar a tela.
+    The group name travels in the option's `nome` attribute, and not in
+    the `id` — see `NamedOption`: two groups with the same name in a
+    hand-edited `groups.json` are ambiguous data, but ambiguous data must
+    not bring the screen down.
     """
     name = group.name
     n_queries = len(group.queries)
     queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
 
-    # QUEBRA, nao corte: nenhum caractere se perde, a descricao so ganha
-    # `\n` a cada `_TEXT_WIDTH` colunas. Sem isso ela chegava a
-    # `hierarchical_item` como UMA linha longa, o Textual a quebrava no
-    # render — depois do `Content` montado, quando ja nao ha como recuar
-    # a continuacao — e a segunda linha saia na coluna 0, a MESMA coluna
-    # da identidade do grupo seguinte. O olho nao distinguia uma da
-    # outra: e o defeito que abriu esta fase, aqui pela terceira vez.
+    # WRAP, not truncate: no character is lost, the description only gains
+    # a `\n` every `_TEXT_WIDTH` columns. Without this it reached
+    # `hierarchical_item` as ONE long line, Textual wrapped it at render
+    # time — after the `Content` was assembled, when there is no longer
+    # any way to indent the continuation — and the second line came out in
+    # column 0, the SAME column as the identity of the next group. The eye
+    # could not tell one from the other: it is the defect that opened this
+    # phase, here for the third time.
     #
-    # So a descricao passa por aqui. `queries_label` e gerado ("2
-    # consultas"), nao e texto do usuario e nao tem como transbordar 66
-    # colunas; quebra-lo seria cerimonia sem defeito que a justifique.
+    # Only the description goes through here. `queries_label` is generated
+    # ("2 consultas"), it is not user text and has no way of overflowing
+    # 66 columns; wrapping it would be ceremony with no defect to justify
+    # it.
     contexto = wrap_lines(group.description or "", _TEXT_WIDTH)
 
     conteudo = hierarchical_item(name, queries_label, contexto)
@@ -129,14 +132,14 @@ class GroupRunScreen(Vertical):
     GroupRunScreen {
         height: 1fr;
     }
-    /* Largura FIXA, e nao elastica: a lista de grupos quebra a descricao
-       em `\\n` antes do render para que toda linha de continuacao pague o
-       recuo, e para quebrar e preciso saber a largura de antemao. O
-       numero vem de `_LIST_PANEL_WIDTH` — a mesma constante que a
-       quebra usa, para que CSS e aritmetica nao possam divergir. O preco
-       (o painel para de crescer com o terminal) esta escrito la.
-       `#gr-results-phase` continua elastico: tabela de comparacao precisa
-       de toda a largura que houver. */
+    /* FIXED width, and not elastic: the group list wraps the description
+       on `\\n` before the render so that every continuation line pays the
+       indent, and to wrap you have to know the width beforehand. The
+       number comes from `_LIST_PANEL_WIDTH` — the same constant the
+       wrapping uses, so that CSS and arithmetic cannot diverge. The price
+       (the panel stops growing with the terminal) is written down there.
+       `#gr-results-phase` stays elastic: a comparison table needs all the
+       width there is. */
     GroupRunScreen #gr-selection-phase {
         height: 1fr;
         margin: 1 2 0 2;
@@ -178,8 +181,8 @@ class GroupRunScreen(Vertical):
         self._raw_query_rows: dict[str, list[list]] | None = None  # original rows per query
         self._showing_mapped: bool = True
         self._all_groups: list = []
-        # "" = Todas, None = Sem pasta, qualquer outro valor = nome da pasta
-        # — mesmo esquema de `QueryExecScreen._active_folder`.
+        # "" = Todas, None = Sem pasta, any other value = folder name
+        # — same scheme as `QueryExecScreen._active_folder`.
         self._active_folder: str | None = ""
         self._has_folders: bool = False
 
@@ -221,8 +224,9 @@ class GroupRunScreen(Vertical):
         from dbqm.models.group import load_groups
 
         groups = load_groups()
-        # `.body` e nao o painel: montagem em runtime nao passa pelo
-        # roteamento de `compose_add_child` e cairia fora da moldura.
+        # `.body` and not the panel: mounting at runtime does not go
+        # through the `compose_add_child` routing and would land outside
+        # the frame.
         selection = self.query_one("#gr-selection-phase", Panel).body
         empty_msg = self.query_one("#gr-empty-message", EmptyState)
 
@@ -233,8 +237,9 @@ class GroupRunScreen(Vertical):
         empty_msg.display = False
         self._all_groups = groups
 
-        # Determine folders — Select com contagem por opcao, nao abas: mesma
-        # decisao de cardinalidade de `QueryExecScreen._load_selection`.
+        # Determine folders — a Select with a count per option, not tabs:
+        # the same cardinality decision as
+        # `QueryExecScreen._load_selection`.
         from collections import Counter
 
         contagem_pastas = Counter(g.folder for g in groups if g.folder)
@@ -345,9 +350,9 @@ class GroupRunScreen(Vertical):
             return
         if not isinstance(event.option, NamedOption):
             return
-        # Nome vazio tambem segue adiante: `_on_group_chosen` responde
-        # "Grupo nao encontrado", que e informacao — melhor que uma linha
-        # visivel que nao faz nada ao ser escolhida.
+        # An empty name goes through as well: `_on_group_chosen` answers
+        # "Grupo nao encontrado", which is information — better than a
+        # visible row that does nothing when chosen.
         self._on_group_chosen(event.option.name)
 
     # ------------------------------------------------------------------

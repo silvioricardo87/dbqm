@@ -1,18 +1,19 @@
-"""Infra compartilhada para testes de UI.
+"""Shared infrastructure for UI tests.
 
-`ThemedTestApp` existe para que os harnesses ad-hoc dos testes (`class
-XxxTestApp(App)` espalhados por test_screens.py/test_modals.py/test_widgets.py)
-montem os mesmos temas que a DBQMApp real registra em __init__ — sem isso,
-qualquer DEFAULT_CSS que use um token puro (ex.: $ds-border, que ao contrario de
-$accent/$primary nao e variavel embutida do Textual) quebra a montagem do
-widget.
+`ThemedTestApp` exists so that the tests' ad-hoc harnesses (`class
+XxxTestApp(App)` scattered across test_screens.py/test_modals.py/test_widgets.py)
+mount the same themes the real DBQMApp registers in __init__ — without it,
+any DEFAULT_CSS that uses a pure token (e.g. $ds-border, which unlike
+$accent/$primary is not a built-in Textual variable) breaks the mounting of
+the widget.
 
-Deliberadamente NAO e um fixture autouse global: uma versao anterior deste
-modulo monkeypatchava `App.__init__` para toda App de teste, e isso mascarava
-a propria regressao que motivou esta infra — o teste continuava verde mesmo
-removendo o registro de tema da DBQMApp, porque o fixture reaplicava o
-registro por fora. Cada harness precisa herdar de ThemedTestApp explicitamente,
-para que so a DBQMApp real prove que registra e ativa o tema sozinha.
+Deliberately NOT a global autouse fixture: an earlier version of this module
+monkeypatched `App.__init__` for every test App, and that masked the very
+regression that motivated this infrastructure — the test stayed green even
+with the theme registration removed from DBQMApp, because the fixture
+reapplied the registration from the outside. Each harness has to inherit from
+ThemedTestApp explicitly, so that only the real DBQMApp proves that it
+registers and activates the theme on its own.
 """
 from __future__ import annotations
 
@@ -24,12 +25,12 @@ from dbqm.ui.theme import INERT_STATES_CSS, DEFAULT_THEME, TEXTUAL_THEMES
 
 
 class ThemedTestApp(App):
-    """Base para App de teste: registra e ativa os temas do design system."""
+    """Base for a test App: registers and activates the design system themes."""
 
-    # Espelha `DBQMApp.DEFAULT_CSS` (Task 12): sem isso, um harness ad-hoc
-    # que monta `.-read-only`/`disabled=True` nao veria a distincao
-    # visual entre os dois — a mesma classe de lacuna que motivou este
-    # arquivo para os temas.
+    # Mirrors `DBQMApp.DEFAULT_CSS` (Task 12): without it, an ad-hoc harness
+    # that mounts `.-read-only`/`disabled=True` would not see the visual
+    # distinction between the two — the same class of gap that motivated this
+    # file for the themes.
     DEFAULT_CSS = INERT_STATES_CSS
 
     def __init__(self, *args, **kwargs):
@@ -43,15 +44,15 @@ _STARS = "★☆ "
 
 
 def rendered_names(option_list) -> list[str]:
-    """Os nomes de uma lista de consultas/grupos como ela os PINTA.
+    """The names of a query/group list as it PAINTS them.
 
-    Le a primeira linha (a identidade, na gramatica de `hierarchical_item`)
-    do `prompt` de cada opcao montada, sem a estrela de favorito. Existe
-    porque a alternativa obvia — ler `Option.id` — mede um atributo e nao
-    o que a pessoa ve: os nomes deixaram de viajar no `id` justamente
-    porque dois itens de mesmo nome derrubavam a tela inteira com
-    `DuplicateID`, e um teste que le `id` teria seguido verde enquanto a
-    lista nao montava mais.
+    Reads the first line (the identity, in the grammar of
+    `hierarchical_item`) of the `prompt` of each mounted option, without the
+    favourite star. It exists because the obvious alternative — reading
+    `Option.id` — measures an attribute and not what the person sees: the
+    names stopped travelling in the `id` precisely because two items with the
+    same name brought the whole screen down with `DuplicateID`, and a test
+    that reads `id` would have stayed green while the list no longer mounted.
     """
     nomes = []
     for i in range(option_list.option_count):
@@ -66,17 +67,18 @@ _SVG_ESCAPES = {"&#160;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;":
 
 
 def rendered_text(app) -> str:
-    """O texto que a tela REALMENTE pinta, linha a linha.
+    """The text the screen REALLY paints, line by line.
 
-    Le o SVG de `App.export_screenshot()` — que so contem o que coube na
-    viewport — e devolve o texto dos `<text>` com o escape desfeito. Existe
-    porque `widget.region` mente sobre visibilidade: a secao Oracle da tela
-    de Configuracoes tinha `region.height == 3` e ainda assim nao aparecia,
-    recortada por um ancestral com `overflow: hidden`. Um teste que afirma
-    `region.height > 0` passa com o defeito presente.
+    Reads the SVG from `App.export_screenshot()` — which only contains what
+    fitted in the viewport — and returns the text of the `<text>` elements
+    with the escaping undone. It exists because `widget.region` lies about
+    visibility: the Oracle section of the Configuracoes screen had
+    `region.height == 3` and still did not show up, clipped by an ancestor
+    with `overflow: hidden`. A test that asserts `region.height > 0` passes
+    with the defect present.
 
-    O `\xa0` do SVG vira espaco comum para que a busca por uma frase
-    ("Client em uso") funcione como a pessoa a le.
+    The SVG's `\xa0` becomes an ordinary space so that searching for a phrase
+    ("Client em uso") works the way the person reads it.
     """
     svg = app.export_screenshot()
     linhas = []
@@ -89,13 +91,13 @@ def rendered_text(app) -> str:
 
 
 def rendered_lines(app) -> list[str]:
-    """As linhas da tela como o compositor as PINTA, com posicao.
+    """The screen's lines as the compositor PAINTS them, with position.
 
-    Complementa `rendered_text`: aquele acha uma frase, este diz o que
-    ha em (x, y) — o que e o unico jeito de afirmar sobre MOLDURA, que nao
-    e texto. `Region.height` de um painel nao prova que a linha de baixo
-    foi desenhada: `#er-select-phase` media 24 de altura numa tela de 24
-    linhas comecando em y=1, e a borda inferior simplesmente nao existia.
+    Complements `rendered_text`: that one finds a phrase, this one says what
+    is at (x, y) — which is the only way to assert about the FRAME, which is
+    not text. A panel's `Region.height` does not prove that its bottom line
+    was drawn: `#er-select-phase` measured 24 in height on a 24-line screen
+    starting at y=1, and the bottom border simply did not exist.
     """
     return [
         "".join(segmento.text for segmento in faixa)
@@ -104,7 +106,7 @@ def rendered_lines(app) -> list[str]:
 
 
 def crop(app, widget) -> list[str]:
-    """As linhas pintadas dentro da regiao de *widget*."""
+    """The lines painted inside *widget*'s region."""
     linhas = rendered_lines(app)
     r = widget.region
     return [linha[r.x : r.x + r.width] for linha in linhas[r.y : r.y + r.height]]

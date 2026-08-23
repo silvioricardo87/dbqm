@@ -20,21 +20,21 @@ class ConfigPortScreen(Vertical):
 
     Pass initial_mode="export" or "import" to skip mode selection.
 
-    A saida desta tela e o `Esc`, tratado por quem a hospeda
-    (`SettingsScreen.back_to_start`, alcancado por
-    `DBQMApp.action_go_back`) e anunciado por
-    `SettingsScreen._set_actions`. Houve aqui um botao "Voltar" que
-    montava uma `SettingsScreen` nova dentro de `#screen-area`, container
-    removido em e02b8a8 (v1.17.0): por seis semanas ele so notificava
-    "Erro: No nodes match '#screen-area'". A Task 7 ressuscitou a rota e a
-    Task 8 tirou o botao — voltar e navegacao, e a secao 7 da gramatica
-    proibe botao que navega. Sair do formulario de exportacao leva de
-    volta as Configuracoes, nao a escolha de modo; reentrar pela lista
-    reabre na escolha de modo (`on_reopen`).
+    The exit from this screen is the `Esc`, handled by whoever hosts it
+    (`SettingsScreen.back_to_start`, reached through
+    `DBQMApp.action_go_back`) and announced by
+    `SettingsScreen._set_actions`. There used to be a "Voltar" button here
+    that mounted a new `SettingsScreen` inside `#screen-area`, a container
+    removed in e02b8a8 (v1.17.0): for six weeks it only notified
+    "Erro: No nodes match '#screen-area'". Task 7 resurrected the route and
+    Task 8 removed the button — going back is navigation, and section 7 of
+    the grammar forbids a button that navigates. Leaving the export form
+    takes you back to Configuracoes, not to the mode choice; re-entering
+    through the list reopens at the mode choice (`on_reopen`).
     """
 
-    #: (chave, identidade, desambiguacao) das duas fases fundas. A chave
-    #: viaja como DADO na opcao (`NamedOption.nome`), nunca como `id`.
+    #: (key, identity, disambiguation) of the two deep phases. The key
+    #: travels as DATA in the option (`NamedOption.nome`), never as `id`.
     MODOS = (
         ("export", "Exportar", "gera um .dbqm protegido por senha"),
         ("import", "Importar", "le um .dbqm gerado por outro dbqm"),
@@ -44,7 +44,7 @@ class ConfigPortScreen(Vertical):
     ConfigPortScreen {
         height: 1fr;
         padding: 1 2;
-        /* Medido em 80x24 (`tests/design/test_transbordo_vertical.py`):
+        /* Medido em 80x24 (`tests/design/test_vertical_overflow.py`):
            quem passa da dobra e o formulario de EXPORTACAO — 29 linhas,
            tres checkboxes mais dois pares rotulo+senha mais a barra de
            acoes, contra 22 do de importacao e 22 da escolha de modo, que
@@ -116,10 +116,10 @@ class ConfigPortScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Phase 1: mode selection
-        # Lista, e nao dois botoes: escolher entre exportar e importar e
-        # NAVIGATION — leva a um formulario, nao executa nada. Dois botoes
-        # lado a lado eram um menu disfarcado, a mesma forma que o menu de
-        # Ferramentas tinha (secao 7 da gramatica).
+        # A list, not two buttons: choosing between export and import is
+        # NAVIGATION — it leads to a form, it does not run anything. Two
+        # buttons side by side were a menu in disguise, the same shape the
+        # Ferramentas menu had (section 7 of the grammar).
         with Panel("🔄  EXPORTAR OU IMPORTAR", id="cp-mode-phase"):
             yield OptionList(id="cp-mode-list")
 
@@ -165,19 +165,19 @@ class ConfigPortScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def on_reopen(self) -> None:
-        """Volta a fase inicial quando a tela e reaberta pela lista.
+        """Goes back to the initial phase when the screen is reopened from the list.
 
-        A tela continua MONTADA depois do `Esc` — e ate aqui reabria na fase
-        em que tinha ficado: quem exportou uma vez reencontrava o formulario
-        de exportacao, sem o formulario de importacao a vista, embora a
-        entrada que acabou de escolher se chame "Exportar / Importar".
+        The screen stays MOUNTED after the `Esc` — and until now it reopened
+        at the phase it had been left in: whoever exported once would meet
+        the export form again, with no import form in sight, even though the
+        entry they had just picked is called "Exportar / Importar".
 
-        A restricao que mantem as telas montadas protege um worker vivo (o
-        download de 150+ MB do Instant Client, que escreve na propria
-        arvore). Aqui nao ha nada disso: a fase e so qual dos tres paineis
-        esta com `display` ligado, os workers de exportar/importar acham
-        seus campos por id independentemente da fase visivel, e o que a
-        pessoa digitou continua nos `Input`.
+        The constraint that keeps the screens mounted protects a live worker
+        (the 150+ MB Instant Client download, which writes into its own
+        tree). Here there is nothing of the sort: the phase is only which of
+        the three panels has `display` on, the export/import workers find
+        their fields by id regardless of the visible phase, and what the
+        person typed stays in the `Input`s.
         """
         self.on_mount()
 

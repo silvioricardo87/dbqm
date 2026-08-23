@@ -1,18 +1,18 @@
-"""Ferramentas launcher screen — a lista que leva as cinco telas de ferramenta.
+"""Ferramentas launcher screen — the list that leads to the five tool screens.
 
-Ate a Task 8 desta fase o menu eram cinco botoes de largura total, um por
-ferramenta, mais um "Voltar" dentro de cada painel hospedado. Os dois
-padroes quebram a mesma regra da secao 7 da gramatica: **botao e acao,
-nunca navegacao**. Cinco botoes empilhados que so trocam de tela sao cinco
-botoes fingindo ser um menu.
+Up to Task 8 of this phase the menu was five full-width buttons, one per
+tool, plus a "Voltar" inside each hosted pane. Both patterns break the same
+rule from section 7 of the grammar: **a button is an action, never
+navigation**. Five stacked buttons that only switch screens are five buttons
+pretending to be a menu.
 
-O custo tambem era medido, e nao estetico: a 80x24 na DBQMApp real cada
-botao ocupava 4 linhas (3 de botao + 1 de margem), 20 linhas num corpo de
-14 — `Executar Rotina` e `Executar Grupo` nasciam abaixo da dobra. A lista
-gasta 2 linhas por entrada e cabe inteira, com a desambiguacao de brinde.
+The cost was measured too, not aesthetic: at 80x24 in the real DBQMApp each
+button took 4 lines (3 of button + 1 of margin), 20 lines in a body of
+14 — `Executar Rotina` and `Executar Grupo` were born below the fold. The
+list spends 2 lines per entry and fits whole, with the disambiguation free.
 
-A volta e o `Esc`, anunciado pela `ActionBar` — mesmo mecanismo que a tela
-de Configuracoes usa para as duas telas que ela hospeda (`settings.py`).
+Going back is the `Esc`, announced by the `ActionBar` — the same mechanism
+the Configuracoes screen uses for the two screens it hosts (`settings.py`).
 """
 from __future__ import annotations
 
@@ -28,10 +28,10 @@ from dbqm.ui.widgets.panel import Panel
 class ToolsScreen(Vertical):
     """Launcher that hosts five existing tool screens behind a list."""
 
-    #: (chave, identidade, desambiguacao). A chave viaja como DADO na
-    #: opcao (`NamedOption.nome`), nunca como `id` — o motivo esta na
-    #: docstring de `NamedOption`. A ordem e a da tela: primeiro o que se
-    #: gerencia, depois o que se executa.
+    #: (key, identity, disambiguation). The key travels as DATA in the
+    #: option (`NamedOption.nome`), never as `id` — the reason is in
+    #: `NamedOption`'s docstring. The order is the screen's: first what is
+    #: managed, then what is run.
     TOOLS = (
         (
             "grupos",
@@ -98,16 +98,17 @@ class ToolsScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial="ferr-menu"):
-            # So o menu ganha moldura. Cada painel de ferramenta hospeda
-            # uma TELA inteira, que ja e composta de Panels — enquadrar de
-            # novo aqui seria caixa dentro de caixa (diretriz 5).
+            # Only the menu gets a frame. Each tool pane hosts a whole
+            # SCREEN, which is already composed of Panels — framing it
+            # again here would be a box inside a box (guideline 5).
             with Panel("\U0001F9F0  FERRAMENTAS", id="ferr-menu"):
                 yield OptionList(id="ferr-menu-list")
 
             for chave, _identidade, _desambiguacao in self.TOOLS:
-                # Vazio: a tela e montada aqui na primeira abertura, e nada
-                # mais mora neste container — o "Voltar" que morava saiu
-                # com a secao 7 (a saida agora e o `Esc`, ver `_set_actions`).
+                # Empty: the screen is mounted here on first opening, and
+                # nothing else lives in this container — the "Voltar" that
+                # lived here left with section 7 (the exit is now the `Esc`,
+                # see `_set_actions`).
                 yield Vertical(id=f"ferr-{chave}", classes="ferr-tool-container")
 
     def on_mount(self) -> None:
@@ -154,13 +155,13 @@ class ToolsScreen(Vertical):
         self._set_actions()
 
     def back_to_menu(self) -> None:
-        """Volta da ferramenta para o menu; nao faz nada se ja estava nele.
+        """Goes back from the tool to the menu; does nothing if already there.
 
-        A ferramenta continua MONTADA, so escondida — como
-        `SettingsScreen` faz com as duas telas que hospeda. Desmontar
-        seria arrancar o widget debaixo de um worker vivo: a execucao de
-        um grupo roda em thread e escreve o progresso nesta arvore.
-        Voltar nao pode ser cancelar.
+        The tool stays MOUNTED, only hidden — as `SettingsScreen` does
+        with the two screens it hosts. Unmounting would be ripping the
+        widget out from under a live worker: running a group runs in a
+        thread and writes the progress into this tree. Going back cannot
+        mean cancelling.
         """
         switcher = self.query_one(ContentSwitcher)
         if switcher.current == "ferr-menu":
@@ -176,28 +177,28 @@ class ToolsScreen(Vertical):
             pass
 
     # ------------------------------------------------------------------
-    # Barra de acoes
+    # Action bar
     # ------------------------------------------------------------------
 
     def _set_actions(self) -> None:
-        """Anuncia o `Esc` enquanto uma ferramenta estiver na frente.
+        """Announces the `Esc` while a tool is in front.
 
-        `DBQMApp.compose` nao rende um `Footer`, entao o
-        `Binding("escape", "go_back", "Back")` do app nunca e DESENHADO:
-        sem esta linha, a unica saida das cinco ferramentas seria uma
-        tecla que nada na tela menciona. A secao 7 proibe um BOTAO que
-        navega; nao proibe dizer qual tecla volta.
+        `DBQMApp.compose` does not render a `Footer`, so the app's
+        `Binding("escape", "go_back", "Back")` is never DRAWN: without this
+        line, the only exit from the five tools would be a key that nothing
+        on screen mentions. Section 7 forbids a BUTTON that navigates; it
+        does not forbid saying which key goes back.
 
-        O nome do metodo nao e enfeite:
-        `DBQMApp.on_tabbed_content_tab_activated` procura
-        `_set_actions`/`_set_list_actions` na tela da aba recem-ativada.
-        Sem ele, sair da aba e voltar apagaria o anuncio com a ferramenta
-        ainda na frente.
+        The method name is not decoration:
+        `DBQMApp.on_tabbed_content_tab_activated` looks for
+        `_set_actions`/`_set_list_actions` on the screen of the tab that
+        was just activated. Without it, leaving the tab and coming back
+        would erase the announcement with the tool still in front.
 
-        E acao FIXA, nao uma `set_actions` comum, porque as ferramentas
-        hospedadas escrevem na mesma barra no proprio `on_mount` — medido
-        a 80x24 com `TemplateManageScreen`, o `Esc Voltar` sumia sob
-        `N Novo  E Editar  R Renomear  D Remover`. Ver
+        It is a PINNED action, not an ordinary `set_actions`, because the
+        hosted tools write to the same bar in their own `on_mount` —
+        measured at 80x24 with `TemplateManageScreen`, the `Esc Voltar`
+        disappeared under `N Novo  E Editar  R Renomear  D Remover`. See
         `ActionBar.set_pinned_action`.
         """
         try:
@@ -210,10 +211,10 @@ class ToolsScreen(Vertical):
             atual = "ferr-menu"
         dentro = atual != "ferr-menu"
 
-        # Limpa a lista da tela ANTES de fixar: sem isto, voltar para esta
-        # aba com uma ferramenta aberta deixaria na barra as acoes da aba
-        # anterior (e este metodo e justamente o que o app chama ao
-        # reativar a aba).
+        # Clears the screen's list BEFORE pinning: without this, coming back
+        # to this tab with a tool open would leave the previous tab's actions
+        # in the bar (and this method is precisely what the app calls when
+        # reactivating the tab).
         barra.set_actions([])
         barra.set_pinned_action(
             Action("Voltar", "Esc", "ferramentas-voltar") if dentro else None
@@ -222,14 +223,14 @@ class ToolsScreen(Vertical):
             self._reask_tool(atual)
 
     def _reask_tool(self, container_id: str) -> None:
-        """Pede a ferramenta visivel que redesenhe as acoes DELA.
+        """Asks the visible tool to redraw ITS actions.
 
-        Mesma convencao que `DBQMApp.on_tabbed_content_tab_activated` usa
-        com as telas de aba (`_set_actions`/`_set_list_actions`), aplicada
-        um nivel abaixo. O `try` cobre o instante da PRIMEIRA abertura, em
-        que a tela acabou de ser montada e ainda nao tem seus filhos no
-        DOM — ali quem preenche a barra e o `on_mount` da propria
-        ferramenta, logo em seguida.
+        Same convention that `DBQMApp.on_tabbed_content_tab_activated`
+        uses with the tab screens (`_set_actions`/`_set_list_actions`),
+        applied one level below. The `try` covers the instant of the FIRST
+        opening, in which the screen has just been mounted and does not
+        yet have its children in the DOM — there, what fills the bar is
+        the tool's own `on_mount`, right afterwards.
         """
         try:
             tela = next(iter(self.query_one(f"#{container_id}").children))
@@ -251,8 +252,8 @@ class ToolsScreen(Vertical):
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
     ) -> None:
-        # Filtrado pelo id: as ferramentas hospedadas tem `OptionList`
-        # proprias, e os eventos delas sobem por aqui.
+        # Filtered by id: the hosted tools have `OptionList`s of their own,
+        # and their events bubble up through here.
         if event.option_list.id != "ferr-menu-list":
             return
         event.stop()

@@ -46,36 +46,36 @@ DEFAULT_HOSTS = {
     "mysql": "localhost",
 }
 
-# Largura de #conn-list-panel (CSS abaixo). Constante de modulo, unica
-# fonte pro CSS e pra derivacao da largura de quebra logo adiante — os
-# dois nao podem divergir (motivo da rodada anterior: 60 de largura
-# assumida contra um painel de 42 inteiro, que so por si ja era menor que
-# o "limite" da descricao).
+# Width of #conn-list-panel (CSS below). A module constant, the single
+# source both for the CSS and for the wrap-width derivation just ahead —
+# the two cannot diverge (the reason for the previous round: 60 columns of
+# assumed width against a whole panel of 42, which by itself was already
+# smaller than the description's "limit").
 _LIST_PANEL_WIDTH = 42
 
-# Largura de fato disponivel pro TEXTO da descricao: o que sobra do
-# painel depois da borda do Panel, do padding do corpo, do padding do
-# OptionList, da barra de rolagem (pior caso) e do recuo que a propria
-# linha de contexto consome. A conta em si mora em `lista_hierarquica`
-# (`wrap_width`), junto do recuo que ela desconta e do relato das
-# quatro rodadas que ela custou; o que fica aqui e so a largura DESTE
-# painel, que e escolha desta tela. Medido nos dois estados: com poucas
-# conexoes (sem rolagem), OptionList.content_region.width fica em 36
-# (bate com a conta sem o desconto da barra); com conexoes suficientes
-# pra rolar, OptionList.scrollable_content_region.width cai pra 34 —
-# exatamente os 2 da barra a menos.
+# The width actually available for the description TEXT: what is left of
+# the panel after the Panel border, the body padding, the OptionList
+# padding, the scrollbar (worst case) and the indent that the context line
+# itself consumes. The arithmetic itself lives in `hierarchical_list`
+# (`wrap_width`), together with the indent it subtracts and the account of
+# the four rounds it cost; what stays here is only the width of THIS
+# panel, which is this screen's choice. Measured in both states: with few
+# connections (no scrolling), OptionList.content_region.width sits at 36
+# (matching the arithmetic without the scrollbar subtraction); with enough
+# connections to scroll, OptionList.scrollable_content_region.width drops
+# to 34 — exactly the scrollbar's 2 columns less.
 _DESCRIPTION_WIDTH = wrap_width(_LIST_PANEL_WIDTH)
 _DESCRIPTION_MAX_LINES = 2
 
 
 def _format_description(description: str) -> str:
-    """Preview da descricao em ate `_DESCRIPTION_MAX_LINES` linhas.
+    """Description preview in at most `_DESCRIPTION_MAX_LINES` lines.
 
-    Corta por LINHAS renderizadas (aproximadas por `_DESCRIPTION_WIDTH`),
-    nao pelo total de caracteres: sem nenhum limite, uma descricao longa
-    empurraria as outras conexoes da lista pra fora da tela — o contexto
-    de `hierarchical_item` ja da a ela sua propria linha recuada, mas isso
-    nao limita quantas linhas ela toma.
+    Truncates by rendered LINES (approximated by `_DESCRIPTION_WIDTH`), not
+    by total characters: with no limit at all, a long description would push
+    the other connections in the list off the screen — `hierarchical_item`'s
+    context already gives it its own indented line, but that does not limit
+    how many lines it takes.
     """
     if not description:
         return ""
@@ -144,31 +144,31 @@ class ConnectionsScreen(Vertical):
         margin-top: 1;
         height: auto;
         width: 100%;
-        /* Ancorado a esquerda, na coluna dos campos do formulario que
-           estes botoes operam (secao 7 da gramatica). */
+        /* Anchored to the left, on the column of the form fields these
+           buttons operate on (section 7 of the grammar). */
     }
     ConnectionsScreen #conn-form-buttons Button {
         margin: 0 1 0 0;
     }
-    /* Acao destrutiva SEPARADA das demais (secao 7): quatro colunas de
-       respiro em vez de uma, para que Excluir nao fique encostado em
-       Salvar. Afastamento horizontal e nao uma fila propria de proposito
-       — uma segunda fila custaria tres linhas do formulario, que a 80x24
-       ja transborda.
+    /* Destructive action SEPARATED from the others (section 7): four
+       columns of breathing room instead of one, so that Excluir does not
+       sit flush against Salvar. Horizontal spacing and not a row of its
+       own on purpose — a second row would cost three lines of the form,
+       which at 80x24 already overflows.
 
-       DOIS ids no seletor, e nao um: a regra acima
-       (`#conn-form-buttons Button`) vale 1 id + 1 tipo e o `margin`
-       curto dela zera o `margin-left`. Com um id so esta regra PERDIA e
-       virava CSS morto — visto no renderizado a 120 colunas, onde o
-       espaco antes de Excluir continuava sendo de uma coluna.
+       TWO ids in the selector, and not one: the rule above
+       (`#conn-form-buttons Button`) is worth 1 id + 1 type and its short
+       `margin` zeroes out `margin-left`. With a single id this rule LOST
+       and became dead CSS — seen in the render at 120 columns, where the
+       space before Excluir was still one column.
 
-       O que as tres colunas custam, medido na DBQMApp real (aba Conexoes,
-       30 linhas, uma largura por vez): a caixa do `Excluir` so fica
-       inteira a partir de 97 colunas com esta margem, contra 94 sem ela;
-       o rotulo, 94 contra 93. Nenhum acesso se perde — `X Excluir`
-       continua na ActionBar, e a 80x24 o botao ja estava fora de vista
-       antes desta fase. Fica escrito porque a separacao da acao
-       destrutiva e uma escolha com preco, nao um ganho puro. */
+       What the three columns cost, measured on the real DBQMApp (Conexoes
+       tab, 30 lines, one width at a time): the `Excluir` box is only whole
+       from 97 columns on with this margin, against 94 without it; the
+       label, 94 against 93. No access is lost — `X Excluir` is still on
+       the ActionBar, and at 80x24 the button was already out of sight
+       before this phase. It is written down because separating the
+       destructive action is a choice with a price, not a pure gain. */
     ConnectionsScreen #conn-form-buttons #conn-btn-delete {
         margin-left: 4;
     }
@@ -321,8 +321,9 @@ class ConnectionsScreen(Vertical):
         if not connections:
             empty_msg.display = True
             option_list.display = False
-            # A acao de criar ja vive dentro do EmptyState; duplicar o botao
-            # "Nova" aqui so repetiria a mesma acao duas vezes na tela.
+            # The create action already lives inside the EmptyState;
+            # duplicating the "Nova" button here would only repeat the same
+            # action twice on the screen.
             new_btn.display = False
             return
 
@@ -334,9 +335,10 @@ class ConnectionsScreen(Vertical):
             db_label = DB_TYPE_LABELS.get(conn.db_type, conn.db_type)
             if conn.db_type == "oracle" and conn.mode == "tns":
                 db_label = "Oracle/TNS"
-            # Identidade e o nome, sozinho: e o que a pessoa procura numa
-            # lista de conexoes. Tipo+alvo desambiguam entradas parecidas;
-            # a descricao e contexto opcional, recuado e apagado.
+            # The identity is the name, alone: it is what the person looks
+            # for in a list of connections. Type+target disambiguate similar
+            # entries; the description is optional context, indented and
+            # dimmed.
             desambiguacao = f"{db_label} - {conn.display_target()}"
             contexto = _format_description(conn.description)
             item = hierarchical_item(conn.name, desambiguacao, contexto)

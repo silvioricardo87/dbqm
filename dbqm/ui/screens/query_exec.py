@@ -36,14 +36,14 @@ class QueryExecScreen(Vertical):
     QueryExecScreen {
         height: 1fr;
     }
-    /* Largura FIXA, e nao `1fr`: a lista de consultas quebra a descricao
-       em `\\n` antes do render para que toda linha de continuacao pague o
-       recuo, e para quebrar e preciso saber a largura de antemao. O
-       numero vem de `query_list.LIST_PANEL_WIDTH` — a mesma
-       constante que a quebra usa, para que CSS e aritmetica nao possam
-       divergir. O preco (o painel para de crescer com o terminal) esta
-       escrito la. `#results-phase` continua elastico: tabela precisa de
-       toda a largura que houver. */
+    /* FIXED width, and not `1fr`: the query list breaks the description
+       on `\\n` before the render so that every continuation line pays the
+       indent, and to break it the width must be known beforehand. The
+       number comes from `query_list.LIST_PANEL_WIDTH` — the same
+       constant the wrapping uses, so that CSS and arithmetic cannot
+       diverge. The price (the panel stops growing with the terminal) is
+       written down there. `#results-phase` stays elastic: a table needs
+       all the width there is. */
     QueryExecScreen #selection-phase {
         height: 1fr;
         margin: 1 2 0 2;
@@ -97,11 +97,11 @@ class QueryExecScreen(Vertical):
         self._current_result: QueryResult | None = None
         self._raw_rows: list[list] | None = None  # rows before column maps
         self._showing_mapped: bool = True
-        # "" = Todas, None = Sem pasta, qualquer outro valor = nome da pasta.
-        # Espelha o valor do `#folder-select`; None e distinto do sentinela
-        # de "em branco" do proprio Select (`Select.NULL`), entao nao ha
-        # ambiguidade entre "nenhuma pasta selecionada" (nao ocorre aqui,
-        # allow_blank=False) e "pasta = sem pasta".
+        # "" = Todas, None = Sem pasta, any other value = the folder name.
+        # Mirrors the value of `#folder-select`; None is distinct from the
+        # Select's own "blank" sentinel (`Select.NULL`), so there is no
+        # ambiguity between "no folder selected" (does not happen here,
+        # allow_blank=False) and "folder = no folder".
         self._active_folder: str | None = ""
         self._has_folders: bool = False
 
@@ -120,15 +120,15 @@ class QueryExecScreen(Vertical):
         # Results phase (hidden initially)
         with Panel("📊  RESULTADO", id="results-phase"):
             yield Static("", id="result-info")
-            # A forma da tabela que vem, nao um rodopio: reserva o espaco
-            # certo para a primeira execucao, hidden ate `_execute` mostrar.
-            # 9 e a mediana das 68 consultas salvas do mantenedor (min 1, max
-            # 36), levantada na fase 1 deste plano — nao reproduzivel a
-            # partir de config/queries.json deste repositorio, que e outro
-            # conjunto, menor. E o melhor palpite disponivel (bem melhor que
-            # os 4 arbitrarios), nao uma verdade do dominio: um esqueleto com
-            # a forma errada causa o salto de layout que ele existe para
-            # impedir.
+            # The shape of the table that is coming, not a spinner: reserves
+            # the right space for the first execution, hidden until
+            # `_execute` shows it. 9 is the median of the maintainer's 68
+            # saved queries (min 1, max 36), surveyed in phase 1 of this plan
+            # — not reproducible from this repository's config/queries.json,
+            # which is a different, smaller set. It is the best guess
+            # available (much better than the arbitrary 4), not a truth of
+            # the domain: a skeleton with the wrong shape causes the very
+            # layout jump it exists to prevent.
             yield Skeleton(rows=8, columns=9, id="result-skeleton")
             yield ResultTable(id="result-table")
 
@@ -153,8 +153,8 @@ class QueryExecScreen(Vertical):
         from dbqm.models.query import load_queries
 
         queries = load_queries()
-        # `.body` e nao o painel: montagem em runtime nao passa pelo
-        # roteamento de `compose_add_child` e cairia fora da moldura.
+        # `.body` and not the panel: runtime mounting does not go through
+        # `compose_add_child`'s routing and would land outside the chrome.
         selection = self.query_one("#selection-phase", Panel).body
         empty_msg = self.query_one("#empty-message", EmptyState)
 
@@ -173,11 +173,11 @@ class QueryExecScreen(Vertical):
         selection.mount(
             Horizontal(
                 Input(
-                    # Sem as reticencias: com a moldura, este `1fr` mede 35
-                    # colunas em 80 (eram 43) e o texto saia cortado como
-                    # "...descricao..", que parece defeito. 29 caracteres
-                    # cabem inteiros na largura mais estreita que o
-                    # produto suporta.
+                    # Without the ellipsis: with the chrome, this `1fr`
+                    # measures 35 columns out of 80 (it used to be 43) and
+                    # the text came out clipped as "...descricao..", which
+                    # looks like a defect. 29 characters fit whole in the
+                    # narrowest width the product supports.
                     placeholder="Filtrar por nome ou descricao",
                     id="qe-filter-text",
                 ),
@@ -186,11 +186,11 @@ class QueryExecScreen(Vertical):
             )
         )
 
-        # Determine folders — cardinalidade variavel (o mantenedor real tem
-        # 16), entao a navegacao e um Select com a contagem por opcao, nao
-        # abas: 16 botoes numa HorizontalScroll obrigava a rolar
-        # lateralmente pra achar uma pasta, e a maioria de cada botao era o
-        # mesmo prefixo repetido.
+        # Determine folders — variable cardinality (the real maintainer has
+        # 16), so navigation is a Select with the count per option, not
+        # tabs: 16 buttons in a HorizontalScroll forced sideways scrolling
+        # to find a folder, and most of each button was the same repeated
+        # prefix.
         from collections import Counter
 
         contagem_pastas = Counter(q.folder for q in queries if q.folder)

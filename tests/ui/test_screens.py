@@ -309,11 +309,11 @@ async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
 
 
 def _painted_select_labels(seletor):
-    """Os rotulos do select como o menu aberto os PINTA.
+    """The select's labels as the open menu PAINTS them.
 
-    `seletor._options` e a lista que o widget guardou; o que a pessoa le e
-    o `OptionList` do overlay, so existente com o menu aberto. Ler dali e o
-    que faz um erro de montagem do rotulo aparecer."""
+    `seletor._options` is the list the widget stored; what the person reads
+    is the overlay's `OptionList`, which only exists with the menu open.
+    Reading from there is what makes an error in building the label show up."""
     from textual.widgets._select import SelectOverlay
 
     overlay = seletor.query_one(SelectOverlay)
@@ -325,17 +325,18 @@ def _painted_select_labels(seletor):
 
 @pytest.mark.asyncio
 async def test_folders_become_a_select_with_counts(tmp_config_dir):
-    """As pastas viram um Select com a contagem em cada rotulo.
+    """The folders become a Select with the count on each label.
 
-    A cardinalidade real do mantenedor sao 16 pastas para 68 consultas —
-    numa HorizontalScroll de botoes isso rolava lateralmente e escondia a
-    maioria das opcoes. O fixture aqui e uma reducao dessa forma, nao dos
-    16 numeros: quatro pastas com contagens 2/5/6/7. As contagens sao
-    deliberadamente diferentes do numero de pastas (4) e do numero de
-    opcoes (5), porque a versao anterior deste teste era
-    `any("(3)" in r ...)` com 3 pastas — um bug que pintasse
-    `len(folders)` no lugar da contagem passaria igual. A asercao e a lista
-    EXATA de rotulos, na ordem em que o menu os pinta."""
+    The maintainer's real cardinality is 16 folders for 68 queries — in a
+    HorizontalScroll of buttons that scrolled sideways and hid most of the
+    options. The fixture here is a reduction of that shape, not of the 16
+    numbers: four folders with counts 2/5/6/7. The counts are deliberately
+    different from the number of folders (4) and from the number of options
+    (5), because the previous version of this test was
+    `any("(3)" in r ...)` with 3 folders — a bug that painted
+    `len(folders)` in place of the count would have passed all the same.
+    The assertion is the EXACT list of labels, in the order the menu paints
+    them."""
     from textual.widgets import Select
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -373,12 +374,12 @@ async def test_folders_become_a_select_with_counts(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_folder_label_elides_the_common_prefix(tmp_config_dir):
-    """Com uma familia unica de pastas, o rotulo pintado perde o prefixo.
+    """With a single family of folders, the painted label loses the prefix.
 
-    Nenhuma pasta da suite continha "/" antes deste teste, entao o ramo de
-    elisao (`common_folder_prefix`) nunca rodava: trocar a funcao por
-    `lambda pastas: ""` deixava tudo verde. Aqui o que se le e o rotulo
-    PINTADO no menu aberto — "Alpha (3)", nao "Projeto/Alpha (3)"."""
+    No folder in the suite contained "/" before this test, so the elision
+    branch (`common_folder_prefix`) never ran: replacing the function with
+    `lambda pastas: ""` kept everything green. What is read here is the
+    label PAINTED in the open menu — "Alpha (3)", not "Projeto/Alpha (3)"."""
     from textual.widgets import Select
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -416,12 +417,13 @@ async def test_folder_label_elides_the_common_prefix(tmp_config_dir):
 async def test_folder_label_shows_the_whole_path_with_two_families(
     tmp_config_dir,
 ):
-    """Duas familias lado a lado: o prefixo comum encolhe e o caminho volta.
+    """Two families side by side: the common prefix shrinks and the path
+    comes back.
 
-    E o outro lado do teste acima, e a razao de o prefixo ser calculado a
-    cada carga contra as pastas reais em vez de fixado como literal: no dia
-    em que uma segunda familia aparecer, a lista volta sozinha a mostrar o
-    caminho inteiro, sem mudanca de codigo."""
+    It is the other side of the test above, and the reason the prefix is
+    computed on every load against the real folders instead of pinned as a
+    literal: the day a second family shows up, the list goes back on its own
+    to showing the whole path, with no code change."""
     from textual.widgets import Select
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -451,11 +453,11 @@ async def test_folder_label_shows_the_whole_path_with_two_families(
         ]
 
 
-# O guarda `test_listview_left_the_vocabulary` mora agora em
-# `tests/design/test_inventario_layout.py`, junto com os outros guardas
-# de vocabulario da gramatica de layout. Aqui ele ficava escondido no
-# meio de milhares de linhas de teste de tela — longe de quem vai
-# quebrar a regra.
+# The `test_listview_left_the_vocabulary` guard now lives in
+# `tests/design/test_layout_inventory.py`, together with the other
+# vocabulary guards of the layout grammar. Here it was hidden in the
+# middle of thousands of lines of screen tests — far from whoever is going
+# to break the rule.
 
 
 # ======================================================================
@@ -632,7 +634,7 @@ def test_format_description_helper():
 
 @pytest.mark.asyncio
 async def test_connection_list_has_hierarchy_and_does_not_concatenate(tmp_config_dir):
-    """O item tem hierarquia de linhas; nao e uma string concatenada."""
+    """The item has a hierarchy of lines; it is not a concatenated string."""
     from textual.widgets import OptionList
     from dbqm.models.connection import Connection, save_connections
     from dbqm.ui.screens.connections import ConnectionsScreen
@@ -660,11 +662,11 @@ async def test_connection_list_has_hierarchy_and_does_not_concatenate(tmp_config
 
 
 def test_query_list_no_longer_truncates_the_description():
-    """A truncagem em 35 caracteres existia para caber numa linha so.
+    """The 35-character truncation existed to fit in a single line.
 
-    Raiz ancorada em `__file__` (idioma de `tests/design/_varredura.py`):
-    com um caminho relativo ao cwd, rodar a suite de outro diretorio
-    levantaria `FileNotFoundError` em vez de checar coisa alguma.
+    Root anchored on `__file__` (the idiom of `tests/design/_scan.py`):
+    with a path relative to the cwd, running the suite from another
+    directory would raise `FileNotFoundError` instead of checking anything.
     """
     from pathlib import Path
 
@@ -679,15 +681,16 @@ def test_query_list_no_longer_truncates_the_description():
 async def test_mounted_connection_list_distinguishes_identity_from_disambiguation(
     tmp_config_dir,
 ):
-    """Nao basta o `Content` que `hierarchical_item` devolve isolado (Task 3
-    ja prova isso por span) — aqui a tela real e montada e a opcao real do
-    `OptionList` (nao o valor passado pra dentro) e lida de volta; a cor de
-    cada linha e resolvida com `Style.parse` do tema ativo da app, o mesmo
-    mecanismo que o Textual usa para resolver estilo antes de pintar.
+    """The `Content` that `hierarchical_item` returns in isolation is not
+    enough (Task 3 already proves that span by span) — here the real screen
+    is mounted and the real `OptionList` option (not the value passed into
+    it) is read back; the color of each line is resolved with `Style.parse`
+    against the app's active theme, the same mechanism Textual uses to
+    resolve style before painting.
 
-    Isso prova a FIACAO — que o `Content` certo chega intacto ao widget
-    montado, com o tema real resolvendo as tres cores certas — nao a
-    pintura de pixel em si (nenhum screenshot e tirado aqui)."""
+    This proves the WIRING — that the right `Content` reaches the mounted
+    widget intact, with the real theme resolving the three right colors —
+    not the pixel painting itself (no screenshot is taken here)."""
     from textual.style import Style
     from textual.widgets import OptionList
     from dbqm.models.connection import Connection, save_connections
@@ -727,15 +730,15 @@ async def test_mounted_connection_list_distinguishes_identity_from_disambiguatio
 
 @pytest.mark.asyncio
 async def test_description_width_fits_even_with_the_list_scrolling(tmp_config_dir):
-    """`_DESCRIPTION_WIDTH` foi derivada assumindo o pior caso (barra de
-    rolagem do OptionList presente). Este teste prova a suposicao contra o
-    widget montado de verdade, nao so no papel: numa lista longa o
-    suficiente pra rolar, a largura de texto assumida (mais o recuo que
-    toda linha paga) nao pode passar da largura real disponivel — foi
-    exatamente essa conta errada (34 assumidos contra 34 reais DEPOIS do
-    recuo, ou seja 36 precisando caber em 34) que fez uma linha de
-    descricao ("...ambiente") sair sem recuo, alinhada com a coluna da
-    identidade da entrada seguinte."""
+    """`_DESCRIPTION_WIDTH` was derived assuming the worst case (the
+    OptionList's scrollbar present). This test proves the assumption against
+    the widget really mounted, not just on paper: in a list long enough to
+    scroll, the assumed text width (plus the indent that every line pays)
+    must not exceed the real available width — it was exactly that wrong
+    arithmetic (34 assumed against 34 real AFTER the indent, that is 36
+    needing to fit in 34) that made a description line ("...ambiente") come
+    out without an indent, aligned with the identity column of the next
+    entry."""
     from textual.widgets import OptionList
     from dbqm.models.connection import Connection, save_connections
     from dbqm.ui.screens.connections import _DESCRIPTION_WIDTH
@@ -1917,14 +1920,14 @@ async def test_browser_reload_populates_object_list(tmp_config_dir, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_mounted_browser_object_list_is_identity_only(tmp_config_dir, monkeypatch):
-    """A lista de objetos usa `hierarchical_item` só com a identidade — o
-    filtro de tipo (`#obj-type`) é `allow_blank=False`, então toda linha
-    visível já é sempre do mesmo tipo; escrever o tipo de novo em cada
-    item não desambiguaria nada. `conteudo` vem do widget montado de
-    verdade (`Option.prompt` dentro de uma app com tema ativo), não do
-    `Content` isolado, e a cor da identidade é resolvida via
-    `Style.parse` do tema real — fiação até o widget montado, não pintura
-    de pixel (nenhum screenshot é tirado aqui)."""
+    """The object list uses `hierarchical_item` with the identity only — the
+    type filter (`#obj-type`) is `allow_blank=False`, so every visible row
+    is already always of the same type; writing the type again on each item
+    would disambiguate nothing. `conteudo` comes from the really mounted
+    widget (`Option.prompt` inside an app with an active theme), not from
+    the isolated `Content`, and the identity's color is resolved via
+    `Style.parse` against the real theme — wiring all the way to the mounted
+    widget, not pixel painting (no screenshot is taken here)."""
     from textual.style import Style
     from textual.widgets import OptionList, Select
 
@@ -2190,7 +2193,7 @@ class HistoryTestApp(ThemedTestApp):
 
 
 def _salvar_duas_entradas() -> None:
-    """Grava um historico minimo (uma consulta, um grupo)."""
+    """Writes a minimal history (one query, one group)."""
     from dbqm.core.history import save_history, HistoryEntry
 
     save_history(
@@ -2230,9 +2233,10 @@ async def test_history_screen_renders(tmp_config_dir):
 async def test_history_shows_table_and_detail_together(tmp_config_dir):
     """Table and detail panel are both visible at once — no phase swap.
 
-    Com HISTORICO: e so quando ha registro que a tabela e o detalhe tem o
-    que mostrar. Antes este teste montava a tela VAZIA e ainda exigia os
-    dois de pe — era o defeito escrito como contrato.
+    With HISTORICO: it is only when there is a record that the table and the
+    detail have anything to show. This test used to mount the EMPTY screen
+    and still demand both standing — it was the defect written as a
+    contract.
     """
     _salvar_duas_entradas()
     app = HistoryTestApp()
@@ -2258,7 +2262,7 @@ async def test_history_panels_have_titles(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_screen_empty(tmp_config_dir):
-    """Sem historico, o estado vazio aparece e a tabela SAI de cena."""
+    """With no history, the empty state appears and the table LEAVES the scene."""
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
@@ -2310,7 +2314,7 @@ async def test_history_screen_with_data(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_screen_detail_visible_initially(tmp_config_dir):
-    """Com registros, o painel de detalhe ja nasce visivel (sem troca de fase)."""
+    """With records, the detail panel is born visible (with no phase swap)."""
     _salvar_duas_entradas()
     app = HistoryTestApp()
     async with app.run_test() as pilot:
@@ -2321,12 +2325,12 @@ async def test_history_screen_detail_visible_initially(tmp_config_dir):
 
 
 # ----------------------------------------------------------------------
-# Historico vazio: o que a tela PINTA, na DBQMApp real, nos dois tamanhos
+# Empty Historico: what the screen PAINTS, on the real DBQMApp, at both sizes
 #
-# Nao ha harness proprio aqui de proposito. O recorte do estado vazio so
-# aparece com a altura que a aba REALMENTE sobra para a tela — cabecalho,
-# faixa de abas, barra de acoes e barra de status ja descontados. Um
-# `HistoryTestApp` sozinho recebe as 24 linhas inteiras e pinta tudo.
+# There is no harness of its own here on purpose. The clipping of the empty
+# state only shows up with the height the tab REALLY leaves for the screen —
+# header, tab strip, action bar and status bar already subtracted. A
+# `HistoryTestApp` on its own gets the whole 24 lines and paints everything.
 # ----------------------------------------------------------------------
 
 
@@ -2335,15 +2339,15 @@ async def test_history_screen_detail_visible_initially(tmp_config_dir):
 async def test_empty_history_paints_identity_and_no_table(
     tmp_config_dir, tamanho
 ):
-    """Com historico vazio: as tres partes do estado vazio aparecem, e o
-    cabecalho da tabela nao.
+    """With an empty history: the three parts of the empty state show up,
+    and the table header does not.
 
-    Dois defeitos ao mesmo tempo, os dois medidos no render:
+    Two defects at once, both measured on the render:
 
-    1. O cabecalho `Data Conexao Tipo SQL Tempo Status` era pintado colado
-       no estado vazio (as outras dez listas do dbqm escondem a irma).
-    2. Em 80x24 a linha de identidade (`Historico`) era recortada INTEIRA —
-       so o porque e o botao chegavam na tela.
+    1. The `Data Conexao Tipo SQL Tempo Status` header was painted right up
+       against the empty state (the other ten dbqm lists hide their sibling).
+    2. At 80x24 the identity line (`Historico`) was clipped ENTIRELY — only
+       the why and the button made it to the screen.
     """
     from dbqm.ui.app import DBQMApp
     from tests.ui._helpers import rendered_lines, rendered_text
@@ -2359,25 +2363,25 @@ async def test_empty_history_paints_identity_and_no_table(
         linhas = rendered_lines(app)
         assert "HISTORICO" in pintado, "a aba de historico nem chegou a frente"
 
-        # A identidade e cobrada LINHA A LINHA, nao com um `in` na tela
-        # inteira: a propria faixa de abas escreve "📜  Historico", e um
-        # `"Historico" in pintado` passava verde com a linha recortada.
-        # Dentro do painel ela esta sozinha na linha, entre as bordas.
+        # The identity is checked LINE BY LINE, not with an `in` against the
+        # whole screen: the tab strip itself writes "📜  Historico", and a
+        # `"Historico" in pintado` passed green with the line clipped.
+        # Inside the panel it stands alone on its line, between the borders.
         assert any(
             linha.strip("│ ") == "Historico" for linha in linhas
         ), "a linha de identidade do estado vazio nao foi pintada"
         assert "Cada consulta ou grupo executado fica registrado aqui" in pintado
         assert "Executar consulta" in pintado
-        # Nenhuma coluna da tabela pode estar pintada.
+        # No column of the table may be painted.
         for coluna in ("Conexao", "Tempo", "Status"):
             assert coluna not in pintado, f"cabecalho {coluna!r} pintado no vazio"
 
 
 @pytest.mark.asyncio
 async def test_empty_history_focuses_the_exit_it_offers(tmp_config_dir):
-    """O foco inicial vai para o botao do estado vazio, nao para a tabela
-    escondida — senao nada visivel fica marcado e o Enter nao alcanca a
-    unica saida da tela."""
+    """The initial focus goes to the empty state's button, not to the hidden
+    table — otherwise nothing visible is marked and Enter does not reach the
+    screen's only exit."""
     from textual.widgets import Button
 
     app = HistoryTestApp()
@@ -2400,12 +2404,12 @@ class SettingsTestApp(ThemedTestApp):
 
 
 # ----------------------------------------------------------------------
-# Abrir o app nao e o usuario mexendo nos controles
+# Opening the app is not the user touching the controls
 # ----------------------------------------------------------------------
 
 
 async def _open_app_counting_writes(tmp_config_dir, monkeypatch):
-    """Monta a DBQMApp real e devolve (avisos, numero de gravacoes)."""
+    """Mounts the real DBQMApp and returns (notices, number of writes)."""
     import dbqm.models.settings as mod
     from dbqm.ui.app import DBQMApp
 
@@ -2430,16 +2434,17 @@ async def _open_app_counting_writes(tmp_config_dir, monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("salvo", [{}, {"audit_log_enabled": True}])
 async def test_opening_the_app_neither_warns_nor_writes_anything(tmp_config_dir, monkeypatch, salvo):
-    """Sem ninguem tocar em nada, a abertura nao pode gerar aviso de
-    configuracao nem reescrever o `settings.json`.
+    """With nobody touching anything, opening must not raise a settings
+    notice nor rewrite `settings.json`.
 
-    Medido antes da correcao: com config nova, um aviso ("Subdiretorios por
-    tipo: ativado") e uma gravacao; com `audit_log_enabled` ligado no
-    arquivo, dois avisos e duas gravacoes. Os dois casos tem a mesma causa —
-    `on_mount` atribui `Switch.value` para MOSTRAR o que ja esta salvo, e o
-    `Switch.Changed` disso era lido como acao do usuario. O segundo
-    parametro existe porque so ele exercita o interruptor de auditoria: numa
-    config nova ele ja nasce igual ao padrao do `Switch` e nem emite.
+    Measured before the fix: with a fresh config, one notice ("Subdiretorios
+    por tipo: ativado") and one write; with `audit_log_enabled` on in the
+    file, two notices and two writes. Both cases have the same cause —
+    `on_mount` assigns `Switch.value` in order to SHOW what is already
+    saved, and the resulting `Switch.Changed` was read as a user action. The
+    second parameter exists because only it exercises the audit switch: in a
+    fresh config it is born equal to the `Switch` default and does not even
+    emit.
     """
     import json
 
@@ -2457,11 +2462,11 @@ async def test_opening_the_app_neither_warns_nor_writes_anything(tmp_config_dir,
 
 @pytest.mark.asyncio
 async def test_theme_migration_does_not_become_a_switch_notice(tmp_config_dir, monkeypatch):
-    """`github-dark` -> `plano-escuro` e renomeacao nossa, nao escolha da
-    pessoa: nao anuncia "Tema alterado" nem reescreve o arquivo.
+    """`github-dark` -> `plano-escuro` is a rename of ours, not the person's
+    choice: it does not announce "Tema alterado" nor rewrite the file.
 
-    Aparecia uma vez so — na primeira abertura depois de subir da 1.17.x —
-    que e exatamente quando ninguem esta olhando um teste.
+    It showed up only once — on the first open after upgrading from 1.17.x —
+    which is exactly when nobody is looking at a test.
     """
     import json
 
@@ -2473,7 +2478,7 @@ async def test_theme_migration_does_not_become_a_switch_notice(tmp_config_dir, m
 
     assert not any("Tema alterado" in a for a in avisos), f"aviso indevido: {avisos}"
     assert gravacoes == 0
-    # E a migracao continua valendo onde importa: o tema em uso.
+    # And the migration still holds where it matters: the theme in use.
     assert json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))["theme"] == "github-dark"
 
 
@@ -2540,18 +2545,19 @@ async def test_settings_screen_loads_saved_settings(tmp_config_dir):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("height", [24, 34])
 async def test_settings_oracle_section_is_reachable(tmp_config_dir, height):
-    """A secao Oracle Instant Client tem de ser ALCANCAVEL num terminal real.
+    """The Oracle Instant Client section has to be REACHABLE in a real
+    terminal.
 
-    Ela nasceu em y=39 de uma coluna que nao rolava: precisava de 42 linhas
-    de terminal para aparecer, e nao havia como chegar nela. O ajuste do
-    caminho do Instant Client saiu na v1.20.0 justamente para desfazer um
-    ORACLE_HOME de 32 bits que derrubava conexoes em producao — invisivel
-    para quem nao tem uma tela gigante.
+    It was born at y=39 of a column that did not scroll: it needed 42
+    terminal lines to appear, and there was no way to get to it. The Instant
+    Client path setting shipped in v1.20.0 precisely to undo a 32-bit
+    ORACLE_HOME that was bringing down connections in production — invisible
+    to anyone without a giant screen.
 
-    A afirmacao e sobre o que a tela PINTA, e nao sobre `region.height`:
-    com o defeito presente a regiao media 3 linhas de altura nos tres
-    tamanhos testados e ainda assim nada era desenhado, porque o corte vem
-    de um ancestral com `overflow: hidden`.
+    The assertion is about what the screen PAINTS, and not about
+    `region.height`: with the defect present the region measured 3 lines
+    high at the three sizes tested and still nothing was drawn, because the
+    clipping comes from an ancestor with `overflow: hidden`.
     """
     from textual.widgets import Button
     from tests.ui._helpers import rendered_text
@@ -2561,13 +2567,13 @@ async def test_settings_oracle_section_is_reachable(tmp_config_dir, height):
         screen = app.query_one(SettingsScreen)
         botao = screen.query_one("#btn-oracle-client-dir", Button)
 
-        # O caminho do teclado: focar o botao e o que um Tab faz, e e o
-        # `set_focus` que manda o Textual rolar o ancestral ate ele.
+        # The keyboard path: focusing the button is what a Tab does, and it
+        # is `set_focus` that tells Textual to scroll the ancestor to it.
         botao.focus()
         await pilot.pause()
-        # A rolagem que o foco dispara e animada: sem esperar, a medicao
-        # cai no meio do caminho (scroll_y 14 de 24) e o teste reprova por
-        # impaciencia em vez de por defeito.
+        # The scrolling that focus triggers is animated: without waiting,
+        # the measurement lands halfway (scroll_y 14 out of 24) and the test
+        # fails out of impatience instead of because of a defect.
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
@@ -2581,13 +2587,13 @@ async def test_settings_oracle_section_is_reachable(tmp_config_dir, height):
 
 
 def _panel_titles(root):
-    """Os titulos dos paineis como a tela os PINTA.
+    """The panel titles as the screen PAINTS them.
 
-    `Panel` nao guarda o titulo em `render()` — `Panel` e um `Vertical`, e
-    `Vertical.render()` devolve o preenchimento do fundo, nao texto. O
-    titulo mora num `Label` de id `#panel-title`, montado por
-    `Panel.compose`. O plano da Task 7 supunha `p.render()`; o caminho
-    real e este, o mesmo que os testes anteriores desta tela ja usavam.
+    `Panel` does not keep the title in `render()` — `Panel` is a `Vertical`,
+    and `Vertical.render()` returns the background fill, not text. The title
+    lives in a `Label` with id `#panel-title`, mounted by `Panel.compose`.
+    The Task 7 plan assumed `p.render()`; the real path is this one, the
+    same one the earlier tests of this screen already used.
     """
     from dbqm.ui.widgets.panel import Panel
 
@@ -2596,16 +2602,18 @@ def _panel_titles(root):
 
 @pytest.mark.asyncio
 async def test_each_settings_subject_has_its_own_panel(tmp_config_dir):
-    """Um painel por assunto — nao um painel-saco com quatro assuntos dentro.
+    """One panel per subject — not a catch-all panel with four subjects
+    inside.
 
-    A queixa que originou esta fase foi textual: "a tela de configuracoes
-    esta horrivel com um monte de botao alinhado no centro e dentro da tela
-    de configuracoes do sistema, esta tudo muito confuso". A confusao tinha
-    causa medivel: tema, auditoria, exportacao e Oracle Instant Client
-    dividiam UM painel chamado "CONFIG DA APLICACAO", separados so por um
-    rotulo em negrito. Sem moldura por assunto nao ha onde o olho parar, e
-    a secao Oracle — que existe para desfazer um ORACLE_HOME de 32 bits que
-    derrubava conexoes em producao — nascia no fim de uma coluna rolante.
+    The complaint that started this phase was verbatim: "a tela de
+    configuracoes esta horrivel com um monte de botao alinhado no centro e
+    dentro da tela de configuracoes do sistema, esta tudo muito confuso".
+    The confusion had a measurable cause: theme, audit, export and Oracle
+    Instant Client shared ONE panel called "CONFIG DA APLICACAO", separated
+    only by a bold label. With no frame per subject there is nowhere for the
+    eye to rest, and the Oracle section — which exists to undo a 32-bit
+    ORACLE_HOME that was bringing down connections in production — was born
+    at the end of a scrolling column.
     """
     app = SettingsTestApp()
     async with app.run_test(size=(120, 40)):
@@ -2616,24 +2624,26 @@ async def test_each_settings_subject_has_its_own_panel(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_settings_at_80x24_does_not_hide_the_door(tmp_config_dir):
-    """A 80x24, na DBQMApp REAL, a lista de MAIS CONFIGURACOES tem de estar la.
+    """At 80x24, on the REAL DBQMApp, the MAIS CONFIGURACOES list has to be
+    there.
 
-    Na DBQMApp a tela recebe 20 linhas, nao 24: o Header come 1, a tira de
-    abas 2, a regua abaixo dela 1 e a StatusBar 1. Um harness que compoe a
-    `SettingsScreen` sozinha lhe da as 24 inteiras — e foi assim que a
-    versao anterior deste teste afirmou que os quatro assuntos apareciam
-    "sem rolar" quando no app EXPORTACAO nao aparecia. Medido: `EXPORTACAO
-    no harness = True, no app = False`. E a licao da Task 4 outra vez —
-    medir no estado em que o defeito acontece — entao aqui se monta o app.
+    On the DBQMApp the screen gets 20 lines, not 24: the Header eats 1, the
+    tab strip 2, the rule below it 1 and the StatusBar 1. A harness that
+    composes `SettingsScreen` on its own gives it the whole 24 — and that is
+    how the previous version of this test claimed the four subjects appeared
+    "without scrolling" when in the app EXPORTACAO did not appear. Measured:
+    `EXPORTACAO in the harness = True, in the app = False`. It is the Task 4
+    lesson again — measure in the state where the defect happens — so here
+    the app is mounted.
 
-    E os seis paineis nao cabem mesmo em 20 linhas: as duas colunas somam
-    ~36 linhas de conteudo cada. A secao 4 da gramatica nao promete que
-    tudo cabe; promete que o que nao cabe ROLA, com o transbordo visivel.
-    O que ela nao tolera e o que estava acontecendo com MAIS CONFIGURACOES:
-    a moldura e o titulo desenhados e NENHUMA entrada, com o corpo
-    comecando fora da tela. Esse painel e a unica porta para as duas telas
-    que esta fase ressuscitou depois de seis semanas mortas; um titulo sem
-    entradas nao anuncia porta nenhuma.
+    And the six panels really do not fit in 20 lines: the two columns add up
+    to ~36 lines of content each. Section 4 of the grammar does not promise
+    that everything fits; it promises that what does not fit SCROLLS, with
+    the overflow visible. What it does not tolerate is what was happening
+    with MAIS CONFIGURACOES: the frame and the title drawn and NOT ONE
+    entry, with the body starting off screen. That panel is the only door to
+    the two screens this phase resurrected after six weeks dead; a title
+    with no entries announces no door at all.
     """
     from dbqm.ui.app import DBQMApp
     from tests.ui._helpers import rendered_text
@@ -2655,13 +2665,14 @@ async def test_settings_at_80x24_does_not_hide_the_door(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_settings_at_80x24_what_does_not_fit_scrolls(tmp_config_dir):
-    """O que fica abaixo da dobra e alcancavel, e o transbordo e visivel.
+    """What sits below the fold is reachable, and the overflow is visible.
 
-    A contrapartida do teste acima: EXPORTACAO e FERNET KEY nao cabem a
-    80x24 e nao ha aritmetica que os faca caber. O que a secao 4 exige e
-    que rolem em vez de sumir — a versao sem moldura desta tela nascia com
-    a secao Oracle em y=39 num container `overflow: hidden`, sem rolagem
-    nenhuma, e simplesmente nao havia como chegar nela.
+    The counterpart of the test above: EXPORTACAO and FERNET KEY do not fit
+    at 80x24 and there is no arithmetic that makes them fit. What section 4
+    requires is that they scroll instead of vanishing — the unframed version
+    of this screen was born with the Oracle section at y=39 in an
+    `overflow: hidden` container, with no scrolling at all, and there simply
+    was no way to reach it.
     """
     from dbqm.ui.app import DBQMApp
     from dbqm.ui.screens.settings import SettingsScreen
@@ -2690,8 +2701,8 @@ async def test_settings_at_80x24_what_does_not_fit_scrolls(tmp_config_dir):
         await pilot.pause()
 
         pintado = rendered_text(app)
-        # Corpo, e nao titulo: uma moldura com o titulo desenhado e o corpo
-        # fora da tela e exatamente o defeito que o teste acima cobra.
+        # Body, and not title: a frame with the title drawn and the body off
+        # screen is exactly the defect the test above checks for.
         assert "Alterar diretorio" in pintado, (
             "o corpo de EXPORTACAO nao aparece nem rolando ate o fim: %r"
             % pintado[-800:]
@@ -2704,14 +2715,15 @@ async def test_settings_at_80x24_what_does_not_fit_scrolls(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_settings_has_no_button_that_navigates(tmp_config_dir):
-    """Botao e acao; quem leva a outra tela e a lista (secao 7 da gramatica).
+    """A button is an action; what takes you to another screen is the list
+    (section 7 of the grammar).
 
-    Os tres botoes que abriam OUTRA TELA (`#btn-export`, `#btn-import`,
-    `#btn-oracle-clients`) estavam mortos desde a v1.17.0 — consultavam um
-    `#screen-area` removido em e02b8a8 e so notificavam erro. O conserto
-    nao foi reapontar o botao: navegacao virou lista, e os botoes que
-    sobram na tela sao acoes de verdade (abrem um dialogo sobre o assunto
-    do proprio painel).
+    The three buttons that opened ANOTHER SCREEN (`#btn-export`,
+    `#btn-import`, `#btn-oracle-clients`) had been dead since v1.17.0 — they
+    queried a `#screen-area` removed in e02b8a8 and only notified an error.
+    The fix was not to re-point the button: navigation became a list, and
+    the buttons left on the screen are real actions (they open a dialog
+    about the subject of their own panel).
     """
     from textual.widgets import Button
 
@@ -2722,14 +2734,14 @@ async def test_settings_has_no_button_that_navigates(tmp_config_dir):
         assert "btn-export" not in ids
         assert "btn-import" not in ids
         assert "btn-oracle-clients" not in ids
-        # As acoes reais continuam: cada uma abre um modal sobre o assunto
-        # do painel em que vive.
+        # The real actions remain: each one opens a modal about the subject
+        # of the panel it lives in.
         assert {"btn-export-dir", "btn-oracle-client-dir"} <= ids
 
 
 @pytest.mark.asyncio
 async def test_settings_widgets_live_inside_a_panel(tmp_config_dir):
-    """Nada fica solto no fundo — secao 4 da gramatica."""
+    """Nothing is left loose on the background — section 4 of the grammar."""
     from dbqm.ui.widgets.panel import Panel
     from textual.widgets import Button, OptionList
 
@@ -2750,16 +2762,16 @@ async def test_settings_widgets_live_inside_a_panel(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir):
-    """Cada entrada da lista cabe em duas linhas, com o recuo intacto.
+    """Each list entry fits in two lines, with the indent intact.
 
-    `hierarchical_item` recua a desambiguacao para dizer "isto pertence a
-    entrada acima". Quando o texto e mais largo que a coluna, o Textual
-    quebra sozinho no render e a continuacao volta para a coluna 0 — a
-    MESMA da identidade da proxima entrada, que e o defeito que originou
-    esta fase (Task 4 ja pagou por ele em `connections`). Aqui a saida nao
-    e constante de largura: e texto curto. Este teste e quem cobra isso,
-    medido nas colunas que a lista tem a 80 (30, medidas no widget
-    montado), e nao numa suposicao.
+    `hierarchical_item` indents the disambiguation to say "this belongs to
+    the entry above". When the text is wider than the column, Textual wraps
+    it on its own at render time and the continuation goes back to column 0
+    — the SAME one as the identity of the next entry, which is the defect
+    that started this phase (Task 4 already paid for it in `connections`).
+    Here the way out is not a width constant: it is short text. This test is
+    what enforces that, measured against the columns the list has at 80 (30,
+    measured on the mounted widget), and not against an assumption.
     """
     from textual.widgets import OptionList
     from tests.ui._helpers import rendered_lines
@@ -2792,14 +2804,15 @@ async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_resizing_re_elides_and_does_not_scan_the_disk(tmp_config_dir, monkeypatch):
-    """A elisao acompanha a largura — e alargar a janela devolve caminho.
+    """The elision follows the width — and widening the window gives path
+    back.
 
-    Elidir contra uma constante acertaria uma largura e erraria as outras,
-    entao a largura e medida no rotulo montado e repintada no `resize`. O
-    que o repintar NAO pode fazer e refazer a deteccao do Instant Client:
-    `resolve_oracle_client_dir` varre os diretorios de instalacao do
-    sistema, e amarrar isso a cada quadro de um arrastar de janela seria
-    trocar um defeito visual por um de desempenho.
+    Eliding against a constant would get one width right and all the others
+    wrong, so the width is measured on the mounted label and repainted on
+    `resize`. What the repaint must NOT do is redo the Instant Client
+    detection: `resolve_oracle_client_dir` scans the system's installation
+    directories, and tying that to every frame of a window drag would be
+    trading a visual defect for a performance one.
     """
     from textual.widgets import Static
     from dbqm.models.settings import Settings, save_settings
@@ -2844,7 +2857,7 @@ async def test_resizing_re_elides_and_does_not_scan_the_disk(tmp_config_dir, mon
 
 
 def test_long_path_is_elided_in_the_middle():
-    """O inicio e o fim identificam um caminho; o meio e o descartavel."""
+    """The start and the end identify a path; the middle is the disposable part."""
     from dbqm.ui.screens.settings import elide_path
 
     longo = "C:/Users/ricar/AppData/Local/Temp/claude/muito/fundo/exports"
@@ -2856,7 +2869,7 @@ def test_long_path_is_elided_in_the_middle():
 
 
 def test_path_that_fits_is_left_untouched():
-    """Elidir o que cabe seria esconder informacao de graca."""
+    """Eliding what fits would be hiding information for free."""
     from dbqm.ui.screens.settings import elide_path
 
     assert elide_path("C:/exports", 40) == "C:/exports"
@@ -2864,10 +2877,10 @@ def test_path_that_fits_is_left_untouched():
 
 
 def test_elision_cuts_at_the_separator_and_never_exceeds_the_width():
-    """Corta entre segmentos: meio caminho de um nome nao identifica nada.
+    """It cuts between segments: half of a name identifies nothing.
 
-    E o limite e limite em qualquer largura — inclusive nas absurdas, onde
-    a aritmetica de "metade para cada lado" e onde um off-by-one moraria.
+    And the limit is a limit at any width — including the absurd ones, where
+    the "half for each side" arithmetic is where an off-by-one would live.
     """
     from dbqm.ui.screens.settings import elide_path
 
@@ -2879,22 +2892,23 @@ def test_elision_cuts_at_the_separator_and_never_exceeds_the_width():
         assert len(elide_path(caminho, largura)) <= largura, largura
     assert elide_path(caminho, 0) == ""
 
-    # Sem separador aproveitavel ainda se corta no MEIO, por caractere.
+    # With no usable separator it still cuts in the MIDDLE, by character.
     corrido = "a" * 60
     assert elide_path(corrido, 21) == "a" * 10 + chr(8230) + "a" * 10
 
 
 def test_unc_path_elision_preserves_the_server():
-    """Num UNC a raiz e o SERVIDOR, e e ela que a elisao promete guardar.
+    """In a UNC path the root is the SERVER, and it is what the elision
+    promises to keep.
 
-    `\\\\servidor\\share\\...` parte em ['', '\\\\', '', '\\\\', 'servidor', ...]:
-    os dois primeiros segmentos sao vazios. Parando no terceiro pedaco, a
-    cabeca era uma barra so — duas pastas em dois servidores diferentes
-    elidiam IDENTICAS, e o `Client em uso` de um client de rede nao dizia
-    de qual maquina ele vinha.
+    `\\\\servidor\\share\\...` splits into ['', '\\\\', '', '\\\\', 'servidor', ...]:
+    the first two segments are empty. Stopping at the third piece, the head
+    was a single slash — two folders on two different servers elided
+    IDENTICALLY, and the `Client em uso` of a network client did not say
+    which machine it came from.
 
-    Caminho com letra de unidade e caminho POSIX ficam onde estavam: e o
-    mesmo primeiro segmento COM NOME nos tres casos.
+    A drive-letter path and a POSIX path stay where they were: it is the
+    same first NAMED segment in all three cases.
     """
     from dbqm.ui.screens.settings import elide_path
 
@@ -2916,12 +2930,13 @@ def test_unc_path_elision_preserves_the_server():
 
 @pytest.mark.asyncio
 async def test_export_path_fits_in_the_column(tmp_config_dir):
-    """Um caminho longo nao pode quebrar no meio de um nome e sumir.
+    """A long path must not wrap in the middle of a name and disappear.
 
-    Antes desta tarefa a Fernet Key pintava `...\\Local\\Tem` numa linha e
-    `p\\pytest-of-ricar\\...` na seguinte — quebra automatica no meio da
-    palavra, e o FIM do caminho (o unico pedaco que diz de que diretorio se
-    trata) caia fora do painel. A afirmacao e sobre a linha PINTADA.
+    Before this task the Fernet Key painted `...\\Local\\Tem` on one line and
+    `p\\pytest-of-ricar\\...` on the next — automatic wrapping in the middle
+    of the word, and the END of the path (the only piece that says which
+    directory it is) fell outside the panel. The assertion is about the
+    PAINTED line.
     """
     from textual.widgets import Button, Static
     from dbqm.models.settings import Settings, save_settings
@@ -2935,9 +2950,10 @@ async def test_export_path_fits_in_the_column(tmp_config_dir):
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         tela = app.query_one(SettingsScreen)
-        # A 80x24 a coluna da esquerda transborda e ROLA (secao 4): o
-        # caminho vive no terceiro painel dela. Focar o botao do painel e o
-        # que um Tab faz, e e o `set_focus` que manda o Textual rolar ate la.
+        # At 80x24 the left column overflows and SCROLLS (section 4): the
+        # path lives in its third panel. Focusing the panel's button is what
+        # a Tab does, and it is `set_focus` that tells Textual to scroll
+        # there.
         tela.query_one("#btn-export-dir", Button).focus()
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
@@ -2957,20 +2973,21 @@ async def test_export_path_fits_in_the_column(tmp_config_dir):
 async def test_no_path_overflows_the_label_box(
     tmp_config_dir, monkeypatch
 ):
-    """Elidir contra a largura errada e nao elidir: o texto quebra do mesmo jeito.
+    """Eliding against the wrong width is the same as not eliding: the text
+    wraps all the same.
 
-    Dois jeitos de errar a largura, os dois medidos na DBQMApp a 80x24:
+    Two ways to get the width wrong, both measured on the DBQMApp at 80x24:
 
-    - O prefixo `Local: ` da Fernet Key fica na MESMA linha do caminho (os
-      outros dois rotulos quebram a linha antes), e nao estava saindo do
-      orcamento: o caminho elidido cabia em 32 celulas e a linha inteira
-      dava 37, entao a quebra automatica gastava uma linha do painel.
-    - A largura era medida cedo demais. Na montagem a coluna ainda nao
-      sabe que vai precisar de barra de rolagem: o rotulo media 33 onde
-      teria 32, e o caminho passava por UMA celula — o ultimo caractere do
-      nome do diretorio ia sozinho para a linha de baixo, que e o defeito
-      que a elisao existe para evitar. Nenhum `on_resize` da tela via
-      isso; quem mudou de tamanho foi o rotulo (`PathLabel`).
+    - The Fernet Key's `Local: ` prefix stays on the SAME line as the path
+      (the other two labels break the line before it), and it was not being
+      taken out of the budget: the elided path fit in 32 cells and the whole
+      line came to 37, so the automatic wrapping spent a line of the panel.
+    - The width was measured too early. At mount time the column does not
+      yet know it will need a scrollbar: the label measured 33 where it
+      would have 32, and the path went over by ONE cell — the last character
+      of the directory name went alone to the line below, which is the very
+      defect the elision exists to avoid. No `on_resize` of the screen saw
+      this; what changed size was the label (`PathLabel`).
     """
     from textual.widgets import Static
     from dbqm.ui.app import DBQMApp
@@ -2978,13 +2995,13 @@ async def test_no_path_overflows_the_label_box(
     from dbqm.models.settings import Settings, save_settings
     from tests.ui._helpers import crop
 
-    # Nomes longos e SEM separador aproveitavel de proposito: nesse caso
-    # `elide_path` corta por caractere e devolve exatamente o orcamento
-    # que recebeu. Assim o comprimento da linha pintada denuncia o
-    # orcamento, em vez de depender de onde os separadores de um caminho
-    # de teste por acaso caem — com um caminho "realista" as duas contas,
-    # a certa e a errada, podem cair no mesmo corte e o teste passa com o
-    # defeito presente (aconteceu ao escrever este).
+    # Long names and WITHOUT a usable separator on purpose: in that case
+    # `elide_path` cuts by character and returns exactly the budget it was
+    # given. That way the length of the painted line gives the budget away,
+    # instead of depending on where the separators of a test path happen to
+    # fall — with a "realistic" path the two calculations, the right one and
+    # the wrong one, can land on the same cut and the test passes with the
+    # defect present (it happened while writing this one).
     fundo = tmp_config_dir / ("exportacao" + "z" * 70)
     fundo.mkdir(parents=True)
     save_settings(Settings(default_export_dir=str(fundo)))
@@ -3014,7 +3031,8 @@ async def test_no_path_overflows_the_label_box(
                     % (wid, len(linha), largura, linha)
                 )
 
-        # E o prefixo e o fim do caminho saem na MESMA linha PINTADA.
+        # And the prefix and the end of the path come out on the SAME
+        # PAINTED line.
         coluna = tela.query_one("#settings-col-direita")
         coluna.scroll_end(animate=False)
         await pilot.pause()
@@ -3041,11 +3059,12 @@ async def test_settings_no_settings_section_boxes(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_settings_uses_no_literal_color_in_the_client_status(tmp_config_dir, monkeypatch):
-    """O estado 'nenhum encontrado' e informativo, nao um aviso amarelo.
+    """The 'none found' state is informative, not a yellow warning.
 
-    Forca resolve_oracle_client_dir a "nenhum encontrado": sem o monkeypatch
-    o teste passa vazio em qualquer maquina com Instant Client instalado (ex.:
-    a maquina de desenvolvimento), porque o ramo amarelo nunca e alcancado.
+    Forces resolve_oracle_client_dir to "none found": without the monkeypatch
+    the test passes empty on any machine with an Instant Client installed
+    (e.g. the development machine), because the yellow branch is never
+    reached.
     """
     from textual.widgets import Static
 
@@ -3098,7 +3117,7 @@ async def test_config_port_screen_shows_mode_phase(tmp_config_dir):
 
 
 async def _choose_mode(pilot, screen, key):
-    """Escolhe Exportar/Importar pelo caminho real: destacar + Enter."""
+    """Chooses Exportar/Importar through the real path: highlight + Enter."""
     from textual.widgets import OptionList
 
     lista = screen.query_one("#cp-mode-list", OptionList)
@@ -3115,12 +3134,13 @@ async def _choose_mode(pilot, screen, key):
 
 @pytest.mark.asyncio
 async def test_config_port_mode_choice_is_a_list(tmp_config_dir):
-    """Exportar e Importar sao DESTINOS, e destino nao se escolhe por botao.
+    """Exportar and Importar are DESTINATIONS, and a destination is not
+    chosen with a button.
 
-    Os dois botoes lado a lado eram um menu disfarcado — a mesma forma que
-    a tela de Ferramentas tinha. O que sobra de botao nesta tela sao as
-    duas acoes de verdade (`cp-do-export`, `cp-do-import`), cada uma
-    ancorada no formulario que ela executa.
+    The two side-by-side buttons were a menu in disguise — the same shape
+    the Ferramentas screen had. What is left of buttons on this screen are
+    the two real actions (`cp-do-export`, `cp-do-import`), each anchored to
+    the form it runs.
     """
     from textual.widgets import Button, OptionList
     from tests.ui._helpers import rendered_names
@@ -3138,7 +3158,7 @@ async def test_config_port_mode_choice_is_a_list(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_config_port_export_phase_toggle(tmp_config_dir):
-    """Escolher Exportar na lista mostra a fase de exportacao."""
+    """Choosing Exportar in the list shows the export phase."""
     app = ConfigPortTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
@@ -3150,7 +3170,7 @@ async def test_config_port_export_phase_toggle(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_config_port_import_phase_toggle(tmp_config_dir):
-    """Escolher Importar na lista mostra a fase de importacao."""
+    """Choosing Importar in the list shows the import phase."""
     app = ConfigPortTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
@@ -3162,7 +3182,7 @@ async def test_config_port_import_phase_toggle(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_config_port_has_action_buttons_only(tmp_config_dir):
-    """Nenhum botao desta tela navega — os dois que restam EXECUTAM."""
+    """No button on this screen navigates — the two that remain EXECUTE."""
     from textual.widgets import Button
 
     app = ConfigPortTestApp()
@@ -3649,10 +3669,10 @@ async def test_result_table_pagination(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_result_skeleton_has_the_median_shape(tmp_config_dir):
-    """A mediana medida das 68 consultas salvas e 9 colunas, nao 4.
+    """The measured median of the 68 saved queries is 9 columns, not 4.
 
-    Um esqueleto com a forma errada produz o salto de layout que ele existe
-    para impedir — foi o defeito encontrado em browser.py na fase 1.
+    A skeleton with the wrong shape produces the very layout jump it exists
+    to prevent — it was the defect found in browser.py in phase 1.
     """
     from dbqm.ui.widgets.skeleton import Skeleton
     from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -3672,7 +3692,7 @@ async def test_result_skeleton_has_the_median_shape(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_group_skeleton_has_the_median_shape(tmp_config_dir):
-    """Mesmo defeito, mesmo call site espelhado em group_exec.py."""
+    """Same defect, same call site mirrored in group_exec.py."""
     from dbqm.ui.widgets.skeleton import Skeleton
     from tests.ui._helpers import ThemedTestApp
 
@@ -3690,22 +3710,23 @@ async def test_group_skeleton_has_the_median_shape(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_vertical_record_uses_text_tokens(tmp_config_dir):
-    """`_show_vertical` deve pintar com os tokens da gramatica, nao texto
-    plano com `*** Registro N ***`.
+    """`_show_vertical` must paint with the grammar's tokens, not plain text
+    with `*** Registro N ***`.
 
-    Assertar que o nome do token aparece numa string nao prova nada sobre o
-    que aparece na tela (licao da Task 1): aqui resolvemos o span de fato
-    renderizado para a cor real do tema ativo, com `Style.parse` dentro do
-    contexto da app — o mesmo mecanismo que o Textual usa para pintar a
-    tela.
+    Asserting that the token's name appears in a string proves nothing about
+    what appears on the screen (the Task 1 lesson): here we resolve the span
+    actually rendered to the real color of the active theme, with
+    `Style.parse` inside the app's context — the same mechanism Textual uses
+    to paint the screen.
     """
     from textual.style import Style
 
     def cor_no_offset(conteudo, offset):
-        """Resolve a cor de fato aplicada num offset, somando os spans que
-        cobrem esse offset ja resolvidos via `Style.parse` (os spans crus de
-        `Content` guardam a marcacao como string, ex.: "$ds-text-strong", nao
-        como `Style` — por isso nao da para somar sem resolver antes)."""
+        """Resolves the color actually applied at an offset, summing the
+        spans that cover that offset already resolved via `Style.parse` (the
+        raw spans of `Content` keep the markup as a string, e.g.
+        "$ds-text-strong", not as a `Style` — that is why they cannot be
+        summed without resolving first)."""
         estilo = Style()
         for start, end, span_style in conteudo.spans:
             if start <= offset < end:
@@ -3737,8 +3758,9 @@ async def test_vertical_record_uses_text_tokens(tmp_config_dir):
         cor_forte = Style.parse("$ds-text-strong").foreground
         cor_apoio = Style.parse("$ds-text-muted").foreground
         cor_texto = Style.parse("$ds-text").foreground
-        # Os tres tokens tem de fato cores diferentes no tema ativo, senao
-        # o teste abaixo nao provaria discriminacao nenhuma entre eles.
+        # The three tokens really do have different colors in the active
+        # theme, otherwise the test below would prove no discrimination
+        # between them at all.
         assert len({cor_forte, cor_apoio, cor_texto}) == 3
 
         pos_registro = texto.index("Registro 1")
@@ -3752,14 +3774,15 @@ async def test_vertical_record_uses_text_tokens(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_vertical_record_right_aligns_labels_after_escaping(tmp_config_dir):
-    """O rotulo tem de ser escapado ANTES de alinhado, nao depois.
+    """The label has to be escaped BEFORE being aligned, not after.
 
-    Escapar depois de alinhar acrescenta barras a um rotulo que ja tinha o
-    tamanho certo, desalinhando so a coluna cujo nome tem colchete. Aqui
-    "id" (2 chars) e "nome_da_coluna" (14 chars) sao o caso comum, sem
-    colchete: o rotulo de "id" tem de vir com exatamente 14 caracteres,
-    todos os 12 primeiros sendo espaco — o mesmo resultado de antes da
-    task, byte a byte, provando que a ordem nova nao regride o caso comum.
+    Escaping after aligning adds backslashes to a label that already had the
+    right size, misaligning only the column whose name has a bracket. Here
+    "id" (2 chars) and "nome_da_coluna" (14 chars) are the common case, with
+    no bracket: the label of "id" has to come out with exactly 14
+    characters, all of the first 12 being spaces — the same result as before
+    the task, byte for byte, proving that the new order does not regress the
+    common case.
     """
     qr = QR(
         query_name="test", connection_name="c1",
@@ -4281,17 +4304,19 @@ async def test_query_exec_loads_queries(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_exec_folder_navigation(tmp_config_dir):
-    """Escolher uma pasta PELO TECLADO estreita a lista de consultas.
+    """Choosing a folder WITH THE KEYBOARD narrows the query list.
 
-    Escrever `seletor.value = "A"` nao exercita nada do que esta tarefa
-    introduziu. `NavSelect` re-liga `enter,space` a `show_overlay` — e o
-    que permite as setas continuarem navegando entre widgets em vez de
-    abrirem o menu — e uma atribuicao de atributo nao passa por binding
-    nenhum: a interacao real (abrir o menu, andar, escolher) ficava sem
-    teste algum enquanto os tres testes de pasta escreviam o valor direto.
+    Writing `seletor.value = "A"` exercises nothing of what this task
+    introduced. `NavSelect` rebinds `enter,space` to `show_overlay` — which
+    is what lets the arrows keep navigating between widgets instead of
+    opening the menu — and an attribute assignment goes through no binding
+    at all: the real interaction (opening the menu, moving, choosing) was
+    left with no test whatsoever while the three folder tests wrote the
+    value directly.
 
-    Aqui o caminho e o mesmo do usuario, dentro da DBQMApp inteira, e o que
-    se verifica no fim e a lista PINTADA, nao o valor do widget."""
+    Here the path is the same as the user's, inside the whole DBQMApp, and
+    what is checked at the end is the PAINTED list, not the widget's
+    value."""
     from textual.widgets import OptionList
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
@@ -4313,7 +4338,7 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
             "q1", "q2",
         ]
 
-        # Todas -> A: abrir o menu com enter, descer uma opcao, confirmar.
+        # Todas -> A: open the menu with enter, move down one option, confirm.
         seletor.focus()
         await pilot.press("enter")
         await pilot.pause()
@@ -4324,7 +4349,7 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
         assert not seletor.expanded
         assert rendered_names(app.query_one("#ql-listview", OptionList)) == ["q1"]
 
-        # A -> Todas: mesmo caminho, subindo.
+        # A -> Todas: same path, moving up.
         seletor.focus()
         await pilot.press("enter")
         await pilot.pause()
@@ -4706,10 +4731,10 @@ async def test_oracle_clients_empty_state_action_focuses_available_table(
     async with app.run_test() as pilot:
         from dbqm.ui.widgets.empty_state import EmptyState
 
-        # A tela poe o foco inicial neste mesmo botao (`_set_initial_focus`,
-        # adiado por `call_after_refresh`). Sem deixar a montagem assentar,
-        # o foco inicial chegaria DEPOIS do clique e desfaria o que este
-        # teste mede.
+        # The screen puts the initial focus on this very button
+        # (`_set_initial_focus`, deferred by `call_after_refresh`). Without
+        # letting the mount settle, the initial focus would arrive AFTER the
+        # click and would undo what this test measures.
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
@@ -4864,7 +4889,7 @@ class ToolsTestApp(ThemedTestApp):
 
 
 async def _choose_tool(pilot, screen, key):
-    """Abre uma ferramenta pelo caminho real: destacar na lista + Enter."""
+    """Opens a tool through the real path: highlight in the list + Enter."""
     from textual.widgets import OptionList
 
     lista = screen.query_one("#ferr-menu-list", OptionList)
@@ -4881,14 +4906,14 @@ async def _choose_tool(pilot, screen, key):
 
 @pytest.mark.asyncio
 async def test_tools_is_a_list_and_not_full_width_buttons(tmp_config_dir):
-    """Cinco botoes de largura total sao cinco botoes fingindo ser um menu.
+    """Five full-width buttons are five buttons pretending to be a menu.
 
-    A afirmacao e sobre o MENU, nao sobre a tela inteira: as cinco
-    ferramentas hospedadas tem botoes de acao legitimos (Novo, Salvar,
-    Excluir...), e um `not app.query(Button)` global so passaria por
-    acidente — elas sao montadas sob demanda, entao na montagem ainda nao
-    existe nenhum. Uma afirmacao que depende de o alvo nao ter sido
-    construido ainda nao vigia coisa alguma.
+    The assertion is about the MENU, not about the whole screen: the five
+    hosted tools have legitimate action buttons (Novo, Salvar, Excluir...),
+    and a global `not app.query(Button)` would only pass by accident — they
+    are mounted on demand, so at mount time none exists yet. An assertion
+    that depends on the target not having been built yet guards nothing at
+    all.
     """
     from textual.widgets import Button, OptionList
     from tests.ui._helpers import rendered_names
@@ -4910,7 +4935,7 @@ async def test_tools_is_a_list_and_not_full_width_buttons(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_tools_screen_starts_on_the_menu(tmp_config_dir):
-    """ToolsScreen abre no menu, nao numa ferramenta."""
+    """ToolsScreen opens on the menu, not on a tool."""
     from textual.widgets import ContentSwitcher
     app = ToolsTestApp()
     async with app.run_test() as pilot:
@@ -4933,15 +4958,16 @@ async def test_tools_screen_does_not_load_tools_on_mount(tmp_config_dir):
         assert len(app.screen_stack) == 1
 
         screen = app.query_one(ToolsScreen)
-        # Vazios: o "Voltar" que morava aqui era navegacao feita por botao.
+        # Empty: the "Voltar" that used to live here was navigation done
+        # with a button.
         assert not list(screen.query_one("#ferr-packages").children)
         assert not list(screen.query_one("#ferr-executar").children)
 
 
 @pytest.mark.asyncio
 async def test_tools_screen_open_and_back(tmp_config_dir):
-    """Escolher na lista constroi e mostra a ferramenta; `back_to_menu`
-    devolve ao menu, e reabrir nao constroi uma segunda instancia."""
+    """Choosing in the list builds and shows the tool; `back_to_menu`
+    returns to the menu, and reopening does not build a second instance."""
     from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.package_editor import PackageEditorScreen
 
@@ -4966,7 +4992,7 @@ async def test_tools_screen_open_and_back(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_tools_screen_open_group_run(tmp_config_dir):
-    """Escolher 'Executar Grupo' monta um GroupRunScreen em #ferr-executar."""
+    """Choosing 'Executar Grupo' mounts a GroupRunScreen in #ferr-executar."""
     from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.group_run import GroupRunScreen
 
@@ -5348,7 +5374,7 @@ async def test_group_run_list_shows_all_items(tmp_config_dir):
 async def test_group_run_folder_select_is_a_select(tmp_config_dir):
     """The folder navigation is a Select, not a scrollable row of buttons —
     a regression guard against reintroducing folder tabs, which is what
-    this screen used before (cardinalidade variavel, nao abas)."""
+    this screen used before (variable cardinality, not tabs)."""
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
@@ -5377,9 +5403,9 @@ async def test_group_run_folder_select_is_a_select(tmp_config_dir):
         screen = app.query_one(GroupRunScreen)
         folder_select = screen.query_one("#gr-folder-select")
         assert isinstance(folder_select, Select)
-        # A metade que faltava: sem isto o teste passava com as abas de
-        # volta ao lado do Select, que e exatamente a regressao que ele diz
-        # guardar. Mesmo par de asercoes do irmao de consultas
+        # The missing half: without this the test passed with the tabs back
+        # alongside the Select, which is exactly the regression it claims to
+        # guard against. Same pair of assertions as the queries sibling
         # (test_folders_become_a_select_with_counts).
         assert not app.query("#gr-folder-bar"), "a barra de botoes some"
         assert not app.query("#gr-folder-hint"), "a dica das setas some junto"
@@ -5387,13 +5413,14 @@ async def test_group_run_folder_select_is_a_select(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_group_run_paints_two_groups_with_the_same_name(tmp_config_dir):
-    """Dois grupos homonimos nao podem derrubar a tela.
+    """Two groups with the same name must not bring the screen down.
 
-    Mesmo defeito de `test_query_list_paints_two_queries_with_the_same_name`:
-    com o nome viajando como `Option(conteudo, id=nome)`,
-    `OptionList.add_option` levantava `DuplicateID` e a tela nao montava.
-    `groups.json` e editavel a mao, entao o dado ambiguo existe; a lista
-    pinta as duas linhas e deixa a ambiguidade para a busca por nome."""
+    Same defect as `test_query_list_paints_two_queries_with_the_same_name`:
+    with the name travelling as `Option(content, id=name)`,
+    `OptionList.add_option` raised `DuplicateID` and the screen did not
+    mount. `groups.json` is editable by hand, so the ambiguous data exists;
+    the list paints both rows and leaves the ambiguity to the lookup by
+    name."""
     from textual.widgets import OptionList
 
     config_dir = tmp_config_dir / "config"
@@ -5434,11 +5461,11 @@ async def test_group_run_paints_two_groups_with_the_same_name(tmp_config_dir):
 async def test_group_run_selects_by_name_even_with_repeated_names(
     tmp_config_dir,
 ):
-    """A selecao de grupo resolve pelo nome, como antes dos ids.
+    """Group selection resolves by name, as it did before the ids.
 
-    Caso normal (nomes unicos) e caso ambiguo no mesmo teste: escolher a
-    linha posta o nome daquela linha, e escolher uma das duas homonimas
-    posta o nome homonimo em vez de nao fazer nada."""
+    The normal case (unique names) and the ambiguous case in the same test:
+    choosing the row posts that row's name, and choosing one of the two
+    same-named rows posts the shared name instead of doing nothing."""
     from textual.widgets import OptionList
 
     config_dir = tmp_config_dir / "config"
@@ -5481,24 +5508,25 @@ async def test_group_run_selects_by_name_even_with_repeated_names(
 
 @pytest.mark.asyncio
 async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
-    """A entrada de grupo montada de verdade ocupa mais de uma linha e cada
-    papel sai numa cor distinta — nome, contagem de consultas, descricao.
+    """A really mounted group entry takes more than one line and each role
+    comes out in a distinct color — name, query count, description.
 
-    A lista de grupos trocou a string concatenada com "|" pelo mesmo
-    `hierarchical_item` da lista de consultas, mas so a de consultas tinha
-    guard (`test_query_list_mounted_item_has_visible_hierarchy`, em
-    test_widgets.py). Este e o par que faltava: a descricao vai inteira,
-    sem corte artificial, e as cores sao resolvidas com o `Style.parse` do
-    tema ativo — o mesmo mecanismo que o Textual usa antes de pintar.
-    Prova a FIACAO ate a opcao montada, nao a pintura de pixel.
+    The group list swapped the string concatenated with "|" for the same
+    `hierarchical_item` as the query list, but only the query one had a
+    guard (`test_query_list_mounted_item_has_visible_hierarchy`, in
+    test_widgets.py). This is the missing pair: the description goes in
+    whole, with no artificial truncation, and the colors are resolved with
+    the active theme's `Style.parse` — the same mechanism Textual uses
+    before painting. It proves the WIRING all the way to the mounted option,
+    not the pixel painting.
 
-    A descricao pode ocupar MAIS DE UMA linha: desde que a lista de grupos
-    pre-quebra o texto em linhas logicas na largura do painel (o conserto da
-    continuacao que caia na coluna da identidade), o numero de linhas
-    depende do comprimento do texto. O que este teste afirma nao e a
-    contagem, e a GRAMATICA — identidade sozinha na primeira linha, todo o
-    resto recuado — e que a quebra nao perde caractere: as linhas de
-    contexto, remontadas, sao a descricao original."""
+    The description may take MORE THAN ONE line: since the group list
+    pre-wraps the text into logical lines at the panel's width (the fix for
+    the continuation that landed in the identity column), the number of
+    lines depends on the length of the text. What this test asserts is not
+    the count, it is the GRAMMAR — identity alone on the first line,
+    everything else indented — and that the wrapping loses no character: the
+    context lines, put back together, are the original description."""
     from textual.style import Style
     from textual.widgets import OptionList
 

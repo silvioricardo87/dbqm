@@ -11,10 +11,10 @@ from dbqm.core.group_engine import GroupResult, ComparisonResult
 from dbqm.ui.utils import sanitize_id
 from dbqm.ui.widgets.verdict import mark_verdict
 
-# Os status internos do motor de comparacao (dbqm.core.group_engine) usam um
-# vocabulario proprio, historico; o componente de veredito usa outro. Este
-# dict e a unica ponte entre os dois — nao se espalha essa traducao pelo
-# resto do arquivo.
+# The internal statuses of the comparison engine (dbqm.core.group_engine) use
+# a vocabulary of their own, historical; the verdict component uses another
+# one. This dict is the only bridge between the two — this translation is not
+# spread across the rest of the file.
 _STATUS_TO_VERDICT: dict[str, str] = {
     "OK": "match",
     "OK*": "match-normalized",
@@ -24,16 +24,16 @@ _STATUS_TO_VERDICT: dict[str, str] = {
 
 
 def _status_cell(status: str) -> Content:
-    """Celula de status pronta para `DataTable.add_row`.
+    """Status cell ready for `DataTable.add_row`.
 
-    `add_row` parseia string com o Rich puro, que nao resolve `$token`
-    (levanta `rich.errors.MarkupError`); por isso o markup do veredito
-    precisa passar por `Content.from_markup` antes de chegar la — o mesmo
-    padrao usado em `dbqm/ui/screens/history.py`.
+    `add_row` parses a string with plain Rich, which does not resolve `$token`
+    (it raises `rich.errors.MarkupError`); that is why the verdict markup has
+    to go through `Content.from_markup` before it gets there — the same
+    pattern used in `dbqm/ui/screens/history.py`.
 
-    Um status fora do vocabulario conhecido explode aqui (KeyError vira
-    ValueError via `mark_verdict`), nunca renderiza uma celula sem cor
-    silenciosamente.
+    A status outside the known vocabulary blows up here (a KeyError becomes a
+    ValueError via `mark_verdict`), it never renders a colorless cell
+    silently.
     """
     if status not in _STATUS_TO_VERDICT:
         raise ValueError(f"status de comparacao desconhecido: {status!r}")
@@ -164,20 +164,21 @@ class GroupResultWidget(Vertical, can_focus=False):
             if not self._hide_status:
                 table.add_column("Status", key="status")
 
-            # Chave fixa (secao 6 da gramatica): a coluna "Chave" e a
-            # identidade do registro comparado, e as colunas seguintes sao
-            # uma por consulta do grupo — quantas o grupo tiver. Ao rolar
-            # para a direita sem fixar, some justamente o valor que diz DE
-            # QUAL registro sao as celulas que restaram na tela. Fixada
-            # depois de montar as colunas porque so aqui a contagem final e
-            # conhecida; com uma coluna so, fixar nao protege nada e rouba
-            # largura (mesma regra do `result_table.py`).
+            # Fixed key column (section 6 of the grammar): the "Chave" column
+            # is the identity of the compared record, and the columns that
+            # follow are one per query in the group — as many as the group
+            # has. When scrolling to the right without fixing it, what
+            # disappears is precisely the value that says WHICH record the
+            # cells left on screen belong to. Fixed after building the
+            # columns because only here is the final count known; with a
+            # single column, fixing protects nothing and steals width (same
+            # rule as in `result_table.py`).
             #
-            # Zebra NAO entra aqui, e a ausencia e deliberada: estas
-            # celulas de status sao pintadas por `_status_cell`, e o
-            # blend do zebra acontece em runtime, invisivel ao teste de
-            # contraste da fase 1 — o contraste do veredito deixaria de
-            # ser o valor calculado e ninguem seria avisado.
+            # Zebra striping does NOT come in here, and the absence is
+            # deliberate: these status cells are painted by `_status_cell`,
+            # and the zebra blend happens at runtime, invisible to the phase-1
+            # contrast test — the verdict's contrast would stop being the
+            # computed value and nobody would be warned.
             table.fixed_columns = 1 if len(table.columns) > 1 else 0
 
             rows = comp.rows
@@ -234,8 +235,8 @@ class GroupResultWidget(Vertical, can_focus=False):
             if not self._hide_status:
                 table.add_column("Status", key="__status__")
 
-            # Chave fixa, mesma razao do modo plano: aqui a identidade da
-            # linha e o nome da consulta, na coluna "Consulta".
+            # Fixed key column, same reason as in flat mode: here the row's
+            # identity is the query name, in the "Consulta" column.
             table.fixed_columns = 1 if len(table.columns) > 1 else 0
 
             # One row per query
