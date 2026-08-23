@@ -1,4 +1,4 @@
-"""item_hierarquico — item de lista com hierarquia de ate tres linhas.
+r"""item_hierarquico — item de lista com hierarquia de ate tres linhas.
 
 O problema que este componente resolve (gramatica de layout, Task 3): uma
 lista de conexoes com mais de duas linhas ficava ilegivel porque identidade e
@@ -17,12 +17,21 @@ cor, nao por pontuacao:
 
 Linhas vazias sao omitidas, nao renderizadas em branco: um item so com
 identidade fica com uma unica linha, nao com duas linhas fantasmas.
+
+Nome de conexao e descricao sao dado do usuario, e o texto e livre — uma tag
+de ambiente (`Proposta [PROD]`) ou referencia de ticket com colchete e padrao
+plausivel neste dominio. Por isso o `Content` e montado programaticamente com
+`Content.assemble`/tuplas `(texto, estilo)`, nunca passando o dado do usuario
+pelo parser de markup (`Content.from_markup`/`[tag]...[/]`): o parser nunca
+ve o texto, entao nao ha nada para interpretar como tag e nada para escapar.
+Isso evita de raiz a assimetria conhecida do parser do Textual entre `\[` e
+`\]` (documentada em `result_table.py`, onde a compensacao de largura foi
+construida em cima desse comportamento) sem tocar em `escape_markup` — que e
+compartilhada com seis outros chamadores e nao e usada aqui.
 """
 from __future__ import annotations
 
 from textual.content import Content
-
-from dbqm.ui.utils import escape_markup
 
 _RECUO = "  "
 
@@ -37,13 +46,17 @@ def item_hierarquico(
     Devolve `Content`, nao `str`: e o que `OptionList.add_option` e
     `DataTable` aceitam sem cair no Rich puro, que levanta `MarkupError` ao
     ver um token `$nome` (o mesmo problema documentado em
-    `group_result.py._status_cell`). Cada campo passa por `escape_markup`
-    antes de entrar no template — nome de conexao e descricao sao dado do
-    usuario, e um valor com `[/]` nao pode fechar a tag em volta dele.
+    `group_result.py._status_cell`). Cada campo e um trecho estilizado via
+    `Content.assemble`, nao markup parseado — o texto do usuario chega ao
+    `Content` final byte a byte, sem escape e sem risco de fechar tag.
     """
-    linhas = [f"[bold $texto-forte]{escape_markup(identidade)}[/]"]
+    linha = Content.assemble((identidade, "bold $texto-forte"))
     if desambiguacao:
-        linhas.append(f"{_RECUO}[$texto-apoio]{escape_markup(desambiguacao)}[/]")
+        linha = linha + "\n" + Content.assemble(
+            _RECUO, (desambiguacao, "$texto-apoio")
+        )
     if contexto:
-        linhas.append(f"{_RECUO}[$texto-desabilitado]{escape_markup(contexto)}[/]")
-    return Content.from_markup("\n".join(linhas))
+        linha = linha + "\n" + Content.assemble(
+            _RECUO, (contexto, "$texto-desabilitado")
+        )
+    return linha

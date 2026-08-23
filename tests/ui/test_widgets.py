@@ -1319,12 +1319,35 @@ def test_item_hierarquico_omite_linhas_vazias():
     assert len(str(item_hierarquico("SO_NOME")).split("\n")) == 1
 
 
-def test_item_hierarquico_escapa_o_conteudo():
-    """Nome de conexao ou descricao vem de dado do usuario."""
+def test_item_hierarquico_omite_so_a_linha_do_meio_quando_so_ela_falta():
+    """Desambiguacao presente e contexto vazio tem que dar duas linhas,
+    sem buraco no meio — nao uma terceira linha em branco pulada."""
     from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
 
-    c = item_hierarquico("[/]quebra", "x")
-    assert "quebra" in str(c)
+    c = item_hierarquico("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9")
+    linhas = str(c).split("\n")
+    assert len(linhas) == 2
+    assert linhas[0].strip() == "MGORA7ORA9"
+    assert "Oracle/TNS" in linhas[1]
+
+
+def test_item_hierarquico_nao_interpreta_colchetes_do_conteudo_como_markup():
+    """Nome de conexao ou descricao vem de dado do usuario, e texto livre
+    com colchete (tag de ambiente, referencia de ticket) e padrao plausivel
+    neste dominio — ex.: `Proposta [PROD]`.
+
+    Passar por `Content.from_markup` trataria `[PROD]` como tentativa de tag
+    e, pela assimetria conhecida do parser do Textual entre `\\[` e `\\]`
+    (ver `result_table.py`), um escape ingenuo devolveria o texto alterado
+    (barra sobrando). A prova aqui e ida e volta: o que entra tem que sair
+    identico em `.plain`, colchete por colchete — nao so "nao explodiu".
+    """
+    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+
+    entrada = "Proposta [PROD] com [/] e ] solto"
+    c = item_hierarquico(entrada, entrada, entrada)
+    for linha in str(c).split("\n"):
+        assert entrada in linha
 
 
 @pytest.mark.asyncio
