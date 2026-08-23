@@ -145,3 +145,138 @@ def test_o_guarda_ve_outline_como_caixa():
     assert caixa is not None and caixa.group("lado") is None
     regua = BORDA.search("    #qualquer-tela { outline-bottom: solid $borda; }")
     assert regua is not None and regua.group("lado") == "-bottom"
+
+
+# ======================================================================
+# Guarda 2: cluster de acao centralizado fora de dialogo
+# ======================================================================
+
+# So alinhamento de LAYOUT — as quatro propriedades que reposicionam o
+# conteudo dentro do container. `text-align` fica de fora de proposito:
+# ela centraliza o texto DENTRO da caixa do proprio widget e nao desgruda
+# cluster nenhum do assunto que ele opera, que e o dano que a secao 7
+# descreve.
+CENTRO = re.compile(
+    r"(?<![\w-])(?:content-)?align(?:-horizontal)?\s*:\s*"
+    r"(?P<valor>[^;{}\n]*?)\s*[;}]"
+)
+CLASSE = re.compile(r"^class\s+(?P<nome>\w+)\s*(?:\((?P<bases>[^)]*)\))?\s*:")
+
+# Isencoes por (arquivo, seletor), com o motivo escrito — mesmo formato do
+# guarda de borda. Nenhuma delas e um cluster de acao: sao conteudos que
+# OCUPAM a area inteira e nao tem assunto ao lado para se ancorar.
+CENTRO_ISENTOS = {
+    # O estado vazio E a area em que vive: nao ha lista, tabela ou
+    # formulario ao lado de quem ele pudesse se desgrudar. Alinhar a
+    # esquerda deixaria o texto encostado numa borda com a area toda
+    # vazia a direita. As acoes DENTRO dele nao estao isentas — a isencao
+    # e por seletor, entao um `.empty-acoes { align: center }` novo
+    # continua sendo reprovado.
+    ("dbqm/ui/widgets/empty_state.py", "EmptyState"),
+    ("dbqm/ui/widgets/empty_state.py", "EmptyState .empty-o-que"),
+    ("dbqm/ui/widgets/empty_state.py", "EmptyState .empty-porque"),
+    # O indicador de progresso cobre a tela enquanto uma chamada remota
+    # acontece; mesma razao do estado vazio.
+    ("dbqm/ui/widgets/progress.py", "ProgressIndicator Static"),
+    # `#pe-empty` e o estado vazio/carregando do editor de packages, com
+    # `height: 1fr` e nenhum botao dentro: enquanto ele aparece, os dois
+    # paineis do editor estao com `display: none` e ELE e a tela — o caso
+    # que a propria secao 7 excetua. Alinha-lo a esquerda criaria um
+    # segundo vocabulario de estado vazio, contra o `EmptyState` acima.
+    ("dbqm/ui/screens/package_editor.py", "PackageEditorScreen #pe-empty"),
+}
+
+# Limites conhecidos, escolhidos:
+#   - a varredura e LINHA A LINHA: `align:` numa linha e `center;` na
+#     seguinte e CSS valido e escapa, como no guarda de borda acima;
+#   - so a DECLARACAO e vista. Um cluster centralizado por padding, por
+#     espacador `1fr` ou por `widget.styles.align` escrito em Python nao
+#     aparece aqui;
+#   - dialogo e reconhecido pela linha `class`: nome ou base contendo
+#     `Modal`/`Dialog`. Isto foi CONFERIDO contra as bases reais neste
+#     repositorio — toda subclasse de `ModalScreen` e pega, e o unico
+#     nome pego que nao e `ModalScreen` e o proprio `Dialog`, que e a
+#     moldura do dialogo. Uma tela de trabalho batizada com "Modal" no
+#     nome seria isentada por engano;
+#   - o guarda nao olha se o bloco contem BOTAO. Ele reprova qualquer
+#     centralizacao de layout fora de dialogo, e as excecoes legitimas
+#     entram em `CENTRO_ISENTOS` com o motivo escrito. E de proposito: a
+#     redacao anterior casava por NOME de seletor (`#botoes`, `.acoes`) e
+#     um cluster chamado `#adhoc-btn-bar` — real, medido — escapava.
+
+
+def clusters_centralizados() -> list[tuple[str, int, str, str]]:
+    """Toda centralizacao de layout fora de um dialogo.
+
+    Devolve `(arquivo, linha, seletor, declaracao)`.
+    """
+    achados: list[tuple[str, int, str, str]] = []
+    for arquivo in sorted(RAIZ_UI.rglob("*.py")):
+        rel = _rel(arquivo)
+        dialogo = False
+        seletor = ""
+        for numero, linha in enumerate(
+            arquivo.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            classe = CLASSE.match(linha)
+            if classe:
+                nome = classe.group("nome")
+                bases = classe.group("bases") or ""
+                dialogo = any(
+                    marca in texto
+                    for texto in (nome, bases)
+                    for marca in ("Modal", "Dialog")
+                )
+                seletor = ""
+                continue
+            abre = ABRE_REGRA.match(linha)
+            if abre:
+                seletor = abre.group("seletor")
+            if dialogo:
+                continue
+            for m in CENTRO.finditer(linha):
+                if "center" not in m.group("valor"):
+                    continue
+                if (rel, seletor) in CENTRO_ISENTOS:
+                    continue
+                achados.append((rel, numero, seletor, m.group(0)))
+    return achados
+
+
+def test_sem_cluster_de_botao_centralizado_fora_de_dialogo():
+    """Centralizar so faz sentido quando o cluster E a tela — um dialogo.
+
+    Numa tela de trabalho, centralizar desconecta a acao daquilo que ela
+    opera: a acao tem de encostar no painel que e o seu assunto.
+    """
+    fora = clusters_centralizados()
+    assert not fora, "centralizacao em tela de trabalho:\n" + "\n".join(
+        f"  {rel}:{n}  [{sel}]  {decl}" for rel, n, sel, decl in fora
+    )
+
+
+def test_a_varredura_de_centralizacao_ve_os_dialogos():
+    """Um guarda que isenta tudo (ou nada) nao vigia nada.
+
+    Ancorado em numeros medidos: se a deteccao de dialogo parar de
+    funcionar, as dezenas de centralizacoes LEGITIMAS dos modais entram no
+    resultado e o teste acima passa a reprovar o produto inteiro.
+    """
+    total = 0
+    for arquivo in RAIZ_UI.rglob("*.py"):
+        for linha in arquivo.read_text(encoding="utf-8").splitlines():
+            for m in CENTRO.finditer(linha):
+                if "center" in m.group("valor"):
+                    total += 1
+    assert total > 40, f"varredura rasa demais: {total} centralizacoes"
+    assert len(clusters_centralizados()) < total / 2, (
+        "a deteccao de dialogo parou de isentar os modais"
+    )
+    # A forma de linha `class` que a varredura precisa ler: nome e bases
+    # com generico entre colchetes, como todo modal deste repositorio
+    # declara. Se a regex parar de casar com ela, `dialogo` fica preso no
+    # valor da classe ANTERIOR do arquivo e a isencao vira sorte.
+    casada = CLASSE.match("class ConfirmModal(ModalScreen[bool]):")
+    assert casada is not None
+    assert casada.group("nome") == "ConfirmModal"
+    assert casada.group("bases") == "ModalScreen[bool]"

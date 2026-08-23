@@ -6,8 +6,9 @@ from pathlib import Path
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Button, Checkbox, Input, Static
+from textual.widgets import Button, Checkbox, Input, OptionList, Static
 
+from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -18,7 +19,26 @@ class ConfigPortScreen(Vertical):
     Import flow: enter file path, enter password, import.
 
     Pass initial_mode="export" or "import" to skip mode selection.
+
+    A saida desta tela e o `Esc`, tratado por quem a hospeda
+    (`SettingsScreen.voltar_ao_inicio`, alcancado por
+    `DBQMApp.action_go_back`) e anunciado por
+    `SettingsScreen._set_actions`. Houve aqui um botao "Voltar" que
+    montava uma `SettingsScreen` nova dentro de `#screen-area`, container
+    removido em e02b8a8 (v1.17.0): por seis semanas ele so notificava
+    "Erro: No nodes match '#screen-area'". A Task 7 ressuscitou a rota e a
+    Task 8 tirou o botao — voltar e navegacao, e a secao 7 da gramatica
+    proibe botao que navega. Sair do formulario de exportacao leva de
+    volta as Configuracoes, nao a escolha de modo; reentrar pela lista
+    reabre na escolha de modo (`ao_reabrir`).
     """
+
+    #: (chave, identidade, desambiguacao) das duas fases fundas. A chave
+    #: viaja como DADO na opcao (`OpcaoNomeada.nome`), nunca como `id`.
+    MODOS = (
+        ("export", "Exportar", "gera um .dbqm protegido por senha"),
+        ("import", "Importar", "le um .dbqm gerado por outro dbqm"),
+    )
 
     DEFAULT_CSS = """
     ConfigPortScreen {
@@ -36,13 +56,11 @@ class ConfigPortScreen(Vertical):
     ConfigPortScreen Panel {
         height: auto;
     }
-    ConfigPortScreen .cp-mode-buttons {
+    /* `auto`: a lista mede as duas entradas e para. Com `1fr` ela
+       esticaria ate o fim do painel e a moldura viraria uma caixa quase
+       vazia com o conteudo encostado no topo. */
+    ConfigPortScreen #cp-mode-list {
         height: auto;
-        margin-top: 1;
-    }
-    ConfigPortScreen .cp-mode-buttons Button {
-        margin-right: 1;
-        min-width: 20;
     }
 
     /* -- Export phase -- */
@@ -80,6 +98,9 @@ class ConfigPortScreen(Vertical):
     }
 
     /* -- Actions -- */
+    /* Ancoradas a esquerda, encostadas no formulario que executam
+       (secao 7 da gramatica). Sobrou UM botao por fase: o "Voltar" que
+       dividia a barra com ele era navegacao, e navegacao nao e botao. */
     ConfigPortScreen .cp-actions {
         height: auto;
         margin-top: 1;
@@ -95,10 +116,12 @@ class ConfigPortScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Phase 1: mode selection
+        # Lista, e nao dois botoes: escolher entre exportar e importar e
+        # NAVEGACAO — leva a um formulario, nao executa nada. Dois botoes
+        # lado a lado eram um menu disfarcado, a mesma forma que o menu de
+        # Ferramentas tinha (secao 7 da gramatica).
         with Panel("🔄  EXPORTAR OU IMPORTAR", id="cp-mode-phase"):
-            with Horizontal(classes="cp-mode-buttons"):
-                yield Button("Exportar", id="cp-btn-export", variant="primary")
-                yield Button("Importar", id="cp-btn-import", variant="default")
+            yield OptionList(id="cp-mode-list")
 
         # Phase 2: export form
         with Panel("⬆️  EXPORTAR CONFIGURACOES", id="cp-export-phase"):
@@ -114,7 +137,6 @@ class ConfigPortScreen(Vertical):
                 yield Input(placeholder="Confirme a senha", password=True, id="cp-export-password-confirm")
             with Horizontal(classes="cp-actions"):
                 yield Button("Exportar", id="cp-do-export", variant="primary")
-                yield Button("Voltar", id="cp-export-back", variant="default")
 
         # Phase 3: import form
         with Panel("⬇️  IMPORTAR CONFIGURACOES", id="cp-import-phase"):
@@ -126,9 +148,14 @@ class ConfigPortScreen(Vertical):
                 yield Input(placeholder="Senha usada na exportacao", password=True, id="cp-import-password")
             with Horizontal(classes="cp-actions"):
                 yield Button("Importar", id="cp-do-import", variant="primary")
-                yield Button("Voltar", id="cp-import-back", variant="default")
 
     def on_mount(self) -> None:
+        lista = self.query_one("#cp-mode-list", OptionList)
+        lista.clear_options()
+        for chave, identidade, desambiguacao in self.MODOS:
+            lista.add_option(
+                OpcaoNomeada(item_hierarquico(identidade, desambiguacao), chave)
+            )
         if self._initial_mode == "export":
             self._show_export_phase()
         elif self._initial_mode == "import":
@@ -161,7 +188,7 @@ class ConfigPortScreen(Vertical):
             elif self._initial_mode == "import":
                 self.query_one("#cp-import-path", Input).focus()
             else:
-                self.query_one("#cp-btn-export", Button).focus()
+                self.query_one("#cp-mode-list", OptionList).focus()
         except Exception:
             pass
 
@@ -184,45 +211,25 @@ class ConfigPortScreen(Vertical):
         self.query_one("#cp-export-phase").display = False
         self.query_one("#cp-import-phase").display = True
 
-    def _go_back_to_settings(self) -> None:
-        """Devolve o controle a tela de Configuracoes que hospeda esta.
-
-        Antes daqui este metodo montava uma `SettingsScreen` nova dentro de
-        `#screen-area` — um container removido em e02b8a8 (v1.17.0), quando
-        o app virou uma shell de abas unica. Ninguem migrou a chamada, o
-        `except` engolia o `NoMatches` e o "Voltar" so notificava
-        "Erro: No nodes match '#screen-area'".
-
-        Agora a tela nao se remonta: ela e HOSPEDADA, e so pede ao
-        hospedeiro que volte a mostrar os paineis. Procurar o hospedeiro
-        entre os ancestrais (em vez de consultar o app por id) e o que faz
-        isto continuar valendo se um dia esta tela for hospedada noutro
-        lugar.
-        """
-        from dbqm.ui.screens.settings import SettingsScreen
-
-        for ancestral in self.ancestors:
-            if isinstance(ancestral, SettingsScreen):
-                ancestral.voltar_ao_inicio()
-                return
-        self.notify("Nao ha para onde voltar daqui.", severity="warning")
-
     # ------------------------------------------------------------------
-    # Button handlers
+    # Handlers
     # ------------------------------------------------------------------
+
+    def on_option_list_option_selected(
+        self, event: OptionList.OptionSelected
+    ) -> None:
+        if event.option_list.id != "cp-mode-list":
+            return
+        event.stop()
+        chave = getattr(event.option, "nome", "")
+        if chave == "export":
+            self._show_export_phase()
+        elif chave == "import":
+            self._show_import_phase()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
-        if btn_id == "cp-btn-export":
-            self._show_export_phase()
-        elif btn_id == "cp-btn-import":
-            self._show_import_phase()
-        elif btn_id in ("cp-export-back", "cp-import-back"):
-            if self._initial_mode:
-                self._go_back_to_settings()
-            else:
-                self._show_mode_phase()
-        elif btn_id == "cp-do-export":
+        if btn_id == "cp-do-export":
             self._handle_export()
         elif btn_id == "cp-do-import":
             self._handle_import()

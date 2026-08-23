@@ -2964,26 +2964,52 @@ async def test_config_port_screen_shows_mode_phase(tmp_config_dir):
         assert import_phase.display is False
 
 
+async def _escolher_modo(pilot, screen, chave):
+    """Escolhe Exportar/Importar pelo caminho real: destacar + Enter."""
+    from textual.widgets import OptionList
+
+    lista = screen.query_one("#cp-mode-list", OptionList)
+    lista.focus()
+    await pilot.pause()
+    lista.highlighted = next(
+        i
+        for i in range(lista.option_count)
+        if lista.get_option_at_index(i).nome == chave
+    )
+    await pilot.press("enter")
+    await pilot.pause()
+
+
 @pytest.mark.asyncio
-async def test_config_port_screen_has_export_button(tmp_config_dir):
-    """ConfigPortScreen should have export and import buttons."""
-    from textual.widgets import Button
+async def test_config_port_escolha_de_modo_e_lista(tmp_config_dir):
+    """Exportar e Importar sao DESTINOS, e destino nao se escolhe por botao.
+
+    Os dois botoes lado a lado eram um menu disfarcado — a mesma forma que
+    a tela de Ferramentas tinha. O que sobra de botao nesta tela sao as
+    duas acoes de verdade (`cp-do-export`, `cp-do-import`), cada uma
+    ancorada no formulario que ela executa.
+    """
+    from textual.widgets import Button, OptionList
+    from tests.ui._helpers import nomes_renderizados
+
     app = ConfigPortTestApp()
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
-        export_btn = screen.query_one("#cp-btn-export", Button)
-        import_btn = screen.query_one("#cp-btn-import", Button)
-        assert export_btn is not None
-        assert import_btn is not None
+        fase = screen.query_one("#cp-mode-phase")
+        assert nomes_renderizados(fase.query_one(OptionList)) == [
+            "Exportar",
+            "Importar",
+        ]
+        assert not fase.query(Button), "botao e acao, nunca navegacao"
 
 
 @pytest.mark.asyncio
 async def test_config_port_export_phase_toggle(tmp_config_dir):
-    """Clicking export button should show export phase."""
+    """Escolher Exportar na lista mostra a fase de exportacao."""
     app = ConfigPortTestApp()
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
-        await pilot.click("#cp-btn-export")
+        await _escolher_modo(pilot, screen, "export")
         assert screen.query_one("#cp-mode-phase").display is False
         assert screen.query_one("#cp-export-phase").display is True
         assert screen.query_one("#cp-import-phase").display is False
@@ -2991,30 +3017,26 @@ async def test_config_port_export_phase_toggle(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_config_port_import_phase_toggle(tmp_config_dir):
-    """Clicking import button should show import phase."""
+    """Escolher Importar na lista mostra a fase de importacao."""
     app = ConfigPortTestApp()
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
-        await pilot.click("#cp-btn-import")
+        await _escolher_modo(pilot, screen, "import")
         assert screen.query_one("#cp-mode-phase").display is False
         assert screen.query_one("#cp-export-phase").display is False
         assert screen.query_one("#cp-import-phase").display is True
 
 
 @pytest.mark.asyncio
-async def test_config_port_export_back_button(tmp_config_dir):
-    """Clicking back in export phase should return to mode selection."""
+async def test_config_port_so_tem_botao_de_acao(tmp_config_dir):
+    """Nenhum botao desta tela navega — os dois que restam EXECUTAM."""
     from textual.widgets import Button
+
     app = ConfigPortTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
         screen = app.query_one(ConfigPortScreen)
-        await pilot.click("#cp-btn-export")
-        assert screen.query_one("#cp-export-phase").display is True
-        # Use press on the button directly since it may be off-screen
-        screen.query_one("#cp-export-back", Button).press()
-        await pilot.pause()
-        assert screen.query_one("#cp-mode-phase").display is True
-        assert screen.query_one("#cp-export-phase").display is False
+        ids = sorted(b.id for b in screen.query(Button))
+        assert ids == ["cp-do-export", "cp-do-import"], ids
 
 
 # ======================================================================
@@ -4699,6 +4721,7 @@ async def test_action_go_back_at_top_level_is_noop(tmp_config_dir):
 # FerramentasScreen tests
 # ======================================================================
 
+
 from dbqm.ui.screens.ferramentas import FerramentasScreen
 
 
@@ -4707,21 +4730,59 @@ class FerramentasTestApp(ThemedTestApp):
         yield FerramentasScreen()
 
 
+async def _escolher_ferramenta(pilot, screen, chave):
+    """Abre uma ferramenta pelo caminho real: destacar na lista + Enter."""
+    from textual.widgets import OptionList
+
+    lista = screen.query_one("#ferr-menu-list", OptionList)
+    lista.focus()
+    await pilot.pause()
+    lista.highlighted = next(
+        i
+        for i in range(lista.option_count)
+        if lista.get_option_at_index(i).nome == chave
+    )
+    await pilot.press("enter")
+    await pilot.pause()
+
+
 @pytest.mark.asyncio
-async def test_ferramentas_screen_renders_menu(tmp_config_dir):
-    """FerramentasScreen shows a menu with five launcher buttons, starting
-    on the menu view."""
-    from textual.widgets import Button, ContentSwitcher
+async def test_ferramentas_e_lista_e_nao_botoes_de_largura_total(tmp_config_dir):
+    """Cinco botoes de largura total sao cinco botoes fingindo ser um menu.
+
+    A afirmacao e sobre o MENU, nao sobre a tela inteira: as cinco
+    ferramentas hospedadas tem botoes de acao legitimos (Novo, Salvar,
+    Excluir...), e um `not app.query(Button)` global so passaria por
+    acidente — elas sao montadas sob demanda, entao na montagem ainda nao
+    existe nenhum. Uma afirmacao que depende de o alvo nao ter sido
+    construido ainda nao vigia coisa alguma.
+    """
+    from textual.widgets import Button, OptionList
+    from tests.ui._helpers import nomes_renderizados
+
+    app = FerramentasTestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        screen = app.query_one(FerramentasScreen)
+        menu = screen.query_one("#ferr-menu")
+        lista = menu.query_one(OptionList)
+        assert nomes_renderizados(lista) == [
+            "\U0001F465  Gerenciar Grupos",
+            "\U0001F4C4  Gerenciar Templates",
+            "\U0001F4E6  Package Editor",
+            "\u25b6  Executar Rotina",
+            "\u25b6  Executar Grupo",
+        ]
+        assert not menu.query(Button), "botao e acao, nunca navegacao"
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_screen_starts_on_the_menu(tmp_config_dir):
+    """FerramentasScreen abre no menu, nao numa ferramenta."""
+    from textual.widgets import ContentSwitcher
     app = FerramentasTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(FerramentasScreen)
-        assert screen.query_one("#ferr-open-grupos", Button) is not None
-        assert screen.query_one("#ferr-open-templates", Button) is not None
-        assert screen.query_one("#ferr-open-packages", Button) is not None
-        assert screen.query_one("#ferr-open-rotina", Button) is not None
-        assert screen.query_one("#ferr-open-executar", Button) is not None
-        switcher = screen.query_one(ContentSwitcher)
-        assert switcher.current == "ferr-menu"
+        assert screen.query_one(ContentSwitcher).current == "ferr-menu"
 
 
 @pytest.mark.asyncio
@@ -4739,25 +4800,16 @@ async def test_ferramentas_screen_does_not_load_tools_on_mount(tmp_config_dir):
         assert len(app.screen_stack) == 1
 
         screen = app.query_one(FerramentasScreen)
-        packages_container = screen.query_one("#ferr-packages")
-        assert len(list(packages_container.children)) == 1  # only the Voltar button
-
-        executar_container = screen.query_one("#ferr-executar")
-        assert len(list(executar_container.children)) == 1  # only the Voltar button
+        # Vazios: o "Voltar" que morava aqui era navegacao feita por botao.
+        assert not list(screen.query_one("#ferr-packages").children)
+        assert not list(screen.query_one("#ferr-executar").children)
 
 
 @pytest.mark.asyncio
 async def test_ferramentas_screen_open_and_back(tmp_config_dir):
-    """Pressing a launcher button lazily builds and mounts that tool into
-    its container, switches to it; Voltar returns to the menu.
-
-    Uses Button.press() rather than pilot.click(): once Package Editor is
-    opened, PackageEditorScreen's on_mount() pushes a modal screen
-    (_PackageChoiceModal), which becomes the app's active screen and
-    breaks coordinate-based pilot.click() lookups (they resolve against
-    the topmost screen). Button.press() posts the Pressed message directly
-    and is unaffected."""
-    from textual.widgets import Button, ContentSwitcher
+    """Escolher na lista constroi e mostra a ferramenta; `voltar_ao_menu`
+    devolve ao menu, e reabrir nao constroi uma segunda instancia."""
+    from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.package_editor import PackageEditorScreen
 
     app = FerramentasTestApp()
@@ -4765,28 +4817,24 @@ async def test_ferramentas_screen_open_and_back(tmp_config_dir):
         screen = app.query_one(FerramentasScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        screen.query_one("#ferr-open-packages", Button).press()
-        await pilot.pause()
+        await _escolher_ferramenta(pilot, screen, "packages")
         assert switcher.current == "ferr-packages"
 
         packages_container = screen.query_one("#ferr-packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
 
-        screen.query_one("#ferr-back-packages", Button).press()
+        screen.voltar_ao_menu()
         await pilot.pause()
         assert switcher.current == "ferr-menu"
 
-        # Re-opening must not build a second instance of the tool screen.
-        screen.query_one("#ferr-open-packages", Button).press()
-        await pilot.pause()
+        await _escolher_ferramenta(pilot, screen, "packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
 
 
 @pytest.mark.asyncio
 async def test_ferramentas_screen_open_executar_grupo(tmp_config_dir):
-    """Pressing 'Executar Grupo' lazily mounts a GroupRunScreen into the
-    #ferr-executar container and switches to it."""
-    from textual.widgets import Button, ContentSwitcher
+    """Escolher 'Executar Grupo' monta um GroupRunScreen em #ferr-executar."""
+    from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.group_run import GroupRunScreen
 
     app = FerramentasTestApp()
@@ -4794,20 +4842,17 @@ async def test_ferramentas_screen_open_executar_grupo(tmp_config_dir):
         screen = app.query_one(FerramentasScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        screen.query_one("#ferr-open-executar", Button).press()
-        await pilot.pause()
+        await _escolher_ferramenta(pilot, screen, "executar")
         assert switcher.current == "ferr-executar"
 
         executar_container = screen.query_one("#ferr-executar")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
-        screen.query_one("#ferr-back-executar", Button).press()
+        screen.voltar_ao_menu()
         await pilot.pause()
         assert switcher.current == "ferr-menu"
 
-        # Re-opening must not build a second instance of the tool screen.
-        screen.query_one("#ferr-open-executar", Button).press()
-        await pilot.pause()
+        await _escolher_ferramenta(pilot, screen, "executar")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
 
@@ -4827,8 +4872,7 @@ async def test_ferramentas_group_run_empty_state_action_opens_group_management(
         screen = app.query_one(FerramentasScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        screen.query_one("#ferr-open-executar", Button).press()
-        await pilot.pause()
+        await _escolher_ferramenta(pilot, screen, "executar")
         assert switcher.current == "ferr-executar"
 
         run_screen = screen.query_one(GroupRunScreen)

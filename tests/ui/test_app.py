@@ -258,8 +258,16 @@ async def test_escape_volta_da_ferramenta_para_as_configuracoes(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_voltar_do_config_port_devolve_as_configuracoes(tmp_config_dir):
-    """O "Voltar" do proprio config_port (config_port.py:177) tambem estava morto."""
-    from textual.widgets import Button
+    """A saida do config_port funciona — e agora e o `Esc`, nao um botao.
+
+    Historico que este teste guarda: o "Voltar" que vivia em
+    `config_port.py:177` montava uma `SettingsScreen` nova dentro de
+    `#screen-area`, um container removido na v1.17.0, e por seis semanas
+    so notificava "Erro: No nodes match". A Task 7 ressuscitou a rota; a
+    Task 8 tirou o BOTAO, porque voltar e navegacao e a secao 7 da
+    gramatica proibe botao que navega. O que se afirma aqui e a rota, que
+    e o que estava morto — nao o widget que a acionava.
+    """
     from dbqm.ui.screens.config_port import ConfigPortScreen
     from tests.ui._helpers import texto_renderizado
 
@@ -268,15 +276,11 @@ async def test_voltar_do_config_port_devolve_as_configuracoes(tmp_config_dir):
         await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
         tela = app.query_one(ConfigPortScreen)
 
-        # A fase de escolha de modo e a inicial quando se entra pela lista.
-        tela.query_one("#cp-btn-export", Button).press()
+        # Entrar numa fase FUNDA: e de la que a volta precisa funcionar.
+        tela._show_export_phase()
         await pilot.pause()
-        tela.query_one("#cp-export-back", Button).press()
-        await pilot.pause()
-        # Primeiro Voltar: volta uma FASE, dentro da propria tela.
-        assert tela.query_one("#cp-mode-phase").display is True
+        assert tela.query_one("#cp-export-phase").display is True
 
-        # O segundo sai da tela e devolve as Configuracoes.
         app.action_go_back()
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
@@ -405,7 +409,6 @@ async def test_reabrir_exportar_importar_volta_a_escolha_de_modo(tmp_config_dir)
     reencontrava o formulario de exportacao, embora a entrada que acabou de
     escolher se chame "Exportar / Importar".
     """
-    from textual.widgets import Button
     from dbqm.ui.screens.config_port import ConfigPortScreen
     from tests.ui._helpers import texto_renderizado
 
@@ -413,7 +416,7 @@ async def test_reabrir_exportar_importar_volta_a_escolha_de_modo(tmp_config_dir)
     async with app.run_test(size=(120, 40)) as pilot:
         await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
         tela = app.query_one(ConfigPortScreen)
-        tela.query_one("#cp-btn-export", Button).press()
+        tela._show_export_phase()
         await pilot.pause()
         assert "EXPORTAR CONFIGURACOES" in texto_renderizado(app).upper()
 
@@ -540,4 +543,151 @@ async def test_escolher_um_client_atualiza_o_status_ao_voltar(
         )
         assert "instantclient_23_x64" not in depois, (
             "o `Client em uso` ainda mostra o client anterior: %r" % depois[:600]
+        )
+
+
+# ======================================================================
+# Ferramentas — menu e lista, e a volta e tecla (gramatica, secao 7)
+# ======================================================================
+
+
+async def _abrir_ferramenta(pilot, app, chave):
+    """Percorre o caminho real: aba Ferramentas -> lista -> Enter."""
+    from textual.widgets import OptionList
+
+    await pilot.press("f8")
+    await pilot.pause()
+    lista = app.query_one("#ferr-menu-list", OptionList)
+    lista.focus()
+    await pilot.pause()
+    alvo = next(
+        i
+        for i in range(lista.option_count)
+        if lista.get_option_at_index(i).nome == chave
+    )
+    lista.highlighted = alvo
+    await pilot.press("enter")
+    await pilot.pause()
+    await pilot.wait_for_scheduled_animations()
+    await pilot.pause()
+    return lista
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_mostra_as_cinco_a_80x24(tmp_config_dir):
+    """As cinco ferramentas cabem na tela — antes, duas ficavam abaixo da dobra.
+
+    Medido na DBQMApp real a 80x24: cinco botoes de largura total custam
+    4 linhas cada (3 de botao + 1 de margem) = 20 linhas num corpo de 14,
+    e `Executar Rotina` e `Executar Grupo` so apareciam depois de rolar.
+    Um menu cujas ultimas entradas nao aparecem nao e um menu.
+
+    Contra a DBQMApp e nao contra um harness de uma tela so: montada
+    sozinha, `FerramentasScreen` recebe as 24 linhas inteiras; no produto
+    ela tem 20, e era nessa diferenca que o defeito morava.
+    """
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("f8")
+        await pilot.pause()
+        pintado = texto_renderizado(app)
+        for nome in (
+            "Gerenciar Grupos",
+            "Gerenciar Templates",
+            "Package Editor",
+            "Executar Rotina",
+            "Executar Grupo",
+        ):
+            assert nome in pintado, (
+                "%r nao aparece a 80x24: %r" % (nome, pintado[:800])
+            )
+
+
+@pytest.mark.asyncio
+async def test_ferramentas_anuncia_o_esc_e_o_esc_volta(tmp_config_dir):
+    """A saida de uma ferramenta e o `Esc`, e a barra de acoes o DESENHA.
+
+    Afirma o PINTADO, nao `ActionBar._actions`: a barra existia em toda
+    tela e nao renderizava em nenhuma, porque a StatusBar cobria a linha
+    de texto dela — e nenhum teste viu, porque todos afirmavam o atributo.
+    """
+    from dbqm.ui.screens.template_manage import TemplateManageScreen
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _abrir_ferramenta(pilot, app, "templates")
+        assert app.query(TemplateManageScreen), "a ferramenta nao foi montada"
+
+        pintado = texto_renderizado(app)
+        assert "Voltar" in pintado, (
+            "a unica saida da ferramenta nao esta escrita em lugar nenhum: %r"
+            % pintado[-400:]
+        )
+
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        pintado = texto_renderizado(app)
+        assert "FERRAMENTAS" in pintado.upper(), (
+            "o Esc nao voltou para o menu: %r" % pintado[:600]
+        )
+        assert "Package Editor" in pintado
+
+
+@pytest.mark.asyncio
+async def test_o_voltar_das_ferramentas_nao_vaza_para_outra_aba(tmp_config_dir):
+    """A acao fixa pertence a aba que a pos.
+
+    `Esc Voltar` e uma promessa: apertar Esc devolve ao menu de
+    Ferramentas. Em Conexoes ela nao volta para lugar nenhum, e uma barra
+    que promete uma saida inexistente e pior que uma barra vazia. Reprova
+    se `DBQMApp.on_tabbed_content_tab_activated` deixar de limpar a acao
+    fixa ao trocar de aba.
+    """
+    from dbqm.ui.widgets.action_bar import ActionBar
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _abrir_ferramenta(pilot, app, "templates")
+        assert "Voltar" in texto_renderizado(app), (
+            "o teste nao partiu do estado que descreve"
+        )
+
+        await pilot.press("f2")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        barra = app.query_one(ActionBar)
+        assert barra._acao_fixa is None
+        pintado = texto_renderizado(app)
+        assert "Voltar" not in pintado, (
+            "o Esc Voltar das Ferramentas sobrou em Conexoes: %r"
+            % pintado[-300:]
+        )
+        assert "Nova" in pintado, (
+            "a aba nova nem pintou suas proprias acoes: %r" % pintado[-300:]
+        )
+
+        # E voltar traz as DUAS de volta: as da ferramenta (que
+        # `_reperguntar_a_ferramenta` reconstroi) e a saida.
+        await pilot.press("f8")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+        pintado = texto_renderizado(app)
+        assert "Voltar" in pintado, (
+            "a saida sumiu ao reentrar na aba: %r" % pintado[-300:]
+        )
+        assert "Renomear" in pintado, (
+            "as acoes da ferramenta nao voltaram: %r" % pintado[-300:]
+        )
+        assert "Nova" not in pintado, (
+            "sobrou acao da aba Conexoes: %r" % pintado[-300:]
         )

@@ -181,10 +181,25 @@ class ConnectionsScreen(Vertical):
         margin-top: 1;
         height: auto;
         width: 100%;
-        align: center middle;
+        /* Ancorado a esquerda, na coluna dos campos do formulario que
+           estes botoes operam (secao 7 da gramatica). */
     }
     ConnectionsScreen #conn-form-buttons Button {
-        margin: 0 1;
+        margin: 0 1 0 0;
+    }
+    /* Acao destrutiva SEPARADA das demais (secao 7): quatro colunas de
+       respiro em vez de uma, para que Excluir nao fique encostado em
+       Salvar. Afastamento horizontal e nao uma fila propria de proposito
+       — uma segunda fila custaria tres linhas do formulario, que a 80x24
+       ja transborda.
+
+       DOIS ids no seletor, e nao um: a regra acima
+       (`#conn-form-buttons Button`) vale 1 id + 1 tipo e o `margin`
+       curto dela zera o `margin-left`. Com um id so esta regra PERDIA e
+       virava CSS morto — visto no renderizado a 120 colunas, onde o
+       espaco antes de Excluir continuava sendo de uma coluna. */
+    ConnectionsScreen #conn-form-buttons #conn-btn-delete {
+        margin-left: 4;
     }
     """.replace("__LARGURA_PAINEL_LISTA__", str(_LARGURA_PAINEL_LISTA))
 

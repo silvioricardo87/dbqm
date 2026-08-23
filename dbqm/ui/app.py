@@ -275,6 +275,16 @@ class DBQMApp(App):
         are restored when switching back. Everything else clears the bar.
         This is best-effort and never hard-codes phase ids.
         """
+        # A acao fixa pertence a aba que a pos (ver
+        # `ActionBar.set_acao_fixa`): limpar aqui, ANTES de perguntar a
+        # tela nova, e o que impede o `Esc Voltar` das Ferramentas de
+        # aparecer em Conexoes, onde nao volta para lugar nenhum. A tela
+        # que ainda precisar dele torna a poe-lo no proprio `_set_actions`.
+        try:
+            self.query_one(ActionBar).set_acao_fixa(None)
+        except Exception:
+            pass
+
         screen = self._active_screen()
         if screen is None:
             try:
@@ -462,7 +472,7 @@ class DBQMApp(App):
         except Exception:
             return
 
-        for action in action_bar._actions:
+        for action in action_bar.acoes_visiveis():
             if action.key and action.key.lower() == key.lower():
                 # Post to the active tab's screen so it receives the message.
                 screen = self._active_screen()
@@ -550,6 +560,12 @@ class DBQMApp(App):
                 # E botao de voltar seria botao fazendo navegacao, que a
                 # secao 7 da gramatica proibe.
                 screen.voltar_ao_inicio()
+            elif screen_id == "ferramentas-screen":
+                # Mesma razao: os cinco "Voltar" que viviam dentro dos
+                # paineis de ferramenta eram navegacao feita por botao e
+                # sairam na Task 8. `FerramentasScreen._set_actions`
+                # desenha o `Esc` na barra enquanto uma delas esta aberta.
+                screen.voltar_ao_menu()
         except Exception:
             pass
 

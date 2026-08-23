@@ -88,10 +88,18 @@ class AdhocScreen(Vertical):
     AdhocScreen #adhoc-btn-bar {
         height: auto;
         padding: 1 0 0 0;
-        align: center middle;
+        /* Encostado a esquerda, na coluna do TextArea que estes botoes
+           operam (secao 7 da gramatica). Medido a 80x24 na DBQMApp real:
+           a barra comeca em x=34 e `Executar` comecava em x=35 —
+           centralizar gastava uma coluna de recuo numa barra que ja nao
+           cabia. O transbordo em si e anterior a esta fase e continua:
+           os quatro botoes somam 81 colunas contra as 44 da barra, e
+           `Gerar SQL` so aparece inteiro a partir de 100 colunas de
+           terminal, `Salvar como consulta` a partir de 120. */
     }
     AdhocScreen #adhoc-btn-bar Button {
-        margin: 0 1;
+        /* Margem so a direita: a esquerda e o alinhamento com o editor. */
+        margin: 0 1 0 0;
     }
     AdhocScreen #adhoc-results-panel {
         height: 2fr;
@@ -114,8 +122,10 @@ class AdhocScreen(Vertical):
     AdhocScreen #adhoc-dml-result {
         height: auto;
         padding: 1 2;
-        content-align: center middle;
-        text-align: center;
+        /* Alinhado a esquerda como os dois irmaos com quem divide o
+           `#res-output` (o `SqlViewer` e o painel de DBMS_OUTPUT).
+           Centralizar so este era a improvisacao por tela que a
+           gramatica existe para remover: a mesma area, tres alinhamentos. */
     }
     AdhocScreen #adhoc-dbms-panel {
         height: 1fr;

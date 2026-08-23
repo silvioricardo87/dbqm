@@ -92,11 +92,12 @@ class BrowserScreen(Vertical):
     }
     BrowserScreen #obj-preview-buttons {
         height: auto;
-        align: center middle;
         margin-top: 1;
+        /* Ancorado a esquerda, sob o codigo-fonte do objeto que estes
+           dois botoes operam (secao 7 da gramatica). */
     }
     BrowserScreen #obj-preview-buttons Button {
-        margin: 0 1;
+        margin: 0 1 0 0;
     }
     """
 

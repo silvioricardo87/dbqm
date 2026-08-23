@@ -50,21 +50,51 @@ class ActionBar(Static):
     def __init__(self) -> None:
         super().__init__("")
         self._actions: list[Action] = []
+        self._acao_fixa: Action | None = None
 
     def set_actions(self, actions: list[Action]) -> None:
         """Set the list of available actions."""
         self._actions = list(actions)
         self._rebuild()
 
+    def set_acao_fixa(self, action: Action | None) -> None:
+        """Fixa uma acao no fim da barra, que `set_actions` nao apaga.
+
+        Existe por um caso medido: `FerramentasScreen` anuncia `Esc Voltar`
+        ao abrir uma ferramenta, e a ferramenta — `TemplateManageScreen`,
+        por exemplo — chama `set_actions` no proprio `on_mount`, DEPOIS.
+        O anuncio da unica saida da tela desaparecia sob
+        `N Novo  E Editar  R Renomear  D Remover`. Antes desta fase havia um
+        botao "Voltar" dentro do painel; ele saiu porque botao nao navega,
+        e sem a fixacao a tela viraria um beco sem saida para quem nao
+        adivinha a tecla.
+
+        UMA acao fixa, e nao uma lista: o dono dela e o container que
+        hospeda uma tela inteira, e so pode haver um por aba. Quem limpa e
+        `DBQMApp.on_tabbed_content_tab_activated`, ao trocar de aba — sem
+        isso a acao vazaria para as outras abas, onde nao volta para lugar
+        nenhum.
+        """
+        self._acao_fixa = action
+        self._rebuild()
+
+    def acoes_visiveis(self) -> list[Action]:
+        """O que a barra realmente desenha, na ordem: as da tela + a fixa."""
+        acoes = list(self._actions)
+        if self._acao_fixa is not None:
+            acoes.append(self._acao_fixa)
+        return acoes
+
     def _rebuild(self) -> None:
         """Rebuild the action bar content."""
-        if not self._actions:
+        acoes = self.acoes_visiveis()
+        if not acoes:
             self.update("")
             self.display = False
             return
         self.display = True
         parts: list[str] = []
-        for action in self._actions:
+        for action in acoes:
             if not action.key and not action.label:
                 continue
             if action.key:
