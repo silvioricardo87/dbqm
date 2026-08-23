@@ -26,9 +26,9 @@ Medido no código e nas telas renderizadas, antes de qualquer proposta.
 | Botões no produto | **103**, em 16 arquivos de tela |
 | Telas usando `Panel` como moldura de seção | 6 de 16 |
 | Telas **sem nenhuma** moldura de seção | **10 de 16** |
-| `border:` cru desenhado fora de um componente | 6 ocorrências |
+| `border:` cru desenhado fora de um componente | 6 ocorrências, em **3** telas: `adhoc` (3), `config_port` (2), `oracle_clients` (1) |
 | Mecanismos de navegação distintos | **5** (abas-botão, `Select`, `OptionList`, `ListView`, `DataTable`) |
-| Telas com `align: center` em cluster de botão | 8 — piores: `package_editor` (11), `query_manage` (11), `group_manage` (10) |
+| `align: center` em cluster de botão | **43 ocorrências, das quais 38 em modais** — legítimas pela regra abaixo. Em tela de trabalho: **5**, em `adhoc` (2), `browser`, `connections`, `package_editor` |
 | Colunas por consulta salva | mediana **9**, mínimo 1, máximo **36** (57 de 68 com colunas explícitas) |
 | Pastas de consulta | **16**, todas com o prefixo `Mapfre Sustentacao/`, em abas-botão com scroll lateral |
 
@@ -59,6 +59,13 @@ Não são 16 telas com problemas próprios. São **quatro perguntas nunca respon
 
 Cada tela respondeu sozinha, e é por isso que o produto tem três vocabulários de
 moldura, cinco de navegação e 103 botões sem regra de ancoragem.
+
+**Correção da primeira redação.** A contagem de clusters centralizados dizia
+"8 telas, piores `package_editor` (11), `query_manage` (11), `group_manage` (10)".
+Ela contava **modais como se fossem telas de trabalho**. Separando: 38 das 43
+ocorrências estão em modais, onde centralizar é justamente o que a regra do §7
+manda. O problema real são **5 ocorrências em 4 telas**. Descoberto na varredura
+de conflitos do plano, antes de despachar trabalho em cima do número inflado.
 
 ## 4. Decisão — o que é uma seção
 

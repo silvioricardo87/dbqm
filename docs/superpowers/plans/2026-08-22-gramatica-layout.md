@@ -400,7 +400,12 @@ def test_listview_saiu_do_vocabulario():
 ### Task 6: `Panel` como única moldura, e rolagem vertical
 
 **Files:**
-- Modify: `dbqm/ui/screens/oracle_clients.py`, `config_port.py`, `exec_routine.py`, `template_manage.py`, `group_exec.py`, `group_manage.py`, `query_manage.py`, `package_editor.py`, `query_exec.py`, `group_run.py`
+- Modify — **borda crua → `Panel`** (medido: só 3 telas): `dbqm/ui/screens/adhoc.py`, `config_port.py`, `oracle_clients.py`
+- Modify — **telas sem moldura nenhuma ganham `Panel`**: `exec_routine.py`, `template_manage.py`, `group_exec.py`, `group_manage.py`, `query_manage.py`, `package_editor.py`, `query_exec.py`, `group_run.py`, `ferramentas.py`, `config_port.py`
+
+> São duas listas diferentes, e a primeira redação as confundiu: ter borda crua
+> não é o mesmo que não ter moldura. Só `adhoc`, `config_port` e `oracle_clients`
+> desenham borda a mão.
 - Test: `tests/design/test_inventario_layout.py`
 
 - [ ] **Step 1: Guarda `sem_borda_crua` (falha)**
@@ -504,7 +509,13 @@ def test_caminho_longo_e_elidido_no_meio():
 ### Task 8: Botão-menu vira lista; ações reancoradas
 
 **Files:**
-- Modify: `dbqm/ui/screens/ferramentas.py`, `config_port.py`, `package_editor.py`, `query_manage.py`, `group_manage.py`, `adhoc.py`
+- Modify — **botão-menu vira lista**: `dbqm/ui/screens/ferramentas.py`, `config_port.py`
+- Modify — **as 5 centralizações reais** (medido): `adhoc.py` (`#adhoc-btn-bar`, `#adhoc-dml-result`), `browser.py` (`#obj-preview-buttons`), `connections.py` (`#conn-form-buttons`), `package_editor.py` (`#pe-empty`)
+
+> **Não toque nos modais.** 38 das 43 centralizações estão dentro de `*Modal`, e
+> ali centralizar é exatamente o que o §7 do spec manda: o cluster **é** a tela.
+> A primeira redação deste plano mandava reancorar `query_manage` (11) e
+> `group_manage` (10) — todas modais, todas corretas como estão.
 - Test: `tests/design/test_inventario_layout.py`, `tests/ui/test_screens.py`
 
 - [ ] **Step 1: Guarda `sem_cluster_centralizado` (falha)**
@@ -528,8 +539,13 @@ def test_sem_cluster_de_botao_centralizado_fora_de_dialogo():
     for arquivo in sorted(Path("dbqm/ui/screens").rglob("*.py")):
         texto = arquivo.read_text(encoding="utf-8")
         for bloco in GRUPO.findall(texto):
+            seletor = bloco.splitlines()[0].strip()
+            # Num dialogo, o cluster E a tela: centralizar ali e a regra, nao a
+            # excecao. 38 das 43 ocorrencias medidas sao modais legitimos.
+            if "Modal" in seletor:
+                continue
             if CENTRO.search(bloco):
-                fora.append("%s: %s" % (arquivo.as_posix(), bloco.splitlines()[0].strip()))
+                fora.append("%s: %s" % (arquivo.as_posix(), seletor))
     assert not fora, "cluster centralizado em tela de trabalho: %s" % fora
 
 
