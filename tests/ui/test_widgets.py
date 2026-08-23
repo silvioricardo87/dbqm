@@ -670,6 +670,8 @@ class QueryListTestApp(ThemedTestApp):
 
 @pytest.mark.asyncio
 async def test_query_list_loads_items():
+    from textual.widgets import OptionList
+
     queries = [
         {"name": "q1", "connection": "conn1", "table": "t1", "description": "desc1", "is_favorite": False, "folder": ""},
         {"name": "q2", "connection": "conn2", "table": "t2", "description": "desc2", "is_favorite": True, "folder": ""},
@@ -679,20 +681,19 @@ async def test_query_list_loads_items():
         ql = app.query_one(QueryListWidget)
         ql.load_queries(queries)
         await pilot.pause()
-        from dbqm.ui.widgets.query_list import _QueryListItem
-        items = ql.query(_QueryListItem)
-        assert len(items) == 2
+        option_list = ql.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 2
         # Favorites should be first
-        assert items[0].query_name == "q2"
-        assert items[1].query_name == "q1"
+        assert str(option_list.get_option_at_index(0).id) == "q2"
+        assert str(option_list.get_option_at_index(1).id) == "q1"
 
 
 @pytest.mark.asyncio
 async def test_query_list_empty():
-    """A ListItem can't host a widget, so an empty/filtered-to-nothing
-    list shows an EmptyState beside the ListView (which hides), never a
+    """An `Option` can't host a widget, so an empty/filtered-to-nothing
+    list shows an EmptyState beside the OptionList (which hides), never a
     fake row inside it."""
-    from textual.widgets import ListItem, ListView
+    from textual.widgets import OptionList
     from dbqm.ui.widgets.empty_state import EmptyState
 
     app = QueryListTestApp()
@@ -700,9 +701,10 @@ async def test_query_list_empty():
         ql = app.query_one(QueryListWidget)
         ql.load_queries([])
         await pilot.pause()
-        assert len(ql.query(ListItem)) == 0
+        option_list = ql.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 0
         assert ql.query_one("#ql-filter-empty", EmptyState).display is True
-        assert ql.query_one("#ql-listview", ListView).display is False
+        assert option_list.display is False
 
 
 @pytest.mark.asyncio
@@ -711,7 +713,7 @@ async def test_query_list_filtered_empty_state_clears_search_and_notifies_host()
     dead end: it clears the widget's own inline search AND tells the host
     screen (which owns folder/connection filters up there) to clear its
     own."""
-    from textual.widgets import Button, ListView
+    from textual.widgets import Button, OptionList
     from dbqm.ui.widgets.empty_state import EmptyState
     from dbqm.ui.widgets.query_list import ClearFiltersRequested
 
@@ -741,19 +743,21 @@ async def test_query_list_filtered_empty_state_clears_search_and_notifies_host()
         ql._refresh_items()
         await pilot.pause()
         assert ql.query_one("#ql-filter-empty", EmptyState).display is True
-        assert ql.query_one("#ql-listview", ListView).display is False
+        assert ql.query_one("#ql-listview", OptionList).display is False
 
         ql.query_one("#limpar-filtros-consultas", Button).press()
         await pilot.pause()
 
         assert ql._search_text == ""
         assert ql.query_one("#ql-filter-empty", EmptyState).display is False
-        assert ql.query_one("#ql-listview", ListView).display is True
+        assert ql.query_one("#ql-listview", OptionList).display is True
         assert notified == [True]
 
 
 @pytest.mark.asyncio
 async def test_query_list_filter_folder():
+    from textual.widgets import OptionList
+
     queries = [
         {"name": "q1", "connection": "c1", "table": "", "description": "", "is_favorite": False, "folder": "folderA"},
         {"name": "q2", "connection": "c2", "table": "", "description": "", "is_favorite": False, "folder": "folderB"},
@@ -765,15 +769,16 @@ async def test_query_list_filter_folder():
         ql.load_queries(queries)
         ql.filter_folder("folderA")
         await pilot.pause()
-        from dbqm.ui.widgets.query_list import _QueryListItem
-        items = ql.query(_QueryListItem)
-        assert len(items) == 2
-        names = {it.query_name for it in items}
+        option_list = ql.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 2
+        names = {str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)}
         assert names == {"q1", "q3"}
 
 
 @pytest.mark.asyncio
 async def test_query_list_filter_folder_none_shows_all():
+    from textual.widgets import OptionList
+
     queries = [
         {"name": "q1", "connection": "c1", "table": "", "description": "", "is_favorite": False, "folder": "folderA"},
         {"name": "q2", "connection": "c2", "table": "", "description": "", "is_favorite": False, "folder": "folderB"},
@@ -784,13 +789,14 @@ async def test_query_list_filter_folder_none_shows_all():
         ql.load_queries(queries)
         ql.filter_folder(None)
         await pilot.pause()
-        from dbqm.ui.widgets.query_list import _QueryListItem
-        items = ql.query(_QueryListItem)
-        assert len(items) == 2
+        option_list = ql.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 2
 
 
 @pytest.mark.asyncio
 async def test_query_list_posts_query_selected():
+    from textual.widgets import OptionList
+
     queries = [
         {"name": "my_query", "connection": "c1", "table": "t1", "description": "d", "is_favorite": False, "folder": ""},
     ]
@@ -808,9 +814,10 @@ async def test_query_list_posts_query_selected():
         ql = app.query_one(QueryListWidget)
         ql.load_queries(queries)
         await pilot.pause()
-        from dbqm.ui.widgets.query_list import _QueryListItem
-        items = ql.query(_QueryListItem)
-        await pilot.click(type(items[0]))
+        option_list = ql.query_one("#ql-listview", OptionList)
+        option_list.focus()
+        option_list.highlighted = 0
+        await pilot.press("enter")
         await pilot.pause()
         assert len(messages) == 1
         assert messages[0] == "my_query"
@@ -819,6 +826,7 @@ async def test_query_list_posts_query_selected():
 @pytest.mark.asyncio
 async def test_query_list_accepts_objects():
     """Widget should work with objects that have attributes (not just dicts)."""
+    from textual.widgets import OptionList
     from dbqm.models.query import Query
     q = Query(name="obj_q", connection="conn", sql="SELECT 1", description="from object", is_favorite=True)
     app = QueryListTestApp()
@@ -826,10 +834,9 @@ async def test_query_list_accepts_objects():
         ql = app.query_one(QueryListWidget)
         ql.load_queries([q])
         await pilot.pause()
-        from dbqm.ui.widgets.query_list import _QueryListItem
-        items = ql.query(_QueryListItem)
-        assert len(items) == 1
-        assert items[0].query_name == "obj_q"
+        option_list = ql.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 1
+        assert str(option_list.get_option_at_index(0).id) == "obj_q"
 
 
 @pytest.mark.asyncio
@@ -840,12 +847,13 @@ async def test_query_list_item_montado_tem_hierarquia_visivel():
     pelo `Style.parse` real do tema ativo, o mesmo mecanismo que o Textual
     usa para resolver estilo antes de pintar.
 
-    Prova a FIACAO ate o widget montado (`Static.content` de fato guardado
-    dentro do `_QueryListItem`), nao a pintura de pixel em si — nenhum
-    screenshot e tirado aqui."""
+    Prova a FIACAO ate a opcao montada de verdade dentro do `OptionList`
+    (nao o `Content` que `item_hierarquico` devolve isolado), nao a pintura
+    de pixel em si — nenhum screenshot e tirado aqui. Mesmo padrao de
+    `test_lista_de_conexoes_montada_distingue_identidade_de_desambiguacao`
+    em test_screens.py."""
     from textual.style import Style
-    from textual.widgets import Static
-    from dbqm.ui.widgets.query_list import _QueryListItem
+    from textual.widgets import OptionList
 
     def cor_no_offset(conteudo, offset):
         estilo = Style()
@@ -867,8 +875,8 @@ async def test_query_list_item_montado_tem_hierarquia_visivel():
         ql.load_queries(queries)
         await pilot.pause()
 
-        item = ql.query_one(_QueryListItem)
-        conteudo = item.query_one(Static).content
+        option_list = ql.query_one("#ql-listview", OptionList)
+        conteudo = option_list.get_option_at_index(0).prompt
         texto = conteudo.plain
 
         assert chr(10) in texto, "item pintado deve ocupar mais de uma linha"

@@ -5,16 +5,18 @@ import time
 from typing import Any
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, HorizontalScroll, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
-from textual.widgets import Button, ListItem, ListView, Static
+from textual.widgets import Button, OptionList, Select, Static
+from textual.widgets.option_list import Option
 from textual import work
 
-from dbqm.ui.utils import sanitize_id, escape_markup
+from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect, prefixo_comum_de_pastas
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.group_result import GroupResultWidget
+from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.veredito import marcar_operacao, marcar_veredito
@@ -34,44 +36,25 @@ class _GroupSelected(Message):
         super().__init__()
 
 
-class _GroupListItem(ListItem):
-    """A single group entry in the selection list.
+def _group_option(group: Any) -> Option:
+    """Monta a `Option` de um grupo pra dentro do `OptionList`.
 
-    Renders as a single line of formatted text to avoid layout issues
-    with nested containers inside ListItem.
+    Mesma hierarquia de linhas de `_query_option`
+    (dbqm/ui/widgets/query_list.py) e `connections.py`: identidade sozinha,
+    desambiguacao recuada, contexto opcional recuado — em vez da string
+    concatenada com `|` que este item usava antes. A contagem de consultas
+    e o que desambigua dois grupos de nome parecido (facilmente confundivel
+    entre si nesta tela); a descricao e contexto livre, sem corte
+    artificial (`item_hierarquico` cuida da legibilidade dando a ela sua
+    propria linha).
     """
+    name = group.name
+    desc = " ".join((group.description or "").split())
+    n_queries = len(group.queries)
+    queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
 
-    DEFAULT_CSS = """
-    _GroupListItem {
-        height: 1;
-        padding: 0 1;
-    }
-    _GroupListItem Static {
-        height: 1;
-        width: 1fr;
-    }
-    """
-
-    def __init__(self, group: Any) -> None:
-        self.group_data = group
-        self.group_name: str = group.name
-        super().__init__()
-
-    def compose(self):
-        name = self.group_data.name
-        desc = self.group_data.description or ""
-        if len(desc) > 35:
-            desc = desc[:32] + "..."
-        n_queries = len(self.group_data.queries)
-        queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
-
-        parts = [f"[bold]{name}[/bold]"]
-        if desc:
-            parts.append(f"[dim]{desc}[/dim]")
-        parts.append(f"[$texto-apoio]{queries_label}[/]")
-
-        line = "  |  ".join(parts)
-        yield Static(line, markup=True)
+    conteudo = item_hierarquico(name, queries_label, desc)
+    return Option(conteudo, id=name or None)
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +65,7 @@ class _GroupListItem(ListItem):
 class GroupRunScreen(Vertical):
     """Screen widget for executing groups and comparing results.
 
-    Phase 1 — group selection (folder tabs + list).
+    Phase 1 — group selection (folder select + list).
     Phase 2 — results (GroupResultWidget).
     """
 
@@ -105,22 +88,9 @@ class GroupRunScreen(Vertical):
     GroupRunScreen #gr-empty-message {
         height: 1fr;
     }
-    GroupRunScreen #gr-folder-bar {
-        height: 3;
+    GroupRunScreen #gr-folder-select {
         width: 1fr;
-        padding: 0 1;
-        background: $surface;
-        scrollbar-size-horizontal: 1;
-    }
-    GroupRunScreen #gr-folder-bar Button {
-        min-width: 6;
-        margin: 0 1 0 0;
-    }
-    GroupRunScreen #gr-folder-hint {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-        text-style: dim italic;
+        margin: 0 1 1 1;
     }
     GroupRunScreen #gr-group-list {
         height: 1fr;
@@ -141,9 +111,10 @@ class GroupRunScreen(Vertical):
         self._raw_query_rows: dict[str, list[list]] | None = None  # original rows per query
         self._showing_mapped: bool = True
         self._all_groups: list = []
-        self._folder_map: dict[str, str] = {}
-        self._folder_buttons: list[Button] = []
-        self._active_folder_idx: int = 0
+        # "" = Todas, None = Sem pasta, qualquer outro valor = nome da pasta
+        # — mesmo esquema de `QueryExecScreen._active_folder`.
+        self._active_folder: str | None = ""
+        self._has_folders: bool = False
 
     def compose(self) -> ComposeResult:
         # Selection phase
@@ -169,7 +140,7 @@ class GroupRunScreen(Vertical):
 
     def _set_initial_focus(self) -> None:
         try:
-            gl = self.query_one("#gr-group-list", ListView)
+            gl = self.query_one("#gr-group-list", OptionList)
             gl.focus()
         except Exception:
             pass
@@ -193,31 +164,29 @@ class GroupRunScreen(Vertical):
         empty_msg.display = False
         self._all_groups = groups
 
-        # Determine folders
-        folders = sorted({g.folder for g in groups if g.folder})
+        # Determine folders — Select com contagem por opcao, nao abas: mesma
+        # decisao de cardinalidade de `QueryExecScreen._load_selection`.
+        from collections import Counter
 
-        group_list = ListView(id="gr-group-list")
+        contagem_pastas = Counter(g.folder for g in groups if g.folder)
+        folders = sorted(contagem_pastas)
+        self._has_folders = bool(folders)
+
+        group_list = OptionList(id="gr-group-list")
 
         if folders:
-            folder_bar = HorizontalScroll(id="gr-folder-bar")
-            selection.mount(folder_bar)
-            btn_todas = Button("Todas", id="gr-folder-todas", variant="primary")
-            folder_bar.mount(btn_todas)
-            self._folder_buttons = [btn_todas]
+            prefixo = prefixo_comum_de_pastas(folders)
+            options = [(f"Todas ({len(groups)})", "")]
             for folder in folders:
-                safe_id = sanitize_id(folder)
-                self._folder_map[safe_id] = folder
-                btn = Button(folder, id=f"gr-folder-{safe_id}", variant="default")
-                folder_bar.mount(btn)
-                self._folder_buttons.append(btn)
-            has_no_folder = any(not g.folder for g in groups)
-            if has_no_folder:
-                btn_sem = Button("Sem pasta", id="gr-folder-sem-pasta", variant="default")
-                folder_bar.mount(btn_sem)
-                self._folder_buttons.append(btn_sem)
-            # Hint for keyboard navigation
-            selection.mount(Static("[dim]← → alternar pastas[/dim]", id="gr-folder-hint", markup=True))
-            self._active_folder_idx = 0
+                rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
+                options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
+            sem_pasta = sum(1 for g in groups if not g.folder)
+            if sem_pasta:
+                options.append((f"Sem pasta ({sem_pasta})", None))
+            selection.mount(
+                NavSelect(options, allow_blank=False, id="gr-folder-select")
+            )
+            self._active_folder = ""
 
         selection.mount(group_list)
         filtered_empty = EmptyState(
@@ -232,16 +201,16 @@ class GroupRunScreen(Vertical):
         self._populate_group_list(groups)
 
     def _populate_group_list(self, groups: list) -> None:
-        """Populate the group ListView.
+        """Populate the group OptionList.
 
         Reached with an empty ``groups`` only via a folder filter with no
         matches (the "no groups at all" case is handled earlier, by
-        ``#gr-empty-message``, before this is ever called) — a ListItem
+        ``#gr-empty-message``, before this is ever called) — an `Option`
         can't host a widget, so the empty case is an EmptyState sitting
-        beside the ListView instead of inside it.
+        beside the OptionList instead of inside it.
         """
-        group_list = self.query_one("#gr-group-list", ListView)
-        group_list.clear()
+        group_list = self.query_one("#gr-group-list", OptionList)
+        group_list.clear_options()
         sorted_groups = sorted(groups, key=lambda g: g.name.lower())
         try:
             filtered_empty = self.query_one("#gr-filter-empty", EmptyState)
@@ -256,10 +225,10 @@ class GroupRunScreen(Vertical):
             filtered_empty.display = False
         group_list.display = True
         for g in sorted_groups:
-            group_list.append(_GroupListItem(g))
+            group_list.add_option(_group_option(g))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle folder filter button presses and the empty-state actions."""
+        """Handle the empty-state actions."""
         btn_id = event.button.id or ""
         if btn_id == "gerenciar-grupos":
             # GroupRunScreen only ever lives nested inside FerramentasScreen
@@ -273,69 +242,41 @@ class GroupRunScreen(Vertical):
             return
 
         if btn_id == "ver-todos-grupos":
-            if self._folder_buttons:
-                self._active_folder_idx = 0
-                self._activate_folder_button(self._folder_buttons[0])
-            return
-
-        if not btn_id.startswith("gr-folder-"):
-            return
-
-        # Sync index
-        for i, b in enumerate(self._folder_buttons):
-            if b is event.button:
-                self._active_folder_idx = i
-                break
-
-        self._activate_folder_button(event.button)
-
-    # ------------------------------------------------------------------
-    # Folder keyboard navigation (← →)
-    # ------------------------------------------------------------------
-
-    def on_key(self, event) -> None:
-        """Handle left/right for folder switching only in selection phase."""
-        if event.key not in ("left", "right"):
-            return
-        if self._current_group_result is not None or not self._folder_buttons:
-            return
-        if event.key == "left":
-            self._active_folder_idx = max(0, self._active_folder_idx - 1)
-        else:
-            self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
-        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
-        event.prevent_default()
-        event.stop()
-
-    def _activate_folder_button(self, btn: Button) -> None:
-        """Activate a folder button and filter the group list."""
-        for b in self._folder_buttons:
-            b.variant = "default"
-        btn.variant = "primary"
-
-        btn_id = btn.id or ""
-        safe_id = btn_id.removeprefix("gr-folder-")
-
-        if safe_id == "todas":
+            self._active_folder = ""
+            if self._has_folders:
+                try:
+                    self.query_one("#gr-folder-select", Select).value = ""
+                except Exception:
+                    pass
             self._populate_group_list(self._all_groups)
-        elif safe_id == "sem-pasta":
+            return
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """React to the folder select."""
+        if event.select.id != "gr-folder-select":
+            return
+        self._active_folder = event.value
+        if self._active_folder is None:
             self._populate_group_list([g for g in self._all_groups if not g.folder])
-        else:
-            folder_label = self._folder_map.get(safe_id, "")
+        elif self._active_folder:
             self._populate_group_list(
-                [g for g in self._all_groups if g.folder == folder_label]
+                [g for g in self._all_groups if g.folder == self._active_folder]
             )
-        # Keep focus on the list
+        else:
+            self._populate_group_list(self._all_groups)
+        # Keep focus on the list, same as the old folder tabs did.
         try:
-            self.query_one("#gr-group-list", ListView).focus()
+            self.query_one("#gr-group-list", OptionList).focus()
         except Exception:
             pass
 
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle group selection from the list."""
-        item = event.item
-        if isinstance(item, _GroupListItem):
-            self._on_group_chosen(item.group_name)
+        if event.option_list.id != "gr-group-list":
+            return
+        name = str(event.option.id) if event.option.id else None
+        if name:
+            self._on_group_chosen(name)
 
     # ------------------------------------------------------------------
     # Group selected -> parameterize & execute
@@ -884,8 +825,7 @@ class GroupRunScreen(Vertical):
 
         # Restore focus to group list
         try:
-            from textual.widgets import ListView
-            self.query_one("#gr-group-list", ListView).focus()
+            self.query_one("#gr-group-list", OptionList).focus()
         except Exception:
             pass
 

@@ -4,11 +4,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, HorizontalScroll, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Select, Static
 from textual import work
 
-from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect
+from dbqm.ui.utils import escape_markup, NavSelect, prefixo_comum_de_pastas
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.esqueleto import Esqueleto
@@ -22,7 +22,7 @@ from dbqm.core.query_engine import QueryResult
 class QueryExecScreen(Vertical):
     """Screen widget for executing saved queries.
 
-    Phase 1 — query selection (folder tabs + QueryListWidget).
+    Phase 1 — query selection (folder select + QueryListWidget).
     Phase 2 — results (info bar + ResultTable).
     """
 
@@ -48,22 +48,9 @@ class QueryExecScreen(Vertical):
     QueryExecScreen #result-skeleton {
         display: none;
     }
-    QueryExecScreen #folder-bar {
-        height: 3;
+    QueryExecScreen #folder-select {
         width: 1fr;
-        padding: 0 1;
-        background: $surface;
-        scrollbar-size-horizontal: 1;
-    }
-    QueryExecScreen #folder-bar Button {
-        min-width: 6;
-        margin: 0 1 0 0;
-    }
-    QueryExecScreen #folder-hint {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-        text-style: dim italic;
+        margin: 0 1 1 1;
     }
     QueryExecScreen #qe-filter-bar {
         height: auto;
@@ -93,10 +80,13 @@ class QueryExecScreen(Vertical):
         self._current_result: QueryResult | None = None
         self._raw_rows: list[list] | None = None  # rows before column maps
         self._showing_mapped: bool = True
-        self._folder_map: dict[str, str] = {}
-        self._folder_buttons: list[Button] = []
-        self._active_folder_idx: int = 0
-        self._active_folder_safe_id: str = "todas"
+        # "" = Todas, None = Sem pasta, qualquer outro valor = nome da pasta.
+        # Espelha o valor do `#folder-select`; None e distinto do sentinela
+        # de "em branco" do proprio Select (`Select.NULL`), entao nao ha
+        # ambiguidade entre "nenhuma pasta selecionada" (nao ocorre aqui,
+        # allow_blank=False) e "pasta = sem pasta".
+        self._active_folder: str | None = ""
+        self._has_folders: bool = False
 
     def compose(self) -> ComposeResult:
         # Selection phase
@@ -172,38 +162,38 @@ class QueryExecScreen(Vertical):
             )
         )
 
-        # Determine folders
-        folders = sorted({q.folder for q in queries if q.folder})
+        # Determine folders — cardinalidade variavel (o mantenedor real tem
+        # 16), entao a navegacao e um Select com a contagem por opcao, nao
+        # abas: 16 botoes numa HorizontalScroll obrigava a rolar
+        # lateralmente pra achar uma pasta, e a maioria de cada botao era o
+        # mesmo prefixo repetido.
+        from collections import Counter
+
+        contagem_pastas = Counter(q.folder for q in queries if q.folder)
+        folders = sorted(contagem_pastas)
+        self._has_folders = bool(folders)
 
         ql = QueryListWidget(id="ql-main")
 
         if folders:
-            folder_bar = HorizontalScroll(id="folder-bar")
-            selection.mount(folder_bar)
-            # "Todas" button
-            btn_todas = Button("Todas", id="folder-todas", variant="primary")
-            folder_bar.mount(btn_todas)
-            self._folder_buttons = [btn_todas]
+            prefixo = prefixo_comum_de_pastas(folders)
+            options = [(f"Todas ({len(queries)})", "")]
             for folder in folders:
-                safe_id = sanitize_id(folder)
-                self._folder_map[safe_id] = folder
-                btn = Button(folder, id=f"folder-{safe_id}", variant="default")
-                folder_bar.mount(btn)
-                self._folder_buttons.append(btn)
-            has_no_folder = any(not q.folder for q in queries)
-            if has_no_folder:
-                btn_sem = Button("Sem pasta", id="folder-sem-pasta", variant="default")
-                folder_bar.mount(btn_sem)
-                self._folder_buttons.append(btn_sem)
-            # Hint for keyboard navigation
-            selection.mount(Static("[dim]← → alternar pastas[/dim]", id="folder-hint", markup=True))
-            self._active_folder_idx = 0
+                rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
+                options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
+            sem_pasta = sum(1 for q in queries if not q.folder)
+            if sem_pasta:
+                options.append((f"Sem pasta ({sem_pasta})", None))
+            selection.mount(
+                NavSelect(options, allow_blank=False, id="folder-select")
+            )
+            self._active_folder = ""
 
         selection.mount(ql)
         ql.load_queries(queries)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle folder filter button presses and the empty-state action."""
+        """Handle the empty-state action."""
         btn_id = event.button.id or ""
         if btn_id == "criar-consulta-coleta":
             # Queries are created from the Coleta tab ("Salvar como
@@ -216,59 +206,17 @@ class QueryExecScreen(Vertical):
                 switch("tab-coleta")
             return
 
-        if not btn_id.startswith("folder-"):
-            return
-
-        # Sync index
-        for i, b in enumerate(self._folder_buttons):
-            if b is event.button:
-                self._active_folder_idx = i
-                break
-
-        self._activate_folder_button(event.button)
-
-    # ------------------------------------------------------------------
-    # Folder keyboard navigation (← →)
-    # ------------------------------------------------------------------
-
-    def on_key(self, event) -> None:
-        """Handle left/right for folder switching only in selection phase."""
-        if event.key not in ("left", "right"):
-            return
-        # In results phase, let DataTable handle arrows
-        if self._current_result is not None or not self._folder_buttons:
-            return
-        if event.key == "left":
-            self._active_folder_idx = max(0, self._active_folder_idx - 1)
-        else:
-            self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
-        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
-        event.prevent_default()
-        event.stop()
-
-    def _activate_folder_button(self, btn: Button) -> None:
-        """Simulate clicking a folder button."""
-        for b in self._folder_buttons:
-            b.variant = "default"
-        btn.variant = "primary"
-        btn_id = btn.id or ""
-        self._active_folder_safe_id = btn_id.removeprefix("folder-")
-        self._apply_filters()
-        # Keep focus on the list
-        self.query_one("#ql-main", QueryListWidget).focus()
-
     # ------------------------------------------------------------------
     # Text + connection filtering
     # ------------------------------------------------------------------
 
     def _folder_subset(self) -> list:
-        """Queries within the currently selected folder tab."""
-        safe_id = self._active_folder_safe_id
-        if safe_id == "sem-pasta":
+        """Queries within the currently selected folder."""
+        valor = self._active_folder
+        if valor is None:
             return [q for q in self._all_queries if not q.folder]
-        if safe_id and safe_id != "todas":
-            label = self._folder_map.get(safe_id, "")
-            return [q for q in self._all_queries if q.folder == label]
+        if valor:
+            return [q for q in self._all_queries if q.folder == valor]
         return list(self._all_queries)
 
     def _apply_filters(self) -> None:
@@ -293,18 +241,29 @@ class QueryExecScreen(Vertical):
             self._apply_filters()
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """React to the connection filter selection."""
+        """React to the connection and folder filter selections."""
         if event.select.id == "qe-filter-conn":
             self._apply_filters()
+        elif event.select.id == "folder-select":
+            self._active_folder = event.value
+            self._apply_filters()
+            # Keep focus on the list, same as the old folder tabs did.
+            try:
+                self.query_one("#ql-main", QueryListWidget).focus()
+            except Exception:
+                pass
 
     def on_clear_filters_requested(self, message: ClearFiltersRequested) -> None:
         """The QueryListWidget's filtered-to-nothing EmptyState asked to
-        clear the filters that live up here (folder tab, connection,
+        clear the filters that live up here (folder select, connection,
         free-text search) — the widget already cleared its own inline
         search box."""
-        if self._folder_buttons:
-            self._active_folder_idx = 0
-            self._activate_folder_button(self._folder_buttons[0])
+        self._active_folder = ""
+        if self._has_folders:
+            try:
+                self.query_one("#folder-select", Select).value = ""
+            except Exception:
+                pass
         try:
             self.query_one("#qe-filter-text", Input).value = ""
         except Exception:

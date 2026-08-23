@@ -1,4 +1,4 @@
-"""QueryList widget — displays queries as selectable items in a ListView."""
+"""QueryList widget — displays queries as selectable items in an OptionList."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.content import Content
 from textual.message import Message
-from textual.widgets import Button, Input, ListView, ListItem, Static
+from textual.widgets import Button, Input, OptionList, Static
+from textual.widgets.option_list import Option
 
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
@@ -37,56 +38,39 @@ def _attr(obj: Any, key: str, default: Any = "") -> Any:
     return getattr(obj, key, default)
 
 
-class _QueryListItem(ListItem):
-    """A single query entry inside the ListView.
+def _query_option(query: Any) -> Option:
+    """Monta a `Option` de uma consulta pra dentro do `OptionList`.
 
-    Renders with the layout grammar's hierarquia de linhas
+    Renders com a hierarquia de linhas do layout grammar
     (`item_hierarquico`): nome sozinho na identidade, conexao+tabela como
     desambiguacao (o que separa duas consultas de nome parecido), descricao
-    como contexto opcional. Sem nested containers, so um `Static` com um
-    `Content` de ate tres linhas — o mesmo motivo de antes (evitar problema
-    de layout dentro de `ListItem`), so que agora o `Content` pode ocupar
-    mais de uma linha.
+    como contexto opcional. O `id` da opcao e o nome da consulta — o mesmo
+    padrao de `connections.py` (`Option(item, id=conn.name)`), que e como
+    `on_option_list_option_selected` recupera qual consulta foi escolhida
+    sem precisar de um mapa auxiliar.
     """
+    is_fav = _attr(query, "is_favorite", False)
+    star = Content.assemble(
+        ("★ " if is_fav else "☆ ", "$identidade" if is_fav else "$texto-desabilitado")
+    )
 
-    DEFAULT_CSS = """
-    _QueryListItem {
-        height: auto;
-        padding: 0 1;
-    }
-    _QueryListItem Static {
-        height: auto;
-        width: 1fr;
-    }
-    """
+    name = _attr(query, "name", "")
+    desc = _attr(query, "description", "")
+    conn = _attr(query, "connection", "")
+    table = _attr(query, "table", "")
 
-    def __init__(self, query: Any) -> None:
-        self.query_data = query
-        self.query_name: str = _attr(query, "name", "")
-        super().__init__()
+    # Desambiguacao: conexao e tabela sao o que distingue duas consultas
+    # de nome parecido — mesmo par (alvo, conexao) que o docstring de
+    # item_hierarquico usa como exemplo.
+    desambiguacao = f"{conn} - {table}" if conn and table else (conn or table)
+    # Contexto: descricao, sem corte artificial — a hierarquia (linha
+    # propria, recuada, em $texto-desabilitado) e o que a torna legivel,
+    # nao um limite de caracteres. Colapsa quebras de linha internas
+    # para nao estourar a gramatica de uma linha por papel.
+    contexto = " ".join(desc.split())
 
-    def compose(self):
-        is_fav = _attr(self.query_data, "is_favorite", False)
-        star = Content.assemble(
-            ("★ " if is_fav else "☆ ", "$identidade" if is_fav else "$texto-desabilitado")
-        )
-
-        name = _attr(self.query_data, "name", "")
-        desc = _attr(self.query_data, "description", "")
-        conn = _attr(self.query_data, "connection", "")
-        table = _attr(self.query_data, "table", "")
-
-        # Desambiguacao: conexao e tabela sao o que distingue duas consultas
-        # de nome parecido — mesmo par (alvo, conexao) que o docstring de
-        # item_hierarquico usa como exemplo.
-        desambiguacao = f"{conn} - {table}" if conn and table else (conn or table)
-        # Contexto: descricao, sem corte artificial — a hierarquia (linha
-        # propria, recuada, em $texto-desabilitado) e o que a torna legivel,
-        # nao um limite de caracteres. Colapsa quebras de linha internas
-        # para nao estourar a gramatica de uma linha por papel.
-        contexto = " ".join(desc.split())
-
-        yield Static(star + item_hierarquico(name, desambiguacao, contexto))
+    conteudo = star + item_hierarquico(name, desambiguacao, contexto)
+    return Option(conteudo, id=name or None)
 
 
 class QueryListWidget(Vertical, can_focus=False):
@@ -107,14 +91,8 @@ class QueryListWidget(Vertical, can_focus=False):
     QueryListWidget #ql-search.visible {
         display: block;
     }
-    QueryListWidget ListView {
+    QueryListWidget OptionList {
         height: 1fr;
-    }
-    QueryListWidget ListView > ListItem.--highlight {
-        background: $primary 25%;
-    }
-    QueryListWidget ListView:focus > ListItem.--highlight {
-        background: $primary 40%;
     }
     """
 
@@ -130,9 +108,9 @@ class QueryListWidget(Vertical, can_focus=False):
         self._composed = False
 
     def focus(self, scroll_visible: bool = True) -> None:
-        """Delegate focus to the internal ListView."""
+        """Delegate focus to the internal OptionList."""
         try:
-            self.query_one("#ql-listview", ListView).focus(scroll_visible)
+            self.query_one("#ql-listview", OptionList).focus(scroll_visible)
         except Exception:
             super().focus(scroll_visible)
 
@@ -146,12 +124,12 @@ class QueryListWidget(Vertical, can_focus=False):
             acao_id="limpar-filtros-consultas",
             id="ql-filter-empty",
         )
-        yield ListView(id="ql-listview")
+        yield OptionList(id="ql-listview")
 
     def on_mount(self) -> None:
         self._composed = True
         # Always sync visibility, even with zero queries loaded so far —
-        # ``_refresh_items`` is what decides EmptyState vs ListView, and
+        # ``_refresh_items`` is what decides EmptyState vs OptionList, and
         # skipping it here left both in their compose-time default state.
         self._refresh_items()
 
@@ -174,9 +152,9 @@ class QueryListWidget(Vertical, can_focus=False):
         )
 
     def _refresh_items(self) -> None:
-        listview = self.query_one("#ql-listview", ListView)
+        option_list = self.query_one("#ql-listview", OptionList)
         empty = self.query_one("#ql-filter-empty", EmptyState)
-        listview.clear()
+        option_list.clear_options()
         filtered = self._all_queries
         if self._current_folder is not None:
             filtered = [q for q in filtered if _attr(q, "folder", "") == self._current_folder]
@@ -191,22 +169,24 @@ class QueryListWidget(Vertical, can_focus=False):
 
         sorted_queries = self._sorted(filtered)
         if not sorted_queries:
-            # A ListItem can't host a widget, so the empty case is an
-            # EmptyState sitting beside the ListView, not a fake row inside
-            # it.
+            # Um `Option` nao hospeda widget nenhum, entao o caso vazio e um
+            # EmptyState ao lado do OptionList (que se esconde), nunca uma
+            # linha falsa dentro dele.
             empty.display = True
-            listview.display = False
+            option_list.display = False
             return
         empty.display = False
-        listview.display = True
+        option_list.display = True
         for q in sorted_queries:
-            listview.append(_QueryListItem(q))
+            option_list.add_option(_query_option(q))
 
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """When an item is selected, post QuerySelected if it's a real query item."""
-        item = event.item
-        if isinstance(item, _QueryListItem):
-            self.post_message(QuerySelected(item.query_name))
+        if event.option_list.id != "ql-listview":
+            return
+        name = str(event.option.id) if event.option.id else None
+        if name:
+            self.post_message(QuerySelected(name))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "limpar-filtros-consultas":
@@ -258,6 +238,6 @@ class QueryListWidget(Vertical, can_focus=False):
         search_bar = self.query_one("#ql-search", Horizontal)
         if search_bar.has_class("visible"):
             self._dismiss_search()
-            self.query_one("#ql-listview", ListView).focus()
+            self.query_one("#ql-listview", OptionList).focus()
             event.stop()
             event.prevent_default()

@@ -99,7 +99,8 @@ async def test_query_exec_screen_shows_query_list(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_exec_screen_with_folders(tmp_config_dir):
-    """Queries with folders should produce tabbed content."""
+    """Queries with folders should produce a folder select with an option
+    per folder plus "Todas"."""
     config_dir = tmp_config_dir / "config"
     queries_data = {
         "queries": [
@@ -124,12 +125,9 @@ async def test_query_exec_screen_with_folders(tmp_config_dir):
     app = QueryExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
-        # Should have folder bar with buttons
-        folder_bar = screen.query_one("#folder-bar")
-        assert folder_bar is not None
-        buttons = folder_bar.query("Button")
+        seletor = screen.query_one("#folder-select", Select)
         # "Todas" + "Grupo A" + "Grupo B" = 3
-        assert len(buttons) >= 3
+        assert len(seletor._options) == 3
 
 
 @pytest.mark.asyncio
@@ -160,13 +158,10 @@ async def test_query_exec_accented_folders(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
         assert screen is not None
-        # Should have folder bar with accented folder buttons
-        folder_bar = screen.query_one("#folder-bar")
-        assert folder_bar is not None
-        from textual.widgets import Button
-        buttons = folder_bar.query(Button)
+        # Should have a folder select with the accented folder options.
+        seletor = screen.query_one("#folder-select", Select)
         # "Todas" + 2 folders = 3
-        assert len(buttons) >= 3
+        assert len(seletor._options) == 3
 
 
 @pytest.mark.asyncio
@@ -241,51 +236,51 @@ async def test_query_exec_has_filter_bar(tmp_config_dir):
 @pytest.mark.asyncio
 async def test_query_exec_text_filter_narrows_list(tmp_config_dir):
     """Typing in the text filter narrows the list by name/description."""
-    from dbqm.ui.widgets.query_list import _QueryListItem
+    from textual.widgets import OptionList
     _write_filter_queries(tmp_config_dir / "config")
     app = QueryExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
-        assert len(app.query(_QueryListItem)) == 3
+        assert screen.query_one("#ql-listview", OptionList).option_count == 3
         screen.query_one("#qe-filter-text", Input).value = "estoque"
         await pilot.pause()
-        items = app.query(_QueryListItem)
-        assert len(items) == 1
-        assert items[0].query_name == "Estoque"
+        option_list = screen.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 1
+        assert str(option_list.get_option_at_index(0).id) == "Estoque"
 
 
 @pytest.mark.asyncio
 async def test_query_exec_text_filter_matches_description(tmp_config_dir):
     """The text filter also matches the query description."""
-    from dbqm.ui.widgets.query_list import _QueryListItem
+    from textual.widgets import OptionList
     _write_filter_queries(tmp_config_dir / "config")
     app = QueryExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
         screen.query_one("#qe-filter-text", Input).value = "faturados"
         await pilot.pause()
-        items = app.query(_QueryListItem)
-        assert [i.query_name for i in items] == ["Pedidos"]
+        option_list = screen.query_one("#ql-listview", OptionList)
+        assert [str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)] == ["Pedidos"]
 
 
 @pytest.mark.asyncio
 async def test_query_exec_connection_filter_narrows_list(tmp_config_dir):
     """Selecting a connection narrows the list to that connection's queries."""
-    from dbqm.ui.widgets.query_list import _QueryListItem
+    from textual.widgets import OptionList
     _write_filter_queries(tmp_config_dir / "config")
     app = QueryExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
         screen.query_one("#qe-filter-conn", Select).value = "homolog"
         await pilot.pause()
-        items = app.query(_QueryListItem)
-        assert [i.query_name for i in items] == ["Estoque"]
+        option_list = screen.query_one("#ql-listview", OptionList)
+        assert [str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)] == ["Estoque"]
 
 
 @pytest.mark.asyncio
 async def test_query_exec_text_and_connection_combined(tmp_config_dir):
     """Text + connection filters AND together."""
-    from dbqm.ui.widgets.query_list import _QueryListItem
+    from textual.widgets import OptionList
     _write_filter_queries(tmp_config_dir / "config")
     app = QueryExecTestApp()
     async with app.run_test() as pilot:
@@ -293,12 +288,12 @@ async def test_query_exec_text_and_connection_combined(tmp_config_dir):
         # prod alone → 2 queries
         screen.query_one("#qe-filter-conn", Select).value = "prod"
         await pilot.pause()
-        assert len(app.query(_QueryListItem)) == 2
+        assert screen.query_one("#ql-listview", OptionList).option_count == 2
         # narrow with text
         screen.query_one("#qe-filter-text", Input).value = "ped"
         await pilot.pause()
-        items = app.query(_QueryListItem)
-        assert [i.query_name for i in items] == ["Pedidos"]
+        option_list = screen.query_one("#ql-listview", OptionList)
+        assert [str(option_list.get_option_at_index(i).id) for i in range(option_list.option_count)] == ["Pedidos"]
 
 
 @pytest.mark.asyncio
@@ -311,6 +306,44 @@ async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
         assert screen.query_one("#empty-message").display is True
         with pytest.raises(NoMatches):
             screen.query_one("#qe-filter-text", Input)
+
+
+@pytest.mark.asyncio
+async def test_pastas_viram_select_com_contagem(tmp_config_dir):
+    """16 pastas nao cabem em aba nenhuma; a barra de botoes rolava lateral."""
+    from textual.widgets import Select
+    from dbqm.models.query import Query, save_queries
+    from dbqm.ui.screens.query_exec import QueryExecScreen
+    from tests.ui._helpers import ThemedTestApp
+
+    save_queries([
+        Query(name="q%d" % i, sql="select 1 from dual", connection="c",
+              folder="Pasta%d" % (i % 3))
+        for i in range(9)
+    ])
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield QueryExecScreen()
+
+    app = App_()
+    async with app.run_test():
+        seletor = app.query_one("#folder-select", Select)
+        rotulos = [str(r) for r, _ in seletor._options]
+        assert any("(3)" in r for r in rotulos), "cada pasta mostra a contagem"
+        assert not app.query("#folder-bar"), "a barra de botoes some"
+
+
+def test_listview_saiu_do_vocabulario():
+    """ListView fazia o mesmo que OptionList em dois lugares."""
+    from pathlib import Path
+
+    achados = [
+        p.as_posix()
+        for p in Path("dbqm/ui").rglob("*.py")
+        if "ListView(" in p.read_text(encoding="utf-8")
+    ]
+    assert not achados, "ListView ainda usado em: %s" % achados
 
 
 # ======================================================================
@@ -2441,8 +2474,12 @@ async def test_group_result_accented_names(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_query_exec_folder_arrow_navigation(tmp_config_dir):
-    """Left/Right arrows should switch folder tabs."""
+async def test_query_exec_folder_select_narrows_list(tmp_config_dir):
+    """Choosing a folder in the select narrows the query list to it, and
+    picking "Todas" again shows everything — the select replaced the old
+    folder tabs as the navigation mechanism, not just their look."""
+    from textual.widgets import OptionList
+
     config_dir = tmp_config_dir / "config"
     queries_data = {
         "queries": [
@@ -2467,30 +2504,27 @@ async def test_query_exec_folder_arrow_navigation(tmp_config_dir):
     app = QueryExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
-        # Should have folder buttons: Todas + FolderA + FolderB
-        assert len(screen._folder_buttons) >= 3
-        assert screen._active_folder_idx == 0
-        # Right arrow should advance
-        await pilot.press("right")
-        assert screen._active_folder_idx == 1
-        await pilot.press("right")
-        assert screen._active_folder_idx == 2
-        # Should not go past the end
-        await pilot.press("right")
-        assert screen._active_folder_idx == 2
-        # Left arrow should go back
-        await pilot.press("left")
-        assert screen._active_folder_idx == 1
-        await pilot.press("left")
-        assert screen._active_folder_idx == 0
-        # Should not go below 0
-        await pilot.press("left")
-        assert screen._active_folder_idx == 0
+        seletor = screen.query_one("#folder-select", Select)
+        # "Todas" + FolderA + FolderB
+        assert len(seletor._options) == 3
+        assert screen.query_one("#ql-listview", OptionList).option_count == 2
+
+        seletor.value = "FolderA"
+        await pilot.pause()
+        option_list = screen.query_one("#ql-listview", OptionList)
+        assert option_list.option_count == 1
+        assert str(option_list.get_option_at_index(0).id) == "q1"
+
+        seletor.value = ""
+        await pilot.pause()
+        assert screen.query_one("#ql-listview", OptionList).option_count == 2
 
 
 @pytest.mark.asyncio
 async def test_query_list_shows_all_items(tmp_config_dir):
     """All queries should render in the list, not just one."""
+    from textual.widgets import OptionList
+
     config_dir = tmp_config_dir / "config"
     queries_data = {
         "queries": [
@@ -2508,9 +2542,7 @@ async def test_query_list_shows_all_items(tmp_config_dir):
 
     app = QueryExecTestApp()
     async with app.run_test() as pilot:
-        from dbqm.ui.widgets.query_list import _QueryListItem
-        items = app.query(_QueryListItem)
-        assert len(items) == 10
+        assert app.query_one("#ql-listview", OptionList).option_count == 10
 
 
 # ======================================================================
@@ -3475,10 +3507,9 @@ async def test_help_modal_opens_and_closes(tmp_config_dir):
 @pytest.mark.asyncio
 async def test_query_exec_loads_queries(tmp_config_dir):
     """Query exec screen shows all queries."""
+    from textual.widgets import OptionList
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
-    from dbqm.ui.screens.query_exec import QueryExecScreen
-    from dbqm.ui.widgets.query_list import _QueryListItem
 
     save_queries([
         Query(name=f"q{i}", connection="c1", sql="SELECT 1", table="t1")
@@ -3490,13 +3521,13 @@ async def test_query_exec_loads_queries(tmp_config_dir):
         await pilot.press("f7")
         await pilot.pause()
         await pilot.pause()
-        items = app.query(_QueryListItem)
-        assert len(items) == 5
+        assert app.query_one("#ql-listview", OptionList).option_count == 5
 
 
 @pytest.mark.asyncio
 async def test_query_exec_folder_navigation(tmp_config_dir):
-    """Left/Right arrows switch folders."""
+    """Choosing a folder in the select narrows the query list."""
+    from textual.widgets import OptionList
     from dbqm.models.query import Query, save_queries
     from dbqm.ui.app import DBQMApp
     from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -3512,11 +3543,14 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
         await pilot.pause()
         await pilot.pause()
         screen = app.query_one(QueryExecScreen)
-        assert screen._active_folder_idx == 0
-        await pilot.press("right")
-        assert screen._active_folder_idx == 1
-        await pilot.press("left")
-        assert screen._active_folder_idx == 0
+        seletor = screen.query_one("#folder-select", Select)
+        assert seletor.value == ""
+        seletor.value = "A"
+        await pilot.pause()
+        assert app.query_one("#ql-listview", OptionList).option_count == 1
+        seletor.value = ""
+        await pilot.pause()
+        assert app.query_one("#ql-listview", OptionList).option_count == 2
 
 
 # --- 4. Query manage shortcuts ---
@@ -4188,7 +4222,7 @@ class GroupRunTestApp(ThemedTestApp):
 @pytest.mark.asyncio
 async def test_group_run_screen_renders_standalone(tmp_config_dir):
     """GroupRunScreen renders standalone with its own #gr-group-list id."""
-    from textual.widgets import ListView
+    from textual.widgets import OptionList
 
     config_dir = tmp_config_dir / "config"
     groups_data = {
@@ -4210,7 +4244,7 @@ async def test_group_run_screen_renders_standalone(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(GroupRunScreen)
         assert screen is not None
-        assert screen.query_one("#gr-group-list", ListView) is not None
+        assert screen.query_one("#gr-group-list", OptionList) is not None
 
 
 @pytest.mark.asyncio
@@ -4334,16 +4368,14 @@ async def test_group_run_screen_with_accented_folders(tmp_config_dir):
     app = GroupRunTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupRunScreen)
-        folder_bar = screen.query_one("#gr-folder-bar")
-        assert folder_bar is not None
-        from textual.widgets import Button
-        buttons = folder_bar.query(Button)
-        assert len(buttons) >= 3
+        seletor = screen.query_one("#gr-folder-select", Select)
+        assert len(seletor._options) == 3
 
 
 @pytest.mark.asyncio
 async def test_group_run_screen_with_folders(tmp_config_dir):
-    """Groups with folders should produce a folder filter bar."""
+    """Groups with folders should produce a folder select with a count per
+    option."""
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
@@ -4372,18 +4404,19 @@ async def test_group_run_screen_with_folders(tmp_config_dir):
     app = GroupRunTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupRunScreen)
-        folder_bar = screen.query_one("#gr-folder-bar")
-        assert folder_bar is not None
-        from textual.widgets import Button
-        buttons = folder_bar.query(Button)
+        seletor = screen.query_one("#gr-folder-select", Select)
         # "Todas" + "Folder A" + "Folder B" = 3
-        assert len(buttons) >= 3
+        assert len(seletor._options) == 3
+        rotulos = [str(r) for r, _ in seletor._options]
+        assert any("Todas (2)" in r for r in rotulos)
+        assert any("Folder A (1)" in r for r in rotulos)
+        assert any("Folder B (1)" in r for r in rotulos)
 
 
 @pytest.mark.asyncio
 async def test_group_run_filtered_empty_state_action_resets_filter(tmp_config_dir):
     """A folder filter matching zero groups must not fall back to a fake
-    row inside the ListView: an EmptyState replaces it, and its "Ver
+    row inside the OptionList: an EmptyState replaces it, and its "Ver
     todos os grupos" button must not be a dead end."""
     config_dir = tmp_config_dir / "config"
     groups_data = {
@@ -4403,32 +4436,34 @@ async def test_group_run_filtered_empty_state_action_resets_filter(tmp_config_di
 
     app = GroupRunTestApp()
     async with app.run_test() as pilot:
-        from textual.widgets import Button, ListView
+        from textual.widgets import Button, OptionList
         from dbqm.ui.widgets.empty_state import EmptyState
 
         screen = app.query_one(GroupRunScreen)
         # Simulate a folder filter matching nothing (reachable e.g. via a
-        # stale folder button after a sanitize_id collision) without
-        # depending on that collision mechanics here.
+        # folder select value with no matching groups) without depending
+        # on that selection mechanics here.
         screen._populate_group_list([])
         await pilot.pause()
 
         empty = screen.query_one("#gr-filter-empty", EmptyState)
         assert empty.display is True
-        assert screen.query_one("#gr-group-list", ListView).display is False
+        assert screen.query_one("#gr-group-list", OptionList).display is False
 
         screen.query_one("#ver-todos-grupos", Button).press()
         await pilot.pause()
 
         assert empty.display is False
-        group_list = screen.query_one("#gr-group-list", ListView)
+        group_list = screen.query_one("#gr-group-list", OptionList)
         assert group_list.display is True
-        assert len(group_list.children) == 1
+        assert group_list.option_count == 1
 
 
 @pytest.mark.asyncio
-async def test_group_run_folder_arrow_navigation(tmp_config_dir):
-    """Left/Right arrows should switch folder tabs in group run."""
+async def test_group_run_folder_select_narrows_list(tmp_config_dir):
+    """Choosing a folder in the select narrows the group list to it."""
+    from textual.widgets import OptionList
+
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
@@ -4455,22 +4490,25 @@ async def test_group_run_folder_arrow_navigation(tmp_config_dir):
     app = GroupRunTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupRunScreen)
-        # Should have folder buttons: Todas + F1 + F2
-        assert len(screen._folder_buttons) >= 3
-        assert screen._active_folder_idx == 0
-        # Right arrow should advance
-        await pilot.press("right")
-        assert screen._active_folder_idx == 1
-        await pilot.press("right")
-        assert screen._active_folder_idx == 2
-        # Left arrow should go back
-        await pilot.press("left")
-        assert screen._active_folder_idx == 1
+        seletor = screen.query_one("#gr-folder-select", Select)
+        assert screen.query_one("#gr-group-list", OptionList).option_count == 2
+
+        seletor.value = "F1"
+        await pilot.pause()
+        group_list = screen.query_one("#gr-group-list", OptionList)
+        assert group_list.option_count == 1
+        assert str(group_list.get_option_at_index(0).id) == "g1"
+
+        seletor.value = ""
+        await pilot.pause()
+        assert screen.query_one("#gr-group-list", OptionList).option_count == 2
 
 
 @pytest.mark.asyncio
 async def test_group_run_list_shows_all_items(tmp_config_dir):
     """All groups should render in the list, not just one."""
+    from textual.widgets import OptionList
+
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
@@ -4489,14 +4527,15 @@ async def test_group_run_list_shows_all_items(tmp_config_dir):
 
     app = GroupRunTestApp()
     async with app.run_test() as pilot:
-        from dbqm.ui.screens.group_run import _GroupListItem
-        items = app.query(_GroupListItem)
-        assert len(items) == 8
+        screen = app.query_one(GroupRunScreen)
+        assert screen.query_one("#gr-group-list", OptionList).option_count == 8
 
 
 @pytest.mark.asyncio
-async def test_group_run_folder_bar_is_horizontal_scroll(tmp_config_dir):
-    """Group run folder bar should use HorizontalScroll for scrollability."""
+async def test_group_run_folder_select_is_a_select(tmp_config_dir):
+    """The folder navigation is a Select, not a scrollable row of buttons —
+    a regression guard against reintroducing folder tabs, which is what
+    this screen used before (cardinalidade variavel, nao abas)."""
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
@@ -4522,15 +4561,16 @@ async def test_group_run_folder_bar_is_horizontal_scroll(tmp_config_dir):
 
     app = GroupRunTestApp()
     async with app.run_test() as pilot:
-        from textual.containers import HorizontalScroll
         screen = app.query_one(GroupRunScreen)
-        folder_bar = screen.query_one("#gr-folder-bar")
-        assert isinstance(folder_bar, HorizontalScroll)
+        folder_select = screen.query_one("#gr-folder-select")
+        assert isinstance(folder_select, Select)
 
 
 @pytest.mark.asyncio
 async def test_group_run_screen_with_template_group(tmp_config_dir):
     """Group with template configured should show in the group list."""
+    from textual.widgets import OptionList
+
     config_dir = tmp_config_dir / "config"
     groups_data = {
         "groups": [
@@ -4552,9 +4592,8 @@ async def test_group_run_screen_with_template_group(tmp_config_dir):
     app = GroupRunTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupRunScreen)
-        from textual.widgets import ListView
-        group_list = screen.query_one("#gr-group-list", ListView)
-        assert len(group_list.children) == 1
+        group_list = screen.query_one("#gr-group-list", OptionList)
+        assert group_list.option_count == 1
 
 
 # ======================================================================
