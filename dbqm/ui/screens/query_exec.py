@@ -115,7 +115,10 @@ class QueryExecScreen(Vertical):
             yield Static("", id="result-info")
             # A forma da tabela que vem, nao um rodopio: reserva o espaco
             # certo para a primeira execucao, hidden ate `_execute` mostrar.
-            yield Esqueleto(linhas=8, colunas=4, id="result-skeleton")
+            # 9 e a mediana medida das consultas salvas (min 1, max 36). Um
+            # esqueleto com a forma errada causa o salto de layout que ele
+            # existe para impedir.
+            yield Esqueleto(linhas=8, colunas=9, id="result-skeleton")
             yield ResultTable(id="result-table")
 
     def on_mount(self) -> None:

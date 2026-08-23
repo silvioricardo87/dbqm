@@ -2675,6 +2675,109 @@ async def test_result_table_pagination(tmp_config_dir):
         assert rt.current_page == 1
 
 
+@pytest.mark.asyncio
+async def test_esqueleto_de_resultado_tem_a_forma_mediana(tmp_config_dir):
+    """A mediana medida das 68 consultas salvas e 9 colunas, nao 4.
+
+    Um esqueleto com a forma errada produz o salto de layout que ele existe
+    para impedir — foi o defeito encontrado em browser.py na fase 1.
+    """
+    from dbqm.ui.widgets.esqueleto import Esqueleto
+    from dbqm.ui.screens.query_exec import QueryExecScreen
+    from tests.ui._helpers import ThemedTestApp
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield QueryExecScreen()
+
+    app = App_()
+    async with app.run_test():
+        esq = app.query_one("#result-skeleton", Esqueleto)
+        assert len(esq.query(".esqueleto-linha")) == 8
+        primeira = esq.query(".esqueleto-linha").first()
+        assert len(primeira.query(".esqueleto-celula")) == 9
+
+
+@pytest.mark.asyncio
+async def test_esqueleto_de_grupo_tem_a_forma_mediana(tmp_config_dir):
+    """Mesmo defeito, mesmo call site espelhado em group_exec.py."""
+    from dbqm.ui.widgets.esqueleto import Esqueleto
+    from tests.ui._helpers import ThemedTestApp
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield GroupExecScreen()
+
+    app = App_()
+    async with app.run_test():
+        esq = app.query_one("#ge-results-skeleton", Esqueleto)
+        assert len(esq.query(".esqueleto-linha")) == 8
+        primeira = esq.query(".esqueleto-linha").first()
+        assert len(primeira.query(".esqueleto-celula")) == 9
+
+
+@pytest.mark.asyncio
+async def test_registro_vertical_usa_tokens_de_texto(tmp_config_dir):
+    """`_show_vertical` deve pintar com os tokens da gramatica, nao texto
+    plano com `*** Registro N ***`.
+
+    Assertar que o nome do token aparece numa string nao prova nada sobre o
+    que aparece na tela (licao da Task 1): aqui resolvemos o span de fato
+    renderizado para a cor real do tema ativo, com `Style.parse` dentro do
+    contexto da app — o mesmo mecanismo que o Textual usa para pintar a
+    tela.
+    """
+    from textual.style import Style
+
+    def cor_no_offset(conteudo, offset):
+        """Resolve a cor de fato aplicada num offset, somando os spans que
+        cobrem esse offset ja resolvidos via `Style.parse` (os spans crus de
+        `Content` guardam a marcacao como string, ex.: "$texto-forte", nao
+        como `Style` — por isso nao da para somar sem resolver antes)."""
+        estilo = Style()
+        for start, end, span_style in conteudo.spans:
+            if start <= offset < end:
+                estilo = estilo + Style.parse(span_style)
+        return estilo.foreground
+
+    qr = QR(
+        query_name="test", connection_name="c1",
+        columns=["id", "nome"],
+        rows=[[1, "Alice"]],
+        row_count=1, elapsed=0.05,
+    )
+
+    class TestApp(ThemedTestApp):
+        def compose(self_):
+            yield ResultTable()
+
+    app = TestApp()
+    async with app.run_test():
+        rt = app.query_one(ResultTable)
+        rt.load_result(qr)
+        rt.toggle_vertical()
+
+        conteudo = rt._vertical_view.content
+        texto = conteudo.plain
+        assert "*** Registro 1 ***" not in texto
+        assert "Registro 1" in texto
+
+        cor_forte = Style.parse("$texto-forte").foreground
+        cor_apoio = Style.parse("$texto-apoio").foreground
+        cor_texto = Style.parse("$texto").foreground
+        # Os tres tokens tem de fato cores diferentes no tema ativo, senao
+        # o teste abaixo nao provaria discriminacao nenhuma entre eles.
+        assert len({cor_forte, cor_apoio, cor_texto}) == 3
+
+        pos_registro = texto.index("Registro 1")
+        pos_rotulo = texto.index("nome")
+        pos_valor = texto.index("Alice")
+
+        assert cor_no_offset(conteudo, pos_registro) == cor_forte
+        assert cor_no_offset(conteudo, pos_rotulo) == cor_apoio
+        assert cor_no_offset(conteudo, pos_valor) == cor_texto
+
+
 # ======================================================================
 # History detail view test
 # ======================================================================

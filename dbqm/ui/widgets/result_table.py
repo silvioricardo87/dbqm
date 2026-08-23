@@ -6,10 +6,12 @@ import math
 from typing import Any
 
 from textual.containers import Vertical
+from textual.content import Content
 from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
 from dbqm.core.query_engine import QueryResult
+from dbqm.ui.utils import escape_markup
 
 
 class ResultTable(Vertical, can_focus=False):
@@ -178,9 +180,17 @@ class ResultTable(Vertical, can_focus=False):
         blocks: list[str] = []
         base = self.current_page * self.page_size
         for i, row in enumerate(rows):
-            lines = [f"*** Registro {base + i + 1} ***"]
+            # Tipografia da gramatica (Task 2): a identificacao do registro
+            # em $texto-forte, o rotulo do campo em $texto-apoio e o valor
+            # em $texto — troca `*** Registro N ***`/texto plano por cor com
+            # significado. O alinhamento a direita dos rotulos e mantido: e
+            # o que torna um registro empilhado escaneavel.
+            cabecalho = escape_markup(f"Registro {base + i + 1}")
+            lines = [f"[bold $texto-forte]{cabecalho}[/]"]
             for col, val in zip(str_columns, row):
                 display_val = str(val) if val is not None else ""
-                lines.append(f"  {col:>{max_col_len}}: {display_val}")
+                rotulo = escape_markup(f"{col:>{max_col_len}}")
+                valor = escape_markup(display_val)
+                lines.append(f"  [$texto-apoio]{rotulo}[/]: [$texto]{valor}[/]")
             blocks.append("\n".join(lines))
-        self._vertical_view.update("\n\n".join(blocks))
+        self._vertical_view.update(Content.from_markup("\n\n".join(blocks)))
