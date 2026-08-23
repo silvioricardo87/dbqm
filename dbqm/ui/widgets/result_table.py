@@ -44,7 +44,7 @@ class ResultTable(Vertical, can_focus=False):
         super().__init__(name=name, id=id, classes=classes)
         self.page_size = page_size
         self._result: QueryResult | None = None
-        self._data_table = DataTable()
+        self._data_table = DataTable(zebra_stripes=True)
         self._vertical_view = Static("", classes="vertical-view")
 
     def compose(self):
@@ -148,6 +148,11 @@ class ResultTable(Vertical, can_focus=False):
         self._data_table.clear(columns=True)
         if self._result is None:
             return
+        # A chave fixa e o que torna a rolagem lateral utilizavel: sem ela, ao
+        # rolar para a direita voce perde de vista de qual registro e a linha,
+        # e as colunas restantes deixam de significar alguma coisa. Com uma
+        # coluna so, fixar nao protege nada e rouba largura.
+        self._data_table.fixed_columns = 1 if len(self._result.columns) > 1 else 0
         for col in self._result.columns:
             self._data_table.add_column(str(col), key=str(col))
         for row in self._current_page_rows():

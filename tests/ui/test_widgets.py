@@ -494,6 +494,56 @@ async def test_result_table_pagination_boundary():
         assert "Pagina 3/3" in table.page_info
 
 
+def _resultado(colunas, linhas):
+    return QueryResult(
+        query_name="t", connection_name="c",
+        columns=colunas, rows=linhas, row_count=len(linhas), elapsed=0.01,
+    )
+
+
+@pytest.mark.asyncio
+async def test_result_table_fixa_a_coluna_chave_e_lista_zebra():
+    """A primeira coluna nunca sai de vista ao rolar lateralmente.
+
+    O dbqm existe para comparar: sem saber de qual registro e a linha, as
+    demais colunas nao significam nada.
+    """
+    from textual.widgets import DataTable
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield ResultTable(id="rt")
+
+    app = App_()
+    async with app.run_test() as pilot:
+        rt = app.query_one("#rt", ResultTable)
+        rt.load_result(_resultado(
+            ["NUM_APOLICE", "SITUACAO", "VLR_PREMIO"],
+            [["8801194920", "ATIVA", "3.482,90"]],
+        ))
+        await pilot.pause()
+        dt = rt.query_one(DataTable)
+        assert dt.fixed_columns == 1
+        assert dt.zebra_stripes is True
+
+
+@pytest.mark.asyncio
+async def test_result_table_nao_fixa_coluna_quando_ha_uma_so():
+    """Fixar a unica coluna nao protege nada e rouba largura."""
+    from textual.widgets import DataTable
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield ResultTable(id="rt")
+
+    app = App_()
+    async with app.run_test() as pilot:
+        rt = app.query_one("#rt", ResultTable)
+        rt.load_result(_resultado(["TOTAL"], [["42"]]))
+        await pilot.pause()
+        assert app.query_one(DataTable).fixed_columns == 0
+
+
 # ---------------------------------------------------------------------------
 # ProgressIndicator tests
 # ---------------------------------------------------------------------------
