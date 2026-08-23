@@ -529,7 +529,15 @@ async def test_result_table_fixa_a_coluna_chave_e_lista_zebra():
 
 @pytest.mark.asyncio
 async def test_result_table_nao_fixa_coluna_quando_ha_uma_so():
-    """Fixar a unica coluna nao protege nada e rouba largura."""
+    """Fixar a unica coluna nao protege nada e rouba largura.
+
+    Afirma a TRANSICAO (varias colunas -> uma so), nao so o valor final: o
+    padrao do Textual para fixed_columns ja e 0, entao um teste que so
+    carrega uma coluna passaria mesmo se a linha que zera fixed_columns
+    fosse apagada. Carregando primeiro um resultado largo (fixa em 1) e
+    depois o de coluna unica no MESMO widget, um fixed_columns preso em 1
+    do carregamento anterior reprova o teste pelo motivo certo.
+    """
     from textual.widgets import DataTable
 
     class App_(ThemedTestApp):
@@ -539,9 +547,64 @@ async def test_result_table_nao_fixa_coluna_quando_ha_uma_so():
     app = App_()
     async with app.run_test() as pilot:
         rt = app.query_one("#rt", ResultTable)
+        dt = app.query_one(DataTable)
+        rt.load_result(_resultado(
+            ["NUM_APOLICE", "SITUACAO", "VLR_PREMIO"],
+            [["8801194920", "ATIVA", "3.482,90"]],
+        ))
+        await pilot.pause()
+        assert dt.fixed_columns == 1
+
         rt.load_result(_resultado(["TOTAL"], [["42"]]))
         await pilot.pause()
-        assert app.query_one(DataTable).fixed_columns == 0
+        assert dt.fixed_columns == 0
+
+
+@pytest.mark.asyncio
+async def test_result_table_coluna_chave_permanece_renderizada_ao_rolar():
+    """A prova de renderizacao, nao so do atributo reativo.
+
+    `fixed_columns == 1` pode ficar setado e mesmo assim a coluna parar de
+    pintar na tela se um upgrade do Textual ou uma mudanca de CSS quebrar a
+    renderizacao da fixacao. Este teste rola de verdade (pilot.press) e le o
+    screenshot exportado — o mesmo texto que um usuario veria — em vez de só
+    inspecionar o atributo.
+    """
+    from textual.widgets import DataTable
+
+    colunas = ["CHAVE_REGISTRO"] + [f"COLUNA_LARGA_NUMERO_{i:02d}" for i in range(1, 9)]
+    linha = ["REG-0001"] + [f"valor-{i:02d}-xxxxxxxxxx" for i in range(1, 9)]
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield ResultTable(id="rt")
+
+    app = App_()
+    async with app.run_test(size=(40, 15)) as pilot:
+        rt = app.query_one("#rt", ResultTable)
+        rt.load_result(_resultado(colunas, [linha]))
+        await pilot.pause()
+        dt = rt.query_one(DataTable)
+
+        # Antes de rolar: a chave esta visivel, e a ultima coluna larga NAO
+        # esta — confirma que o cenario realmente exige rolagem lateral.
+        antes = app.export_screenshot()
+        assert "CHAVE_REGISTRO" in antes
+        assert "COLUNA_LARGA_NUMERO_08" not in antes
+
+        # Rola de verdade, ate o fim.
+        for _ in range(40):
+            await pilot.press("right")
+        await pilot.pause()
+        assert dt.scroll_x > 0  # a rolagem lateral realmente aconteceu
+
+        # Depois de rolar: a coluna-chave (cabecalho E valor) continua
+        # pintada na tela, e a coluna que antes estava fora de vista agora
+        # apareceu — provando que rolou colunas nao-fixas por baixo dela.
+        depois = app.export_screenshot()
+        assert "CHAVE_REGISTRO" in depois
+        assert "REG-0001" in depois
+        assert "COLUNA_LARGA_NUMERO_08" in depois
 
 
 # ---------------------------------------------------------------------------
