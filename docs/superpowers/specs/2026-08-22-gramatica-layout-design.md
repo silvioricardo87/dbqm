@@ -71,8 +71,14 @@ exatamente assim que se chegou a três vocabulários — cada tela decidindo soz
 precisava. A regra existe para **remover** a decisão, não para otimizá-la caso a caso.
 
 **Dependência:** as 10 telas sem moldura ganham estrutura visível, e isso consome
-altura. Como a tela de Configurações já transborda hoje, esta decisão **só fecha
-junto com a de densidade** (§6), que resolve o que acontece quando não cabe.
+altura. Como a tela de Configurações já transborda hoje, moldura sozinha pioraria
+o problema.
+
+**Transbordo vertical.** Uma tela mais alta que a viewport **rola verticalmente**,
+com o transbordo visível — nunca corta em silêncio, como a seção Oracle é cortada
+hoje. Isto é decisão separada da densidade (§6), que trata de largura de tabela;
+foram confundidas na primeira redação deste spec e a distinção importa: uma resolve
+coluna que não cabe, a outra resolve tela que não cabe.
 
 ## 5. Decisão — como se navega num conjunto
 
