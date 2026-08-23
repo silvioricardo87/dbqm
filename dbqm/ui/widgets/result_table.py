@@ -184,6 +184,17 @@ class ResultTable(Vertical, can_focus=False):
         # e so uma linha). Aqui a ordem inverte: escapa primeiro, alinha o
         # resultado escapado; a largura continua ancorada no nome real da
         # coluna, entao o caso comum (sem colchete) fica identico a antes.
+        #
+        # Essa garantia so vale para o caso sem colchete. Um nome de coluna
+        # com `[` ou `]` fica levemente desalinhado mesmo depois desta
+        # correcao: o parser de markup do Textual trata os dois de forma
+        # assimetrica no render - `\[` colapsa de volta a 1 char, `\]`
+        # sobrevive como 2 (a barra fica). Isso NAO se corrige invertendo a
+        # ordem de escape/alinhamento de novo - ja foi medido nas duas
+        # ordens e as duas desalinham por causa dessa assimetria do parser,
+        # nao da ordem. Consertar de verdade exigiria mexer em
+        # `escape_markup` (dbqm/ui/utils.py), compartilhado com
+        # `marcar_veredito` e outros - fora do escopo daqui.
         max_col_len = max(len(c) for c in str_columns)
         blocks: list[str] = []
         base = self.current_page * self.page_size
