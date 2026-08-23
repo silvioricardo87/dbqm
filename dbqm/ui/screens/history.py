@@ -9,7 +9,7 @@ from textual.widgets import Button, DataTable, Static
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
-from dbqm.ui.widgets.veredito import marcar_operacao, marcar_veredito
+from dbqm.ui.widgets.verdict import mark_operation, mark_verdict
 
 
 class HistoryScreen(Vertical):
@@ -54,10 +54,10 @@ class HistoryScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Panel("📜  HISTORICO", id="hist-list-panel"):
             yield EmptyState(
-                o_que="Historico",
-                porque="Cada consulta ou grupo executado fica registrado aqui",
-                acao_rotulo="Executar consulta",
-                acao_id="executar-consulta",
+                what="Historico",
+                why="Cada consulta ou grupo executado fica registrado aqui",
+                action_label="Executar consulta",
+                action_id="executar-consulta",
                 id="hist-empty",
             )
             yield DataTable(id="hist-table")
@@ -130,14 +130,14 @@ class HistoryScreen(Vertical):
             if e.entry_type == "group":
                 tipo = "grupo"
                 if e.all_match is True:
-                    status = marcar_veredito("igual")
+                    status = mark_verdict("match")
                 elif e.all_match is False:
-                    status = marcar_veredito("difere")
+                    status = mark_verdict("diff")
                 else:
                     status = "-"
             else:
                 tipo = "query"
-                status = marcar_operacao("ok") if e.success else marcar_operacao("falha")
+                status = mark_operation("ok") if e.success else mark_operation("failure")
 
             table.add_row(
                 str(e.timestamp) if e.timestamp else "",
@@ -209,9 +209,9 @@ class HistoryScreen(Vertical):
                 lines.append(f"[bold]Erro:[/bold] {str(entry.error)}")
         elif entry.entry_type == "group":
             if entry.all_match is not None:
-                status = marcar_veredito(
-                    "igual" if entry.all_match else "difere",
-                    texto="CONSISTENTE" if entry.all_match else "DIVERGENTE",
+                status = mark_verdict(
+                    "match" if entry.all_match else "diff",
+                    label="CONSISTENTE" if entry.all_match else "DIVERGENTE",
                 )
                 lines.append(f"[bold]Resultado:[/bold] {status}")
             if entry.summary:

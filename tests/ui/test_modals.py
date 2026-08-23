@@ -162,7 +162,7 @@ async def test_confirm_modal_sim_returns_true():
 
 
 @pytest.mark.asyncio
-async def test_confirm_modal_nao_returns_false():
+async def test_confirm_modal_no_returns_false():
     modal = ConfirmModal("Remover?")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:

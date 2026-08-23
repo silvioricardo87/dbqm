@@ -9,17 +9,17 @@ from textual.widgets import DataTable, Static
 
 from dbqm.core.group_engine import GroupResult, ComparisonResult
 from dbqm.ui.utils import sanitize_id
-from dbqm.ui.widgets.veredito import marcar_veredito
+from dbqm.ui.widgets.verdict import mark_verdict
 
 # Os status internos do motor de comparacao (dbqm.core.group_engine) usam um
 # vocabulario proprio, historico; o componente de veredito usa outro. Este
 # dict e a unica ponte entre os dois — nao se espalha essa traducao pelo
 # resto do arquivo.
-_STATUS_PARA_VEREDITO: dict[str, str] = {
-    "OK": "igual",
-    "OK*": "igual-normalizado",
-    "DIFF": "difere",
-    "ABSENT": "ausente",
+_STATUS_TO_VERDICT: dict[str, str] = {
+    "OK": "match",
+    "OK*": "match-normalized",
+    "DIFF": "diff",
+    "ABSENT": "absent",
 }
 
 
@@ -32,12 +32,12 @@ def _status_cell(status: str) -> Content:
     padrao usado em `dbqm/ui/screens/history.py`.
 
     Um status fora do vocabulario conhecido explode aqui (KeyError vira
-    ValueError via `marcar_veredito`), nunca renderiza uma celula sem cor
+    ValueError via `mark_verdict`), nunca renderiza uma celula sem cor
     silenciosamente.
     """
-    if status not in _STATUS_PARA_VEREDITO:
+    if status not in _STATUS_TO_VERDICT:
         raise ValueError(f"status de comparacao desconhecido: {status!r}")
-    return Content.from_markup(marcar_veredito(_STATUS_PARA_VEREDITO[status]))
+    return Content.from_markup(mark_verdict(_STATUS_TO_VERDICT[status]))
 
 
 class GroupResultWidget(Vertical, can_focus=False):
@@ -279,17 +279,17 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         lines = []
         overall = "CONSISTENTE" if gr.all_match else "DIVERGENTE"
-        overall_status = "igual" if gr.all_match else "difere"
-        lines.append(f"[bold]{marcar_veredito(overall_status, texto=overall)}[/]")
+        overall_status = "match" if gr.all_match else "diff"
+        lines.append(f"[bold]{mark_verdict(overall_status, label=overall)}[/]")
         lines.append("")
 
         for comp in gr.comparisons:
             col_name = str(comp.column) if comp.column is not None else ""
             lines.append(f"[bold]{col_name}[/]:")
-            lines.append(f"  {marcar_veredito('igual', texto='Iguais:')}      {comp.equal_count}/{comp.total_keys}")
+            lines.append(f"  {mark_verdict('match', label='Iguais:')}      {comp.equal_count}/{comp.total_keys}")
             if comp.normalized_count > 0:
-                lines.append(f"  {marcar_veredito('igual-normalizado', texto='Normalizados:')} {comp.normalized_count}/{comp.total_keys}")
-            lines.append(f"  {marcar_veredito('difere', texto='Diferentes:')}  {comp.diff_count}/{comp.total_keys}")
-            lines.append(f"  {marcar_veredito('ausente', texto='Ausentes:')}    {comp.absent_count}/{comp.total_keys}")
+                lines.append(f"  {mark_verdict('match-normalized', label='Normalizados:')} {comp.normalized_count}/{comp.total_keys}")
+            lines.append(f"  {mark_verdict('diff', label='Diferentes:')}  {comp.diff_count}/{comp.total_keys}")
+            lines.append(f"  {mark_verdict('absent', label='Ausentes:')}    {comp.absent_count}/{comp.total_keys}")
 
         summary.update("\n".join(lines))

@@ -290,7 +290,7 @@ to each guard before concluding "the guard is green, so the rule holds".
   `SelectionList` paints **only the first line** of a prompt (measured), so
   applying `item_hierarquico` there would delete the target instead of
   clarifying it; the real fix is a different widget.
-- ~~`test_f_keys_switch_tabs` / `test_gerenciador_de_clients_abre_num_painel_com_titulo`
+- ~~`test_f_keys_switch_tabs` / `test_clients_manager_opens_in_a_titled_panel`
   are timing-sensitive under load.~~ **Fixed at the root** — it was not a flaky
   test, it was stock `TabbedContent` treating FOCUS as NAVIGATION
   (`_on_tab_pane_focused` -> `self.active = pane.id`). Since every screen schedules
@@ -298,8 +298,8 @@ to each guard before concluding "the guard is green, so the rule holds".
   `AbasPrincipais` (`ui/app.py`) kills the message with `prevent_default()` —
   `stop()` alone is not enough, because Textual dispatches the same message to the
   handler of EVERY class in the MRO (measured: `stop()` changed nothing). Covered
-  by `test_foco_em_painel_inativo_nao_troca_de_aba` and
-  `test_tecla_de_funcao_na_abertura_chega_na_aba_pedida`, both of which fail
+  by `test_focus_in_an_inactive_pane_does_not_switch_tabs` and
+  `test_function_key_at_startup_reaches_the_requested_tab`, both of which fail
   deterministically without the fix with the flake's own message
   (`assert 'tab-conexoes' == 'tab-historico'`).
 - Fixed-schema tables (`history`, `query_manage`, `template_manage`, …) are out
@@ -317,7 +317,7 @@ to each guard before concluding "the guard is green, so the rule holds".
   toast was fixed, 1.21's first launch rewrote that key by itself and the rollback
   broke with nobody having touched anything; now the file only changes when someone
   actually picks a theme.
-- **Guard 6 (`test_botao_nao_navega`) has an `elif`-chain hole.** `_ids_do_ramo`
+- **Guard 6 (`test_button_does_not_navigate`) has an `elif`-chain hole.** `_ids_do_ramo`
   (`tests/design/test_inventario_layout.py:764-776`) gathers the literal ids from
   every enclosing `if` test and takes `sorted(ids)[0]`. In an `if/elif` chain the
   `elif` is an `If` nested in the previous one's `orelse`, so walking up the parents

@@ -40,7 +40,7 @@ class ErrorModal(ModalScreen[None]):
         self._detail = detail
 
     def compose(self) -> ComposeResult:
-        with Dialog(self._title, id="error-dialog", tom="destrutivo", largura="lg"):
+        with Dialog(self._title, id="error-dialog", tone="destructive", width="lg"):
             with VerticalScroll(id="error-scroll"):
                 yield Static(self._detail, id="error-detail")
             yield Button("Fechar", variant="error", id="close-btn")

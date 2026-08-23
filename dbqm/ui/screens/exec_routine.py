@@ -496,8 +496,8 @@ class ExecRoutineScreen(Vertical):
                 lines.append("\n[dim]Sem retorno ou output DBMS_OUTPUT[/]")
         else:
             lines = [
-                f"[bold $op-falha]Erro na execucao[/] ({result.elapsed:.2f}s)",
-                f"\n[$op-falha]{escape_markup(result.error)}[/]",
+                f"[bold $ds-op-failure]Erro na execucao[/] ({result.elapsed:.2f}s)",
+                f"\n[$ds-op-failure]{escape_markup(result.error)}[/]",
             ]
 
         result_area.mount(Static("\n".join(lines), markup=True))

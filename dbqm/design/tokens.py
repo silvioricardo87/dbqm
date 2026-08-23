@@ -27,81 +27,98 @@ from typing import Final
 
 # --------------------------------------------------------------- camada 2
 # Tokens semanticos: o que a cor SIGNIFICA. Componentes consomem so estes.
-
-TOKENS_ESCURO: Final[dict[str, str]] = {
-    "fundo": "#0b0e14",
-    "superficie": "#0f131b",
-    "painel": "#151a24",
-    "superficie-elevada": "#1e2531",
-    "borda": "#2b3342",
-    "borda-forte": "#6b7a93",
-    "texto": "#d5dae4",
-    "texto-apoio": "#9aa4b5",
-    "texto-forte": "#f2f5fa",
-    "texto-desabilitado": "#6b7688",
-    "identidade": "#e3b341",
+#
+# O prefixo `ds-` nao e decoracao: sem ele, sete dos quinze nomes colidiriam
+# com variaveis EMBUTIDAS do Textual — `background`, `surface`, `panel`,
+# `border`, `text`, `text-muted`, `text-disabled`. Colisao ali nao e erro: o
+# `Theme.variables` SOBRESCREVE o builtin de mesmo nome
+# (`ColorSystem._generate` le cada um por `self.variables.get(nome, padrao)`),
+# entao `$text-muted` deixaria de ser o valor derivado que os widgets nativos
+# do Textual usam e viraria o nosso token, mudando pintura fora do dbqm sem
+# nenhum aviso. E o codigo depende dessa separacao: `tests/design/
+# test_tokens.py::DOCUMENTED_BUILTINS` existe justamente para distinguir
+# "builtin do Textual" de "token nosso" no CSS.
+DARK_TOKENS: Final[dict[str, str]] = {
+    "ds-background": "#0b0e14",
+    "ds-surface": "#0f131b",
+    "ds-panel": "#151a24",
+    "ds-surface-raised": "#1e2531",
+    "ds-border": "#2b3342",
+    "ds-border-strong": "#6b7a93",
+    "ds-text": "#d5dae4",
+    "ds-text-muted": "#9aa4b5",
+    "ds-text-strong": "#f2f5fa",
+    "ds-text-disabled": "#6b7688",
+    "ds-identity": "#e3b341",
     # O dbqm nao tem verde: OK e a ausencia de tinta. Reverter o risco e
     # trocar este unico valor.
-    "veredito-igual": "#9aa4b5",
-    "veredito-difere": "#ff8a5c",
-    "veredito-ausente": "#8b9bff",
-    "op-falha": "#ff6b72",
+    "ds-verdict-match": "#9aa4b5",
+    "ds-verdict-diff": "#ff8a5c",
+    "ds-verdict-absent": "#8b9bff",
+    "ds-op-failure": "#ff6b72",
 }
 
-TOKENS_CLARO: Final[dict[str, str]] = {
-    "fundo": "#f4f6f9",
-    "superficie": "#eaeef3",
-    "painel": "#ffffff",
-    "superficie-elevada": "#f2f5f8",
-    "borda": "#d3dae3",
-    "borda-forte": "#7b8798",
-    "texto": "#1c2230",
-    "texto-apoio": "#5b6577",
-    "texto-forte": "#0a0e16",
-    "texto-desabilitado": "#788291",
-    "identidade": "#7d5600",
-    "veredito-igual": "#5b6577",
-    "veredito-difere": "#a83a0c",
-    "veredito-ausente": "#3f49c4",
-    "op-falha": "#c02434",
+LIGHT_TOKENS: Final[dict[str, str]] = {
+    "ds-background": "#f4f6f9",
+    "ds-surface": "#eaeef3",
+    "ds-panel": "#ffffff",
+    "ds-surface-raised": "#f2f5f8",
+    "ds-border": "#d3dae3",
+    "ds-border-strong": "#7b8798",
+    "ds-text": "#1c2230",
+    "ds-text-muted": "#5b6577",
+    "ds-text-strong": "#0a0e16",
+    "ds-text-disabled": "#788291",
+    "ds-identity": "#7d5600",
+    "ds-verdict-match": "#5b6577",
+    "ds-verdict-diff": "#a83a0c",
+    "ds-verdict-absent": "#3f49c4",
+    "ds-op-failure": "#c02434",
 }
 
-TEMAS: Final[dict[str, dict[str, str]]] = {
-    "plano-escuro": TOKENS_ESCURO,
-    "plano-claro": TOKENS_CLARO,
+# `plano-escuro`/`plano-claro` sao os unicos nomes PORTUGUESES que ficam, e de
+# proposito: eles nao sao identificadores de codigo, sao VALORES GRAVADOS no
+# `settings.json` de quem ja usa o dbqm. `ui/theme.py::LEGACY_NAMES` ja carrega
+# um mapa de migracao de `github-dark`/`github-light` para eles; renomea-los
+# agora quebraria a configuracao salva uma segunda vez e obrigaria a uma
+# segunda camada de migracao. As CHAVES de token acima sao internas (so o
+# codigo as le) e por isso foram traduzidas; estes dois nomes nao sao.
+THEMES: Final[dict[str, dict[str, str]]] = {
+    "plano-escuro": DARK_TOKENS,
+    "plano-claro": LIGHT_TOKENS,
 }
 
 # Superficies sobre as quais texto pode ser desenhado.
-SUPERFICIES: Final[tuple[str, ...]] = (
-    "fundo", "superficie", "painel", "superficie-elevada",
+SURFACES: Final[tuple[str, ...]] = (
+    "ds-background", "ds-surface", "ds-panel", "ds-surface-raised",
 )
 
 # Regra do par (guia, secao 3): cada token de tinta declara sobre quais fundos
 # e valido. Nenhum e valido sobre preenchimento translucido — sobre translucido,
 # use o texto da superficie de baixo.
-VALIDO_SOBRE: Final[dict[str, tuple[str, ...]]] = {
-    "texto": SUPERFICIES,
-    "texto-apoio": SUPERFICIES,
-    "texto-forte": SUPERFICIES,
-    "texto-desabilitado": SUPERFICIES,
-    "borda-forte": SUPERFICIES,
-    "identidade": SUPERFICIES,
-    "op-falha": ("painel", "superficie"),
-    # "fundo" entra aqui porque `core/html_report.py` desenha `.ok`/`.diff`/
-    # `.absent` direto sobre `body { background: var(--fundo) }` — o par
+VALID_OVER: Final[dict[str, tuple[str, ...]]] = {
+    "ds-text": SURFACES,
+    "ds-text-muted": SURFACES,
+    "ds-text-strong": SURFACES,
+    "ds-text-disabled": SURFACES,
+    "ds-border-strong": SURFACES,
+    "ds-identity": SURFACES,
+    "ds-op-failure": ("ds-panel", "ds-surface"),
+    # "ds-background" entra aqui porque `core/html_report.py` desenha `.ok`/`.diff`/
+    # `.absent` direto sobre `body { background: var(--ds-background) }` — o par
     # mais comum do relatorio. Ficar de fora era narrowing gratuito: o
     # teste de contraste so calcula pares declarados, entao um par
     # composto real (e o mais frequente do relatorio) ficava invisivel
     # para a catraca. Os tres passam nas duas variantes, minimo 5.42:1.
-    "veredito-igual": ("painel", "superficie", "superficie-elevada", "fundo"),
-    "veredito-difere": ("painel", "superficie", "superficie-elevada", "fundo"),
-    "veredito-ausente": ("painel", "superficie", "superficie-elevada", "fundo"),
+    "ds-verdict-match": ("ds-panel", "ds-surface", "ds-surface-raised", "ds-background"),
+    "ds-verdict-diff": ("ds-panel", "ds-surface", "ds-surface-raised", "ds-background"),
+    "ds-verdict-absent": ("ds-panel", "ds-surface", "ds-surface-raised", "ds-background"),
 }
 
 # Tokens julgados pelo piso de interface (3:1) em vez do de texto (4.5:1).
-TOKENS_DE_INTERFACE: Final[frozenset[str]] = frozenset(
-    {"texto-desabilitado", "borda-forte"}
+INTERFACE_TOKENS: Final[frozenset[str]] = frozenset(
+    {"ds-text-disabled", "ds-border-strong"}
 )
 
-PISO_TEXTO: Final[float] = 4.5
-PISO_INTERFACE: Final[float] = 3.0
+TEXT_FLOOR: Final[float] = 4.5
+INTERFACE_FLOOR: Final[float] = 3.0

@@ -21,18 +21,18 @@ from textual.containers import Vertical
 from textual.widgets import ContentSwitcher, OptionList
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
-from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
+from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 
 
-class FerramentasScreen(Vertical):
+class ToolsScreen(Vertical):
     """Launcher that hosts five existing tool screens behind a list."""
 
     #: (chave, identidade, desambiguacao). A chave viaja como DADO na
-    #: opcao (`OpcaoNomeada.nome`), nunca como `id` — o motivo esta na
-    #: docstring de `OpcaoNomeada`. A ordem e a da tela: primeiro o que se
+    #: opcao (`NamedOption.nome`), nunca como `id` — o motivo esta na
+    #: docstring de `NamedOption`. A ordem e a da tela: primeiro o que se
     #: gerencia, depois o que se executa.
-    FERRAMENTAS = (
+    TOOLS = (
         (
             "grupos",
             "\U0001F465  Gerenciar Grupos",
@@ -61,13 +61,13 @@ class FerramentasScreen(Vertical):
     )
 
     DEFAULT_CSS = """
-    FerramentasScreen {
+    ToolsScreen {
         height: 1fr;
     }
-    FerramentasScreen ContentSwitcher {
+    ToolsScreen ContentSwitcher {
         height: 1fr;
     }
-    FerramentasScreen #ferr-menu {
+    ToolsScreen #ferr-menu {
         height: 1fr;
         margin: 1 2;
     }
@@ -84,10 +84,10 @@ class FerramentasScreen(Vertical):
        A regra fica por ser a unica coisa que prende a altura da lista ao
        conteudo dela: no dia em que algo for montado abaixo da lista
        dentro deste painel, `1fr` engoliria o espaco e `auto` nao. */
-    FerramentasScreen #ferr-menu-list {
+    ToolsScreen #ferr-menu-list {
         height: auto;
     }
-    FerramentasScreen .ferr-tool-container {
+    ToolsScreen .ferr-tool-container {
         height: 1fr;
     }
     """
@@ -104,7 +104,7 @@ class FerramentasScreen(Vertical):
             with Panel("\U0001F9F0  FERRAMENTAS", id="ferr-menu"):
                 yield OptionList(id="ferr-menu-list")
 
-            for chave, _identidade, _desambiguacao in self.FERRAMENTAS:
+            for chave, _identidade, _desambiguacao in self.TOOLS:
                 # Vazio: a tela e montada aqui na primeira abertura, e nada
                 # mais mora neste container — o "Voltar" que morava saiu
                 # com a secao 7 (a saida agora e o `Esc`, ver `_set_actions`).
@@ -113,9 +113,9 @@ class FerramentasScreen(Vertical):
     def on_mount(self) -> None:
         lista = self.query_one("#ferr-menu-list", OptionList)
         lista.clear_options()
-        for chave, identidade, desambiguacao in self.FERRAMENTAS:
+        for chave, identidade, desambiguacao in self.TOOLS:
             lista.add_option(
-                OpcaoNomeada(item_hierarquico(identidade, desambiguacao), chave)
+                NamedOption(hierarchical_item(identidade, desambiguacao), chave)
             )
         self._set_actions()
 
@@ -153,7 +153,7 @@ class FerramentasScreen(Vertical):
         self.query_one(ContentSwitcher).current = f"ferr-{name}"
         self._set_actions()
 
-    def voltar_ao_menu(self) -> None:
+    def back_to_menu(self) -> None:
         """Volta da ferramenta para o menu; nao faz nada se ja estava nele.
 
         A ferramenta continua MONTADA, so escondida — como
@@ -167,9 +167,9 @@ class FerramentasScreen(Vertical):
             return
         switcher.current = "ferr-menu"
         self._set_actions()
-        self.call_after_refresh(self._focar_lista)
+        self.call_after_refresh(self._focus_list)
 
-    def _focar_lista(self) -> None:
+    def _focus_list(self) -> None:
         try:
             self.query_one("#ferr-menu-list", OptionList).focus()
         except Exception:
@@ -198,7 +198,7 @@ class FerramentasScreen(Vertical):
         hospedadas escrevem na mesma barra no proprio `on_mount` — medido
         a 80x24 com `TemplateManageScreen`, o `Esc Voltar` sumia sob
         `N Novo  E Editar  R Renomear  D Remover`. Ver
-        `ActionBar.set_acao_fixa`.
+        `ActionBar.set_pinned_action`.
         """
         try:
             barra = self.app.query_one(ActionBar)
@@ -215,13 +215,13 @@ class FerramentasScreen(Vertical):
         # anterior (e este metodo e justamente o que o app chama ao
         # reativar a aba).
         barra.set_actions([])
-        barra.set_acao_fixa(
+        barra.set_pinned_action(
             Action("Voltar", "Esc", "ferramentas-voltar") if dentro else None
         )
         if dentro:
-            self._reperguntar_a_ferramenta(atual)
+            self._reask_tool(atual)
 
-    def _reperguntar_a_ferramenta(self, container_id: str) -> None:
+    def _reask_tool(self, container_id: str) -> None:
         """Pede a ferramenta visivel que redesenhe as acoes DELA.
 
         Mesma convencao que `DBQMApp.on_tabbed_content_tab_activated` usa
@@ -246,7 +246,7 @@ class FerramentasScreen(Vertical):
 
     def on_action_selected(self, message: ActionSelected) -> None:
         if message.action_id == "ferramentas-voltar":
-            self.voltar_ao_menu()
+            self.back_to_menu()
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
@@ -256,6 +256,6 @@ class FerramentasScreen(Vertical):
         if event.option_list.id != "ferr-menu-list":
             return
         event.stop()
-        chave = getattr(event.option, "nome", "")
-        if any(chave == c for c, _i, _d in self.FERRAMENTAS):
+        chave = getattr(event.option, "name", "")
+        if any(chave == c for c, _i, _d in self.TOOLS):
             self.open_tool(chave)

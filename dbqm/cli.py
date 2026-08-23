@@ -11,9 +11,9 @@ from typing import Any
 
 from rich.console import Console
 from rich.table import Table
-from rich.theme import Theme as _TemaRich
+from rich.theme import Theme as _RichTheme
 
-from dbqm.design.tokens import TOKENS_ESCURO
+from dbqm.design.tokens import DARK_TOKENS
 from dbqm.models.query import find_query, load_queries
 from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
@@ -30,19 +30,19 @@ from dbqm.core.db_manager import test_connection
 from dbqm.core.ddl_extractor import extract_ddl, save_extraction
 from dbqm.core.config_portability import export_configs, import_configs
 
-def tema_rich() -> _TemaRich:
+def rich_theme() -> _RichTheme:
     """Tema do Rich construido a partir dos design tokens.
 
     O CLI roda em terminal de fundo desconhecido, entao usa sempre a variante
     escura: ela e a unica cuja legibilidade nao depende de o terminal ser claro.
     Os nomes trocam '-' por '.' para seguir a convencao de estilo do Rich.
     """
-    return _TemaRich(
-        {chave.replace("-", "."): valor for chave, valor in TOKENS_ESCURO.items()}
+    return _RichTheme(
+        {chave.replace("-", "."): valor for chave, valor in DARK_TOKENS.items()}
     )
 
 
-console = Console(theme=tema_rich())
+console = Console(theme=rich_theme())
 
 
 def _parse_params(param_list: list[str] | None) -> dict:
@@ -52,7 +52,7 @@ def _parse_params(param_list: list[str] | None) -> dict:
     params = {}
     for p in param_list:
         if "=" not in p:
-            console.print(f"[op.falha]Parametro invalido (use chave=valor): {p}[/op.falha]")
+            console.print(f"[ds.op.failure]Parametro invalido (use chave=valor): {p}[/ds.op.failure]")
             sys.exit(1)
         key, value = p.split("=", 1)
         params[key.strip()] = value.strip()
@@ -76,7 +76,7 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
     """Print query result in the specified format."""
     from dbqm.core.query_engine import QueryResult
     if not result.success:
-        console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
+        console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
         sys.exit(1)
 
     if output_format == "json":
@@ -124,13 +124,13 @@ def cmd_run(args: argparse.Namespace) -> None:
     """Execute a saved query."""
     query = find_query(args.query)
     if not query:
-        console.print(f"[op.falha]Consulta '{args.query}' nao encontrada.[/op.falha]")
+        console.print(f"[ds.op.failure]Consulta '{args.query}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     conn_name = args.connection or query.connection
     conn = find_connection(conn_name)
     if not conn:
-        console.print(f"[op.falha]Conexao '{conn_name}' nao encontrada.[/op.falha]")
+        console.print(f"[ds.op.failure]Conexao '{conn_name}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     param_values = _parse_params(args.param)
@@ -143,7 +143,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     # Validate required params
     missing = [p.name for p in query.params if p.name not in param_values]
     if missing:
-        console.print(f"[op.falha]Parametros obrigatorios faltando: {', '.join(missing)}[/op.falha]")
+        console.print(f"[ds.op.failure]Parametros obrigatorios faltando: {', '.join(missing)}[/ds.op.failure]")
         console.print("[dim]Use -p chave=valor para cada parametro[/dim]")
         sys.exit(1)
 
@@ -172,7 +172,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         elif fmt == "txt":
             path = export_query_txt(result, table_name, param_values)
         else:
-            console.print(f"[op.falha]Formato de export invalido: {fmt}[/op.falha]")
+            console.print(f"[ds.op.failure]Formato de export invalido: {fmt}[/ds.op.failure]")
             sys.exit(1)
         console.print(f"Exportado: {path}")
         return
@@ -180,7 +180,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     _print_query_result(result, args.format)
 
 
-def _linhas_comparacao_coloridas(comparisons: list) -> list[str]:
+def _colored_comparison_lines(comparisons: list) -> list[str]:
     """Linhas de resumo do grupo, coloridas pelo eixo de veredito.
 
     Reconstroi o texto a partir de `ComparisonResult` (contagens), em vez de
@@ -191,11 +191,11 @@ def _linhas_comparacao_coloridas(comparisons: list) -> list[str]:
     linhas: list[str] = []
     for comp in comparisons:
         linhas.append(f"Coluna: {comp.column}")
-        linhas.append(f"  [veredito.igual]Iguais:[/]       {comp.equal_count}")
+        linhas.append(f"  [ds.verdict.match]Iguais:[/]       {comp.equal_count}")
         if comp.normalized_count > 0:
-            linhas.append(f"  [veredito.igual]Iguais (norm):[/] {comp.normalized_count}")
-        linhas.append(f"  [veredito.difere]Diferentes:[/]   {comp.diff_count}")
-        linhas.append(f"  [veredito.ausente]Ausentes:[/]     {comp.absent_count}")
+            linhas.append(f"  [ds.verdict.match]Iguais (norm):[/] {comp.normalized_count}")
+        linhas.append(f"  [ds.verdict.diff]Diferentes:[/]   {comp.diff_count}")
+        linhas.append(f"  [ds.verdict.absent]Ausentes:[/]     {comp.absent_count}")
     return linhas
 
 
@@ -203,7 +203,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     """Execute a group comparison."""
     group = find_group(args.group)
     if not group:
-        console.print(f"[op.falha]Grupo '{args.group}' nao encontrado.[/op.falha]")
+        console.print(f"[ds.op.failure]Grupo '{args.group}' nao encontrado.[/ds.op.failure]")
         sys.exit(1)
 
     param_values = _parse_params(args.param)
@@ -219,16 +219,16 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     for qname in group.queries:
         query = find_query(qname)
         if not query:
-            console.print(f"[op.falha]Consulta '{qname}' do grupo nao encontrada.[/op.falha]")
+            console.print(f"[ds.op.failure]Consulta '{qname}' do grupo nao encontrada.[/ds.op.failure]")
             sys.exit(1)
         conn = find_connection(query.connection)
         if not conn:
-            console.print(f"[op.falha]Conexao '{query.connection}' nao encontrada.[/op.falha]")
+            console.print(f"[ds.op.failure]Conexao '{query.connection}' nao encontrada.[/ds.op.failure]")
             sys.exit(1)
 
         result = execute_query(query, conn, param_values)
         if not result.success:
-            console.print(f"[op.falha]Erro na consulta '{qname}': {result.error}[/op.falha]")
+            console.print(f"[ds.op.failure]Erro na consulta '{qname}': {result.error}[/ds.op.failure]")
             sys.exit(1)
 
         # Apply column maps
@@ -278,9 +278,9 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         }
         print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
     else:
-        status = "[veredito.igual]CONSISTENTE[/]" if group_result.all_match else "[veredito.difere]DIVERGENTE[/]"
+        status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
         console.print(f"Grupo: {group_result.group_name} — {status}")
-        for line in _linhas_comparacao_coloridas(group_result.comparisons):
+        for line in _colored_comparison_lines(group_result.comparisons):
             console.print(f"  {line}")
 
 
@@ -288,7 +288,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     """Execute ad-hoc SQL."""
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[op.falha]Conexao '{args.connection}' nao encontrada.[/op.falha]")
+        console.print(f"[ds.op.failure]Conexao '{args.connection}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     sql = args.sql
@@ -302,7 +302,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     if args.explain:
         result = execute_explain(sql, conn, param_values)
         if not result.success:
-            console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
+            console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
             sys.exit(1)
         for row in result.rows:
             print(row[0] if row else "")
@@ -313,7 +313,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     # Require --commit for DML operations
     if sql_type in ("INSERT", "UPDATE", "DELETE") and not args.commit:
-        console.print("[op.falha]DML requer --commit para confirmar a operacao.[/op.falha]")
+        console.print("[ds.op.failure]DML requer --commit para confirmar a operacao.[/ds.op.failure]")
         sys.exit(1)
 
     result = execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
@@ -321,7 +321,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
     if not isinstance(result, tuple) and result.sql_type in ("INSERT", "UPDATE", "DELETE"):
         if not result.success:
-            console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
+            console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
             sys.exit(1)
         console.print(f"{result.rows_affected} registros afetados (committed)")
         return
@@ -331,15 +331,15 @@ def cmd_sql(args: argparse.Namespace) -> None:
         if result.success:
             console.print(f"DDL executado com sucesso ({result.elapsed:.2f}s)")
         else:
-            console.print(f"[op.falha]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/op.falha]")
-            console.print(f"[op.falha]{result.error}[/op.falha]")
+            console.print(f"[ds.op.failure]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/ds.op.failure]")
+            console.print(f"[ds.op.failure]{result.error}[/ds.op.failure]")
             sys.exit(1)
         return
 
     # PL/SQL anonymous block results
     if not isinstance(result, tuple) and result.sql_type == "PLSQL":
         if not result.success:
-            console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
+            console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
             sys.exit(1)
         console.print(f"Bloco PL/SQL executado ({result.elapsed:.2f}s)")
         for line in result.output_lines:
@@ -347,7 +347,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
         return
 
     if not result.success:
-        console.print(f"[op.falha]Erro: {result.error}[/op.falha]")
+        console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
         sys.exit(1)
 
     if result.sql_type == "SELECT":
@@ -382,24 +382,24 @@ def cmd_test(args: argparse.Namespace) -> None:
     if args.connection == "__all__":
         connections = load_connections()
         if not connections:
-            console.print("[texto.apoio]Nenhuma conexao configurada.[/texto.apoio]")
+            console.print("[ds.text.muted]Nenhuma conexao configurada.[/ds.text.muted]")
             return
         for conn in connections:
             ok, msg = test_connection(conn)
-            icon = "OK" if ok else "[op.falha]FAIL[/op.falha]"
-            console.print(f"  {icon}  [identidade]{conn.name}[/]: {msg.splitlines()[0]}")
+            icon = "OK" if ok else "[ds.op.failure]FAIL[/ds.op.failure]"
+            console.print(f"  {icon}  [ds.identity]{conn.name}[/]: {msg.splitlines()[0]}")
         return
 
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[op.falha]Conexao '{args.connection}' nao encontrada.[/op.falha]")
+        console.print(f"[ds.op.failure]Conexao '{args.connection}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     ok, msg = test_connection(conn)
     if ok:
         console.print(msg)
     else:
-        console.print(f"[op.falha]{msg}[/op.falha]")
+        console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
         sys.exit(1)
 
 
@@ -410,7 +410,7 @@ def cmd_list(args: argparse.Namespace) -> None:
     if resource == "connections":
         items = load_connections()
         if not items:
-            console.print("[texto.apoio]Nenhuma conexao configurada.[/texto.apoio]")
+            console.print("[ds.text.muted]Nenhuma conexao configurada.[/ds.text.muted]")
             return
         if args.format == "json":
             data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target()} for c in items]
@@ -421,13 +421,13 @@ def cmd_list(args: argparse.Namespace) -> None:
         table.add_column("Tipo")
         table.add_column("Destino")
         for c in items:
-            table.add_row(f"[identidade]{c.name}[/]", c.db_type, c.display_target())
+            table.add_row(f"[ds.identity]{c.name}[/]", c.db_type, c.display_target())
         console.print(table)
 
     elif resource == "queries":
         items = load_queries()
         if not items:
-            console.print("[texto.apoio]Nenhuma consulta configurada.[/texto.apoio]")
+            console.print("[ds.text.muted]Nenhuma consulta configurada.[/ds.text.muted]")
             return
         if args.format == "json":
             data = [{"name": q.name, "connection": q.connection, "folder": q.folder,
@@ -446,13 +446,13 @@ def cmd_list(args: argparse.Namespace) -> None:
             params = ", ".join(p.name for p in q.params) or "-"
             fav = "*" if q.is_favorite else ""
             desc = q.description[:50] + "..." if len(q.description) > 50 else q.description
-            table.add_row(q.name, desc or "-", f"[identidade]{q.connection}[/]", q.folder or "-", params, fav)
+            table.add_row(q.name, desc or "-", f"[ds.identity]{q.connection}[/]", q.folder or "-", params, fav)
         console.print(table)
 
     elif resource == "groups":
         items = load_groups()
         if not items:
-            console.print("[texto.apoio]Nenhum grupo configurado.[/texto.apoio]")
+            console.print("[ds.text.muted]Nenhum grupo configurado.[/ds.text.muted]")
             return
         if args.format == "json":
             data = [{"name": g.name, "description": g.description, "queries": g.queries,
@@ -472,7 +472,7 @@ def cmd_list(args: argparse.Namespace) -> None:
         console.print(table)
 
     else:
-        console.print(f"[op.falha]Recurso desconhecido: {resource}[/op.falha]")
+        console.print(f"[ds.op.failure]Recurso desconhecido: {resource}[/ds.op.failure]")
         sys.exit(1)
 
 
@@ -480,7 +480,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     """Extract DDL for a database object."""
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[op.falha]Conexao '{args.connection}' nao encontrada.[/op.falha]")
+        console.print(f"[ds.op.failure]Conexao '{args.connection}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     def on_progress(current, total, obj_type, obj_name):
@@ -490,7 +490,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
 
     if result.errors:
         for err in result.errors:
-            console.print(f"[op.falha]{err}[/op.falha]")
+            console.print(f"[ds.op.failure]{err}[/ds.op.failure]")
         if not result.objects:
             sys.exit(1)
 
@@ -522,7 +522,7 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     try:
         summary = import_configs(args.file, password)
     except Exception as e:
-        console.print(f"[op.falha]Erro ao importar: {e}[/op.falha]")
+        console.print(f"[ds.op.failure]Erro ao importar: {e}[/ds.op.failure]")
         sys.exit(1)
 
     console.print(f"Importado: {summary['connections']} conexoes, "
@@ -539,7 +539,7 @@ def cmd_history(args: argparse.Namespace) -> None:
 
     entries = load_history()
     if not entries:
-        console.print("[texto.apoio]Historico vazio.[/texto.apoio]")
+        console.print("[ds.text.muted]Historico vazio.[/ds.text.muted]")
         return
 
     limit = args.limit or 20
@@ -559,12 +559,12 @@ def cmd_history(args: argparse.Namespace) -> None:
     table.add_column("Tempo")
     table.add_column("Status")
     for e in entries:
-        status = "OK" if e.success else "[op.falha]ERRO[/op.falha]"
+        status = "OK" if e.success else "[ds.op.failure]ERRO[/ds.op.failure]"
         if e.all_match is not None:
-            status = "[veredito.igual]CONSISTENTE[/]" if e.all_match else "[veredito.difere]DIVERGENTE[/]"
+            status = "[ds.verdict.match]CONSISTENTE[/]" if e.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
         table.add_row(
             e.timestamp, e.entry_type, e.name,
-            f"[identidade]{e.connection}[/]" if e.connection else "-",
+            f"[ds.identity]{e.connection}[/]" if e.connection else "-",
             str(e.row_count) if e.entry_type == "query" else "-",
             f"{e.elapsed:.2f}s", status,
         )

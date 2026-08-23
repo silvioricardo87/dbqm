@@ -21,14 +21,14 @@ class TemplatesSidebar(Vertical):
     DEFAULT_CSS = """
     TemplatesSidebar {
         width: 26;
-        border-right: solid $borda;
+        border-right: solid $ds-border;
         background: $panel;
         padding: 0;
     }
     TemplatesSidebar.-collapsed { display: none; }
     TemplatesSidebar > #tpl-title {
         height: auto; background: $surface; color: $accent; text-style: bold;
-        border-bottom: solid $borda; padding: 0 1;
+        border-bottom: solid $ds-border; padding: 0 1;
     }
     TemplatesSidebar OptionList { border: none; background: $panel; height: 1fr; }
     TemplatesSidebar > #tpl-empty {
@@ -47,10 +47,10 @@ class TemplatesSidebar(Vertical):
         yield Label("📄  TEMPLATES", id="tpl-title")
         yield OptionList(id="tpl-list")
         yield EmptyState(
-            o_que="Templates",
-            porque="Crie templates na aba Ferramentas para reaproveitar consultas com parametros",
-            acao_rotulo="Abrir Ferramentas",
-            acao_id="abrir-ferramentas",
+            what="Templates",
+            why="Crie templates na aba Ferramentas para reaproveitar consultas com parametros",
+            action_label="Abrir Ferramentas",
+            action_id="abrir-ferramentas",
             id="tpl-empty",
         )
 

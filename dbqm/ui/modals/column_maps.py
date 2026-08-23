@@ -75,7 +75,7 @@ class ColumnMapsModal(ModalScreen[dict | None]):
 
     def compose(self) -> ComposeResult:
         options = [(col, col) for col in self._columns]
-        with Dialog("DE-PARA (Mapeamento de Valores)", largura="lg", id="dialog"):
+        with Dialog("DE-PARA (Mapeamento de Valores)", width="lg", id="dialog"):
             with VerticalScroll(id="maps-scroll"):
                 yield Select(options, prompt="Selecione uma coluna", id="col-select")
                 yield DataTable(id="maps-table")

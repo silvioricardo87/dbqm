@@ -3,7 +3,7 @@
 `ThemedTestApp` existe para que os harnesses ad-hoc dos testes (`class
 XxxTestApp(App)` espalhados por test_screens.py/test_modals.py/test_widgets.py)
 montem os mesmos temas que a DBQMApp real registra em __init__ — sem isso,
-qualquer DEFAULT_CSS que use um token puro (ex.: $borda, que ao contrario de
+qualquer DEFAULT_CSS que use um token puro (ex.: $ds-border, que ao contrario de
 $accent/$primary nao e variavel embutida do Textual) quebra a montagem do
 widget.
 
@@ -20,32 +20,32 @@ import re
 
 from textual.app import App
 
-from dbqm.ui.theme import ESTADOS_INERTES_CSS, PADRAO, TEMAS_TEXTUAL
+from dbqm.ui.theme import INERT_STATES_CSS, DEFAULT_THEME, TEXTUAL_THEMES
 
 
 class ThemedTestApp(App):
     """Base para App de teste: registra e ativa os temas do design system."""
 
     # Espelha `DBQMApp.DEFAULT_CSS` (Task 12): sem isso, um harness ad-hoc
-    # que monta `.-somente-leitura`/`disabled=True` nao veria a distincao
+    # que monta `.-read-only`/`disabled=True` nao veria a distincao
     # visual entre os dois — a mesma classe de lacuna que motivou este
     # arquivo para os temas.
-    DEFAULT_CSS = ESTADOS_INERTES_CSS
+    DEFAULT_CSS = INERT_STATES_CSS
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for tema in TEMAS_TEXTUAL.values():
+        for tema in TEXTUAL_THEMES.values():
             self.register_theme(tema)
-        self.theme = PADRAO
+        self.theme = DEFAULT_THEME
 
 
-_ESTRELAS = "★☆ "
+_STARS = "★☆ "
 
 
-def nomes_renderizados(option_list) -> list[str]:
+def rendered_names(option_list) -> list[str]:
     """Os nomes de uma lista de consultas/grupos como ela os PINTA.
 
-    Le a primeira linha (a identidade, na gramatica de `item_hierarquico`)
+    Le a primeira linha (a identidade, na gramatica de `hierarchical_item`)
     do `prompt` de cada opcao montada, sem a estrela de favorito. Existe
     porque a alternativa obvia — ler `Option.id` — mede um atributo e nao
     o que a pessoa ve: os nomes deixaram de viajar no `id` justamente
@@ -58,14 +58,14 @@ def nomes_renderizados(option_list) -> list[str]:
         prompt = option_list.get_option_at_index(i).prompt
         texto = prompt.plain if hasattr(prompt, "plain") else str(prompt)
         linhas = texto.splitlines() or [""]
-        nomes.append(linhas[0].lstrip(_ESTRELAS).rstrip())
+        nomes.append(linhas[0].lstrip(_STARS).rstrip())
     return nomes
 
 
-_ESCAPES_SVG = {"&#160;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"'}
+_SVG_ESCAPES = {"&#160;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"'}
 
 
-def texto_renderizado(app) -> str:
+def rendered_text(app) -> str:
     """O texto que a tela REALMENTE pinta, linha a linha.
 
     Le o SVG de `App.export_screenshot()` — que so contem o que coube na
@@ -82,16 +82,16 @@ def texto_renderizado(app) -> str:
     linhas = []
     for bruto in re.findall(r">([^<>]*)</text>", svg):
         texto = bruto
-        for de, para in _ESCAPES_SVG.items():
+        for de, para in _SVG_ESCAPES.items():
             texto = texto.replace(de, para)
         linhas.append(texto.replace("\xa0", " "))
     return "\n".join(linhas)
 
 
-def linhas_renderizadas(app) -> list[str]:
+def rendered_lines(app) -> list[str]:
     """As linhas da tela como o compositor as PINTA, com posicao.
 
-    Complementa `texto_renderizado`: aquele acha uma frase, este diz o que
+    Complementa `rendered_text`: aquele acha uma frase, este diz o que
     ha em (x, y) — o que e o unico jeito de afirmar sobre MOLDURA, que nao
     e texto. `Region.height` de um painel nao prova que a linha de baixo
     foi desenhada: `#er-select-phase` media 24 de altura numa tela de 24
@@ -103,8 +103,8 @@ def linhas_renderizadas(app) -> list[str]:
     ]
 
 
-def recorte(app, widget) -> list[str]:
+def crop(app, widget) -> list[str]:
     """As linhas pintadas dentro da regiao de *widget*."""
-    linhas = linhas_renderizadas(app)
+    linhas = rendered_lines(app)
     r = widget.region
     return [linha[r.x : r.x + r.width] for linha in linhas[r.y : r.y + r.height]]

@@ -13,15 +13,15 @@ de ponto) nao levanta excecao em lugar nenhum, nem em `Console.print`, nem em
 
 Ou seja: nenhum teste que apenas *executa* um comando do CLI pega esse typo —
 inclusive `tests/test_cli.py` inteiro, que roda os comandos e confere saida,
-passaria identico com `[op-falha]` no lugar de `[op.falha]`. Este teste existe
+passaria identico com `[op-falha]` no lugar de `[ds.op.failure]`. Este teste existe
 para ser o unico que pega, e precisa cobrir as DUAS formas que o Rich aceita
 um nome de estilo, nao so uma:
 
-  1. tag de markup entre colchetes: `[op.falha]texto[/]`
+  1. tag de markup entre colchetes: `[ds.op.failure]texto[/]`
   2. o kwarg `style=` de qualquer chamada (`console.print(..., style=...)`,
      `Table(..., style=...)`, `add_column(..., style=...)`, `Text(..., style=...)`)
 
-A primeira rodada deste teste so cobria (1) — `style="op-falha"` passado por
+A primeira rodada deste teste so cobria (1) — `style="ds-op-failure"` passado por
 kwarg teria sobrevivido inspecionado por essa rodada, porque a regex de tag
 so olha para dentro de `[...]`. Um valor de `style=` e uma string solta, sem
 colchete nenhum.
@@ -34,7 +34,7 @@ from pathlib import Path
 
 from rich.style import Style
 
-from dbqm.cli import tema_rich
+from dbqm.cli import rich_theme
 
 CLI_PATH = Path(__file__).resolve().parents[1] / "dbqm" / "cli.py"
 
@@ -45,10 +45,10 @@ CLI_PATH = Path(__file__).resolve().parents[1] / "dbqm" / "cli.py"
 _TAG = re.compile(r"\[/?([A-Za-z][\w.\-]*(?:\s+[A-Za-z][\w.\-]*)*)\]")
 
 # Modificadores estruturais do Rich que nao sao nomes de estilo por si so.
-_MODIFICADORES = {"on", "not"}
+_MODIFIERS = {"on", "not"}
 
 
-def _nomes_de_markup_em(caminho: Path) -> set[str]:
+def _markup_names_in(path: Path) -> set[str]:
     """Todo nome de estilo que cli.py referencia, via tag `[...]` ou via `style=`.
 
     Anda pela AST (nao pelo texto bruto) por dois motivos:
@@ -63,7 +63,7 @@ def _nomes_de_markup_em(caminho: Path) -> set[str]:
       `Table(..., style=...)`, `add_column(..., style=...)`, `Text(...,
       style=...)` — qualquer chamada, sem precisar listar cada uma.
     """
-    arvore = ast.parse(caminho.read_text(encoding="utf-8"))
+    arvore = ast.parse(path.read_text(encoding="utf-8"))
     nomes: set[str] = set()
 
     for node in ast.walk(arvore):
@@ -83,12 +83,12 @@ def _nomes_de_markup_em(caminho: Path) -> set[str]:
     return nomes
 
 
-def test_todo_nome_de_markup_do_cli_resolve_no_tema_ou_e_nativo_do_rich():
-    estilos = tema_rich().styles
-    nativos = set(Style.STYLE_ATTRIBUTES) | _MODIFICADORES
+def test_every_cli_markup_name_resolves_in_the_theme_or_is_native_to_rich():
+    estilos = rich_theme().styles
+    nativos = set(Style.STYLE_ATTRIBUTES) | _MODIFIERS
 
     desconhecidos = sorted(
-        nome for nome in _nomes_de_markup_em(CLI_PATH)
+        nome for nome in _markup_names_in(CLI_PATH)
         if nome not in estilos and nome not in nativos
     )
     assert not desconhecidos, (

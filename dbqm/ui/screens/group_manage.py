@@ -56,7 +56,7 @@ class GroupCreateModal(ModalScreen[dict | None]):
         queries = load_queries()
         query_items = [(q.name, q.name) for q in sorted(queries, key=lambda q: q.name)]
 
-        with Dialog("Novo Grupo", largura="lg", id="dialog"):
+        with Dialog("Novo Grupo", width="lg", id="dialog"):
             yield Static(
                 "[dim]Selecione pelo menos 2 consultas para comparar.[/dim]",
                 id="info",
@@ -140,7 +140,7 @@ class GroupEditMenuModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("O que deseja editar?", largura="sm", id="dialog"):
+        with Dialog("O que deseja editar?", width="sm", id="dialog"):
             yield Button("Descricao", id="edit_description")
             yield Button("Consultas", id="edit_queries")
             yield Button("Coluna de juncao", id="edit_join_key")
@@ -314,7 +314,7 @@ class TemplatePickerModal(ModalScreen[str | None]):
         self._current = current
 
     def compose(self) -> ComposeResult:
-        with Dialog("Selecionar Template", largura="sm", id="dialog"):
+        with Dialog("Selecionar Template", width="sm", id="dialog"):
             for tname in self._templates:
                 variant = "primary" if tname == self._current else "default"
                 yield Button(tname, id=f"tpl-{tname}", variant=variant)
@@ -393,7 +393,7 @@ class TemplateFieldsModal(ModalScreen[dict | None]):
     def compose(self) -> ComposeResult:
         from textual.containers import Horizontal as H
 
-        with Dialog("Configurar Campos do Template", largura="lg", id="dialog"):
+        with Dialog("Configurar Campos do Template", width="lg", id="dialog"):
             yield Static(
                 "[dim]Fontes: param:NOME | query:CONSULTA:COLUNA | query:CONSULTA:_count | "
                 "query:CONSULTA:_status | literal:texto\n"
@@ -467,10 +467,10 @@ class GroupManageScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Panel("👥  GRUPOS", id="gm-panel"):
             yield EmptyState(
-                o_que="Grupos",
-                porque="Grupos comparam a mesma consulta em varias conexoes de uma vez",
-                acao_rotulo="Criar grupo",
-                acao_id="criar-grupo",
+                what="Grupos",
+                why="Grupos comparam a mesma consulta em varias conexoes de uma vez",
+                action_label="Criar grupo",
+                action_id="criar-grupo",
                 id="gm-empty",
             )
             yield DataTable(id="gm-table")

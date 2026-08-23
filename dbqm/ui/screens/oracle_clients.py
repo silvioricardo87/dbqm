@@ -45,7 +45,7 @@ class OracleClientsScreen(Vertical):
        painel de altura automatica, estica ate a altura do CONTAINER: os
        dois paineis de baixo nasciam com 23 linhas cada (em vez de 12 e 14)
        e empurravam a secao DISPONIVEIS para y=23, abaixo da dobra. */
-    OracleClientsScreen .oc-acoes {
+    OracleClientsScreen .oc-actions {
         height: auto;
     }
     /* Duas linhas de informacao nao pedem 11 linhas de caixa. Com o
@@ -105,7 +105,7 @@ class OracleClientsScreen(Vertical):
         with Panel(
             "🖥️  PLATAFORMA DETECTADA",
             id="oc-platform-panel",
-            denso=True,
+            dense=True,
         ):
             yield Static(
                 f"[b]{oci.host_platform_label(self._host)}[/b]   "
@@ -121,21 +121,21 @@ class OracleClientsScreen(Vertical):
 
         with Panel("📦  CLIENTS INSTALADOS", id="oc-installed-panel"):
             yield EmptyState(
-                o_que="Clients instalados",
-                porque="O Oracle Instant Client permite conectar a bancos Oracle sem instalacao completa",
-                acao_rotulo="Escolher client",
-                acao_id="escolher-client",
+                what="Clients instalados",
+                why="O Oracle Instant Client permite conectar a bancos Oracle sem instalacao completa",
+                action_label="Escolher client",
+                action_id="escolher-client",
                 id="oc-installed-empty",
             )
             yield DataTable(id="oc-installed-table", cursor_type="row")
-            with Horizontal(classes="oc-acoes"):
+            with Horizontal(classes="oc-actions"):
                 yield Button("Usar este client", variant="primary", id="oc-use-btn")
                 yield Button("Remover selecionado", variant="error", id="oc-remove-btn")
                 yield Button("Atualizar lista", variant="default", id="oc-refresh-btn")
 
         with Panel("⬇️  DISPONIVEIS PARA DOWNLOAD", id="oc-available-panel"):
             yield DataTable(id="oc-available-table", cursor_type="row")
-            with Horizontal(classes="oc-acoes"):
+            with Horizontal(classes="oc-actions"):
                 yield Button("Instalar selecionado", variant="primary", id="oc-install-btn")
 
         yield Static("", id="oc-status", markup=True)
@@ -204,8 +204,8 @@ class OracleClientsScreen(Vertical):
             table.add_row(pkg.version, pkg.arch_key, pkg.archive_type)
 
     def _set_status(self, text: str, level: str = "info") -> None:
-        color = {"info": "$texto-apoio", "ok": "$texto-apoio", "err": "$op-falha"}.get(
-            level, "$texto-apoio"
+        color = {"info": "$ds-text-muted", "ok": "$ds-text-muted", "err": "$ds-op-failure"}.get(
+            level, "$ds-text-muted"
         )
         self.query_one("#oc-status", Static).update(f"[{color}]{text}[/]")
 

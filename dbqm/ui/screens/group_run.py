@@ -10,21 +10,21 @@ from textual.message import Message
 from textual.widgets import Button, OptionList, Select, Static
 from textual import work
 
-from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect, prefixo_comum_de_pastas
+from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect, common_folder_prefix
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.group_result import GroupResultWidget
-from dbqm.ui.widgets.lista_hierarquica import (
-    OpcaoNomeada,
-    item_hierarquico,
-    largura_de_quebra,
-    quebrar_em_linhas,
+from dbqm.ui.widgets.hierarchical_list import (
+    NamedOption,
+    hierarchical_item,
+    wrap_width,
+    wrap_lines,
 )
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
-from dbqm.ui.widgets.veredito import marcar_operacao, marcar_veredito
+from dbqm.ui.widgets.verdict import mark_operation, mark_verdict
 
 from dbqm.core.group_engine import GroupResult
 
@@ -43,7 +43,7 @@ from dbqm.core.group_engine import GroupResult
 # terminal de 120; agora para em 76). Foi a troca aceita nas listas de
 # Conexoes e de Consultas e e a mesma aqui: recuo garantido na
 # continuacao exige quebra em `\n` antes do render (ver
-# `item_hierarquico`), e quebrar em `\n` exige saber a largura antes do
+# `hierarchical_item`), e quebrar em `\n` exige saber a largura antes do
 # render.
 #
 # 76, e nao 42: esta lista e da FORMA de Consultas, nao da de Conexoes.
@@ -55,16 +55,16 @@ from dbqm.core.group_engine import GroupResult
 # colunas, o terminal mais estreito que o produto suporta (80 menos as 4
 # do `margin: 1 2 0 2`). A 80x24 nada muda de lugar; so terminais mais
 # largos pagam o preco.
-_LARGURA_PAINEL_LISTA = 76
+_LIST_PANEL_WIDTH = 76
 
 # Colunas de texto que sobram dentro desse painel. A derivacao (borda do
 # Panel, padding do corpo, padding do OptionList, barra de rolagem no
-# pior caso, recuo da linha) mora em `largura_de_quebra`, compartilhada
+# pior caso, recuo da linha) mora em `wrap_width`, compartilhada
 # com Conexoes e Consultas; o que e desta tela e so a largura do painel
 # acima. Ver la tambem a armadilha que custou quatro rodadas:
 # `content_region` NAO desconta a barra de rolagem,
 # `scrollable_content_region` desconta.
-_LARGURA_TEXTO = largura_de_quebra(_LARGURA_PAINEL_LISTA)
+_TEXT_WIDTH = wrap_width(_LIST_PANEL_WIDTH)
 
 
 class _GroupSelected(Message):
@@ -75,8 +75,8 @@ class _GroupSelected(Message):
         super().__init__()
 
 
-def _group_option(group: Any) -> OpcaoNomeada:
-    """Monta a `OpcaoNomeada` de um grupo pra dentro do `OptionList`.
+def _group_option(group: Any) -> NamedOption:
+    """Monta a `NamedOption` de um grupo pra dentro do `OptionList`.
 
     Mesma hierarquia de linhas de `_query_option`
     (dbqm/ui/widgets/query_list.py) e `connections.py`: identidade sozinha,
@@ -89,7 +89,7 @@ def _group_option(group: Any) -> OpcaoNomeada:
     coluna da identidade do grupo seguinte (ver o comentario no corpo).
 
     O nome do grupo viaja no atributo `nome` da opcao, e nao no `id` — ver
-    `OpcaoNomeada`: dois grupos de mesmo nome num `groups.json` editado a
+    `NamedOption`: dois grupos de mesmo nome num `groups.json` editado a
     mao sao dado ambiguo, mas dado ambiguo nao pode derrubar a tela.
     """
     name = group.name
@@ -97,8 +97,8 @@ def _group_option(group: Any) -> OpcaoNomeada:
     queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
 
     # QUEBRA, nao corte: nenhum caractere se perde, a descricao so ganha
-    # `\n` a cada `_LARGURA_TEXTO` colunas. Sem isso ela chegava a
-    # `item_hierarquico` como UMA linha longa, o Textual a quebrava no
+    # `\n` a cada `_TEXT_WIDTH` colunas. Sem isso ela chegava a
+    # `hierarchical_item` como UMA linha longa, o Textual a quebrava no
     # render — depois do `Content` montado, quando ja nao ha como recuar
     # a continuacao — e a segunda linha saia na coluna 0, a MESMA coluna
     # da identidade do grupo seguinte. O olho nao distinguia uma da
@@ -107,10 +107,10 @@ def _group_option(group: Any) -> OpcaoNomeada:
     # So a descricao passa por aqui. `queries_label` e gerado ("2
     # consultas"), nao e texto do usuario e nao tem como transbordar 66
     # colunas; quebra-lo seria cerimonia sem defeito que a justifique.
-    contexto = quebrar_em_linhas(group.description or "", _LARGURA_TEXTO)
+    contexto = wrap_lines(group.description or "", _TEXT_WIDTH)
 
-    conteudo = item_hierarquico(name, queries_label, contexto)
-    return OpcaoNomeada(conteudo, name)
+    conteudo = hierarchical_item(name, queries_label, contexto)
+    return NamedOption(conteudo, name)
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +132,7 @@ class GroupRunScreen(Vertical):
     /* Largura FIXA, e nao elastica: a lista de grupos quebra a descricao
        em `\\n` antes do render para que toda linha de continuacao pague o
        recuo, e para quebrar e preciso saber a largura de antemao. O
-       numero vem de `_LARGURA_PAINEL_LISTA` — a mesma constante que a
+       numero vem de `_LIST_PANEL_WIDTH` — a mesma constante que a
        quebra usa, para que CSS e aritmetica nao possam divergir. O preco
        (o painel para de crescer com o terminal) esta escrito la.
        `#gr-results-phase` continua elastico: tabela de comparacao precisa
@@ -162,7 +162,7 @@ class GroupRunScreen(Vertical):
     GroupRunScreen #gr-group-list {
         height: 1fr;
     }
-    """.replace("__LARGURA_PAINEL_LISTA__", str(_LARGURA_PAINEL_LISTA))
+    """.replace("__LARGURA_PAINEL_LISTA__", str(_LIST_PANEL_WIDTH))
 
     def __init__(
         self,
@@ -187,10 +187,10 @@ class GroupRunScreen(Vertical):
         # Selection phase
         with Panel("👥  GRUPOS", id="gr-selection-phase"):
             yield EmptyState(
-                o_que="Grupos",
-                porque="Grupos comparam a mesma consulta em varias conexoes de uma vez",
-                acao_rotulo="Gerenciar grupos",
-                acao_id="gerenciar-grupos",
+                what="Grupos",
+                why="Grupos comparam a mesma consulta em varias conexoes de uma vez",
+                action_label="Gerenciar grupos",
+                action_id="gerenciar-grupos",
                 id="gr-empty-message",
             )
         # Progress indicator (hidden by default)
@@ -221,9 +221,9 @@ class GroupRunScreen(Vertical):
         from dbqm.models.group import load_groups
 
         groups = load_groups()
-        # `.corpo` e nao o painel: montagem em runtime nao passa pelo
+        # `.body` e nao o painel: montagem em runtime nao passa pelo
         # roteamento de `compose_add_child` e cairia fora da moldura.
-        selection = self.query_one("#gr-selection-phase", Panel).corpo
+        selection = self.query_one("#gr-selection-phase", Panel).body
         empty_msg = self.query_one("#gr-empty-message", EmptyState)
 
         if not groups:
@@ -244,7 +244,7 @@ class GroupRunScreen(Vertical):
         group_list = OptionList(id="gr-group-list")
 
         if folders:
-            prefixo = prefixo_comum_de_pastas(folders)
+            prefixo = common_folder_prefix(folders)
             options = [(f"Todas ({len(groups)})", "")]
             for folder in folders:
                 rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
@@ -259,10 +259,10 @@ class GroupRunScreen(Vertical):
 
         selection.mount(group_list)
         filtered_empty = EmptyState(
-            o_que="Grupos",
-            porque="A pasta selecionada esconde os grupos que existem",
-            acao_rotulo="Ver todos os grupos",
-            acao_id="ver-todos-grupos",
+            what="Grupos",
+            why="A pasta selecionada esconde os grupos que existem",
+            action_label="Ver todos os grupos",
+            action_id="ver-todos-grupos",
             id="gr-filter-empty",
         )
         filtered_empty.display = False
@@ -300,12 +300,12 @@ class GroupRunScreen(Vertical):
         """Handle the empty-state actions."""
         btn_id = event.button.id or ""
         if btn_id == "gerenciar-grupos":
-            # GroupRunScreen only ever lives nested inside FerramentasScreen
-            # (see ferramentas.py::_build_tool) — guarded for the standalone
+            # GroupRunScreen only ever lives nested inside ToolsScreen
+            # (see tools.py::_build_tool) — guarded for the standalone
             # hosting tests also use.
             try:
-                from dbqm.ui.screens.ferramentas import FerramentasScreen
-                self.app.query_one(FerramentasScreen).open_tool("grupos")
+                from dbqm.ui.screens.tools import ToolsScreen
+                self.app.query_one(ToolsScreen).open_tool("grupos")
             except Exception:
                 pass
             return
@@ -343,12 +343,12 @@ class GroupRunScreen(Vertical):
         """Handle group selection from the list."""
         if event.option_list.id != "gr-group-list":
             return
-        if not isinstance(event.option, OpcaoNomeada):
+        if not isinstance(event.option, NamedOption):
             return
         # Nome vazio tambem segue adiante: `_on_group_chosen` responde
         # "Grupo nao encontrado", que e informacao — melhor que uma linha
         # visivel que nao faz nada ao ser escolhida.
-        self._on_group_chosen(event.option.nome)
+        self._on_group_chosen(event.option.name)
 
     # ------------------------------------------------------------------
     # Group selected -> parameterize & execute
@@ -412,7 +412,7 @@ class GroupRunScreen(Vertical):
         """Start group execution in a worker thread."""
         self._current_params = params
         self.query_one(ProgressIndicator).start(
-            f"{marcar_operacao('executando')} "
+            f"{mark_operation('running')} "
             f"Executando grupo [bold]{escape_markup(group.name)}[/] ({len(group.queries)} consultas)..."
         )
         self._run_group(group, params)
@@ -459,7 +459,7 @@ class GroupRunScreen(Vertical):
 
                 self.app.call_from_thread(
                     self._update_progress,
-                    f"{marcar_operacao('executando')} "
+                    f"{mark_operation('running')} "
                     f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
                 )
 
@@ -556,13 +556,13 @@ class GroupRunScreen(Vertical):
 
         # Update info bar
         overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
-        overall_status = "igual" if group_result.all_match else "difere"
+        overall_status = "match" if group_result.all_match else "diff"
         group_name = str(group_result.group_name) if group_result.group_name else ""
         info = self.query_one("#gr-result-info", Static)
         info.update(
             f"[bold]{escape_markup(group_name)}[/] | "
             f"{len(group_result.query_results)} consultas | "
-            f"[bold]{marcar_veredito(overall_status, texto=overall)}[/]"
+            f"[bold]{mark_verdict(overall_status, label=overall)}[/]"
         )
 
         # Load result into GroupResultWidget
@@ -698,11 +698,11 @@ class GroupRunScreen(Vertical):
         group_name = str(new_gr.group_name) if new_gr.group_name else ""
         if self._showing_mapped:
             overall = "CONSISTENTE" if new_gr.all_match else "DIVERGENTE"
-            overall_status = "igual" if new_gr.all_match else "difere"
+            overall_status = "match" if new_gr.all_match else "diff"
             info.update(
                 f"[bold]{escape_markup(group_name)}[/] | "
                 f"{len(new_gr.query_results)} consultas | "
-                f"[bold]{marcar_veredito(overall_status, texto=overall)}[/]"
+                f"[bold]{mark_verdict(overall_status, label=overall)}[/]"
             )
         else:
             info.update(
@@ -935,7 +935,7 @@ class _QueryPickerModal(ModalScreen[str | None]):
         self._qname_map: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
-        with Dialog("Selecionar consulta", largura="sm", id="qp-dialog"):
+        with Dialog("Selecionar consulta", width="sm", id="qp-dialog"):
             for qn in self._query_names:
                 safe_id = sanitize_id(qn)
                 self._qname_map[safe_id] = qn
@@ -984,7 +984,7 @@ class _IndividualResultModal(ModalScreen[None]):
         self._result = result
 
     def compose(self) -> ComposeResult:
-        with Dialog(self._query_name, largura="tela", id="ir-dialog"):
+        with Dialog(self._query_name, width="screen", id="ir-dialog"):
             yield Static(
                 f"{self._result.row_count} registros | "
                 f"{self._result.elapsed:.2f}s | "
@@ -1051,7 +1051,7 @@ class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Input as TInput
 
-        with Dialog("Preencher campos do template", largura="lg", id="ti-dialog"):
+        with Dialog("Preencher campos do template", width="lg", id="ti-dialog"):
             for field_name in self._fields:
                 with Horizontal(classes="ti-field-row"):
                     yield Static(
@@ -1129,7 +1129,7 @@ class _RenderedTemplateModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import TextArea
 
-        with Dialog("Template Gerado", largura="tela", id="rt-dialog"):
+        with Dialog("Template Gerado", width="screen", id="rt-dialog"):
             yield TextArea(self._rendered_text, id="rt-content", read_only=True)
             with Horizontal(id="rt-buttons"):
                 yield Button("Copiar", variant="primary", id="rt-copy")

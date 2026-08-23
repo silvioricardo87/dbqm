@@ -3,22 +3,22 @@ import io
 
 from rich.console import Console
 
-from dbqm.cli import tema_rich
-from dbqm.design.tokens import TOKENS_ESCURO
+from dbqm.cli import rich_theme
+from dbqm.design.tokens import DARK_TOKENS
 
 
-def test_tema_rich_expoe_um_estilo_por_token():
-    estilos = tema_rich().styles
-    for chave in TOKENS_ESCURO:
+def test_rich_theme_exposes_one_style_per_token():
+    estilos = rich_theme().styles
+    for chave in DARK_TOKENS:
         assert chave.replace("-", ".") in estilos, f"token {chave} nao chega ao CLI"
 
 
-def test_estilo_de_veredito_renderiza_a_cor_do_token():
+def test_verdict_style_renders_the_token_color():
     console = Console(
-        theme=tema_rich(), file=io.StringIO(),
+        theme=rich_theme(), file=io.StringIO(),
         force_terminal=True, color_system="truecolor", width=40,
     )
-    console.print("[veredito.difere]DIFERE[/]")
-    esperado = TOKENS_ESCURO["veredito-difere"].lstrip("#")
+    console.print("[ds.verdict.diff]DIFERE[/]")
+    esperado = DARK_TOKENS["ds-verdict-diff"].lstrip("#")
     rgb = ";".join(str(int(esperado[i:i + 2], 16)) for i in (0, 2, 4))
     assert rgb in console.file.getvalue()

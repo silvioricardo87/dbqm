@@ -33,7 +33,7 @@ class ActionBar(Static):
         height: auto;
         padding: 0 1;
         background: $surface;
-        border-top: solid $borda;
+        border-top: solid $ds-border;
         dock: bottom;
         /* A linha que a StatusBar ocupa. O Textual NAO empilha irmaos
            docados na mesma borda: `_arrange_dock_widgets` poe cada um em
@@ -50,17 +50,17 @@ class ActionBar(Static):
     def __init__(self) -> None:
         super().__init__("")
         self._actions: list[Action] = []
-        self._acao_fixa: Action | None = None
+        self._pinned_action: Action | None = None
 
     def set_actions(self, actions: list[Action]) -> None:
         """Set the list of available actions."""
         self._actions = list(actions)
         self._rebuild()
 
-    def set_acao_fixa(self, action: Action | None) -> None:
+    def set_pinned_action(self, action: Action | None) -> None:
         """Fixa uma acao no fim da barra, que `set_actions` nao apaga.
 
-        Existe por um caso medido: `FerramentasScreen` anuncia `Esc Voltar`
+        Existe por um caso medido: `ToolsScreen` anuncia `Esc Voltar`
         ao abrir uma ferramenta, e a ferramenta — `TemplateManageScreen`,
         por exemplo — chama `set_actions` no proprio `on_mount`, DEPOIS.
         O anuncio da unica saida da tela desaparecia sob
@@ -75,19 +75,19 @@ class ActionBar(Static):
         isso a acao vazaria para as outras abas, onde nao volta para lugar
         nenhum.
         """
-        self._acao_fixa = action
+        self._pinned_action = action
         self._rebuild()
 
-    def acoes_visiveis(self) -> list[Action]:
+    def visible_actions(self) -> list[Action]:
         """O que a barra realmente desenha, na ordem: as da tela + a fixa."""
         acoes = list(self._actions)
-        if self._acao_fixa is not None:
-            acoes.append(self._acao_fixa)
+        if self._pinned_action is not None:
+            acoes.append(self._pinned_action)
         return acoes
 
     def _rebuild(self) -> None:
         """Rebuild the action bar content."""
-        acoes = self.acoes_visiveis()
+        acoes = self.visible_actions()
         if not acoes:
             self.update("")
             self.display = False

@@ -24,7 +24,7 @@ from textual.widgets import Button, ContentSwitcher, OptionList, Select, Static,
 from dbqm.ui.theme import get_theme
 from dbqm.ui.utils import NavSelect, NavVerticalScroll
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
-from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
+from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 
 #: Um caractere, e nao "...": o rotulo de caminho tem 30 celulas num
@@ -35,10 +35,10 @@ RETICENCIA = "\u2026"
 #: Separadores de caminho das duas familias, capturados para que o corte
 #: possa remontar o texto original byte a byte (um caminho do Windows pode
 #: misturar os dois: `C:\\Users\\ricar/exports`).
-_SEPARADOR = re.compile(r"([\\/])")
+_SEPARATOR = re.compile(r"([\\/])")
 
 
-def elidir_caminho(caminho: str, largura: int) -> str:
+def elide_path(path: str, width: int) -> str:
     """Encurta *caminho* para caber em *largura* colunas cortando o MEIO.
 
     O inicio e o fim de um caminho sao o que o identificam — a raiz diz de
@@ -58,17 +58,17 @@ def elidir_caminho(caminho: str, largura: int) -> str:
     O resultado nunca passa de *largura*, inclusive nas larguras absurdas: e
     dai que vem o teste que varre largura por largura.
     """
-    texto = str(caminho)
-    if largura <= 0:
+    texto = str(path)
+    if width <= 0:
         return ""
-    if len(texto) <= largura:
+    if len(texto) <= width:
         return texto
-    if largura <= len(RETICENCIA):
-        return RETICENCIA[:largura]
+    if width <= len(RETICENCIA):
+        return RETICENCIA[:width]
 
     # `split` com grupo capturante intercala segmentos e separadores:
     # ['C:', '/', 'Users', '/', ...]. Indice par = segmento, impar = separador.
-    pecas = _SEPARADOR.split(texto)
+    pecas = _SEPARATOR.split(texto)
 
     # A cabeca vai ate o primeiro segmento COM NOME. Num caminho comum isso
     # e `pecas[:3]` (`C:` + `\` + `Users`). Num UNC nao: `\\servidor\share`
@@ -83,25 +83,25 @@ def elidir_caminho(caminho: str, largura: int) -> str:
 
     if len(pecas) >= corte + 3:  # cabeca + separador + ao menos um segmento
         cabeca = "".join(pecas[: corte + 1])
-        if len(cabeca) + len(RETICENCIA) < largura:
+        if len(cabeca) + len(RETICENCIA) < width:
             cauda = ""
             i = len(pecas) - 1
             while i >= corte + 1:
                 candidata = "".join(pecas[i:])
-                if len(cabeca) + len(RETICENCIA) + len(candidata) > largura:
+                if len(cabeca) + len(RETICENCIA) + len(candidata) > width:
                     break
                 cauda = candidata
                 i -= 2
             if cauda:
                 return cabeca + RETICENCIA + cauda
 
-    sobra = largura - len(RETICENCIA)
+    sobra = width - len(RETICENCIA)
     frente = (sobra + 1) // 2
     fim = sobra - frente
     return texto[:frente] + RETICENCIA + (texto[len(texto) - fim:] if fim else "")
 
 
-class RotuloCaminho(Static):
+class PathLabel(Static):
     """`Static` que pede repintura quando a PROPRIA largura muda.
 
     O `on_resize` da TELA nao cobre este caso: quem muda de tamanho aqui e
@@ -109,7 +109,7 @@ class RotuloCaminho(Static):
     precisar de barra de rolagem, e o rotulo mede 33 celulas onde vai ter
     32 — elidido contra 33 o caminho passava por UMA celula e a quebra
     automatica jogava o ultimo caractere sozinho na linha de baixo, que e
-    o defeito que `elidir_caminho` existe para evitar, chegando por outra
+    o defeito que `elide_path` existe para evitar, chegando por outra
     porta. `events.Resize` nao borbulha (`bubble=False` em
     `textual/events.py`), entao ninguem acima ficaria sabendo.
 
@@ -130,7 +130,7 @@ class RotuloCaminho(Static):
         self._largura_vista = event.size.width
         for ancestral in self.ancestors:
             if isinstance(ancestral, SettingsScreen):
-                ancestral.call_after_refresh(ancestral._pintar_caminhos)
+                ancestral.call_after_refresh(ancestral._paint_paths)
                 return
 
 
@@ -139,8 +139,8 @@ class SettingsScreen(Vertical):
 
     Hospeda tambem as duas telas mais fundas da area de configuracao
     (`ConfigPortScreen` e `OracleClientsScreen`) num `ContentSwitcher` —
-    mesmo mecanismo que `FerramentasScreen` ja usa para hospedar telas
-    inteiras dentro de uma aba. Ver `_abrir_ferramenta`.
+    mesmo mecanismo que `ToolsScreen` ja usa para hospedar telas
+    inteiras dentro de uma aba. Ver `_open_tool`.
     """
 
     DEFAULT_CSS = """
@@ -158,8 +158,8 @@ class SettingsScreen(Vertical):
        painel MAIS CONFIGURACOES — a unica porta para as duas telas que
        esta fase ressuscitou — passa de "titulo com zero entradas" para as
        duas entradas desenhadas. Medido a 80x24 na DBQMApp real, em
-       `test_configuracoes_a_80x24_nao_esconde_a_porta`. */
-    SettingsScreen .settings-coluna {
+       `test_settings_at_80x24_does_not_hide_the_door`. */
+    SettingsScreen .settings-column {
         width: 1fr;
         height: 1fr;
         padding: 0 1;
@@ -167,27 +167,27 @@ class SettingsScreen(Vertical):
     /* `auto` mede o conteudo desde a Task 6; a coluna e que rola quando a
        soma dos paineis passa da tela. Sem isto cada painel esticaria ate a
        altura da COLUNA e so o primeiro de cada uma apareceria. */
-    SettingsScreen .settings-coluna > Panel {
+    SettingsScreen .settings-column > Panel {
         height: auto;
         margin-bottom: 1;
     }
-    SettingsScreen .settings-hospede {
+    SettingsScreen .settings-host {
         height: 1fr;
     }
     SettingsScreen #settings-theme-select {
         width: 1fr;
     }
-    SettingsScreen .settings-linha {
+    SettingsScreen .settings-row {
         height: auto;
     }
-    SettingsScreen .settings-nota {
+    SettingsScreen .settings-note {
         height: auto;
-        color: $texto-apoio;
+        color: $ds-text-muted;
     }
-    SettingsScreen .settings-acoes {
+    SettingsScreen .settings-actions {
         height: auto;
     }
-    SettingsScreen .settings-acoes Button {
+    SettingsScreen .settings-actions Button {
         margin: 0 1 0 0;
     }
     SettingsScreen #settings-ferramentas-list {
@@ -204,17 +204,17 @@ class SettingsScreen(Vertical):
     }
 
     #: As telas hospedadas: (chave, identidade, desambiguacao). A chave
-    #: viaja como DADO na opcao (`OpcaoNomeada.nome`), nunca como `id` — o
-    #: motivo esta na docstring de `OpcaoNomeada`.
+    #: viaja como DADO na opcao (`NamedOption.nome`), nunca como `id` — o
+    #: motivo esta na docstring de `NamedOption`.
     #:
     #: O texto e CURTO por exigencia de layout, nao por gosto: a coluna da
     #: lista tem 30 celulas num terminal de 80, e uma linha mais larga que
     #: isso quebra sozinha no render — a continuacao volta para a coluna 0,
     #: a mesma da identidade da entrada seguinte, que e exatamente a
-    #: confusao que esta fase existe para desfazer. `item_hierarquico` nao
+    #: confusao que esta fase existe para desfazer. `hierarchical_item` nao
     #: tem como recuar a quebra automatica (esta escrito na docstring dele).
-    #: `test_lista_de_mais_configuracoes_nao_quebra_a_80_colunas` cobra.
-    FERRAMENTAS = (
+    #: `test_more_settings_list_does_not_wrap_at_80_columns` cobra.
+    TOOLS = (
         (
             "oracle-clients",
             "Oracle Instant Clients",
@@ -228,7 +228,7 @@ class SettingsScreen(Vertical):
     )
 
     #: Chave -> id do container onde aquela tela e montada.
-    _HOSPEDES = {
+    _HOSTS = {
         "oracle-clients": "settings-host-oracle-clients",
         "portabilidade": "settings-host-portabilidade",
     }
@@ -236,7 +236,7 @@ class SettingsScreen(Vertical):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dir_exportacao = ""
-        #: chave -> a tela hospedada ja montada (ver `_abrir_ferramenta`).
+        #: chave -> a tela hospedada ja montada (ver `_open_tool`).
         self._montadas: dict[str, Vertical] = {}
         self._client_oracle: tuple[str | None, str] = (None, "none")
         self._client_oracle_erro = ""
@@ -245,9 +245,9 @@ class SettingsScreen(Vertical):
         with ContentSwitcher(initial="settings-main"):
             with Horizontal(id="settings-main"):
                 with NavVerticalScroll(
-                    id="settings-col-esquerda", classes="settings-coluna"
+                    id="settings-col-esquerda", classes="settings-column"
                 ):
-                    with Panel("🎨  TEMA", id="settings-panel-tema", denso=True):
+                    with Panel("🎨  TEMA", id="settings-panel-tema", dense=True):
                         yield NavSelect(
                             [
                                 ("Plano Escuro", "plano-escuro"),
@@ -257,47 +257,47 @@ class SettingsScreen(Vertical):
                             allow_blank=False,
                         )
 
-                    with Panel("📋  AUDITORIA", id="settings-panel-auditoria", denso=True):
-                        with Vertical(classes="settings-linha"):
+                    with Panel("📋  AUDITORIA", id="settings-panel-auditoria", dense=True):
+                        with Vertical(classes="settings-row"):
                             yield Switch(id="settings-audit-switch")
                             yield Static(
                                 "Registra execucoes de consultas e grupos.",
                                 id="settings-audit-desc",
-                                classes="settings-nota",
+                                classes="settings-note",
                             )
 
                     with Panel(
                         "📁  EXPORTACAO",
                         id="settings-panel-exportacao",
-                        denso=True,
+                        dense=True,
                     ):
                         yield Static(
                             "Onde os arquivos exportados sao salvos.",
-                            classes="settings-nota",
+                            classes="settings-note",
                         )
-                        yield RotuloCaminho(
+                        yield PathLabel(
                             "", id="settings-export-dir-current", markup=True
                         )
-                        with Horizontal(classes="settings-acoes"):
+                        with Horizontal(classes="settings-actions"):
                             yield Button(
                                 "Alterar diretorio",
                                 variant="primary",
                                 id="btn-export-dir",
                             )
-                        with Vertical(classes="settings-linha"):
+                        with Vertical(classes="settings-row"):
                             yield Switch(id="settings-export-subdirs-switch")
                             yield Static(
                                 "Subdiretorios por tipo (grupos, DDL, SQL).",
-                                classes="settings-nota",
+                                classes="settings-note",
                             )
 
                 with NavVerticalScroll(
-                    id="settings-col-direita", classes="settings-coluna"
+                    id="settings-col-direita", classes="settings-column"
                 ):
                     with Panel(
                         "🔌  ORACLE INSTANT CLIENT",
                         id="settings-panel-oracle",
-                        denso=True,
+                        dense=True,
                     ):
                         # Curto de proposito: cada linha de prosa aqui e
                         # uma linha a menos para a lista de MAIS
@@ -306,12 +306,12 @@ class SettingsScreen(Vertical):
                         yield Static(
                             "Vence o ORACLE_HOME, que pode "
                             "ser de outra arquitetura.",
-                            classes="settings-nota",
+                            classes="settings-note",
                         )
-                        yield RotuloCaminho(
+                        yield PathLabel(
                             "", id="settings-oracle-client-current", markup=True
                         )
-                        with Horizontal(classes="settings-acoes"):
+                        with Horizontal(classes="settings-actions"):
                             yield Button(
                                 "Definir caminho",
                                 variant="primary",
@@ -324,22 +324,22 @@ class SettingsScreen(Vertical):
                     with Panel(
                         "🧰  MAIS CONFIGURACOES",
                         id="settings-panel-ferramentas",
-                        denso=True,
+                        dense=True,
                     ):
                         yield OptionList(id="settings-ferramentas-list")
 
                     with Panel(
                         "🔑  FERNET KEY",
                         id="settings-panel-fernet",
-                        denso=True,
+                        dense=True,
                     ):
-                        yield RotuloCaminho("", id="settings-fernet-status", markup=True)
+                        yield PathLabel("", id="settings-fernet-status", markup=True)
 
             yield Vertical(
-                id="settings-host-portabilidade", classes="settings-hospede"
+                id="settings-host-portabilidade", classes="settings-host"
             )
             yield Vertical(
-                id="settings-host-oracle-clients", classes="settings-hospede"
+                id="settings-host-oracle-clients", classes="settings-host"
             )
 
     def on_mount(self) -> None:
@@ -358,14 +358,14 @@ class SettingsScreen(Vertical):
 
         lista = self.query_one("#settings-ferramentas-list", OptionList)
         lista.clear_options()
-        for chave, identidade, desambiguacao in self.FERRAMENTAS:
+        for chave, identidade, desambiguacao in self.TOOLS:
             lista.add_option(
-                OpcaoNomeada(item_hierarquico(identidade, desambiguacao), chave)
+                NamedOption(hierarchical_item(identidade, desambiguacao), chave)
             )
 
         self._dir_exportacao = settings.default_export_dir
         self._refresh_oracle_client_status()
-        self._pintar_caminhos()
+        self._paint_paths()
 
         self.call_after_refresh(self._set_initial_focus)
 
@@ -378,29 +378,29 @@ class SettingsScreen(Vertical):
         `call_after_refresh` porque durante o proprio evento de resize as
         regioes dos filhos ainda sao as antigas.
         """
-        self.call_after_refresh(self._pintar_caminhos)
+        self.call_after_refresh(self._paint_paths)
 
     # ------------------------------------------------------------------
     # Caminhos longos
     # ------------------------------------------------------------------
 
-    def _pintar_caminhos(self) -> None:
+    def _paint_paths(self) -> None:
         """Repinta os tres rotulos que carregam caminho.
 
         Repintar nao faz VARREDURA de disco. Toca o disco uma vez, e so:
-        `_pintar_fernet` chama `KEY_FILE.exists()` — um `stat` num caminho
+        `_paint_fernet` chama `KEY_FILE.exists()` — um `stat` num caminho
         conhecido. A deteccao do Instant Client
         (`resolve_oracle_client_dir`) e que varre os diretorios de
         instalacao comuns do sistema, e por isso mora em
         `_refresh_oracle_client_status`, chamada quando a resposta pode ter
         mudado, e nao aqui, que roda a cada resize do terminal.
         """
-        self._pintar_dir_exportacao()
-        self._pintar_client_oracle()
-        self._pintar_fernet()
+        self._paint_export_dir()
+        self._paint_oracle_client()
+        self._paint_fernet()
 
     @staticmethod
-    def _largura_util(rotulo: Static) -> int:
+    def _usable_width(label: Static) -> int:
         """Quantas colunas o rotulo tem para pintar.
 
         Medido no widget montado: `content_region` ja desconta a borda do
@@ -409,23 +409,23 @@ class SettingsScreen(Vertical):
         elidir contra zero apagaria o caminho inteiro. `on_resize` repinta
         assim que a regiao existe.
         """
-        return rotulo.content_region.width
+        return label.content_region.width
 
     def _refresh_export_dir_label(self, configured: str) -> None:
         self._dir_exportacao = configured
-        self._pintar_dir_exportacao()
+        self._paint_export_dir()
 
-    def _pintar_dir_exportacao(self) -> None:
+    def _paint_export_dir(self) -> None:
         rotulo = self.query_one("#settings-export-dir-current", Static)
-        largura = self._largura_util(rotulo)
+        largura = self._usable_width(rotulo)
         if self._dir_exportacao:
             caminho = self._dir_exportacao
             sufixo = ""
         else:
             caminho = str(Path.cwd())
-            sufixo = "\n[$texto-desabilitado](diretorio de execucao)[/]"
+            sufixo = "\n[$ds-text-disabled](diretorio de execucao)[/]"
         if largura:
-            caminho = elidir_caminho(caminho, largura)
+            caminho = elide_path(caminho, largura)
         rotulo.update(f"[b]Diretorio atual:[/]\n{caminho}{sufixo}")
 
     def _refresh_oracle_client_status(self) -> None:
@@ -445,23 +445,23 @@ class SettingsScreen(Vertical):
         except OracleClientConfigError as e:
             self._client_oracle = (None, "none")
             self._client_oracle_erro = str(e)
-        self._pintar_client_oracle()
+        self._paint_oracle_client()
 
-    def _pintar_client_oracle(self) -> None:
+    def _paint_oracle_client(self) -> None:
         label = self.query_one("#settings-oracle-client-current", Static)
         if self._client_oracle_erro:
-            label.update(f"[b]Client em uso:[/] [$op-falha]{self._client_oracle_erro}[/]")
+            label.update(f"[b]Client em uso:[/] [$ds-op-failure]{self._client_oracle_erro}[/]")
             return
         path, origin = self._client_oracle
         if not path:
             label.update(
-                "[b]Client em uso:[/] [$texto-apoio]nenhum encontrado[/] "
-                "[$texto-desabilitado](thick mode indisponivel)[/]"
+                "[b]Client em uso:[/] [$ds-text-muted]nenhum encontrado[/] "
+                "[$ds-text-disabled](thick mode indisponivel)[/]"
             )
             return
         source = self.ORACLE_CLIENT_ORIGINS.get(origin, origin)
-        largura = self._largura_util(label)
-        mostrado = elidir_caminho(str(path), largura) if largura else str(path)
+        largura = self._usable_width(label)
+        mostrado = elide_path(str(path), largura) if largura else str(path)
         label.update(f"[b]Client em uso:[/]\n{mostrado}\n[b]Origem:[/] {source}")
 
     #: Dos tres rotulos com caminho, este e o unico que poe o caminho na
@@ -469,22 +469,22 @@ class SettingsScreen(Vertical):
     #: As celulas do prefixo nao estao disponiveis para o caminho, e cobrar
     #: a largura inteira fazia a linha passar da caixa e queimar uma linha
     #: na quebra automatica (37 celulas contra 32 de caixa, medidas a 80x24).
-    PREFIXO_FERNET = "Local: "
+    FERNET_PREFIX = "Local: "
 
-    def _pintar_fernet(self) -> None:
+    def _paint_fernet(self) -> None:
         from dbqm.core.paths import KEY_FILE
 
         status = self.query_one("#settings-fernet-status", Static)
         exists = KEY_FILE.exists()
-        state = "Presente" if exists else "[$texto-apoio]Sera gerada no primeiro uso[/]"
-        orcamento = self._largura_util(status) - len(self.PREFIXO_FERNET)
+        state = "Presente" if exists else "[$ds-text-muted]Sera gerada no primeiro uso[/]"
+        orcamento = self._usable_width(status) - len(self.FERNET_PREFIX)
         local = str(KEY_FILE)
         if orcamento > 0:
-            local = elidir_caminho(local, orcamento)
+            local = elide_path(local, orcamento)
         status.update(
             f"[b]Status:[/b] {state}\n"
-            f"[b]{self.PREFIXO_FERNET}[/b][$texto-desabilitado]{local}[/]\n\n"
-            "[$texto-desabilitado]Criptografa as senhas de conexao salvas. "
+            f"[b]{self.FERNET_PREFIX}[/b][$ds-text-disabled]{local}[/]\n\n"
+            "[$ds-text-disabled]Criptografa as senhas de conexao salvas. "
             "Nao ha acao manual: ela e criada automaticamente.[/]"
         )
 
@@ -498,18 +498,18 @@ class SettingsScreen(Vertical):
     # Telas hospedadas
     # ------------------------------------------------------------------
 
-    def _construir(self, chave: str):
-        if chave == "oracle-clients":
+    def _build_tool(self, key: str):
+        if key == "oracle-clients":
             from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 
             return OracleClientsScreen(id="settings-oracle-clients-screen")
-        if chave == "portabilidade":
+        if key == "portabilidade":
             from dbqm.ui.screens.config_port import ConfigPortScreen
 
             return ConfigPortScreen(id="settings-config-port-screen")
-        raise ValueError(f"ferramenta de configuracao desconhecida: {chave}")
+        raise ValueError(f"ferramenta de configuracao desconhecida: {key}")
 
-    def _abrir_ferramenta(self, chave: str) -> None:
+    def _open_tool(self, key: str) -> None:
         """Troca a area de configuracoes pela tela *chave*, montando na 1a vez.
 
         Estas duas telas ficaram INALCANCAVEIS da v1.17.0 ate aqui: os
@@ -518,14 +518,14 @@ class SettingsScreen(Vertical):
         `except Exception` transformava a falha num toast de erro. Elas
         voltam pelo mecanismo que a shell ja tem para hospedar uma tela
         inteira dentro de uma aba — o mesmo `ContentSwitcher` de
-        `FerramentasScreen` — em vez de um `push_screen`, que tiraria da
+        `ToolsScreen` — em vez de um `push_screen`, que tiraria da
         vista o cabecalho, as abas e a barra de acoes.
         """
-        hospede = self.query_one(f"#{self._HOSPEDES[chave]}", Vertical)
-        if chave not in self._montadas:
-            tela = self._construir(chave)
+        hospede = self.query_one(f"#{self._HOSTS[key]}", Vertical)
+        if key not in self._montadas:
+            tela = self._build_tool(key)
             hospede.mount(tela)
-            self._montadas[chave] = tela
+            self._montadas[key] = tela
         else:
             # Reabrir uma tela que continua montada mostrava a fase em que
             # ela FICOU: quem exportou, saiu com `Esc` e voltou reencontrava
@@ -534,13 +534,13 @@ class SettingsScreen(Vertical):
             # precisa sobreviver ao ida-e-volta e a propria tela — o
             # gerenciador de clients nao implementa isto justamente porque
             # tem um download de 150+ MB escrevendo na sua arvore.
-            reabrir = getattr(self._montadas[chave], "ao_reabrir", None)
+            reabrir = getattr(self._montadas[key], "on_reopen", None)
             if callable(reabrir):
                 reabrir()
-        self.query_one(ContentSwitcher).current = self._HOSPEDES[chave]
+        self.query_one(ContentSwitcher).current = self._HOSTS[key]
         self._set_actions()
 
-    def voltar_ao_inicio(self) -> None:
+    def back_to_start(self) -> None:
         """Volta da tela hospedada para os paineis; nao faz nada se ja estava la.
 
         Nao devolve mais um "o `Esc` foi consumido aqui": os dois chamadores
@@ -555,7 +555,7 @@ class SettingsScreen(Vertical):
         vem desfazendo.
 
         A tela hospedada continua MONTADA, so escondida — como
-        `FerramentasScreen` ja faz com as suas cinco. Desmontar seria
+        `ToolsScreen` ja faz com as suas cinco. Desmontar seria
         arrancar o widget debaixo de um worker vivo: a instalacao de um
         Instant Client baixa 150+ MB em background e escreve progresso
         nesta arvore. Voltar nao pode ser cancelar.
@@ -565,19 +565,19 @@ class SettingsScreen(Vertical):
             return
         switcher.current = "settings-main"
         self._set_actions()
-        self.call_after_refresh(self._reentrar_nos_paineis)
+        self.call_after_refresh(self._reenter_panels)
 
-    def _reentrar_nos_paineis(self) -> None:
+    def _reenter_panels(self) -> None:
         """Volta a mostrar os paineis: ressincroniza e devolve o foco a lista.
 
         Depois do refresh, e nao durante o `Esc`: a elisao de caminho mede a
         largura no rotulo montado, e enquanto o `ContentSwitcher` nao
         refez o layout essa largura ainda e a de quem estava escondido.
         """
-        self._ressincronizar_com_o_disco()
-        self._focar_lista_de_ferramentas()
+        self._resync_with_disk()
+        self._focus_tool_list()
 
-    def _ressincronizar_com_o_disco(self) -> None:
+    def _resync_with_disk(self) -> None:
         """Reconcilia os paineis com o que as telas hospedadas gravaram.
 
         `OracleClientsScreen._use_selected` grava `oracle_client_dir` e
@@ -599,10 +599,10 @@ class SettingsScreen(Vertical):
             self._dir_exportacao = load_settings().default_export_dir
         except Exception:
             pass
-        self._pintar_dir_exportacao()
+        self._paint_export_dir()
         self._refresh_oracle_client_status()
 
-    def _focar_lista_de_ferramentas(self) -> None:
+    def _focus_tool_list(self) -> None:
         try:
             self.query_one("#settings-ferramentas-list", OptionList).focus()
         except Exception:
@@ -641,15 +641,15 @@ class SettingsScreen(Vertical):
 
     def on_action_selected(self, message: ActionSelected) -> None:
         if message.action_id == "settings-voltar":
-            self.voltar_ao_inicio()
+            self.back_to_start()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option_list.id != "settings-ferramentas-list":
             return
         event.stop()
-        chave = getattr(event.option, "nome", "")
-        if chave in self._HOSPEDES:
-            self._abrir_ferramenta(chave)
+        chave = getattr(event.option, "name", "")
+        if chave in self._HOSTS:
+            self._open_tool(chave)
 
     # ------------------------------------------------------------------
     # Controles

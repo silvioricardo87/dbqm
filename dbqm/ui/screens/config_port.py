@@ -8,7 +8,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Checkbox, Input, OptionList, Static
 
-from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
+from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -21,7 +21,7 @@ class ConfigPortScreen(Vertical):
     Pass initial_mode="export" or "import" to skip mode selection.
 
     A saida desta tela e o `Esc`, tratado por quem a hospeda
-    (`SettingsScreen.voltar_ao_inicio`, alcancado por
+    (`SettingsScreen.back_to_start`, alcancado por
     `DBQMApp.action_go_back`) e anunciado por
     `SettingsScreen._set_actions`. Houve aqui um botao "Voltar" que
     montava uma `SettingsScreen` nova dentro de `#screen-area`, container
@@ -30,11 +30,11 @@ class ConfigPortScreen(Vertical):
     Task 8 tirou o botao — voltar e navegacao, e a secao 7 da gramatica
     proibe botao que navega. Sair do formulario de exportacao leva de
     volta as Configuracoes, nao a escolha de modo; reentrar pela lista
-    reabre na escolha de modo (`ao_reabrir`).
+    reabre na escolha de modo (`on_reopen`).
     """
 
     #: (chave, identidade, desambiguacao) das duas fases fundas. A chave
-    #: viaja como DADO na opcao (`OpcaoNomeada.nome`), nunca como `id`.
+    #: viaja como DADO na opcao (`NamedOption.nome`), nunca como `id`.
     MODOS = (
         ("export", "Exportar", "gera um .dbqm protegido por senha"),
         ("import", "Importar", "le um .dbqm gerado por outro dbqm"),
@@ -117,7 +117,7 @@ class ConfigPortScreen(Vertical):
     def compose(self) -> ComposeResult:
         # Phase 1: mode selection
         # Lista, e nao dois botoes: escolher entre exportar e importar e
-        # NAVEGACAO — leva a um formulario, nao executa nada. Dois botoes
+        # NAVIGATION — leva a um formulario, nao executa nada. Dois botoes
         # lado a lado eram um menu disfarcado, a mesma forma que o menu de
         # Ferramentas tinha (secao 7 da gramatica).
         with Panel("🔄  EXPORTAR OU IMPORTAR", id="cp-mode-phase"):
@@ -154,7 +154,7 @@ class ConfigPortScreen(Vertical):
         lista.clear_options()
         for chave, identidade, desambiguacao in self.MODOS:
             lista.add_option(
-                OpcaoNomeada(item_hierarquico(identidade, desambiguacao), chave)
+                NamedOption(hierarchical_item(identidade, desambiguacao), chave)
             )
         if self._initial_mode == "export":
             self._show_export_phase()
@@ -164,7 +164,7 @@ class ConfigPortScreen(Vertical):
             self._show_mode_phase()
         self.call_after_refresh(self._set_initial_focus)
 
-    def ao_reabrir(self) -> None:
+    def on_reopen(self) -> None:
         """Volta a fase inicial quando a tela e reaberta pela lista.
 
         A tela continua MONTADA depois do `Esc` — e ate aqui reabria na fase
@@ -221,7 +221,7 @@ class ConfigPortScreen(Vertical):
         if event.option_list.id != "cp-mode-list":
             return
         event.stop()
-        chave = getattr(event.option, "nome", "")
+        chave = getattr(event.option, "name", "")
         if chave == "export":
             self._show_export_phase()
         elif chave == "import":

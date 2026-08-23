@@ -15,11 +15,11 @@ from textual.widgets import Label
 class Panel(Vertical):
     #: Linhas que a moldura consome antes do corpo: 2 de borda (topo e
     #: base) + 1 de titulo + 1 da regua `border-bottom` do titulo.
-    CROMO = 4
+    CHROME = 4
 
     DEFAULT_CSS = """
     Panel {
-        border: round $borda;
+        border: round $ds-border;
         background: $panel;
         height: 1fr;
         padding: 0;
@@ -33,7 +33,7 @@ class Panel(Vertical):
         color: $primary;
         text-style: bold;
         background: $surface;
-        border-bottom: solid $borda;
+        border-bottom: solid $ds-border;
         padding: 0 1;
     }
     Panel.accent-focus > #panel-title { color: $accent; }
@@ -41,8 +41,8 @@ class Panel(Vertical):
     Panel > #panel-body {
         /* `1fr` e o caso comum: o painel recebe uma altura e o corpo a
            preenche. Quando o PROPRIO painel pede `height: auto` este `1fr`
-           vira a mentira silenciosa descrita em `_ajustar_corpo`, e a
-           classe `-conteudo` (logo abaixo) toma o lugar dele. */
+           vira a mentira silenciosa descrita em `_adjust_body`, e a
+           classe `-content` (logo abaixo) toma o lugar dele. */
         height: 1fr;
         padding: 1 1;
         /* Transbordo vertical VISIVEL: um painel mais alto que a caixa
@@ -61,14 +61,14 @@ class Panel(Vertical):
        um `#panel-body { padding: 0 1 }` reescrito em cada tela que precisa
        — a segunda copia dessas ja tinha aparecido, e "cada tela decide por
        si" e exatamente o que a secao 4 da gramatica existe para remover. */
-    Panel.-denso > #panel-body { padding: 0 1; }
-    /* Ligada por `_ajustar_corpo` quando o proprio painel pede
+    Panel.-dense > #panel-body { padding: 0 1; }
+    /* Ligada por `_adjust_body` quando o proprio painel pede
        `height: auto`. Classe, e nao escrita direta de altura em `styles`,
        porque `dbqm/ui` tem um guarda contra esse tipo de escrita fora do
        componente (o tamanho de um `Dialog` so pode ser decidido dentro de
        `dialog.py`) — furar aquele guarda para resolver este problema seria
        trocar um silencio por outro. */
-    Panel > #panel-body.-conteudo { height: auto; }
+    Panel > #panel-body.-content { height: auto; }
     /* guideline 5: inner widgets carry no border of their own */
     Panel #panel-body DataTable,
     Panel #panel-body OptionList,
@@ -82,7 +82,7 @@ class Panel(Vertical):
         title: str,
         *,
         accent: bool = False,
-        denso: bool = False,
+        dense: bool = False,
         id: str | None = None,
     ) -> None:
         super().__init__(id=id)
@@ -96,8 +96,8 @@ class Panel(Vertical):
         self._panel_pending_children: list[Widget] = []
         if accent:
             self.add_class("accent-focus")
-        if denso:
-            self.add_class("-denso")
+        if dense:
+            self.add_class("-dense")
 
     def compose(self) -> ComposeResult:
         yield Label(self._title, id="panel-title")
@@ -114,9 +114,9 @@ class Panel(Vertical):
             body = self.query_one("#panel-body", Vertical)
             body.mount(*self._panel_pending_children)
             self._panel_pending_children = []
-        self._ajustar_corpo()
+        self._adjust_body()
 
-    def _ajustar_corpo(self) -> None:
+    def _adjust_body(self) -> None:
         """Faz `height: auto` no painel significar mesmo "do tamanho do conteudo".
 
         `#panel-body` nasce com `height: 1fr`. Um `1fr` dentro de um pai de
@@ -131,16 +131,16 @@ class Panel(Vertical):
         As duas ultimas secoes nascem abaixo da dobra sem que nada no CSS
         pareca errado. Por isso o corpo passa a `auto` quando o painel pediu
         `auto`: a declaracao passa a fazer o que diz. Ler `self.styles.height`
-        (e nao um modificador explicito tipo `Panel.-conteudo`) e o que
+        (e nao um modificador explicito tipo `Panel.-content`) e o que
         mantem a regra valida para quem escreve CSS normal — ninguem precisa
         saber que existe uma regra.
 
         `max-height` junto com `auto` precisa da aritmetica: um corpo em
         `auto` nao ve o teto do pai, e `max-height: 100%` no corpo erraria
-        por `CROMO` linhas (percentual resolve contra o pai INTEIRO, titulo
+        por `CHROME` linhas (percentual resolve contra o pai INTEIRO, titulo
         incluido) — o corpo nasceria mais alto que a caixa e as ultimas
         linhas ficariam recortadas, fora do alcance da rolagem. Descontar
-        `CROMO` deixa o corpo caber exatamente e o excesso ROLAR, visivel.
+        `CHROME` deixa o corpo caber exatamente e o excesso ROLAR, visivel.
         Teto em unidade que nao seja celula nao tem essa conta: nesse caso o
         corpo fica em `1fr`, que preenche a caixa e rola — nunca corta.
 
@@ -156,11 +156,11 @@ class Panel(Vertical):
         if teto is not None:
             if teto.unit is not Unit.CELLS:
                 return
-            corpo.styles.max_height = max(int(teto.value) - self.CROMO, 1)
-        corpo.add_class("-conteudo")
+            corpo.styles.max_height = max(int(teto.value) - self.CHROME, 1)
+        corpo.add_class("-content")
 
     @property
-    def corpo(self) -> Vertical:
+    def body(self) -> Vertical:
         """O container onde o conteudo do painel vive.
 
         `compose_add_child` so roteia o que o chamador rende dentro do

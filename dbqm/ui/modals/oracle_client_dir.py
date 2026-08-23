@@ -80,7 +80,7 @@ class OracleClientDirModal(ModalScreen[bool]):
         self._initial_path = initial_path
 
     def compose(self) -> ComposeResult:
-        with Dialog("Oracle Instant Client", largura="lg", id="dialog"):
+        with Dialog("Oracle Instant Client", width="lg", id="dialog"):
             yield Static(
                 "Informe o diretorio do Instant Client que o dbqm deve carregar. "
                 "Definir aqui evita conflito com a variavel ORACLE_HOME do sistema, "

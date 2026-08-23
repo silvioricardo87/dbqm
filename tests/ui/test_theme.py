@@ -2,14 +2,14 @@
 from dbqm.ui.theme import get_theme
 
 
-def test_tema_escuro_tem_variaveis_obrigatorias():
+def test_dark_theme_has_the_required_variables():
     theme = get_theme("plano-escuro")
     assert theme.name == "plano-escuro"
     assert theme.primary is not None
     assert theme.background is not None
 
 
-def test_tema_claro_tem_variaveis_obrigatorias():
+def test_light_theme_has_the_required_variables():
     theme = get_theme("plano-claro")
     assert theme.name == "plano-claro"
     assert theme.primary is not None
@@ -31,34 +31,34 @@ def test_light_defines_accent_and_panel():
 
     Um teste que compara contra um hex literal reprova toda vez que a
     paleta e repintada (a propria Task 8 do design system e prova disso) e
-    nao pega o bug real: se `_construir` parasse de mapear
-    `background=tokens["fundo"]`, um hex sincronizado a mao no teste faria
+    nao pega o bug real: se `_build_theme` parasse de mapear
+    `background=tokens["ds-background"]`, um hex sincronizado a mao no teste faria
     a asserção passar mesmo com a fiacao quebrada. Comparar contra
-    TOKENS_CLARO prova a ligacao, nao a memoria de qual paleta esta ativa.
+    LIGHT_TOKENS prova a ligacao, nao a memoria de qual paleta esta ativa.
     """
-    from dbqm.design.tokens import TOKENS_CLARO
+    from dbqm.design.tokens import LIGHT_TOKENS
 
     light = get_theme("plano-claro")
-    assert light.variables["identidade"] == TOKENS_CLARO["identidade"]
-    assert light.panel == TOKENS_CLARO["painel"]
-    assert light.surface == TOKENS_CLARO["superficie"]
-    assert light.background == TOKENS_CLARO["fundo"]
+    assert light.variables["ds-identity"] == LIGHT_TOKENS["ds-identity"]
+    assert light.panel == LIGHT_TOKENS["ds-panel"]
+    assert light.surface == LIGHT_TOKENS["ds-surface"]
+    assert light.background == LIGHT_TOKENS["ds-background"]
 
 
-def test_tema_expoe_todo_token_como_variavel_css():
+def test_theme_exposes_every_token_as_a_css_variable():
     """Os componentes so podem consumir a camada semantica se ela chegar la."""
-    from dbqm.design.tokens import TOKENS_ESCURO
+    from dbqm.design.tokens import DARK_TOKENS
 
     variaveis = get_theme("plano-escuro").variables
-    for chave in TOKENS_ESCURO:
+    for chave in DARK_TOKENS:
         assert chave in variaveis, f"token {chave} nao chega ao CSS"
 
 
-def test_nomes_de_tema_antigos_continuam_funcionando():
+def test_legacy_theme_names_still_work():
     """settings.json de quem ja usa o dbqm guarda github-dark/github-light."""
     assert get_theme("github-dark").name == "plano-escuro"
     assert get_theme("github-light").name == "plano-claro"
 
 
-def test_tema_desconhecido_cai_no_escuro():
+def test_unknown_theme_falls_back_to_dark():
     assert get_theme("inexistente").name == "plano-escuro"

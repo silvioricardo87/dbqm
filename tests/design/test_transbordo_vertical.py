@@ -14,7 +14,7 @@ abaixo da dobra — e nenhum deles e visivel lendo CSS:
     clicava em "Procedures" nao via sinal nenhum de que algo acontecia.
 
 Por isso todas as afirmacoes aqui sao sobre o que a tela PINTA (via
-`linhas_renderizadas`/`texto_renderizado`), e nao sobre atributo de estilo:
+`rendered_lines`/`rendered_text`), e nao sobre atributo de estilo:
 uma regra CSS pode ler certo e nao fazer nada, e uma regiao pode ter altura
 e nao ser desenhada.
 """
@@ -28,7 +28,7 @@ from textual.containers import Vertical
 from textual.widgets import Static
 
 from dbqm.ui.widgets.panel import Panel
-from tests.ui._helpers import ThemedTestApp, linhas_renderizadas, recorte, texto_renderizado
+from tests.ui._helpers import ThemedTestApp, rendered_lines, crop, rendered_text
 
 
 # ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ from tests.ui._helpers import ThemedTestApp, linhas_renderizadas, recorte, texto
 # ---------------------------------------------------------------------------
 
 
-class _TresPaineis(ThemedTestApp):
+class _ThreePanels(ThemedTestApp):
     CSS = """
     #raiz { height: 1fr; overflow-y: auto; }
     #raiz Panel { height: auto; }
@@ -52,28 +52,28 @@ class _TresPaineis(ThemedTestApp):
 
 
 @pytest.mark.asyncio
-async def test_painel_de_altura_automatica_mede_o_conteudo():
+async def test_auto_height_panel_measures_the_content():
     """`height: auto` num Panel tem de valer o conteudo, nao o container.
 
     Com o defeito presente os tres paineis mediam 24 (a tela inteira) e so
     o primeiro aparecia. A altura esperada e 9: 3 linhas de conteudo + 2 de
     padding do corpo + 1 de titulo + 1 da regua do titulo + 2 de borda.
     """
-    app = _TresPaineis()
+    app = _ThreePanels()
     async with app.run_test(size=(60, 24)) as pilot:
         await pilot.pause()
         alturas = [app.query_one(f"#p{i}").region.height for i in range(3)]
         assert alturas == [9, 9, 9], (
             "painel de altura automatica esticou ate o container: %r" % alturas
         )
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         for i in range(3):
             assert f"SECAO {i}" in pintado, (
                 "a secao %d nasceu abaixo da dobra num terminal de 24 linhas" % i
             )
 
 
-class _PainelComTeto(ThemedTestApp):
+class _PanelWithCap(ThemedTestApp):
     CSS = """
     #teto, #curto { height: auto; max-height: 8; }
     """
@@ -87,19 +87,19 @@ class _PainelComTeto(ThemedTestApp):
 
 
 @pytest.mark.asyncio
-async def test_painel_com_teto_rola_o_excesso_em_vez_de_cortar():
+async def test_capped_panel_scrolls_the_excess_instead_of_clipping():
     """`height: auto` + `max-height` nao pode deixar conteudo fora de alcance.
 
     Um corpo em `auto` nao ve o teto do pai. Sem descontar o cromo da
-    moldura (`Panel.CROMO`), o corpo nasce mais alto que a caixa: as
+    moldura (`Panel.CHROME`), o corpo nasce mais alto que a caixa: as
     ultimas linhas ficam recortadas pela borda E fora do alcance da
     rolagem, que so anda ate o fim do CORPO.
     """
-    app = _PainelComTeto()
+    app = _PanelWithCap()
     async with app.run_test(size=(40, 24)) as pilot:
         await pilot.pause()
         painel = app.query_one("#teto", Panel)
-        corpo = painel.corpo
+        corpo = painel.body
         assert painel.region.height == 8
         assert painel.region.contains_region(corpo.region), (
             "o corpo (%r) transborda a moldura (%r): o que sobra e recortado, "
@@ -109,7 +109,7 @@ async def test_painel_com_teto_rola_o_excesso_em_vez_de_cortar():
 
         corpo.scroll_end(animate=False)
         await pilot.pause()
-        assert "linha 8" in texto_renderizado(app), (
+        assert "linha 8" in rendered_text(app), (
             "a ultima linha nao e alcancavel nem rolando ate o fim"
         )
 
@@ -126,7 +126,7 @@ async def test_painel_com_teto_rola_o_excesso_em_vez_de_cortar():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tamanho", [(100, 24), (80, 24), (100, 40)])
-async def test_exec_routine_indicador_visivel_durante_a_busca(tmp_config_dir, tamanho):
+async def test_exec_routine_indicator_visible_during_the_search(tmp_config_dir, tamanho):
     """O feedback de "listando..." tem de ser DESENHADO, em qualquer altura.
 
     `_load_objects` acende o `ProgressIndicator` com `#er-select-phase`
@@ -150,7 +150,7 @@ async def test_exec_routine_indicador_visivel_durante_a_busca(tmp_config_dir, ta
         assert painel.display, "a fase 1 tem de estar visivel neste ponto"
 
         # A borda de baixo do painel: a prova de que ele cabe na tela.
-        moldura = recorte(app, painel)
+        moldura = crop(app, painel)
         assert moldura[-1].startswith("╰") and moldura[-1].endswith("╯"), (
             "a borda inferior de #er-select-phase nao e desenhada em %r: %r"
             % (tamanho, moldura[-1])
@@ -158,7 +158,7 @@ async def test_exec_routine_indicador_visivel_durante_a_busca(tmp_config_dir, ta
 
         app.query_one(ProgressIndicator).start("Listando procedures...")
         await pilot.pause()
-        assert "Listando procedures..." in texto_renderizado(app), (
+        assert "Listando procedures..." in rendered_text(app), (
             "sem sinal de progresso em %r enquanto a busca remota roda" % (tamanho,)
         )
 
@@ -169,7 +169,7 @@ async def test_exec_routine_indicador_visivel_durante_a_busca(tmp_config_dir, ta
 
 
 @pytest.mark.asyncio
-async def test_oracle_clients_secoes_nao_gastam_a_tela_cada_uma(monkeypatch):
+async def test_oracle_clients_sections_do_not_each_eat_the_screen(monkeypatch):
     """Com um client instalado, nenhuma secao pode ocupar a tela inteira.
 
     Este e o estado em que o defeito aparece — com a lista vazia o
@@ -224,7 +224,7 @@ async def test_oracle_clients_secoes_nao_gastam_a_tela_cada_uma(monkeypatch):
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        assert "Instalar selecionado" in texto_renderizado(app)
+        assert "Instalar selecionado" in rendered_text(app)
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ async def test_oracle_clients_secoes_nao_gastam_a_tela_cada_uma(monkeypatch):
         ("export", True),   # exportacao: 29 linhas, passa da dobra
     ],
 )
-async def test_config_port_so_a_exportacao_passa_da_dobra(tmp_config_dir, modo, rola):
+async def test_config_port_only_the_export_passes_the_fold(tmp_config_dir, modo, rola):
     """Quem transborda e a EXPORTACAO, nao a importacao.
 
     O comentario do `overflow-y` desta tela dizia o contrario. A diferenca
@@ -269,7 +269,7 @@ async def test_config_port_so_a_exportacao_passa_da_dobra(tmp_config_dir, modo, 
             await pilot.pause()
             await pilot.wait_for_scheduled_animations()
             await pilot.pause()
-            assert "Exportar" in texto_renderizado(app)
+            assert "Exportar" in rendered_text(app)
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +278,7 @@ async def test_config_port_so_a_exportacao_passa_da_dobra(tmp_config_dir, modo, 
 
 
 @pytest.mark.asyncio
-async def test_package_editor_erros_de_compilacao_cabem_e_rolam(tmp_config_dir):
+async def test_package_editor_compilation_errors_fit_and_scroll(tmp_config_dir):
     """`max-height: 8` emoldurado nao pode valer duas linhas de texto.
 
     Emoldurar comeu 4 linhas de cromo; com o padding vertical do corpo
@@ -314,19 +314,19 @@ async def test_package_editor_erros_de_compilacao_cabem_e_rolam(tmp_config_dir):
         await pilot.pause()
 
         painel = app.query_one("#pe-error-panel", Panel)
-        corpo = painel.corpo
+        corpo = painel.body
         assert painel.region.contains_region(corpo.region), (
             "o corpo transborda a moldura: as ultimas linhas ficam recortadas"
         )
 
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "erro(s) de compilacao" in pintado
         assert "erro 3" in pintado, "so o cabecalho e um erro cabem no painel"
 
         assert corpo.max_scroll_y > 0
         corpo.scroll_end(animate=False)
         await pilot.pause()
-        assert "erro 7" in texto_renderizado(app), (
+        assert "erro 7" in rendered_text(app), (
             "o ultimo erro nao e alcancavel nem rolando ate o fim"
         )
 
@@ -346,12 +346,12 @@ async def test_package_editor_erros_de_compilacao_cabem_e_rolam(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_adhoc_controles_nao_vestem_a_moldura(tmp_config_dir):
+async def test_adhoc_controls_do_not_wear_the_frame(tmp_config_dir):
     """Controle nao desenha a caixa `round` de Panel — nem parado nem escolhido.
 
     O `Checkbox` de saida DBMS desenhava `border: round $primary`, byte a
     byte a mesma regra de `Panel:focus-within`: parado, com cara de painel
-    focado. E o Select de conexao ganhava `round $identidade` ao escolher —
+    focado. E o Select de conexao ganhava `round $ds-identity` ao escolher —
     o que ainda comia duas colunas e quebrava o nome da conexao em duas
     linhas. O sinal continua existindo; agora ele RECOLORE a afordancia que
     o proprio Select ja desenha.
@@ -367,7 +367,7 @@ async def test_adhoc_controles_nao_vestem_a_moldura(tmp_config_dir):
     async with app.run_test(size=(120, 30)) as pilot:
         await pilot.pause()
         for seletor in ("#adhoc-dbms-toggle", "#adhoc-conn-select"):
-            topo = recorte(app, app.query_one(seletor))[0]
+            topo = crop(app, app.query_one(seletor))[0]
             assert "╭" not in topo, (
                 "%s desenha a moldura de secao: %r" % (seletor, topo)
             )
@@ -375,14 +375,14 @@ async def test_adhoc_controles_nao_vestem_a_moldura(tmp_config_dir):
         seletor_conexao = app.query_one("#adhoc-conn-select", Select)
         canto = seletor_conexao.region.offset
         antes = app.screen.get_style_at(*canto).color
-        largura_antes = len(recorte(app, seletor_conexao))
+        largura_antes = len(crop(app, seletor_conexao))
 
         seletor_conexao.add_class("--conn-selected")
         await pilot.pause()
         depois = app.screen.get_style_at(*canto).color
 
         assert antes != depois, "escolher a conexao nao muda nada na tela"
-        assert "╭" not in recorte(app, seletor_conexao)[0]
-        assert len(recorte(app, seletor_conexao)) == largura_antes, (
+        assert "╭" not in crop(app, seletor_conexao)[0]
+        assert len(crop(app, seletor_conexao)) == largura_antes, (
             "o sinal de conexao escolhida mudou a geometria do controle"
         )

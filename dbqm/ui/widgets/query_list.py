@@ -11,11 +11,11 @@ from textual.message import Message
 from textual.widgets import Button, Input, OptionList, Static
 
 from dbqm.ui.widgets.empty_state import EmptyState
-from dbqm.ui.widgets.lista_hierarquica import (
-    OpcaoNomeada,
-    item_hierarquico,
-    largura_de_quebra,
-    quebrar_em_linhas,
+from dbqm.ui.widgets.hierarchical_list import (
+    NamedOption,
+    hierarchical_item,
+    wrap_width,
+    wrap_lines,
 )
 
 
@@ -33,20 +33,20 @@ from dbqm.ui.widgets.lista_hierarquica import (
 # largura, o Textual quebrava a linha no render, e a continuacao caia na
 # coluna 0, a MESMA coluna da identidade da consulta seguinte; o olho nao
 # distinguia continuacao de entrada nova. Recuo garantido exige quebra
-# em `\n` antes do render (ver `item_hierarquico`), e quebrar em `\n`
+# em `\n` antes do render (ver `hierarchical_item`), e quebrar em `\n`
 # exige saber a largura antes do render.
 #
 # 76 e a largura que o painel ja tinha no terminal mais estreito que o
 # produto suporta (80 colunas menos o `margin: 1 2 0 2` da tela, 4
 # colunas). Escolhida assim de proposito: a 80x24 nada muda de lugar, e
 # so terminais mais largos pagam o preco.
-LARGURA_PAINEL_LISTA = 76
+LIST_PANEL_WIDTH = 76
 
 # Colunas de texto que sobram dentro desse painel — derivacao unica,
 # compartilhada com a lista de Conexoes (que tem painel de 42). Ver
-# `largura_de_quebra` para as parcelas e para a armadilha da barra de
+# `wrap_width` para as parcelas e para a armadilha da barra de
 # rolagem.
-_LARGURA_TEXTO = largura_de_quebra(LARGURA_PAINEL_LISTA)
+_TEXT_WIDTH = wrap_width(LIST_PANEL_WIDTH)
 
 
 class QuerySelected(Message):
@@ -72,19 +72,19 @@ def _attr(obj: Any, key: str, default: Any = "") -> Any:
     return getattr(obj, key, default)
 
 
-def _query_option(query: Any) -> OpcaoNomeada:
-    """Monta a `OpcaoNomeada` de uma consulta pra dentro do `OptionList`.
+def _query_option(query: Any) -> NamedOption:
+    """Monta a `NamedOption` de uma consulta pra dentro do `OptionList`.
 
     Renders com a hierarquia de linhas do layout grammar
-    (`item_hierarquico`): nome sozinho na identidade, conexao+tabela como
+    (`hierarchical_item`): nome sozinho na identidade, conexao+tabela como
     desambiguacao (o que separa duas consultas de nome parecido), descricao
     como contexto opcional. O nome da consulta viaja no atributo `nome` da
-    opcao, e nao no `id` — ver `OpcaoNomeada`: duas consultas de mesmo nome
+    opcao, e nao no `id` — ver `NamedOption`: duas consultas de mesmo nome
     sao dado ambiguo, mas dado ambiguo nao pode derrubar a tela.
     """
     is_fav = _attr(query, "is_favorite", False)
     star = Content.assemble(
-        ("★ " if is_fav else "☆ ", "$identidade" if is_fav else "$texto-desabilitado")
+        ("★ " if is_fav else "☆ ", "$ds-identity" if is_fav else "$ds-text-disabled")
     )
 
     name = _attr(query, "name", "")
@@ -94,24 +94,24 @@ def _query_option(query: Any) -> OpcaoNomeada:
 
     # Desambiguacao: conexao e tabela sao o que distingue duas consultas
     # de nome parecido — mesmo par (alvo, conexao) que o docstring de
-    # item_hierarquico usa como exemplo.
+    # hierarchical_item usa como exemplo.
     alvo = f"{conn} - {table}" if conn and table else (conn or table)
     # Contexto: descricao, sem corte artificial — a hierarquia (linha
-    # propria, recuada, em $texto-desabilitado) e o que a torna legivel,
+    # propria, recuada, em $ds-text-disabled) e o que a torna legivel,
     # nao um limite de caracteres. O que ha e QUEBRA, nao corte: nenhum
-    # caractere se perde, so ganha `\n` a cada `_LARGURA_TEXTO` colunas.
+    # caractere se perde, so ganha `\n` a cada `_TEXT_WIDTH` colunas.
     #
-    # A quebra e o conserto. Sem ela, `item_hierarquico` recebia a
+    # A quebra e o conserto. Sem ela, `hierarchical_item` recebia a
     # descricao como UMA linha longa, o Textual a quebrava no render e a
     # continuacao saia na coluna 0 — colada, para o olho, na identidade
     # da consulta seguinte. Os dois campos passam por aqui porque os dois
     # sao texto do usuario de comprimento livre: um nome de conexao e uma
     # tabela longos transbordam do mesmo jeito que a descricao.
-    desambiguacao = quebrar_em_linhas(alvo, _LARGURA_TEXTO)
-    contexto = quebrar_em_linhas(desc, _LARGURA_TEXTO)
+    desambiguacao = wrap_lines(alvo, _TEXT_WIDTH)
+    contexto = wrap_lines(desc, _TEXT_WIDTH)
 
-    conteudo = star + item_hierarquico(name, desambiguacao, contexto)
-    return OpcaoNomeada(conteudo, name)
+    conteudo = star + hierarchical_item(name, desambiguacao, contexto)
+    return NamedOption(conteudo, name)
 
 
 class QueryListWidget(Vertical, can_focus=False):
@@ -159,10 +159,10 @@ class QueryListWidget(Vertical, can_focus=False):
         with Horizontal(id="ql-search"):
             yield Input(placeholder="Filtrar consultas...", id="ql-search-input")
         yield EmptyState(
-            o_que="Consultas",
-            porque="Os filtros aplicados escondem as consultas que existem",
-            acao_rotulo="Limpar filtros",
-            acao_id="limpar-filtros-consultas",
+            what="Consultas",
+            why="Os filtros aplicados escondem as consultas que existem",
+            action_label="Limpar filtros",
+            action_id="limpar-filtros-consultas",
             id="ql-filter-empty",
         )
         yield OptionList(id="ql-listview")
@@ -225,12 +225,12 @@ class QueryListWidget(Vertical, can_focus=False):
         """When an item is selected, post QuerySelected if it's a real query item."""
         if event.option_list.id != "ql-listview":
             return
-        if not isinstance(event.option, OpcaoNomeada):
+        if not isinstance(event.option, NamedOption):
             return
         # Nome vazio tambem e postado: a tela responde "Consulta '' nao
         # encontrada", que e informacao. Engolir a selecao aqui daria uma
         # linha visivel que nao faz nada ao ser escolhida.
-        self.post_message(QuerySelected(event.option.nome))
+        self.post_message(QuerySelected(event.option.name))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "limpar-filtros-consultas":

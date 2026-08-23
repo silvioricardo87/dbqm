@@ -59,7 +59,7 @@ async def test_ctrl_b_toggles_templates_sidebar(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_first_run_switches_to_conexoes(tmp_config_dir):
+async def test_first_run_switches_to_connections_tab(tmp_config_dir):
     """When no connections exist, the app lands on the Conexoes tab."""
     app = DBQMApp()
     async with app.run_test() as pilot:
@@ -79,7 +79,7 @@ async def test_config_tab_hosts_settings_screen(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_conexoes_tab_hosts_connections_screen(tmp_config_dir):
+async def test_connections_tab_hosts_connections_screen(tmp_config_dir):
     """The Conexoes tab hosts the ConnectionsScreen and sets its actions."""
     from dbqm.ui.screens.connections import ConnectionsScreen
     from dbqm.ui.widgets.action_bar import ActionBar
@@ -121,7 +121,7 @@ async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
     aba). O motivo estava no PRODUTO, nao aqui, e a corrida so vira
     deterministica quando se dispara o foco atrasado a mao — por isso o
     teste que guarda a raiz e o vizinho
-    `test_foco_em_painel_inativo_nao_troca_de_aba`, nao este.
+    `test_focus_in_an_inactive_pane_does_not_switch_tabs`, nao este.
     """
     app = DBQMApp()
     async with app.run_test() as pilot:
@@ -135,7 +135,7 @@ async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_foco_em_painel_inativo_nao_troca_de_aba(tmp_config_dir):
+async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
     """Focar um widget de OUTRA aba nao pode arrastar a aba ativa junto.
 
     E a raiz da instabilidade das tres travessias de aba deste arquivo. O
@@ -150,7 +150,7 @@ async def test_foco_em_painel_inativo_nao_troca_de_aba(tmp_config_dir):
     valor de `active`: com a aba errada ativa, e o conteudo de Conexoes
     que aparece.
     """
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test() as pilot:
@@ -166,13 +166,13 @@ async def test_foco_em_painel_inativo_nao_troca_de_aba(tmp_config_dir):
         await pilot.pause()
 
         assert tabs.active == "tab-historico"
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "HISTORICO" in pintado
         assert "CONEXOES" not in pintado
 
 
 @pytest.mark.asyncio
-async def test_tecla_de_funcao_na_abertura_chega_na_aba_pedida(tmp_config_dir):
+async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir):
     """Um `F5` apertado ANTES de a montagem assentar nao pode ser engolido.
 
     Medido no produto antes da correcao: `f5` com zero pausas terminava em
@@ -196,10 +196,10 @@ async def test_tecla_de_funcao_na_abertura_chega_na_aba_pedida(tmp_config_dir):
         assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
 
 
-def test_dbqm_app_registra_e_ativa_tema_na_construcao(tmp_config_dir):
+def test_dbqm_app_registers_and_activates_theme_on_construction(tmp_config_dir):
     """DBQMApp precisa registrar e ativar o tema em __init__, antes do
     primeiro compose/mount — nao em on_mount. O DEFAULT_CSS de widgets como
-    Panel usa tokens puros (ex.: `$borda`), que ao contrario de
+    Panel usa tokens puros (ex.: `$ds-border`), que ao contrario de
     `$accent`/`$primary` nao sao variavel embutida do Textual: so existem
     quando um dos nossos temas esta registrado E ativo. Se o registro
     voltar para on_mount (ou for removido), o primeiro mount quebra com
@@ -209,13 +209,13 @@ def test_dbqm_app_registra_e_ativa_tema_na_construcao(tmp_config_dir):
     (ver tests/ui/_helpers.ThemedTestApp) — isso provaria so que o helper
     funciona, nao que a DBQMApp real se vira sozinha.
     """
-    from dbqm.ui.theme import TEMAS_TEXTUAL
+    from dbqm.ui.theme import TEXTUAL_THEMES
 
     app = DBQMApp()
 
-    for nome in TEMAS_TEXTUAL:
+    for nome in TEXTUAL_THEMES:
         assert nome in app.available_themes, f"tema {nome} nao registrado na construcao"
-    assert app.theme in TEMAS_TEXTUAL, f"tema ativo ({app.theme!r}) nao e um dos nossos"
+    assert app.theme in TEXTUAL_THEMES, f"tema ativo ({app.theme!r}) nao e um dos nossos"
 
 
 # ======================================================================
@@ -236,7 +236,7 @@ def test_dbqm_app_registra_e_ativa_tema_na_construcao(tmp_config_dir):
 # ======================================================================
 
 
-async def _abrir_ferramenta_de_config(pilot, app, chave):
+async def _open_config_tool(pilot, app, key):
     """Percorre o caminho real: aba Configuracoes -> lista -> Enter."""
     from textual.widgets import OptionList
 
@@ -248,7 +248,7 @@ async def _abrir_ferramenta_de_config(pilot, app, chave):
     alvo = next(
         i
         for i in range(lista.option_count)
-        if lista.get_option_at_index(i).nome == chave
+        if lista.get_option_at_index(i).name == key
     )
     lista.highlighted = alvo
     await pilot.press("enter")
@@ -259,7 +259,7 @@ async def _abrir_ferramenta_de_config(pilot, app, chave):
 
 
 @pytest.mark.asyncio
-async def test_configuracoes_abre_o_gerenciador_de_oracle_clients(tmp_config_dir):
+async def test_settings_opens_the_oracle_clients_manager(tmp_config_dir):
     """A tela que gerencia o Instant Client precisa ser alcancavel.
 
     Nao e arrumacao: o Instant Client e o assunto da correcao da v1.18.0,
@@ -268,16 +268,16 @@ async def test_configuracoes_abre_o_gerenciador_de_oracle_clients(tmp_config_dir
     editar a configuracao na mao.
     """
     from dbqm.ui.screens.oracle_clients import OracleClientsScreen
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        await _open_config_tool(pilot, app, "oracle-clients")
 
         assert app.query(OracleClientsScreen), (
             "a tela de Oracle Instant Clients nao foi montada pela rota real"
         )
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "PLATAFORMA DETECTADA" in pintado, (
             "a tela montou mas nao e desenhada: %r" % pintado[:400]
         )
@@ -285,34 +285,34 @@ async def test_configuracoes_abre_o_gerenciador_de_oracle_clients(tmp_config_dir
 
 
 @pytest.mark.asyncio
-async def test_configuracoes_abre_exportar_importar(tmp_config_dir):
+async def test_settings_opens_export_import(tmp_config_dir):
     """Exportar/Importar configuracao tambem estava morto desde a v1.17.0."""
     from dbqm.ui.screens.config_port import ConfigPortScreen
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portabilidade")
 
         assert app.query(ConfigPortScreen), (
             "a tela de Exportar/Importar nao foi montada pela rota real"
         )
-        assert "EXPORTAR" in texto_renderizado(app).upper()
+        assert "EXPORTAR" in rendered_text(app).upper()
 
 
 @pytest.mark.asyncio
-async def test_escape_volta_da_ferramenta_para_as_configuracoes(tmp_config_dir):
+async def test_escape_returns_from_the_tool_to_settings(tmp_config_dir):
     """Voltar e tecla, nao botao: `Esc` desfaz a ida (secao 7 da gramatica).
 
     `OracleClientsScreen` nunca teve botao de voltar — sem esta rota de
     teclado ela seria um beco sem saida dentro da aba.
     """
     from dbqm.ui.screens.oracle_clients import OracleClientsScreen
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        await _open_config_tool(pilot, app, "oracle-clients")
         assert app.query(OracleClientsScreen)
 
         await pilot.press("escape")
@@ -320,7 +320,7 @@ async def test_escape_volta_da_ferramenta_para_as_configuracoes(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "PLATAFORMA DETECTADA" not in pintado, "Esc nao voltou"
         assert "ORACLE INSTANT CLIENT" in pintado.upper(), (
             "voltou para lugar nenhum: %r" % pintado[:400]
@@ -328,7 +328,7 @@ async def test_escape_volta_da_ferramenta_para_as_configuracoes(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_voltar_do_config_port_devolve_as_configuracoes(tmp_config_dir):
+async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
     """A saida do config_port funciona — e agora e o `Esc`, nao um botao.
 
     Historico que este teste guarda: o "Voltar" que vivia em
@@ -340,11 +340,11 @@ async def test_voltar_do_config_port_devolve_as_configuracoes(tmp_config_dir):
     e o que estava morto — nao o widget que a acionava.
     """
     from dbqm.ui.screens.config_port import ConfigPortScreen
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portabilidade")
         tela = app.query_one(ConfigPortScreen)
 
         # Entrar numa fase FUNDA: e de la que a volta precisa funcionar.
@@ -358,13 +358,13 @@ async def test_voltar_do_config_port_devolve_as_configuracoes(tmp_config_dir):
         await pilot.pause()
         # A tela segue montada (um worker de exportacao pode estar vivo);
         # o que tem de mudar e o que a aba PINTA.
-        pintado = texto_renderizado(app).upper()
+        pintado = rendered_text(app).upper()
         assert "EXPORTAR OU IMPORTAR" not in pintado, "o Voltar nao voltou"
         assert "MAIS CONFIGURACOES" in pintado
 
 
 @pytest.mark.asyncio
-async def test_nenhuma_rota_de_configuracoes_falha_em_silencio(tmp_config_dir):
+async def test_no_settings_route_fails_silently(tmp_config_dir):
     """A rota chega, e chega sem reportar erro por canal NENHUM.
 
     A versao anterior deste teste so olhava o toast, porque o toast era o
@@ -377,7 +377,7 @@ async def test_nenhuma_rota_de_configuracoes_falha_em_silencio(tmp_config_dir):
     sair — a tela nao aparecer, um toast de erro, um modal de erro
     empilhado — e nao so o do meio.
     """
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     esperado = {
         "portabilidade": "EXPORTAR OU IMPORTAR",
@@ -386,8 +386,8 @@ async def test_nenhuma_rota_de_configuracoes_falha_em_silencio(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         for chave, marca in esperado.items():
-            await _abrir_ferramenta_de_config(pilot, app, chave)
-            assert marca in texto_renderizado(app).upper(), (
+            await _open_config_tool(pilot, app, chave)
+            assert marca in rendered_text(app).upper(), (
                 "a rota %r nao chegou: %r nao e desenhado" % (chave, marca)
             )
             assert len(app.screen_stack) == 1, (
@@ -403,7 +403,7 @@ async def test_nenhuma_rota_de_configuracoes_falha_em_silencio(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_tela_hospedada_diz_qual_tecla_volta(tmp_config_dir):
+async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
     """`Esc` e a unica saida de uma tela hospedada, e ela precisa ser DITA.
 
     `DBQMApp.compose` nao rende `Footer`, entao o
@@ -416,12 +416,12 @@ async def test_tela_hospedada_diz_qual_tecla_volta(tmp_config_dir):
     a barra media duas linhas e a StatusBar cobria a segunda, entao as
     acoes estavam em `_actions` e em tela nenhuma.
     """
-    from tests.ui._helpers import linhas_renderizadas, texto_renderizado
+    from tests.ui._helpers import rendered_lines, rendered_text
 
     def anuncia_voltar(app):
         return any(
             "Esc" in linha and "Voltar" in linha
-            for linha in linhas_renderizadas(app)
+            for linha in rendered_lines(app)
         )
 
     app = DBQMApp()
@@ -432,10 +432,10 @@ async def test_tela_hospedada_diz_qual_tecla_volta(tmp_config_dir):
             "nos paineis nao ha de onde voltar; anunciar `Esc` seria mentira"
         )
 
-        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        await _open_config_tool(pilot, app, "oracle-clients")
         assert anuncia_voltar(app), (
             "a tela hospedada nao diz como se sai dela: %r"
-            % linhas_renderizadas(app)[-4:]
+            % rendered_lines(app)[-4:]
         )
 
         # Sair da aba e voltar nao pode apagar o anuncio: a tela hospedada
@@ -456,7 +456,7 @@ async def test_tela_hospedada_diz_qual_tecla_volta(tmp_config_dir):
         # `ActionBar`, e o encaminhamento do app (que confere o remetente
         # para nao entrar em laco) nao acontece — um teste assim mediria
         # uma rota que o clique nao usa.
-        linhas = linhas_renderizadas(app)
+        linhas = rendered_lines(app)
         y = next(
             i for i, linha in enumerate(linhas)
             if "Esc" in linha and "Voltar" in linha
@@ -465,12 +465,12 @@ async def test_tela_hospedada_diz_qual_tecla_volta(tmp_config_dir):
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        assert "PLATAFORMA DETECTADA" not in texto_renderizado(app).upper()
+        assert "PLATAFORMA DETECTADA" not in rendered_text(app).upper()
         assert not anuncia_voltar(app), "voltou, e o anuncio ficou"
 
 
 @pytest.mark.asyncio
-async def test_reabrir_exportar_importar_volta_a_escolha_de_modo(tmp_config_dir):
+async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir):
     """Reabrir pela lista mostra o que a lista prometeu, nao a fase antiga.
 
     A tela continua MONTADA depois do `Esc` — isso protege o worker de
@@ -481,21 +481,21 @@ async def test_reabrir_exportar_importar_volta_a_escolha_de_modo(tmp_config_dir)
     escolher se chame "Exportar / Importar".
     """
     from dbqm.ui.screens.config_port import ConfigPortScreen
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portabilidade")
         tela = app.query_one(ConfigPortScreen)
         tela._show_export_phase()
         await pilot.pause()
-        assert "EXPORTAR CONFIGURACOES" in texto_renderizado(app).upper()
+        assert "EXPORTAR CONFIGURACOES" in rendered_text(app).upper()
 
         await pilot.press("escape")
         await pilot.pause()
-        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portabilidade")
 
-        pintado = texto_renderizado(app).upper()
+        pintado = rendered_text(app).upper()
         assert "EXPORTAR OU IMPORTAR" in pintado, (
             "reabriu numa fase que a entrada da lista nao prometeu: %r"
             % pintado[-600:]
@@ -530,7 +530,7 @@ def dois_clients_instalados(tmp_config_dir, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_gerenciador_de_clients_abre_num_painel_com_titulo(
+async def test_clients_manager_opens_in_a_titled_panel(
     dois_clients_instalados, tmp_config_dir
 ):
     """Abrir o gerenciador nao pode cair no meio de uma tabela sem cabecalho.
@@ -544,15 +544,15 @@ async def test_gerenciador_de_clients_abre_num_painel_com_titulo(
     Medido no caminho real, a 80x24, que e onde a rolagem existe: num
     terminal alto a tela inteira cabe e o defeito nao aparece.
     """
-    from tests.ui._helpers import linhas_renderizadas
+    from tests.ui._helpers import rendered_lines
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        await _open_config_tool(pilot, app, "oracle-clients")
 
         # As primeiras linhas pintadas abaixo da tira de abas: e ali que
         # tem de haver um titulo de painel dizendo onde a pessoa entrou.
-        topo = [linha for linha in linhas_renderizadas(app)[3:] if linha.strip()][:3]
+        topo = [linha for linha in rendered_lines(app)[3:] if linha.strip()][:3]
         assert any(
             "PLATAFORMA DETECTADA" in linha or "CLIENTS INSTALADOS" in linha
             for linha in topo
@@ -560,7 +560,7 @@ async def test_gerenciador_de_clients_abre_num_painel_com_titulo(
 
 
 @pytest.mark.asyncio
-async def test_escolher_um_client_atualiza_o_status_ao_voltar(
+async def test_choosing_a_client_updates_the_status_on_return(
     dois_clients_instalados, tmp_config_dir
 ):
     """O rotulo `Client em uso` nao pode contradizer o que se acabou de salvar.
@@ -578,7 +578,7 @@ async def test_escolher_um_client_atualiza_o_status_ao_voltar(
     """
     from textual.widgets import Button, DataTable
     from dbqm.models.settings import Settings, load_settings, save_settings
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     antigo = dois_clients_instalados / "instantclient_23_x64"
     novo = dois_clients_instalados / "instantclient_19_x64"
@@ -588,12 +588,12 @@ async def test_escolher_um_client_atualiza_o_status_ao_voltar(
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("f6")
         await pilot.pause()
-        antes = texto_renderizado(app)
+        antes = rendered_text(app)
         assert "instantclient_23_x64" in antes, (
             "o teste nao partiu do estado que descreve: %r" % antes[:400]
         )
 
-        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        await _open_config_tool(pilot, app, "oracle-clients")
         tabela = app.query_one("#oc-installed-table", DataTable)
         tabela.move_cursor(row=0)
         await pilot.pause()
@@ -608,7 +608,7 @@ async def test_escolher_um_client_atualiza_o_status_ao_voltar(
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        depois = texto_renderizado(app)
+        depois = rendered_text(app)
         assert "instantclient_19_x64" in depois, (
             "o `Client em uso` nao acompanhou a escolha: %r" % depois[:600]
         )
@@ -622,7 +622,7 @@ async def test_escolher_um_client_atualiza_o_status_ao_voltar(
 # ======================================================================
 
 
-async def _abrir_ferramenta(pilot, app, chave):
+async def _open_tool(pilot, app, key):
     """Percorre o caminho real: aba Ferramentas -> lista -> Enter."""
     from textual.widgets import OptionList
 
@@ -634,7 +634,7 @@ async def _abrir_ferramenta(pilot, app, chave):
     alvo = next(
         i
         for i in range(lista.option_count)
-        if lista.get_option_at_index(i).nome == chave
+        if lista.get_option_at_index(i).name == key
     )
     lista.highlighted = alvo
     await pilot.press("enter")
@@ -645,7 +645,7 @@ async def _abrir_ferramenta(pilot, app, chave):
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_mostra_as_cinco_a_80x24(tmp_config_dir):
+async def test_tools_shows_all_five_at_80x24(tmp_config_dir):
     """As cinco ferramentas cabem na tela — antes, duas ficavam abaixo da dobra.
 
     Medido na DBQMApp real a 80x24: cinco botoes de largura total custam
@@ -654,16 +654,16 @@ async def test_ferramentas_mostra_as_cinco_a_80x24(tmp_config_dir):
     Um menu cujas ultimas entradas nao aparecem nao e um menu.
 
     Contra a DBQMApp e nao contra um harness de uma tela so: montada
-    sozinha, `FerramentasScreen` recebe as 24 linhas inteiras; no produto
+    sozinha, `ToolsScreen` recebe as 24 linhas inteiras; no produto
     ela tem 20, e era nessa diferenca que o defeito morava.
     """
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.press("f8")
         await pilot.pause()
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         for nome in (
             "Gerenciar Grupos",
             "Gerenciar Templates",
@@ -677,7 +677,7 @@ async def test_ferramentas_mostra_as_cinco_a_80x24(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_anuncia_o_esc_e_o_esc_volta(tmp_config_dir):
+async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
     """A saida de uma ferramenta e o `Esc`, e a barra de acoes o DESENHA.
 
     Afirma o PINTADO, nao `ActionBar._actions`: a barra existia em toda
@@ -685,14 +685,14 @@ async def test_ferramentas_anuncia_o_esc_e_o_esc_volta(tmp_config_dir):
     de texto dela — e nenhum teste viu, porque todos afirmavam o atributo.
     """
     from dbqm.ui.screens.template_manage import TemplateManageScreen
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        await _abrir_ferramenta(pilot, app, "templates")
+        await _open_tool(pilot, app, "templates")
         assert app.query(TemplateManageScreen), "a ferramenta nao foi montada"
 
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "Voltar" in pintado, (
             "a unica saida da ferramenta nao esta escrita em lugar nenhum: %r"
             % pintado[-400:]
@@ -703,7 +703,7 @@ async def test_ferramentas_anuncia_o_esc_e_o_esc_volta(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "FERRAMENTAS" in pintado.upper(), (
             "o Esc nao voltou para o menu: %r" % pintado[:600]
         )
@@ -711,7 +711,7 @@ async def test_ferramentas_anuncia_o_esc_e_o_esc_volta(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_o_voltar_das_ferramentas_nao_vaza_para_outra_aba(tmp_config_dir):
+async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir):
     """A acao fixa pertence a aba que a pos.
 
     `Esc Voltar` e uma promessa: apertar Esc devolve ao menu de
@@ -721,12 +721,12 @@ async def test_o_voltar_das_ferramentas_nao_vaza_para_outra_aba(tmp_config_dir):
     fixa ao trocar de aba.
     """
     from dbqm.ui.widgets.action_bar import ActionBar
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        await _abrir_ferramenta(pilot, app, "templates")
-        assert "Voltar" in texto_renderizado(app), (
+        await _open_tool(pilot, app, "templates")
+        assert "Voltar" in rendered_text(app), (
             "o teste nao partiu do estado que descreve"
         )
 
@@ -736,8 +736,8 @@ async def test_o_voltar_das_ferramentas_nao_vaza_para_outra_aba(tmp_config_dir):
         await pilot.pause()
 
         barra = app.query_one(ActionBar)
-        assert barra._acao_fixa is None
-        pintado = texto_renderizado(app)
+        assert barra._pinned_action is None
+        pintado = rendered_text(app)
         assert "Voltar" not in pintado, (
             "o Esc Voltar das Ferramentas sobrou em Conexoes: %r"
             % pintado[-300:]
@@ -747,12 +747,12 @@ async def test_o_voltar_das_ferramentas_nao_vaza_para_outra_aba(tmp_config_dir):
         )
 
         # E voltar traz as DUAS de volta: as da ferramenta (que
-        # `_reperguntar_a_ferramenta` reconstroi) e a saida.
+        # `_reask_tool` reconstroi) e a saida.
         await pilot.press("f8")
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "Voltar" in pintado, (
             "a saida sumiu ao reentrar na aba: %r" % pintado[-300:]
         )
@@ -784,7 +784,7 @@ async def test_o_voltar_das_ferramentas_nao_vaza_para_outra_aba(tmp_config_dir):
 # ======================================================================
 
 
-def _consultas_de_descricao_longa(quantidade: int = 24):
+def _queries_with_long_description(quantidade: int = 24):
     """Consultas suficientes pra lista ROLAR, metade com descricao que
     nao cabe numa linha do painel."""
     from dbqm.models.query import Query
@@ -805,7 +805,7 @@ def _consultas_de_descricao_longa(quantidade: int = 24):
     ]
 
 
-async def _abrir_consultas(pilot):
+async def _open_queries(pilot):
     await pilot.pause()
     await pilot.press("f7")
     await pilot.pause()
@@ -814,8 +814,8 @@ async def _abrir_consultas(pilot):
 
 
 @pytest.mark.asyncio
-async def test_largura_de_quebra_da_lista_de_consultas_cabe_rolando(tmp_config_dir):
-    """`_LARGURA_TEXTO` foi derivada assumindo o pior caso (barra de
+async def test_query_list_wrap_width_fits_while_scrolling(tmp_config_dir):
+    """`_TEXT_WIDTH` foi derivada assumindo o pior caso (barra de
     rolagem presente). Prova a suposicao contra o widget montado.
 
     Mede COM A LISTA ROLANDO e le `scrollable_content_region`, nao
@@ -828,25 +828,25 @@ async def test_largura_de_quebra_da_lista_de_consultas_cabe_rolando(tmp_config_d
     """
     from textual.widgets import OptionList
     from dbqm.models.query import save_queries
-    from dbqm.ui.widgets.lista_hierarquica import _RECUO
-    from dbqm.ui.widgets.query_list import _LARGURA_TEXTO
+    from dbqm.ui.widgets.hierarchical_list import _INDENT
+    from dbqm.ui.widgets.query_list import _TEXT_WIDTH
 
-    save_queries(_consultas_de_descricao_longa())
+    save_queries(_queries_with_long_description())
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        await _abrir_consultas(pilot)
+        await _open_queries(pilot)
         lista = app.query_one("#ql-listview", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o teste so prova o pior caso se a lista estiver realmente "
             "rolando"
         )
-        assert _LARGURA_TEXTO + len(_RECUO) <= lista.scrollable_content_region.width
+        assert _TEXT_WIDTH + len(_INDENT) <= lista.scrollable_content_region.width
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
-async def test_descricao_de_consulta_nunca_cai_na_coluna_da_identidade(
+async def test_query_description_never_falls_into_the_identity_column(
     tmp_config_dir, tamanho
 ):
     """Nenhuma linha de descricao pode comecar na coluna da identidade.
@@ -864,13 +864,13 @@ async def test_descricao_de_consulta_nunca_cai_na_coluna_da_identidade(
     """
     from textual.widgets import OptionList
     from dbqm.models.query import save_queries
-    from tests.ui._helpers import linhas_renderizadas
+    from tests.ui._helpers import rendered_lines
 
-    save_queries(_consultas_de_descricao_longa())
+    save_queries(_queries_with_long_description())
 
     app = DBQMApp()
     async with app.run_test(size=tamanho) as pilot:
-        await _abrir_consultas(pilot)
+        await _open_queries(pilot)
         lista = app.query_one("#ql-listview", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o defeito so aparece com a lista rolando (a barra rouba 2 "
@@ -878,7 +878,7 @@ async def test_descricao_de_consulta_nunca_cai_na_coluna_da_identidade(
         )
 
         regiao = lista.scrollable_content_region
-        painted = linhas_renderizadas(app)
+        painted = rendered_lines(app)
         linhas = [
             painted[y][regiao.x : regiao.x + regiao.width]
             for y in range(regiao.y, min(regiao.y + regiao.height, len(painted)))
@@ -913,7 +913,7 @@ async def test_descricao_de_consulta_nunca_cai_na_coluna_da_identidade(
 # Conexoes foi curada na Task 4, Consultas no commit anterior, e esta
 # lista seguia doente pelo mesmo motivo exato: `_group_option` entregava
 # a descricao do grupo — texto livre do usuario — inteira para
-# `item_hierarquico`, o painel era elastico, e a quebra automatica do
+# `hierarchical_item`, o painel era elastico, e a quebra automatica do
 # Textual (feita no render, depois do `Content` montado) nao tem como
 # recuar a continuacao. Medido na DBQMApp real, com a lista rolando:
 #
@@ -932,7 +932,7 @@ async def test_descricao_de_consulta_nunca_cai_na_coluna_da_identidade(
 # ======================================================================
 
 
-def _grupos_de_descricao_longa(quantidade: int = 24):
+def _groups_with_long_description(quantidade: int = 24):
     """Grupos suficientes pra lista ROLAR, metade com descricao que nao
     cabe numa linha do painel."""
     from dbqm.models.group import Group
@@ -953,8 +953,8 @@ def _grupos_de_descricao_longa(quantidade: int = 24):
 
 
 @pytest.mark.asyncio
-async def test_largura_de_quebra_da_lista_de_grupos_cabe_rolando(tmp_config_dir):
-    """`_LARGURA_TEXTO` de `group_run` foi derivada assumindo o pior caso
+async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
+    """`_TEXT_WIDTH` de `group_run` foi derivada assumindo o pior caso
     (barra de rolagem presente). Prova a suposicao contra o widget montado.
 
     Mede COM A LISTA ROLANDO e le `scrollable_content_region`, nao
@@ -966,25 +966,25 @@ async def test_largura_de_quebra_da_lista_de_grupos_cabe_rolando(tmp_config_dir)
     """
     from textual.widgets import OptionList
     from dbqm.models.group import save_groups
-    from dbqm.ui.screens.group_run import _LARGURA_TEXTO
-    from dbqm.ui.widgets.lista_hierarquica import _RECUO
+    from dbqm.ui.screens.group_run import _TEXT_WIDTH
+    from dbqm.ui.widgets.hierarchical_list import _INDENT
 
-    save_groups(_grupos_de_descricao_longa())
+    save_groups(_groups_with_long_description())
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        await _abrir_ferramenta(pilot, app, "executar")
+        await _open_tool(pilot, app, "executar")
         lista = app.query_one("#gr-group-list", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o teste so prova o pior caso se a lista estiver realmente "
             "rolando"
         )
-        assert _LARGURA_TEXTO + len(_RECUO) <= lista.scrollable_content_region.width
+        assert _TEXT_WIDTH + len(_INDENT) <= lista.scrollable_content_region.width
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
-async def test_descricao_de_grupo_nunca_cai_na_coluna_da_identidade(
+async def test_group_description_never_falls_into_the_identity_column(
     tmp_config_dir, tamanho
 ):
     """Nenhuma linha de descricao pode comecar na coluna da identidade.
@@ -1002,15 +1002,15 @@ async def test_descricao_de_grupo_nunca_cai_na_coluna_da_identidade(
     """
     from textual.widgets import OptionList
     from dbqm.models.group import save_groups
-    from tests.ui._helpers import linhas_renderizadas
+    from tests.ui._helpers import rendered_lines
 
-    grupos = _grupos_de_descricao_longa()
+    grupos = _groups_with_long_description()
     save_groups(grupos)
     identidades = {g.name for g in grupos}
 
     app = DBQMApp()
     async with app.run_test(size=tamanho) as pilot:
-        await _abrir_ferramenta(pilot, app, "executar")
+        await _open_tool(pilot, app, "executar")
         lista = app.query_one("#gr-group-list", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o defeito so aparece com a lista rolando (a barra rouba 2 "
@@ -1018,7 +1018,7 @@ async def test_descricao_de_grupo_nunca_cai_na_coluna_da_identidade(
         )
 
         regiao = lista.scrollable_content_region
-        painted = linhas_renderizadas(app)
+        painted = rendered_lines(app)
         linhas = [
             painted[y][regiao.x : regiao.x + regiao.width]
             for y in range(regiao.y, min(regiao.y + regiao.height, len(painted)))

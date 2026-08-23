@@ -1,22 +1,22 @@
 """Camada de design do dbqm: tokens consumidos pela TUI, pelo CLI e pelo HTML."""
 from dbqm.design.tokens import (
-    PISO_INTERFACE,
-    PISO_TEXTO,
-    SUPERFICIES,
-    TEMAS,
-    TOKENS_CLARO,
-    TOKENS_DE_INTERFACE,
-    TOKENS_ESCURO,
-    VALIDO_SOBRE,
+    INTERFACE_FLOOR,
+    TEXT_FLOOR,
+    SURFACES,
+    THEMES,
+    LIGHT_TOKENS,
+    INTERFACE_TOKENS,
+    DARK_TOKENS,
+    VALID_OVER,
 )
 
 __all__ = [
-    "PISO_INTERFACE",
-    "PISO_TEXTO",
-    "SUPERFICIES",
-    "TEMAS",
-    "TOKENS_CLARO",
-    "TOKENS_DE_INTERFACE",
-    "TOKENS_ESCURO",
-    "VALIDO_SOBRE",
+    "INTERFACE_FLOOR",
+    "TEXT_FLOOR",
+    "SURFACES",
+    "THEMES",
+    "LIGHT_TOKENS",
+    "INTERFACE_TOKENS",
+    "DARK_TOKENS",
+    "VALID_OVER",
 ]

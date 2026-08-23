@@ -1,10 +1,10 @@
 """Temas do Textual, construidos a partir de dbqm/design/tokens.py, mais o
-CSS global de estados inertes (ESTADOS_INERTES_CSS) que os consome.
+CSS global de estados inertes (INERT_STATES_CSS) que os consome.
 
 Nenhuma cor e escrita aqui: este modulo so traduz os tokens semanticos para o
 formato que o Textual espera. Trocar a paleta e trocar tokens.py.
 
-ESTADOS_INERTES_CSS vive aqui, nao em dbqm/ui/app.py, porque DBQMApp e
+INERT_STATES_CSS vive aqui, nao em dbqm/ui/app.py, porque DBQMApp e
 ThemedTestApp (tests/ui/_helpers.py) sao irmas — as duas estendem
 textual.app.App diretamente, sem parentesco entre si — entao uma constante
 definida so em DBQMApp nunca chegaria aos testes de tela que montam
@@ -14,15 +14,15 @@ from __future__ import annotations
 
 from textual.theme import Theme
 
-from dbqm.design.tokens import TEMAS
+from dbqm.design.tokens import THEMES
 
 # Nomes gravados em settings.json antes do design system.
-NOMES_LEGADOS: dict[str, str] = {
+LEGACY_NAMES: dict[str, str] = {
     "github-dark": "plano-escuro",
     "github-light": "plano-claro",
 }
 
-PADRAO = "plano-escuro"
+DEFAULT_THEME = "plano-escuro"
 
 # Estados inertes distintos (Task 12): um controle desabilitado e uma acao
 # indisponivel agora — o motivo precisa estar alcancavel, nunca so a cor;
@@ -37,13 +37,13 @@ PADRAO = "plano-escuro"
 # so `DEFAULT_CSS` se combina ao longo da MRO sem apagar o que uma subclasse
 # ad-hoc de teste declarar por conta propria — `CSS` (atributo unico, sem
 # merge) apagaria isso.
-ESTADOS_INERTES_CSS = """
-*:disabled { color: $texto-desabilitado; }
-.-somente-leitura { color: $texto-apoio; border: none; background: $painel; }
+INERT_STATES_CSS = """
+*:disabled { color: $ds-text-disabled; }
+.-read-only { color: $ds-text-muted; border: none; background: $ds-panel; }
 """
 
 
-def _construir(nome: str, tokens: dict[str, str], escuro: bool) -> Theme:
+def _build_theme(name: str, tokens: dict[str, str], dark: bool) -> Theme:
     """Traduz os tokens semanticos para um Theme do Textual.
 
     Todo token vira variavel de CSS, inclusive os que tambem alimentam um
@@ -63,29 +63,29 @@ def _construir(nome: str, tokens: dict[str, str], escuro: bool) -> Theme:
     operacao (`op-falha`).
     """
     return Theme(
-        name=nome,
-        primary=tokens["identidade"],
-        secondary=tokens["texto-apoio"],
-        accent=tokens["identidade"],
-        warning=tokens["texto-apoio"],
-        error=tokens["op-falha"],
-        success=tokens["texto-apoio"],
-        foreground=tokens["texto"],
-        background=tokens["fundo"],
-        surface=tokens["superficie"],
-        panel=tokens["painel"],
-        dark=escuro,
+        name=name,
+        primary=tokens["ds-identity"],
+        secondary=tokens["ds-text-muted"],
+        accent=tokens["ds-identity"],
+        warning=tokens["ds-text-muted"],
+        error=tokens["ds-op-failure"],
+        success=tokens["ds-text-muted"],
+        foreground=tokens["ds-text"],
+        background=tokens["ds-background"],
+        surface=tokens["ds-surface"],
+        panel=tokens["ds-panel"],
+        dark=dark,
         variables=dict(tokens),
     )
 
 
-TEMAS_TEXTUAL: dict[str, Theme] = {
-    "plano-escuro": _construir("plano-escuro", TEMAS["plano-escuro"], escuro=True),
-    "plano-claro": _construir("plano-claro", TEMAS["plano-claro"], escuro=False),
+TEXTUAL_THEMES: dict[str, Theme] = {
+    "plano-escuro": _build_theme("plano-escuro", THEMES["plano-escuro"], dark=True),
+    "plano-claro": _build_theme("plano-claro", THEMES["plano-claro"], dark=False),
 }
 
 
 def get_theme(name: str) -> Theme:
     """Devolve um tema pelo nome, aceitando os nomes antigos e caindo no padrao."""
-    nome = NOMES_LEGADOS.get(name, name)
-    return TEMAS_TEXTUAL.get(nome, TEMAS_TEXTUAL[PADRAO])
+    name_ = LEGACY_NAMES.get(name, name)
+    return TEXTUAL_THEMES.get(name_, TEXTUAL_THEMES[DEFAULT_THEME])

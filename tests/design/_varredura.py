@@ -15,34 +15,34 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-RAIZ_PACOTE = Path(__file__).resolve().parents[2] / "dbqm"
+PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "dbqm"
 
 # Hex em 3, 6 ou 8 digitos. Negative lookahead evita dupla contagem e rejeita
 # seletores CSS como '#add-row', '#abc_panel' que nao sao cores.
 # Cores literais nunca sao seguidas de letra, digito ou hifen; seletores CSS sim.
 # Exemplo: em "#e3b #e3b341", pega "#e3b" e "#e3b341", nao "#e3b" dentro de "#e3b341".
 _HEX = re.compile(r"#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![\w-])")
-_NOMES = (
+_NAMES = (
     "red", "green", "yellow", "blue", "cyan", "magenta", "white", "black",
     "bright_red", "bright_green", "bright_yellow", "bright_blue",
     "bright_cyan", "bright_magenta", "bright_white", "bright_black",
 )
 _MARKUP = re.compile(
-    r"\[/?(?:(?:b|bold|i|italic|u|underline|dim|on)\s+)*(?:" + "|".join(_NOMES) + r")\]"
+    r"\[/?(?:(?:b|bold|i|italic|u|underline|dim|on)\s+)*(?:" + "|".join(_NAMES) + r")\]"
 )
 
 # Unico arquivo onde escrever cor e o trabalho.
-ISENTOS = {"dbqm/design/tokens.py"}
+EXEMPT = {"dbqm/design/tokens.py"}
 
-Violacao = tuple[str, int, str]
+Violation = tuple[str, int, str]
 
 
-def violacoes() -> list[Violacao]:
+def violations() -> list[Violation]:
     """Toda cor literal fora dos arquivos isentos, com arquivo e linha."""
-    achados: list[Violacao] = []
-    for arquivo in sorted(RAIZ_PACOTE.rglob("*.py")):
-        rel = arquivo.relative_to(RAIZ_PACOTE.parent).as_posix()
-        if rel in ISENTOS:
+    achados: list[Violation] = []
+    for arquivo in sorted(PACKAGE_ROOT.rglob("*.py")):
+        rel = arquivo.relative_to(PACKAGE_ROOT.parent).as_posix()
+        if rel in EXEMPT:
             continue
         for numero, linha in enumerate(
             arquivo.read_text(encoding="utf-8").splitlines(), start=1

@@ -65,13 +65,13 @@ class AdhocScreen(Vertical):
     }
     /* "Conexao escolhida" RECOLORE a afordancia que o proprio Select ja
        desenha (o bloco `tall` do `SelectCurrent`, ▊▔▁▎), em vez de somar
-       uma caixa. A redacao anterior punha `border: round $identidade` no
+       uma caixa. A redacao anterior punha `border: round $ds-identity` no
        Select: `round` e o vocabulario da MOLDURA (Panel/Dialog), e o
        controle escolhido passava a parecer um painel — alem de perder duas
        colunas e quebrar o nome da conexao em duas linhas. Aqui a geometria
        nao muda; muda a cor. */
     AdhocScreen #adhoc-conn-select.--conn-selected SelectCurrent {
-        border: tall $identidade;
+        border: tall $ds-identity;
     }
     AdhocScreen #adhoc-dbms-toggle {
         width: 100%;
@@ -636,8 +636,8 @@ class AdhocScreen(Vertical):
         else:
             errors = result.error or "Erro desconhecido"
             dml_static.update(
-                f"[bold $op-falha]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
-                f"[$op-falha]{errors}[/]"
+                f"[bold $ds-op-failure]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
+                f"[$ds-op-failure]{errors}[/]"
             )
 
         try:

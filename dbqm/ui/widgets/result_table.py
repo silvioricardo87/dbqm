@@ -194,22 +194,22 @@ class ResultTable(Vertical, can_focus=False):
         # ordens e as duas desalinham por causa dessa assimetria do parser,
         # nao da ordem. Consertar de verdade exigiria mexer em
         # `escape_markup` (dbqm/ui/utils.py), compartilhado com
-        # `marcar_veredito` e outros - fora do escopo daqui.
+        # `mark_verdict` e outros - fora do escopo daqui.
         max_col_len = max(len(c) for c in str_columns)
         blocks: list[str] = []
         base = self.current_page * self.page_size
         for i, row in enumerate(rows):
             # Tipografia da gramatica (Task 2): a identificacao do registro
-            # em $texto-forte, o rotulo do campo em $texto-apoio e o valor
-            # em $texto — troca `*** Registro N ***`/texto plano por cor com
+            # em $ds-text-strong, o rotulo do campo em $ds-text-muted e o valor
+            # em $ds-text — troca `*** Registro N ***`/texto plano por cor com
             # significado. O alinhamento a direita dos rotulos e mantido: e
             # o que torna um registro empilhado escaneavel.
             cabecalho = escape_markup(f"Registro {base + i + 1}")
-            lines = [f"[bold $texto-forte]{cabecalho}[/]"]
+            lines = [f"[bold $ds-text-strong]{cabecalho}[/]"]
             for col, val in zip(str_columns, row):
                 display_val = str(val) if val is not None else ""
                 rotulo = f"{escape_markup(col):>{max_col_len}}"
                 valor = escape_markup(display_val)
-                lines.append(f"  [$texto-apoio]{rotulo}[/]: [$texto]{valor}[/]")
+                lines.append(f"  [$ds-text-muted]{rotulo}[/]: [$ds-text]{valor}[/]")
             blocks.append("\n".join(lines))
         self._vertical_view.update(Content.from_markup("\n\n".join(blocks)))

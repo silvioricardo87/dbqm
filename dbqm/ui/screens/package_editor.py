@@ -43,7 +43,7 @@ class _PackageChoiceModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("Package Editor", largura="sm", id="pkg-choice-dialog"):
+        with Dialog("Package Editor", width="sm", id="pkg-choice-dialog"):
             with Horizontal(id="pkg-choice-buttons"):
                 yield Button("Editar existente", variant="primary", id="pkg-choice-edit")
                 yield Button("Criar novo", variant="default", id="pkg-choice-new")
@@ -435,10 +435,10 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
                     id="wizard-routine-return",
                 )
             yield EmptyState(
-                o_que="Rotinas",
-                porque="Cada rotina adicionada aqui vira uma entrada no esqueleto do pacote",
-                acao_rotulo="Informar nome da rotina",
-                acao_id="informar-nome-rotina",
+                what="Rotinas",
+                why="Cada rotina adicionada aqui vira uma entrada no esqueleto do pacote",
+                action_label="Informar nome da rotina",
+                action_id="informar-nome-rotina",
                 id="wizard-empty",
             )
             yield Static("", id="wizard-list")
@@ -559,7 +559,7 @@ class PackageEditorScreen(Vertical):
        que devolve 4 linhas de texto (cabecalho + 3 erros) sem tomar nada do
        editor. O resto nao some: `Panel` desconta o cromo do teto, o corpo
        cabe exato e rola. Medidas em `test_transbordo_vertical.py`. A
-       densidade em si mora no componente (`Panel(denso=True)`), nao aqui. */
+       densidade em si mora no componente (`Panel(dense=True)`), nao aqui. */
     PackageEditorScreen #pe-error-panel {
         height: auto;
         max-height: 8;
@@ -601,7 +601,7 @@ class PackageEditorScreen(Vertical):
         # O id `#pe-error-panel` passou do Static para a moldura, porque e
         # ele que os pontos de exibicao ligam e desligam; o texto vive em
         # `#pe-error-text`.
-        with Panel("⚠  COMPILACAO", id="pe-error-panel", denso=True):
+        with Panel("⚠  COMPILACAO", id="pe-error-panel", dense=True):
             yield Static("", id="pe-error-text")
         # SOLTOS de proposito, fora de qualquer painel — a excecao a §4
         # ("nada fica solto no fundo") esta escrita por extenso no docstring
@@ -864,7 +864,7 @@ class PackageEditorScreen(Vertical):
         if errors:
             # Show compilation errors
             lines = [
-                f"[bold $op-falha]  {len(errors)} erro(s) de compilacao ({target.upper()})[/]"
+                f"[bold $ds-op-failure]  {len(errors)} erro(s) de compilacao ({target.upper()})[/]"
             ]
             for err in errors:
                 lines.append(
@@ -873,7 +873,7 @@ class PackageEditorScreen(Vertical):
             error_texto.update("\n".join(lines))
             error_panel.display = True
         elif not success:
-            error_texto.update(f"[bold $op-falha]Erro: {error_msg}[/]")
+            error_texto.update(f"[bold $ds-op-failure]Erro: {error_msg}[/]")
             error_panel.display = True
         else:
             error_texto.update(

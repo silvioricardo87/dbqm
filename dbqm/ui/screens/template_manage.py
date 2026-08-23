@@ -67,7 +67,7 @@ class TemplateEditModal(ModalScreen[dict | None]):
         self._name_readonly = name_readonly
 
     def compose(self) -> ComposeResult:
-        with Dialog(self._title_text, largura="tela", id="dialog"):
+        with Dialog(self._title_text, width="screen", id="dialog"):
             yield Input(
                 value=self._name_value,
                 placeholder="Nome do template",
@@ -149,10 +149,10 @@ class TemplateManageScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Panel("📄  TEMPLATES", id="tm-panel"):
             yield EmptyState(
-                o_que="Templates",
-                porque="Templates guardam consultas com parametros para reusar depois",
-                acao_rotulo="Criar template",
-                acao_id="criar-template",
+                what="Templates",
+                why="Templates guardam consultas com parametros para reusar depois",
+                action_label="Criar template",
+                action_id="criar-template",
                 id="tm-empty",
             )
             yield DataTable(id="tm-table")

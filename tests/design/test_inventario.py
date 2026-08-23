@@ -4,13 +4,13 @@ Falha quando aparece um segundo componente com a mesma funcao, e quando o
 chrome que o Dialog entrega volta a ser escrito a mao.
 
 O veredito ja tem guarda propria em
-`tests/ui/test_widgets.py::test_veredito_sem_markup_montado_a_mao_fora_do_componente`
+`tests/ui/test_widgets.py::test_no_hand_rolled_verdict_markup_outside_the_component`
 — nao duplicado aqui.
 """
 import re
 from pathlib import Path
 
-RAIZ = Path(__file__).resolve().parents[2] / "dbqm"
+ROOT = Path(__file__).resolve().parents[2] / "dbqm"
 
 # ---------------------------------------------------------------------------
 # "Nenhum X" escrito a mao em vez de EmptyState
@@ -43,37 +43,37 @@ ISENCOES_ESTADO_VAZIO = {
 }
 
 
-def _chamadas_vigiadas(texto: str):
+def _watched_calls(text: str):
     """Rende `(posicao, texto_da_chamada)` para cada Static(/add_row(/update(
     do arquivo, com parenteses balanceados — multi-linha por construcao,
     porque o balanceamento anda pelo texto inteiro sem parar em quebra de
     linha."""
-    for m in _CHAMADA.finditer(texto):
+    for m in _CHAMADA.finditer(text):
         inicio_parens = m.end() - 1
         profundidade = 0
         fim = None
-        for i in range(inicio_parens, len(texto)):
-            if texto[i] == "(":
+        for i in range(inicio_parens, len(text)):
+            if text[i] == "(":
                 profundidade += 1
-            elif texto[i] == ")":
+            elif text[i] == ")":
                 profundidade -= 1
                 if profundidade == 0:
                     fim = i
                     break
         if fim is not None:
-            yield m.start(), texto[m.start() : fim + 1]
+            yield m.start(), text[m.start() : fim + 1]
 
 
-def test_estado_vazio_nao_e_escrito_a_mao():
+def test_empty_state_is_not_hand_written():
     """"Nenhum X" solto em Static/add_row/update e o antipadrao que o
     EmptyState resolve."""
     fora = []
-    for arquivo in sorted((RAIZ / "ui").rglob("*.py")):
+    for arquivo in sorted((ROOT / "ui").rglob("*.py")):
         if arquivo.name == "empty_state.py":
             continue
         texto = arquivo.read_text(encoding="utf-8")
-        rel = arquivo.relative_to(RAIZ.parent).as_posix()
-        for pos, chamada in _chamadas_vigiadas(texto):
+        rel = arquivo.relative_to(ROOT.parent).as_posix()
+        for pos, chamada in _watched_calls(texto):
             if not _PALAVRA_VAZIO.search(chamada):
                 continue
             if rel in ISENCOES_ESTADO_VAZIO:
@@ -94,46 +94,46 @@ def test_estado_vazio_nao_e_escrito_a_mao():
 # distinguir CSS de prosa.
 
 
-def test_moldura_de_dialog_existe_em_um_lugar_so():
+def test_dialog_frame_exists_in_a_single_place():
     fora = []
-    for arquivo in sorted(RAIZ.rglob("*.py")):
+    for arquivo in sorted(ROOT.rglob("*.py")):
         if arquivo.name == "dialog.py":
             continue
         texto = arquivo.read_text(encoding="utf-8")
         if "border: thick" in texto:
-            fora.append(arquivo.relative_to(RAIZ.parent).as_posix())
+            fora.append(arquivo.relative_to(ROOT.parent).as_posix())
     assert not fora, f"moldura de dialog escrita a mao em: {fora}"
 
 
 # ---------------------------------------------------------------------------
-# Bloco de esqueleto (`$superficie-elevada` de fundo) escrito a mao
+# Bloco de esqueleto (`$ds-surface-raised` de fundo) escrito a mao
 # ---------------------------------------------------------------------------
 #
-# O `Esqueleto` era o unico dos quatro componentes compartilhados sem
+# O `Skeleton` era o unico dos quatro componentes compartilhados sem
 # guarda nenhuma — as tres telas que o usam (`browser`, `group_exec`,
 # `query_exec`) o importam hoje, mas nada impedia a quarta de repetir a
 # grade de blocos a mao.
 #
-# A marca vigiada e o FUNDO do bloco: `$superficie-elevada` e um token que
+# A marca vigiada e o FUNDO do bloco: `$ds-surface-raised` e um token que
 # em `dbqm/ui/` so tem um uso — pintar a celula-fantasma do esqueleto.
 # Mesma aposta da guarda de moldura do `Dialog`, que vigia `border: thick`:
 # quem repete um componente repete copiando o CSS dele.
 #
 # LIMITES CONHECIDOS (o que esta guarda NAO ve):
-# - Um esqueleto a mao que escolha OUTRO token de fundo (ex.: `$painel`) ou
+# - Um esqueleto a mao que escolha OUTRO token de fundo (ex.: `$ds-panel`) ou
 #   que desenhe os blocos com glifo (`Static("░░░░")`) em vez de fundo
 #   passa reto. A guarda fecha o caminho da copia-colagem, nao o da
 #   reinvencao.
 # - Ela nao olha o HTML (`core/html_report.py` usa a forma
-#   `var(--superficie-elevada)`, que e outra linguagem e outro consumidor).
+#   `var(--ds-surface-raised)`, que e outra linguagem e outro consumidor).
 
 
-def test_bloco_de_esqueleto_existe_em_um_lugar_so():
+def test_skeleton_block_exists_in_a_single_place():
     fora = []
-    for arquivo in sorted(RAIZ.rglob("*.py")):
-        if arquivo.name == "esqueleto.py":
+    for arquivo in sorted(ROOT.rglob("*.py")):
+        if arquivo.name == "skeleton.py":
             continue
         texto = arquivo.read_text(encoding="utf-8")
-        if "$superficie-elevada" in texto:
-            fora.append(arquivo.relative_to(RAIZ.parent).as_posix())
+        if "$ds-surface-raised" in texto:
+            fora.append(arquivo.relative_to(ROOT.parent).as_posix())
     assert not fora, f"bloco de esqueleto escrito a mao em: {fora}"

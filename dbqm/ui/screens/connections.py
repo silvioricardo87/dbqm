@@ -11,7 +11,7 @@ from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
-from dbqm.ui.widgets.lista_hierarquica import item_hierarquico, largura_de_quebra
+from dbqm.ui.widgets.hierarchical_list import hierarchical_item, wrap_width
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -51,42 +51,42 @@ DEFAULT_HOSTS = {
 # dois nao podem divergir (motivo da rodada anterior: 60 de largura
 # assumida contra um painel de 42 inteiro, que so por si ja era menor que
 # o "limite" da descricao).
-_LARGURA_PAINEL_LISTA = 42
+_LIST_PANEL_WIDTH = 42
 
 # Largura de fato disponivel pro TEXTO da descricao: o que sobra do
 # painel depois da borda do Panel, do padding do corpo, do padding do
 # OptionList, da barra de rolagem (pior caso) e do recuo que a propria
 # linha de contexto consome. A conta em si mora em `lista_hierarquica`
-# (`largura_de_quebra`), junto do recuo que ela desconta e do relato das
+# (`wrap_width`), junto do recuo que ela desconta e do relato das
 # quatro rodadas que ela custou; o que fica aqui e so a largura DESTE
 # painel, que e escolha desta tela. Medido nos dois estados: com poucas
 # conexoes (sem rolagem), OptionList.content_region.width fica em 36
 # (bate com a conta sem o desconto da barra); com conexoes suficientes
 # pra rolar, OptionList.scrollable_content_region.width cai pra 34 —
 # exatamente os 2 da barra a menos.
-_DESCRICAO_LARGURA = largura_de_quebra(_LARGURA_PAINEL_LISTA)
-_DESCRICAO_MAX_LINHAS = 2
+_DESCRIPTION_WIDTH = wrap_width(_LIST_PANEL_WIDTH)
+_DESCRIPTION_MAX_LINES = 2
 
 
 def _format_description(description: str) -> str:
-    """Preview da descricao em ate `_DESCRICAO_MAX_LINHAS` linhas.
+    """Preview da descricao em ate `_DESCRIPTION_MAX_LINES` linhas.
 
-    Corta por LINHAS renderizadas (aproximadas por `_DESCRICAO_LARGURA`),
+    Corta por LINHAS renderizadas (aproximadas por `_DESCRIPTION_WIDTH`),
     nao pelo total de caracteres: sem nenhum limite, uma descricao longa
     empurraria as outras conexoes da lista pra fora da tela — o contexto
-    de `item_hierarquico` ja da a ela sua propria linha recuada, mas isso
+    de `hierarchical_item` ja da a ela sua propria linha recuada, mas isso
     nao limita quantas linhas ela toma.
     """
     if not description:
         return ""
     flat = " ".join(description.split())
-    linhas = textwrap.wrap(flat, width=_DESCRICAO_LARGURA) or [""]
-    if len(linhas) <= _DESCRICAO_MAX_LINHAS:
+    linhas = textwrap.wrap(flat, width=_DESCRIPTION_WIDTH) or [""]
+    if len(linhas) <= _DESCRIPTION_MAX_LINES:
         return "\n".join(linhas)
-    linhas = linhas[:_DESCRICAO_MAX_LINHAS]
+    linhas = linhas[:_DESCRIPTION_MAX_LINES]
     ultima = linhas[-1].rstrip()
-    if len(ultima) > _DESCRICAO_LARGURA - 3:
-        ultima = ultima[: _DESCRICAO_LARGURA - 3].rstrip()
+    if len(ultima) > _DESCRIPTION_WIDTH - 3:
+        ultima = ultima[: _DESCRIPTION_WIDTH - 3].rstrip()
     linhas[-1] = ultima + "..."
     return "\n".join(linhas)
 
@@ -172,7 +172,7 @@ class ConnectionsScreen(Vertical):
     ConnectionsScreen #conn-form-buttons #conn-btn-delete {
         margin-left: 4;
     }
-    """.replace("__LARGURA_PAINEL_LISTA__", str(_LARGURA_PAINEL_LISTA))
+    """.replace("__LARGURA_PAINEL_LISTA__", str(_LIST_PANEL_WIDTH))
 
     # Maps a logical field name to its (label id, widget id) — used to
     # show/hide field groups depending on the selected db type/mode.
@@ -202,10 +202,10 @@ class ConnectionsScreen(Vertical):
         with Horizontal(id="conn-body"):
             with Panel("🔌  CONEXOES", id="conn-list-panel"):
                 yield EmptyState(
-                    o_que="Conexoes",
-                    porque="O dbqm precisa de pelo menos uma conexao para executar consultas",
-                    acao_rotulo="Adicionar conexao",
-                    acao_id="adicionar-conexao",
+                    what="Conexoes",
+                    why="O dbqm precisa de pelo menos uma conexao para executar consultas",
+                    action_label="Adicionar conexao",
+                    action_id="adicionar-conexao",
                     id="conn-empty",
                 )
                 yield OptionList(id="conn-list")
@@ -339,7 +339,7 @@ class ConnectionsScreen(Vertical):
             # a descricao e contexto opcional, recuado e apagado.
             desambiguacao = f"{db_label} - {conn.display_target()}"
             contexto = _format_description(conn.description)
-            item = item_hierarquico(conn.name, desambiguacao, contexto)
+            item = hierarchical_item(conn.name, desambiguacao, contexto)
             option_list.add_option(Option(item, id=conn.name))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:

@@ -8,15 +8,15 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Select, Static
 from textual import work
 
-from dbqm.ui.utils import escape_markup, NavSelect, prefixo_comum_de_pastas
+from dbqm.ui.utils import escape_markup, NavSelect, common_folder_prefix
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
-from dbqm.ui.widgets.esqueleto import Esqueleto
+from dbqm.ui.widgets.skeleton import Skeleton
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.query_list import (
     ClearFiltersRequested,
-    LARGURA_PAINEL_LISTA,
+    LIST_PANEL_WIDTH,
     QueryListWidget,
     QuerySelected,
 )
@@ -39,7 +39,7 @@ class QueryExecScreen(Vertical):
     /* Largura FIXA, e nao `1fr`: a lista de consultas quebra a descricao
        em `\\n` antes do render para que toda linha de continuacao pague o
        recuo, e para quebrar e preciso saber a largura de antemao. O
-       numero vem de `query_list.LARGURA_PAINEL_LISTA` — a mesma
+       numero vem de `query_list.LIST_PANEL_WIDTH` — a mesma
        constante que a quebra usa, para que CSS e aritmetica nao possam
        divergir. O preco (o painel para de crescer com o terminal) esta
        escrito la. `#results-phase` continua elastico: tabela precisa de
@@ -81,7 +81,7 @@ class QueryExecScreen(Vertical):
         width: 34;
         margin: 0 0 0 1;
     }
-    """.replace("__LARGURA_PAINEL_LISTA__", str(LARGURA_PAINEL_LISTA))
+    """.replace("__LARGURA_PAINEL_LISTA__", str(LIST_PANEL_WIDTH))
 
     def __init__(
         self,
@@ -109,10 +109,10 @@ class QueryExecScreen(Vertical):
         # Selection phase
         with Panel("📋  CONSULTAS", id="selection-phase"):
             yield EmptyState(
-                o_que="Consultas",
-                porque="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
-                acao_rotulo="Criar consulta",
-                acao_id="criar-consulta-coleta",
+                what="Consultas",
+                why="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
+                action_label="Criar consulta",
+                action_id="criar-consulta-coleta",
                 id="empty-message",
             )
         # Progress indicator (hidden by default)
@@ -129,7 +129,7 @@ class QueryExecScreen(Vertical):
             # os 4 arbitrarios), nao uma verdade do dominio: um esqueleto com
             # a forma errada causa o salto de layout que ele existe para
             # impedir.
-            yield Esqueleto(linhas=8, colunas=9, id="result-skeleton")
+            yield Skeleton(rows=8, columns=9, id="result-skeleton")
             yield ResultTable(id="result-table")
 
     def on_mount(self) -> None:
@@ -153,9 +153,9 @@ class QueryExecScreen(Vertical):
         from dbqm.models.query import load_queries
 
         queries = load_queries()
-        # `.corpo` e nao o painel: montagem em runtime nao passa pelo
+        # `.body` e nao o painel: montagem em runtime nao passa pelo
         # roteamento de `compose_add_child` e cairia fora da moldura.
-        selection = self.query_one("#selection-phase", Panel).corpo
+        selection = self.query_one("#selection-phase", Panel).body
         empty_msg = self.query_one("#empty-message", EmptyState)
 
         if not queries:
@@ -200,7 +200,7 @@ class QueryExecScreen(Vertical):
         ql = QueryListWidget(id="ql-main")
 
         if folders:
-            prefixo = prefixo_comum_de_pastas(folders)
+            prefixo = common_folder_prefix(folders)
             options = [(f"Todas ({len(queries)})", "")]
             for folder in folders:
                 rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
@@ -368,7 +368,7 @@ class QueryExecScreen(Vertical):
             self.query_one("#selection-phase").display = False
             self.query_one("#results-phase").display = True
             self.query_one("#result-table", ResultTable).display = False
-            self.query_one("#result-skeleton", Esqueleto).display = True
+            self.query_one("#result-skeleton", Skeleton).display = True
             self.query_one("#result-info", Static).update(message)
         else:
             # Reexecuting: a result is already on screen. Keep it visible
@@ -387,7 +387,7 @@ class QueryExecScreen(Vertical):
             return
         self.query_one("#selection-phase").display = True
         self.query_one("#results-phase").display = False
-        self.query_one("#result-skeleton", Esqueleto).display = False
+        self.query_one("#result-skeleton", Skeleton).display = False
         self.query_one("#result-table", ResultTable).display = True
 
     @work(thread=True)
@@ -439,7 +439,7 @@ class QueryExecScreen(Vertical):
 
         # Real data arrived: the skeleton (if it was up for a first load)
         # gives way to the table it stood in for.
-        self.query_one("#result-skeleton", Esqueleto).display = False
+        self.query_one("#result-skeleton", Skeleton).display = False
         self.query_one("#result-table", ResultTable).display = True
 
         # Update info bar
@@ -627,7 +627,7 @@ class QueryExecScreen(Vertical):
         """Return to the query selection phase."""
         self.query_one("#selection-phase").display = True
         self.query_one("#results-phase").display = False
-        self.query_one("#result-skeleton", Esqueleto).display = False
+        self.query_one("#result-skeleton", Skeleton).display = False
         self.query_one("#result-table", ResultTable).display = True
         self._current_result = None
         self._raw_rows = None

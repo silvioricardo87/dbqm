@@ -8,13 +8,13 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Header, TabbedContent, TabPane
 
-from dbqm.ui.theme import ESTADOS_INERTES_CSS, TEMAS_TEXTUAL, get_theme
+from dbqm.ui.theme import INERT_STATES_CSS, TEXTUAL_THEMES, get_theme
 from dbqm.ui.widgets.status_bar import StatusBar
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
 from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
 
-class AbasPrincipais(TabbedContent):
+class MainTabs(TabbedContent):
     """`TabbedContent` em que FOCAR nao e NAVEGAR.
 
     O `TabbedContent` de fabrica trata foco como navegacao: `TabPane` posta
@@ -57,9 +57,9 @@ class DBQMApp(App):
     """DB Query Manager — single tabbed dashboard shell."""
 
     # Estados inertes distintos (Task 12) — ver o comentario em
-    # `dbqm/ui/theme.py::ESTADOS_INERTES_CSS` para o porque de viver la e o
+    # `dbqm/ui/theme.py::INERT_STATES_CSS` para o porque de viver la e o
     # porque de ser `DEFAULT_CSS`, nao `CSS`.
-    DEFAULT_CSS = ESTADOS_INERTES_CSS
+    DEFAULT_CSS = INERT_STATES_CSS
 
     #: Maps each tab id to the id of the screen widget it hosts.
     TAB_TO_SCREEN: dict[str, str] = {
@@ -87,11 +87,11 @@ class DBQMApp(App):
         # DEFAULT_CSS dos widgets (Panel etc.) e aplicado assim que eles sao
         # montados, o que acontece antes de on_mount rodar. Se o tema so
         # fosse trocado em on_mount, qualquer `$token` que nao seja tambem
-        # variavel embutida do Textual (ex.: $borda) falharia ao resolver no
+        # variavel embutida do Textual (ex.: $ds-border) falharia ao resolver no
         # primeiro render.
         from dbqm.models.settings import load_settings
 
-        for tema in TEMAS_TEXTUAL.values():
+        for tema in TEXTUAL_THEMES.values():
             self.register_theme(tema)
         self.theme = get_theme(load_settings().theme).name
 
@@ -143,7 +143,7 @@ class DBQMApp(App):
         yield Header()
         with Horizontal(id="body"):
             yield TemplatesSidebar(id="templates-sidebar")
-            with AbasPrincipais(id="main-tabs", initial=initial_tab):
+            with MainTabs(id="main-tabs", initial=initial_tab):
                 with TabPane("🔍  Coleta", id="tab-coleta"):
                     from dbqm.ui.screens.adhoc import AdhocScreen
                     yield AdhocScreen(id="adhoc-screen")
@@ -166,8 +166,8 @@ class DBQMApp(App):
                     from dbqm.ui.screens.query_exec import QueryExecScreen
                     yield QueryExecScreen(id="query-exec-screen")
                 with TabPane("🧰  Ferramentas", id="tab-ferramentas"):
-                    from dbqm.ui.screens.ferramentas import FerramentasScreen
-                    yield FerramentasScreen(id="ferramentas-screen")
+                    from dbqm.ui.screens.tools import ToolsScreen
+                    yield ToolsScreen(id="ferramentas-screen")
         yield ActionBar()
         yield StatusBar()
 
@@ -315,12 +315,12 @@ class DBQMApp(App):
         This is best-effort and never hard-codes phase ids.
         """
         # A acao fixa pertence a aba que a pos (ver
-        # `ActionBar.set_acao_fixa`): limpar aqui, ANTES de perguntar a
+        # `ActionBar.set_pinned_action`): limpar aqui, ANTES de perguntar a
         # tela nova, e o que impede o `Esc Voltar` das Ferramentas de
         # aparecer em Conexoes, onde nao volta para lugar nenhum. A tela
         # que ainda precisar dele torna a poe-lo no proprio `_set_actions`.
         try:
-            self.query_one(ActionBar).set_acao_fixa(None)
+            self.query_one(ActionBar).set_pinned_action(None)
         except Exception:
             pass
 
@@ -511,7 +511,7 @@ class DBQMApp(App):
         except Exception:
             return
 
-        for action in action_bar.acoes_visiveis():
+        for action in action_bar.visible_actions():
             if action.key and action.key.lower() == key.lower():
                 # Post to the active tab's screen so it receives the message.
                 screen = self._active_screen()
@@ -598,13 +598,13 @@ class DBQMApp(App):
                 # rota de teclado ela seria um beco sem saida dentro da aba.
                 # E botao de voltar seria botao fazendo navegacao, que a
                 # secao 7 da gramatica proibe.
-                screen.voltar_ao_inicio()
+                screen.back_to_start()
             elif screen_id == "ferramentas-screen":
                 # Mesma razao: os cinco "Voltar" que viviam dentro dos
                 # paineis de ferramenta eram navegacao feita por botao e
-                # sairam na Task 8. `FerramentasScreen._set_actions`
+                # sairam na Task 8. `ToolsScreen._set_actions`
                 # desenha o `Esc` na barra enquanto uma delas esta aberta.
-                screen.voltar_ao_menu()
+                screen.back_to_menu()
         except Exception:
             pass
 

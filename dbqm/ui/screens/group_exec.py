@@ -12,7 +12,7 @@ from textual.widgets.selection_list import Selection
 from textual import work
 
 from dbqm.ui.utils import escape_markup
-from dbqm.ui.widgets.esqueleto import Esqueleto
+from dbqm.ui.widgets.skeleton import Skeleton
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
@@ -107,7 +107,7 @@ class GroupExecScreen(Vertical):
                     # nao uma verdade do dominio: um esqueleto com a forma
                     # errada causa o salto de layout que ele existe para
                     # impedir.
-                    yield Esqueleto(linhas=8, colunas=9, id="ge-results-skeleton")
+                    yield Skeleton(rows=8, columns=9, id="ge-results-skeleton")
                     yield GroupResultWidget(id="group-results")
         yield ProgressIndicator()
 
@@ -248,7 +248,7 @@ class GroupExecScreen(Vertical):
         # panel showed before (empty on first run, a stale comparison on a
         # re-run) — avoids a jump when the real table lands.
         self.query_one("#group-results", GroupResultWidget).display = False
-        self.query_one("#ge-results-skeleton", Esqueleto).display = True
+        self.query_one("#ge-results-skeleton", Skeleton).display = True
         self._run(sql, checked)
 
     @work(thread=True)
@@ -346,13 +346,13 @@ class GroupExecScreen(Vertical):
 
     def _on_error(self, message: str) -> None:
         self.query_one(ProgressIndicator).stop()
-        self.query_one("#ge-results-skeleton", Esqueleto).display = False
+        self.query_one("#ge-results-skeleton", Skeleton).display = False
         self.query_one("#group-results", GroupResultWidget).display = True
         self.notify(message, severity="error", timeout=8)
 
     def _show_result(self, group_result) -> None:
         self.query_one(ProgressIndicator).stop()
-        self.query_one("#ge-results-skeleton", Esqueleto).display = False
+        self.query_one("#ge-results-skeleton", Skeleton).display = False
         grw = self.query_one("#group-results", GroupResultWidget)
         grw.display = True
         grw.load_result(group_result)

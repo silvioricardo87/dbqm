@@ -9,8 +9,8 @@ algo fora delas, isso e uma variante nova que falta no sistema — nunca uma
 excecao local (`dialog.styles.width = ...` depois de construir). A excecao
 local e como o sistema morre: silenciosamente, um caso de cada vez, e sem
 que a validacao do `__init__` veja nada, porque a escrita acontece depois
-dela. `tests/ui/test_widgets.py::test_dialog_nao_tem_override_de_estilo_
-fora_do_componente` fecha essa porta.
+dela. `tests/ui/test_widgets.py::test_dialog_has_no_style_override_
+outside_the_component` fecha essa porta.
 """
 from __future__ import annotations
 
@@ -19,19 +19,19 @@ from textual.containers import Vertical
 from textual.widgets import Static
 
 # "sm"/"md"/"lg" sao colunas de largura fixa (numero de celulas) — dialogos
-# compactos de texto/formulario. "tela" e a excecao documentada: dialogos
+# compactos de texto/formulario. "screen" e a excecao documentada: dialogos
 # que existem para EXIBIR conteudo (tabela de resultado, texto renderizado)
 # precisam preencher a maior parte da viewport, entao a unidade muda para
 # porcentagem. Misturar celulas e porcentagem sem avisar seria a mesma
 # mentira que um degrau de luminancia fora de ordem — por isso o comentario.
-LARGURAS: dict[str, int | str] = {"sm": 50, "md": 70, "lg": 90, "tela": "90%"}
-TONS: tuple[str, ...] = ("neutro", "destrutivo")
+WIDTHS: dict[str, int | str] = {"sm": 50, "md": 70, "lg": 90, "screen": "90%"}
+TONES: tuple[str, ...] = ("neutral", "destructive")
 
-# Altura usada apenas pela variante "tela" — as demais ficam com o
+# Altura usada apenas pela variante "screen" — as demais ficam com o
 # `height: auto; max-height: 90%` do DEFAULT_CSS, que basta para conteudo
-# curto. Uma unica altura para os dois casos que hoje pedem "tela": a
+# curto. Uma unica altura para os dois casos que hoje pedem "screen": a
 # diferenca entre 80% e 85% entre eles nunca foi uma decisao, so copia.
-_ALTURA_TELA = "85%"
+_SCREEN_HEIGHT = "85%"
 
 
 class Dialog(Vertical):
@@ -42,12 +42,12 @@ class Dialog(Vertical):
         width: auto;
         height: auto;
         max-height: 90%;
-        background: $painel;
-        border: thick $borda-forte;
+        background: $ds-panel;
+        border: thick $ds-border-strong;
         padding: 1 2;
     }
-    Dialog.-destrutivo { border: thick $op-falha; }
-    Dialog .dialog-titulo {
+    Dialog.-destructive { border: thick $ds-op-failure; }
+    Dialog .dialog-title {
         text-style: bold;
         width: 100%;
         content-align: center middle;
@@ -57,23 +57,23 @@ class Dialog(Vertical):
 
     def __init__(
         self,
-        titulo: str,
+        title: str,
         *,
-        largura: str = "md",
-        tom: str = "neutro",
+        width: str = "md",
+        tone: str = "neutral",
         id: str | None = None,
     ) -> None:
-        if largura not in LARGURAS:
-            raise ValueError(f"largura desconhecida: {largura!r}; use {sorted(LARGURAS)}")
-        if tom not in TONS:
-            raise ValueError(f"tom desconhecido: {tom!r}; use {list(TONS)}")
-        super().__init__(id=id, classes=f"-{tom}")
-        self._titulo = titulo
-        self.styles.width = LARGURAS[largura]
-        if largura == "tela":
-            self.styles.height = _ALTURA_TELA
+        if width not in WIDTHS:
+            raise ValueError(f"largura desconhecida: {width!r}; use {sorted(WIDTHS)}")
+        if tone not in TONES:
+            raise ValueError(f"tom desconhecido: {tone!r}; use {list(TONES)}")
+        super().__init__(id=id, classes=f"-{tone}")
+        self._title = title
+        self.styles.width = WIDTHS[width]
+        if width == "screen":
+            self.styles.height = _SCREEN_HEIGHT
 
     def compose(self) -> ComposeResult:
         # Verificado nesta versao do Textual: o compose do proprio widget e os
         # filhos passados por `with Dialog(...)` coexistem, nesta ordem.
-        yield Static(self._titulo, classes="dialog-titulo", id=f"{self.id}-titulo")
+        yield Static(self._title, classes="dialog-title", id=f"{self.id}-title")

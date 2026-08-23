@@ -1,4 +1,4 @@
-r"""item_hierarquico — item de lista com hierarquia de ate tres linhas.
+r"""hierarchical_item — item de lista com hierarquia de ate tres linhas.
 
 O problema que este componente resolve (gramatica de layout, Task 3): uma
 lista de conexoes com mais de duas linhas ficava ilegivel porque identidade e
@@ -12,8 +12,8 @@ comentario "keep line readable".
 A cura nao e um separador — e hierarquia. Cada linha diz o que ela e pela
 cor, nao por pontuacao:
   1. identidade — o que a pessoa esta procurando, em negrito, sozinha.
-  2. desambiguacao — tipo, alvo, conexao; recuada, em $texto-apoio.
-  3. contexto — descricao; recuada, em $texto-desabilitado; opcional.
+  2. desambiguacao — tipo, alvo, conexao; recuada, em $ds-text-muted.
+  3. contexto — descricao; recuada, em $ds-text-disabled; opcional.
 
 Linhas vazias sao omitidas, nao renderizadas em branco: um item so com
 identidade fica com uma unica linha, nao com duas linhas fantasmas.
@@ -29,15 +29,15 @@ Isso evita de raiz a assimetria conhecida do parser do Textual entre `\[` e
 construida em cima desse comportamento) sem tocar em `escape_markup` — que e
 compartilhada com seis outros chamadores e nao e usada aqui.
 
-Ao lado do `Content`, o modulo entrega o par `largura_de_quebra` /
-`quebrar_em_linhas`, que e o que torna a hierarquia verdadeira em texto
+Ao lado do `Content`, o modulo entrega o par `wrap_width` /
+`wrap_lines`, que e o que torna a hierarquia verdadeira em texto
 longo: sem pre-quebra em `\n`, a continuacao de uma linha larga demais
 volta para a coluna 0 — a coluna da identidade da entrada SEGUINTE — e o
 defeito reaparece inteiro. A conta mora aqui, e nao em cada tela, porque
 so depende do CSS de `Panel`/`OptionList`; a largura do painel e que fica
 com a tela.
 
-E entrega tambem `OpcaoNomeada` — a `Option` que leva esse conteudo pro
+E entrega tambem `NamedOption` — a `Option` que leva esse conteudo pro
 `OptionList` carregando o nome do item como dado, e nao como `id`. A
 razao esta na docstring da classe.
 """
@@ -48,15 +48,15 @@ import textwrap
 from textual.content import Content
 from textual.widgets.option_list import Option
 
-_RECUO = "  "
+_INDENT = "  "
 
 
 # ----------------------------------------------------------------------
 # Largura de quebra — a conta que todo chamador que pre-quebra texto
 # precisa fazer, num lugar so.
 #
-# Quem pre-quebra (ver `quebrar_em_linhas` e a docstring de
-# `item_hierarquico`) precisa saber quantas colunas sobram para o TEXTO
+# Quem pre-quebra (ver `wrap_lines` e a docstring de
+# `hierarchical_item`) precisa saber quantas colunas sobram para o TEXTO
 # dentro de um `OptionList` que vive num `Panel`. Cada parcela abaixo e
 # lida do CSS que a declara, nenhuma medida em runtime:
 #
@@ -70,9 +70,9 @@ _RECUO = "  "
 #     entra nesta conta.
 #
 # Cada "de cada lado" vale 2 (esquerda + direita).
-_BORDA_PANEL = 2
-_PADDING_PANEL_BODY = 2
-_PADDING_OPTION_LIST = 2
+_PANEL_BORDER = 2
+_PANEL_BODY_PADDING = 2
+_OPTION_LIST_PADDING = 2
 
 # A barra de rolagem vertical do OptionList — 2 colunas, o padrao do
 # proprio Textual (`Widget().styles.scrollbar_size_vertical == 2`; nenhuma
@@ -91,16 +91,16 @@ _PADDING_OPTION_LIST = 2
 # sem recuo, alinhada com a coluna de identidade da entrada seguinte.
 # Quem for reverificar esta conta: meca com a lista REALMENTE rolando
 # (`show_vertical_scrollbar is True`) e leia `scrollable_content_region`.
-_SCROLLBAR_VERTICAL = 2
+_VERTICAL_SCROLLBAR = 2
 
-# O recuo que `_campo_recuado` antepoe a CADA linha de
+# O recuo que `_indented_field` antepoe a CADA linha de
 # desambiguacao/contexto. Entra na conta porque a largura util e a do
 # texto, nao a da linha: pre-quebrar em N colunas e depois somar o recuo
 # devolve N+2 colunas de linha, que e exatamente 2 a mais do que cabe.
-_RECUO_CONTEXTO = len(_RECUO)
+_CONTEXT_INDENT = len(_INDENT)
 
 
-def largura_de_quebra(largura_do_painel: int) -> int:
+def wrap_width(panel_width: int) -> int:
     """Colunas de TEXTO disponiveis num item de lista, dado o painel.
 
     Recebe a largura do `Panel` que hospeda o `OptionList` (o valor que o
@@ -116,62 +116,62 @@ def largura_de_quebra(largura_do_painel: int) -> int:
     espaco para as duas copias divergirem quando esse CSS mudar.
     """
     return (
-        largura_do_painel
-        - _BORDA_PANEL
-        - _PADDING_PANEL_BODY
-        - _PADDING_OPTION_LIST
-        - _SCROLLBAR_VERTICAL
-        - _RECUO_CONTEXTO
+        panel_width
+        - _PANEL_BORDER
+        - _PANEL_BODY_PADDING
+        - _OPTION_LIST_PADDING
+        - _VERTICAL_SCROLLBAR
+        - _CONTEXT_INDENT
     )
 
 
-def quebrar_em_linhas(texto: str, largura: int) -> str:
+def wrap_lines(text: str, width: int) -> str:
     """Pre-quebra *texto* em `\\n` a cada *largura* colunas.
 
-    O `\\n` e o que garante o recuo: `item_hierarquico` recua cada linha
+    O `\\n` e o que garante o recuo: `hierarchical_item` recua cada linha
     logica, e so elas — a quebra automatica que o Textual faz numa linha
     unica larga demais acontece no render e nao tem como ser recuada (ver
-    a docstring de `item_hierarquico`). Colapsa espaco em branco antes de
+    a docstring de `hierarchical_item`). Colapsa espaco em branco antes de
     quebrar para que uma descricao com quebras proprias nao estoure a
     gramatica de uma linha por papel.
     """
-    if not texto:
+    if not text:
         return ""
-    achatado = " ".join(texto.split())
-    return "\n".join(textwrap.wrap(achatado, width=largura) or [""])
+    flattened = " ".join(text.split())
+    return "\n".join(textwrap.wrap(flattened, width=width) or [""])
 
 
-def _campo_recuado(texto: str, estilo: str) -> Content:
+def _indented_field(text: str, style: str) -> Content:
     """Monta um campo (desambiguacao ou contexto) com o recuo em TODA
     linha, nao so na primeira.
 
     Um campo pode chegar aqui com quebra de linha ja embutida — por
     exemplo `connections.py` pre-quebra uma descricao longa em duas
-    linhas logicas antes de chamar `item_hierarquico`. Se o recuo fosse
+    linhas logicas antes de chamar `hierarchical_item`. Se o recuo fosse
     aplicado uma vez so, na frente do bloco inteiro (como uma unica
     `Content.assemble` faria), a segunda linha em diante ficaria alinhada
     a coluna 0 — a MESMA coluna da identidade da proxima entrada. Recuo e
     a pista de "isto pertence a entrada acima"; perde-la numa continuacao
     e o defeito que motivou esta fase inteira, so que numa escala menor.
 
-    Cada linha vira seu proprio `Content.assemble(_RECUO, (linha, estilo))`
+    Cada linha vira seu proprio `Content.assemble(_INDENT, (linha, estilo))`
     — recuo como span proprio, nao espaco somado ao texto do campo por
     quem chama — e as linhas sao unidas com `Content("\n").join(...)`,
     que preserva os spans de cada uma. Nenhum espaco extra entra no
     `.plain` alem do recuo em si; `.plain` continua igual ao texto que o
     chamador passou, so que com o recuo antes de cada linha.
     """
-    partes = [
-        Content.assemble(_RECUO, (linha, estilo))
-        for linha in texto.split("\n")
+    parts = [
+        Content.assemble(_INDENT, (line, style))
+        for line in text.split("\n")
     ]
-    return Content("\n").join(partes)
+    return Content("\n").join(parts)
 
 
-def item_hierarquico(
-    identidade: str,
-    desambiguacao: str = "",
-    contexto: str = "",
+def hierarchical_item(
+    identity: str,
+    disambiguation: str = "",
+    context: str = "",
 ) -> Content:
     """Monta um item de lista com ate tres linhas de hierarquia visual.
 
@@ -184,27 +184,27 @@ def item_hierarquico(
 
     Se `desambiguacao` ou `contexto` trouxerem `\n` (um chamador que
     pre-quebra texto longo em varias linhas logicas), CADA linha recebe o
-    recuo — ver `_campo_recuado`. Isto NAO cobre a quebra automatica que
+    recuo — ver `_indented_field`. Isto NAO cobre a quebra automatica que
     o proprio Textual faz quando uma linha unica (sem `\n`) e mais larga
     que o widget: aquele wrap e feito no render, depois que este `Content`
     ja foi montado, e o Textual nao oferece um jeito de dar indentacao
     persistente a continuacao de uma linha assim. Quem quiser recuo
     garantido numa linha muito longa precisa pre-quebra-la em `\n` antes
-    de chamar esta funcao — e e o que `quebrar_em_linhas` faz, na largura
-    que `largura_de_quebra` deriva (ela ja desconta o recuo que toda
+    de chamar esta funcao — e e o que `wrap_lines` faz, na largura
+    que `wrap_width` deriva (ela ja desconta o recuo que toda
     linha do campo passa a pagar). As listas de Conexoes e de Consultas
     fazem isso; e por isso que os paineis das duas tem largura fixa no
     CSS.
     """
-    linha = Content.assemble((identidade, "bold $texto-forte"))
-    if desambiguacao:
-        linha = linha + "\n" + _campo_recuado(desambiguacao, "$texto-apoio")
-    if contexto:
-        linha = linha + "\n" + _campo_recuado(contexto, "$texto-desabilitado")
-    return linha
+    line = Content.assemble((identity, "bold $ds-text-strong"))
+    if disambiguation:
+        line = line + "\n" + _indented_field(disambiguation, "$ds-text-muted")
+    if context:
+        line = line + "\n" + _indented_field(context, "$ds-text-disabled")
+    return line
 
 
-class OpcaoNomeada(Option):
+class NamedOption(Option):
     """`Option` que carrega o nome do item como DADO, nao como `id`.
 
     Nome e a chave de busca do dbqm (`find_query`/`find_group`), entao a
@@ -225,6 +225,6 @@ class OpcaoNomeada(Option):
     silenciosamente morta.
     """
 
-    def __init__(self, conteudo: Content, nome: str) -> None:
-        super().__init__(conteudo)
-        self.nome = nome
+    def __init__(self, content: Content, name: str) -> None:
+        super().__init__(content)
+        self.name = name

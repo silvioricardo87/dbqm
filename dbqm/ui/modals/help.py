@@ -10,19 +10,19 @@ from dbqm.ui.widgets.dialog import Dialog
 
 
 HELP_TEXT = """\
-[bold $texto-forte]Geral[/]
+[bold $ds-text-strong]Geral[/]
   Ctrl+B    Toggle sidebar
   Ctrl+Q    Sair
   ESC       Voltar
   /         Buscar/filtrar
   ?         Esta ajuda
 
-[bold $texto-forte]Resultado de consulta[/]
+[bold $ds-text-strong]Resultado de consulta[/]
   V         Visualizacao vertical
   E         Exportar
   R         Reexecutar
 
-[bold $texto-forte]Resultado de grupo[/]
+[bold $ds-text-strong]Resultado de grupo[/]
   F         Flat/Pivoted
   S         Filtrar status
   E         Exportar
@@ -54,7 +54,7 @@ class HelpModal(ModalScreen[None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("Atalhos de Teclado", largura="sm", id="help-dialog"):
+        with Dialog("Atalhos de Teclado", width="sm", id="help-dialog"):
             yield Static(HELP_TEXT, markup=True)
 
     def action_dismiss_help(self) -> None:

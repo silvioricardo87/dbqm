@@ -57,7 +57,7 @@ def escape_markup(text: str) -> str:
     return text.replace("[", "\\[").replace("]", "\\]")
 
 
-def prefixo_comum_de_pastas(pastas: list[str]) -> str:
+def common_folder_prefix(folders: list[str]) -> str:
     """Maior prefixo de segmentos (separados por "/") compartilhado por
     TODAS as pastas dadas, incluindo a barra final — "" se houver menos de
     duas pastas ou se nenhum segmento inicial for comum a todas.
@@ -74,9 +74,9 @@ def prefixo_comum_de_pastas(pastas: list[str]) -> str:
     largura hoje e esconderia informacao no dia em que deixasse de ser
     verdade.
     """
-    if len(pastas) < 2:
+    if len(folders) < 2:
         return ""
-    segmentos = [p.split("/") for p in pastas]
+    segmentos = [p.split("/") for p in folders]
     comuns: list[str] = []
     for grupo in zip(*segmentos):
         if len(set(grupo)) == 1:

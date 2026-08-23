@@ -2,7 +2,7 @@
 import pytest
 from textual.app import ComposeResult
 
-from tests.ui._helpers import ThemedTestApp, nomes_renderizados, recorte
+from tests.ui._helpers import ThemedTestApp, rendered_names, crop
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ def test_status_bar_inverted_primary_background():
 
 
 @pytest.mark.asyncio
-async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
+async def test_status_bar_dot_contrasts_with_the_bar_background():
     """A bolinha de conexao precisa contrastar com o fundo da propria barra.
 
     O bug original nunca foi "a bolinha usa o token errado" — foi "a
@@ -73,7 +73,7 @@ async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
     """
     from textual.style import Style
 
-    from tests.design._contraste import razao
+    from tests.design._contraste import ratio
 
     app = StatusBarTestApp()
     async with app.run_test():
@@ -87,7 +87,7 @@ async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
         )
         cor_fundo_barra = barra.styles.background
 
-        contraste = razao(cor_bolinha.hex, cor_fundo_barra.hex)
+        contraste = ratio(cor_bolinha.hex, cor_fundo_barra.hex)
         assert contraste >= 3.0, (
             f"bolinha ({cor_bolinha.hex}) sobre o fundo real da barra "
             f"({cor_fundo_barra.hex}) = {contraste:.2f}:1, abaixo do piso de interface"
@@ -98,45 +98,45 @@ async def test_status_bar_bolinha_contrasta_com_o_fundo_da_barra():
 # Veredito / StatusOperacao tests
 # ---------------------------------------------------------------------------
 
-def test_veredito_comunica_estado_alem_da_cor():
+def test_verdict_communicates_state_beyond_color():
     """Piso de acessibilidade: cor sozinha nao comunica estado."""
-    from dbqm.ui.widgets.veredito import marcar_veredito
+    from dbqm.ui.widgets.verdict import mark_verdict
 
-    glifos = {marcar_veredito(v).split("]")[1].split("[")[0] for v in
-              ("igual", "igual-normalizado", "difere", "ausente")}
+    glifos = {mark_verdict(v).split("]")[1].split("[")[0] for v in
+              ("match", "match-normalized", "diff", "absent")}
     assert len(glifos) == 4, f"glifos repetidos: {glifos}"
 
 
-def test_veredito_igual_usa_o_token_do_proprio_eixo():
-    from dbqm.ui.widgets.veredito import marcar_veredito
+def test_match_verdict_uses_the_token_of_its_own_axis():
+    from dbqm.ui.widgets.verdict import mark_verdict
 
-    assert "$veredito-igual" in marcar_veredito("igual")
+    assert "$ds-verdict-match" in mark_verdict("match")
 
 
-def test_veredito_rejeita_status_desconhecido():
-    from dbqm.ui.widgets.veredito import marcar_veredito
+def test_verdict_rejects_an_unknown_status():
+    from dbqm.ui.widgets.verdict import mark_verdict
 
     with pytest.raises(ValueError, match="status"):
-        marcar_veredito("talvez")
+        mark_verdict("talvez")
 
 
-def test_operacao_bem_sucedida_nao_recebe_tinta():
+def test_successful_operation_gets_no_ink():
     """Sucesso e a ausencia de alarme, mas nao de peso: `ok` nao pode levar
-    NENHUM token de cor (nao so `$op-falha` — qualquer `$token`, inclusive
+    NENHUM token de cor (nao so `$ds-op-failure` — qualquer `$token`, inclusive
     um token de veredito colado por engano), e mantem `[bold]`. Uma versao
-    anterior deste teste so checava a ausencia de `$op-falha`, o que passaria
+    anterior deste teste so checava a ausencia de `$ds-op-failure`, o que passaria
     mesmo se sucesso fosse pintado com uma cor de veredito."""
-    from dbqm.ui.widgets.veredito import marcar_operacao
+    from dbqm.ui.widgets.verdict import mark_operation
 
-    ok = marcar_operacao("ok")
+    ok = mark_operation("ok")
     assert "$" not in ok, f"operacao bem sucedida nao deve carregar token de cor: {ok!r}"
     assert "[bold]" in ok, f"operacao bem sucedida perde peso sem cor: {ok!r}"
-    assert "$op-falha" in marcar_operacao("falha")
+    assert "$ds-op-failure" in mark_operation("failure")
 
 
-def test_operacao_bem_sucedida_mantem_peso_nos_call_sites_manuais():
+def test_successful_operation_keeps_weight_in_manual_call_sites():
     """Os quatro pontos que montam markup de sucesso a mao — fora de
-    `marcar_operacao`, porque a mensagem tambem carrega o tempo decorrido —
+    `mark_operation`, porque a mensagem tambem carrega o tempo decorrido —
     tem que seguir a mesma regra: sem token de cor, com `[bold]` preservado.
     Nada testava isso ate agora; um `[bold]` apagado num desses sites
     passaria a suite inteira em silencio."""
@@ -163,36 +163,36 @@ def test_operacao_bem_sucedida_mantem_peso_nos_call_sites_manuais():
             )
 
 
-def test_operacao_rejeita_estado_desconhecido():
-    from dbqm.ui.widgets.veredito import marcar_operacao
+def test_operation_rejects_an_unknown_state():
+    from dbqm.ui.widgets.verdict import mark_operation
 
     with pytest.raises(ValueError, match="estado"):
-        marcar_operacao("talvez")
+        mark_operation("talvez")
 
 
-def test_marcar_veredito_texto_troca_rotulo_mantem_glifo_e_token():
+def test_mark_verdict_label_swaps_the_label_and_keeps_glyph_and_token():
     """`texto` deixa o chamador colorir sua propria palavra sem duplicar o
     rotulo padrao do componente ao lado dela (achado da revisao da Task 11:
     `_render_summary` gerava "= OK Iguais:" antes deste parametro existir).
 
-    O glifo e o token continuam vindo so de `VEREDITOS` — `texto` nunca
+    O glifo e o token continuam vindo so de `VERDICTS` — `texto` nunca
     expõe o nome do token para o chamador montar `[$token]` por fora; se
     expusesse, reabriria exatamente o buraco de montagem a mao que o resto
     deste modulo fecha.
     """
-    from dbqm.ui.widgets.veredito import marcar_veredito
+    from dbqm.ui.widgets.verdict import mark_verdict
 
-    padrao = marcar_veredito("difere")
-    customizado = marcar_veredito("difere", texto="DIVERGENTE")
+    padrao = mark_verdict("diff")
+    customizado = mark_verdict("diff", label="DIVERGENTE")
 
     assert "DIVERGENTE" in customizado
     assert "DIFERE" not in customizado
-    assert "$veredito-difere" in customizado
+    assert "$ds-verdict-diff" in customizado
     # mesmo glifo do padrao, sem duplicar o rotulo "DIFERE" dele
     assert customizado.split("]")[1].split(" ", 1)[0] == padrao.split("]")[1].split(" ", 1)[0]
 
 
-def test_marcar_veredito_escapa_texto_para_nao_vazar_markup():
+def test_mark_verdict_escapes_the_label_so_markup_cannot_leak():
     """`texto` existe para um rotulo, nao para injetar markup. Nenhum
     chamador de hoje passa texto vindo de dado (todos sao literais fixos),
     mas nada impede um chamador futuro de passar algo derivado de dado —
@@ -201,10 +201,10 @@ def test_marcar_veredito_escapa_texto_para_nao_vazar_markup():
     marcador.
     """
     from textual.content import Content
-    from dbqm.ui.widgets.veredito import marcar_veredito
+    from dbqm.ui.widgets.verdict import mark_verdict
 
-    perigoso = "fim[/][$op-falha]injetado"
-    saida = marcar_veredito("igual", texto=perigoso)
+    perigoso = "fim[/][$ds-op-failure]injetado"
+    saida = mark_verdict("match", label=perigoso)
 
     # so o fechamento legitimo do proprio componente sobra sem escape
     assert saida.count("[/]") == 1
@@ -212,18 +212,18 @@ def test_marcar_veredito_escapa_texto_para_nao_vazar_markup():
 
     # o markup inteiro resolve como UM UNICO span, com o token do estado —
     # se o texto perigoso tivesse escapado do escape, apareceria um
-    # segundo span (o "[$op-falha]" injetado abrindo um estilo por conta
+    # segundo span (o "[$ds-op-failure]" injetado abrindo um estilo por conta
     # propria) ou o texto "injetado" ficaria fora de qualquer span.
     conteudo = Content.from_markup(saida)
     assert len(conteudo.spans) == 1
-    assert conteudo.spans[0].style == "$veredito-igual"
+    assert conteudo.spans[0].style == "$ds-verdict-match"
     assert "fim" in conteudo.plain
     assert "injetado" in conteudo.plain
 
 
-def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
+def test_no_hand_rolled_verdict_markup_outside_the_component():
     """Fecha a porta que sobrou depois da primeira rodada da Task 11: nada
-    fora de `veredito.py` pode escrever `$veredito-*`/`$op-falha` direto no
+    fora de `verdict.py` pode escrever `$veredito-*`/`$ds-op-failure` direto no
     markup sem que este teste acuse — nem hoje, nem um quinto caso amanha.
 
     A distincao que decide o que entra em `PROSA_DE_ERRO_FORA_DO_ESCOPO`
@@ -233,18 +233,18 @@ def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
     repetido em toda a interface. PROSA ja nomeia a falha em palavras
     proprias, escritas uma vez para aquele erro especifico ("DDL executado
     com erros de compilacao", "Erro na execucao") — a cor so reforca o que
-    a frase ja diz, entao pintar essa prosa com `$op-falha` nao e o mesmo
+    a frase ja diz, entao pintar essa prosa com `$ds-op-failure` nao e o mesmo
     buraco que este teste fecha.
 
     O eixo veredito (`$veredito-*`) e so marcador, nunca prosa, em toda a
     interface hoje — por isso fica de porta fechada de verdade, sem
-    excecao: qualquer ocorrencia fora de `veredito.py` falha.
+    excecao: qualquer ocorrencia fora de `verdict.py` falha.
 
-    O eixo operacao (`$op-falha`) tem os dois usos: `marcar_operacao` para
+    O eixo operacao (`$ds-op-failure`) tem os dois usos: `mark_operation` para
     marcador (convertido) e, em cinco telas que a Task 11 nunca tocou
     (DDL, rotina, client Oracle, configuracoes), coloracao de prosa de erro
     que ja nomeia a falha em palavras — fora do escopo de
-    `marcar_operacao` por natureza, nao por preguica; converter essas
+    `mark_operation` por natureza, nao por preguica; converter essas
     telas prependeria "x FALHA" na frente de frases como "Erro na
     execucao", a mesma duplicacao que o parametro `texto` acabou de tirar
     do resumo da comparacao. `PROSA_DE_ERRO_FORA_DO_ESCOPO` trava o numero
@@ -270,12 +270,12 @@ def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
     from pathlib import Path
 
     raiz_ui = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
-    padrao_token = re.compile(r"\$veredito-[a-z]+|\$op-falha")
+    padrao_token = re.compile(r"\$veredito-[a-z]+|\$ds-op-failure")
     padrao_css = re.compile(r'DEFAULT_CSS\s*=\s*""".*?"""', re.DOTALL)
 
     # Prosa de erro que ja nomeia a falha em palavras proprias — fora do
-    # escopo de marcar_operacao por natureza (ver docstring). Caminho
-    # relativo a dbqm/ui -> numero exato de ocorrencias de `$op-falha`
+    # escopo de mark_operation por natureza (ver docstring). Caminho
+    # relativo a dbqm/ui -> numero exato de ocorrencias de `$ds-op-failure`
     # hoje.
     PROSA_DE_ERRO_FORA_DO_ESCOPO: dict[str, int] = {
         "screens/adhoc.py": 2,  # cabecalho + detalhe de erro de compilacao DDL
@@ -288,7 +288,7 @@ def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
     ofensores = []
     for arquivo in sorted(raiz_ui.rglob("*.py")):
         rel = str(arquivo.relative_to(raiz_ui)).replace("\\", "/")
-        if rel == "widgets/veredito.py":
+        if rel == "widgets/verdict.py":
             continue
         texto_fonte = arquivo.read_text(encoding="utf-8")
         texto_sem_css = padrao_css.sub("", texto_fonte)
@@ -298,7 +298,7 @@ def test_veredito_sem_markup_montado_a_mao_fora_do_componente():
             ofensores.append(f"{rel}: {n} ocorrencia(s), esperado {permitido}")
 
     assert not ofensores, (
-        "markup de veredito/operacao montado a mao fora de veredito.py, "
+        "markup de veredito/operacao montado a mao fora de verdict.py, "
         f"alem da prosa de erro documentada em PROSA_DE_ERRO_FORA_DO_ESCOPO: {ofensores}"
     )
 
@@ -494,15 +494,15 @@ async def test_result_table_pagination_boundary():
         assert "Pagina 3/3" in table.page_info
 
 
-def _resultado(colunas, linhas):
+def _result(columns, rows):
     return QueryResult(
         query_name="t", connection_name="c",
-        columns=colunas, rows=linhas, row_count=len(linhas), elapsed=0.01,
+        columns=columns, rows=rows, row_count=len(rows), elapsed=0.01,
     )
 
 
 @pytest.mark.asyncio
-async def test_result_table_fixa_a_coluna_chave_e_lista_zebra():
+async def test_result_table_fixes_the_key_column_and_zebra_stripes():
     """A primeira coluna nunca sai de vista ao rolar lateralmente.
 
     O dbqm existe para comparar: sem saber de qual registro e a linha, as
@@ -517,7 +517,7 @@ async def test_result_table_fixa_a_coluna_chave_e_lista_zebra():
     app = App_()
     async with app.run_test() as pilot:
         rt = app.query_one("#rt", ResultTable)
-        rt.load_result(_resultado(
+        rt.load_result(_result(
             ["NUM_APOLICE", "SITUACAO", "VLR_PREMIO"],
             [["8801194920", "ATIVA", "3.482,90"]],
         ))
@@ -528,7 +528,7 @@ async def test_result_table_fixa_a_coluna_chave_e_lista_zebra():
 
 
 @pytest.mark.asyncio
-async def test_result_table_nao_fixa_coluna_quando_ha_uma_so():
+async def test_result_table_does_not_fix_a_column_when_there_is_only_one():
     """Fixar a unica coluna nao protege nada e rouba largura.
 
     Afirma a TRANSICAO (varias colunas -> uma so), nao so o valor final: o
@@ -548,20 +548,20 @@ async def test_result_table_nao_fixa_coluna_quando_ha_uma_so():
     async with app.run_test() as pilot:
         rt = app.query_one("#rt", ResultTable)
         dt = app.query_one(DataTable)
-        rt.load_result(_resultado(
+        rt.load_result(_result(
             ["NUM_APOLICE", "SITUACAO", "VLR_PREMIO"],
             [["8801194920", "ATIVA", "3.482,90"]],
         ))
         await pilot.pause()
         assert dt.fixed_columns == 1
 
-        rt.load_result(_resultado(["TOTAL"], [["42"]]))
+        rt.load_result(_result(["TOTAL"], [["42"]]))
         await pilot.pause()
         assert dt.fixed_columns == 0
 
 
 @pytest.mark.asyncio
-async def test_result_table_coluna_chave_permanece_renderizada_ao_rolar():
+async def test_result_table_key_column_stays_rendered_while_scrolling():
     """A prova de renderizacao, nao so do atributo reativo.
 
     `fixed_columns == 1` pode ficar setado e mesmo assim a coluna parar de
@@ -582,7 +582,7 @@ async def test_result_table_coluna_chave_permanece_renderizada_ao_rolar():
     app = App_()
     async with app.run_test(size=(40, 15)) as pilot:
         rt = app.query_one("#rt", ResultTable)
-        rt.load_result(_resultado(colunas, [linha]))
+        rt.load_result(_result(colunas, [linha]))
         await pilot.pause()
         dt = rt.query_one(DataTable)
 
@@ -684,7 +684,7 @@ async def test_query_list_loads_items():
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 2
         # Favorites should be first
-        assert nomes_renderizados(option_list) == ["q2", "q1"]
+        assert rendered_names(option_list) == ["q2", "q1"]
 
 
 @pytest.mark.asyncio
@@ -770,7 +770,7 @@ async def test_query_list_filter_folder():
         await pilot.pause()
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 2
-        assert set(nomes_renderizados(option_list)) == {"q1", "q3"}
+        assert set(rendered_names(option_list)) == {"q1", "q3"}
 
 
 @pytest.mark.asyncio
@@ -799,7 +799,7 @@ async def test_query_list_posts_query_selected():
     conversao para OptionList trocou isso por focar + `enter`. Sao caminhos
     de entrada diferentes (mouse e teclado), e a troca deixou o do mouse
     descoberto; o do teclado esta coberto em
-    `test_query_list_seleciona_por_nome_mesmo_com_nomes_repetidos`."""
+    `test_query_list_selects_by_name_even_with_repeated_names`."""
     from textual.widgets import OptionList
 
     queries = [
@@ -834,7 +834,7 @@ async def test_query_list_posts_query_selected():
 
 
 @pytest.mark.asyncio
-async def test_query_list_pinta_duas_consultas_de_mesmo_nome():
+async def test_query_list_paints_two_queries_with_the_same_name():
     """Duas consultas homonimas nao podem derrubar a tela.
 
     Nome e a chave de busca do dbqm, e enquanto ele viajava como
@@ -863,7 +863,7 @@ async def test_query_list_pinta_duas_consultas_de_mesmo_nome():
         await pilot.pause()
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 2
-        assert nomes_renderizados(option_list) == ["dup", "dup"]
+        assert rendered_names(option_list) == ["dup", "dup"]
         # As duas linhas continuam distinguiveis pelo que as desambigua.
         pintado = [
             option_list.get_option_at_index(i).prompt.plain for i in range(2)
@@ -873,7 +873,7 @@ async def test_query_list_pinta_duas_consultas_de_mesmo_nome():
 
 
 @pytest.mark.asyncio
-async def test_query_list_seleciona_por_nome_mesmo_com_nomes_repetidos():
+async def test_query_list_selects_by_name_even_with_repeated_names():
     """A selecao resolve pelo nome, exatamente como antes dos ids.
 
     Caso normal (nomes unicos): a linha escolhida posta o proprio nome.
@@ -915,7 +915,7 @@ async def test_query_list_seleciona_por_nome_mesmo_com_nomes_repetidos():
 
 
 @pytest.mark.asyncio
-async def test_query_list_consulta_sem_nome_ainda_responde():
+async def test_query_list_unnamed_query_still_responds():
     """Uma consulta de nome vazio posta QuerySelected("") em vez de nada.
 
     Nome vazio nao e criavel pela UI, mas com o nome viajando como `id` o
@@ -964,21 +964,21 @@ async def test_query_list_accepts_objects():
         await pilot.pause()
         option_list = ql.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 1
-        assert nomes_renderizados(option_list) == ["obj_q"]
+        assert rendered_names(option_list) == ["obj_q"]
 
 
 @pytest.mark.asyncio
-async def test_query_list_item_montado_tem_hierarquia_visivel():
+async def test_query_list_mounted_item_has_visible_hierarchy():
     """A entrada montada de verdade dentro da tela (nao so o Content que
-    `item_hierarquico` devolve isolado) ocupa mais de uma linha e a
+    `hierarchical_item` devolve isolado) ocupa mais de uma linha e a
     identidade sai visualmente distinta da desambiguacao — cor resolvida
     pelo `Style.parse` real do tema ativo, o mesmo mecanismo que o Textual
     usa para resolver estilo antes de pintar.
 
     Prova a FIACAO ate a opcao montada de verdade dentro do `OptionList`
-    (nao o `Content` que `item_hierarquico` devolve isolado), nao a pintura
+    (nao o `Content` que `hierarchical_item` devolve isolado), nao a pintura
     de pixel em si — nenhum screenshot e tirado aqui. Mesmo padrao de
-    `test_lista_de_conexoes_montada_distingue_identidade_de_desambiguacao`
+    `test_mounted_connection_list_distinguishes_identity_from_disambiguation`
     em test_screens.py."""
     from textual.style import Style
     from textual.widgets import OptionList
@@ -1010,9 +1010,9 @@ async def test_query_list_item_montado_tem_hierarquia_visivel():
         assert chr(10) in texto, "item pintado deve ocupar mais de uma linha"
         assert " | " not in texto
 
-        cor_forte = Style.parse("$texto-forte").foreground
-        cor_apoio = Style.parse("$texto-apoio").foreground
-        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        cor_forte = Style.parse("$ds-text-strong").foreground
+        cor_apoio = Style.parse("$ds-text-muted").foreground
+        cor_desabilitado = Style.parse("$ds-text-disabled").foreground
         assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
 
         pos_identidade = texto.index("consulta_longa")
@@ -1132,7 +1132,7 @@ async def test_group_result_filter_status_clear(sample_group_result):
 
 
 @pytest.mark.asyncio
-async def test_group_result_chave_permanece_renderizada_ao_rolar():
+async def test_group_result_key_stays_rendered_while_scrolling():
     """A coluna "Chave" da tabela de comparacao nao sai de vista ao rolar.
 
     Mesma regra do `ResultTable` (secao 6 da gramatica) aplicada onde ela
@@ -1228,7 +1228,7 @@ async def test_group_result_summary_shows(sample_group_result):
 
 
 @pytest.mark.asyncio
-async def test_group_result_status_column_resolves_veredito_colors():
+async def test_group_result_status_column_resolves_verdict_colors():
     """O ganho visivel da tarefa: a coluna Status da tabela de comparacao
     tem que sair colorida, uma cor por veredito.
 
@@ -1240,7 +1240,7 @@ async def test_group_result_status_column_resolves_veredito_colors():
     from textual.widgets import DataTable
 
     from dbqm.core.group_engine import ComparisonResult, ComparisonRow, GroupResult
-    from dbqm.design.tokens import TEMAS
+    from dbqm.design.tokens import THEMES
 
     gr = GroupResult(
         group_name="todos_status",
@@ -1266,10 +1266,10 @@ async def test_group_result_status_column_resolves_veredito_colors():
     )
 
     esperado = {
-        "1": TEMAS["plano-escuro"]["veredito-igual"],
-        "2": TEMAS["plano-escuro"]["veredito-igual"],
-        "3": TEMAS["plano-escuro"]["veredito-difere"],
-        "4": TEMAS["plano-escuro"]["veredito-ausente"],
+        "1": THEMES["plano-escuro"]["ds-verdict-match"],
+        "2": THEMES["plano-escuro"]["ds-verdict-match"],
+        "3": THEMES["plano-escuro"]["ds-verdict-diff"],
+        "4": THEMES["plano-escuro"]["ds-verdict-absent"],
     }
 
     app = GroupResultTestApp()
@@ -1320,7 +1320,7 @@ async def test_panel_renders_title_and_body():
 
 
 @pytest.mark.asyncio
-async def test_panel_denso_devolve_as_duas_linhas_do_padding():
+async def test_dense_panel_gives_back_the_two_padding_lines():
     """Densidade e decisao do COMPONENTE, com nome, e nao CSS por tela.
 
     O padding vertical do corpo custa duas linhas por painel. Isso e
@@ -1341,7 +1341,7 @@ async def test_panel_denso_devolve_as_duas_linhas_do_padding():
         def compose(self) -> ComposeResult:
             with Panel("FOLGADO", id="folgado"):
                 yield Static("uma linha")
-            with Panel("DENSO", id="denso", denso=True):
+            with Panel("DENSO", id="denso", dense=True):
                 yield Static("uma linha")
 
     app = _App()
@@ -1349,12 +1349,12 @@ async def test_panel_denso_devolve_as_duas_linhas_do_padding():
         await pilot.pause()
         folgado = app.query_one("#folgado", Panel)
         denso = app.query_one("#denso", Panel)
-        assert denso.has_class("-denso")
+        assert denso.has_class("-dense")
         assert folgado.region.height - denso.region.height == 2, (
             "o modificador nao devolveu as duas linhas: folgado=%r denso=%r"
             % (folgado.region, denso.region)
         )
-        moldura = recorte(app, denso)
+        moldura = crop(app, denso)
         assert moldura[0].startswith("╭") and moldura[-1].startswith("╰"), (
             "a moldura do painel denso deixou de ser desenhada: %r" % moldura
         )
@@ -1369,16 +1369,16 @@ async def test_panel_denso_devolve_as_duas_linhas_do_padding():
 from dbqm.ui.widgets.dialog import Dialog
 
 
-def test_dialog_rejeita_variante_desconhecida():
+def test_dialog_rejects_an_unknown_variant():
     """Variantes fechadas: sem porta dos fundos para estilo arbitrario."""
     with pytest.raises(ValueError, match="tom"):
-        Dialog("Titulo", tom="roxo")
+        Dialog("Titulo", tone="roxo")
     with pytest.raises(ValueError, match="largura"):
-        Dialog("Titulo", largura="xxl")
+        Dialog("Titulo", width="xxl")
 
 
 @pytest.mark.asyncio
-async def test_dialog_renderiza_o_titulo():
+async def test_dialog_renders_the_title():
     class _DialogApp(ThemedTestApp):
         def compose(self) -> ComposeResult:
             with Dialog("Confirmar exclusao", id="d"):
@@ -1386,16 +1386,16 @@ async def test_dialog_renderiza_o_titulo():
 
     app = _DialogApp()
     async with app.run_test():
-        titulo = app.query_one("#d-titulo", Static)
+        titulo = app.query_one("#d-title", Static)
         assert "Confirmar exclusao" in titulo.render().plain
 
 
-def test_dialog_variante_tela_preenche_a_viewport():
+def test_dialog_screen_variant_fills_the_viewport():
     """A quarta variante e a resposta do sistema aos casos que antes
     burlavam o enum escrevendo `.styles.width`/`.styles.height` depois de
     construir. Ela existe, e usa porcentagem (nao celulas) porque e
     conteudo a ser exibido, nao um formulario compacto."""
-    d = Dialog("Titulo", largura="tela")
+    d = Dialog("Titulo", width="screen")
     # Textual guarda porcentagem como escalar "w"/"h" (viewport width/height);
     # comparar com a representacao efetivamente resolvida, nao com a string
     # de entrada.
@@ -1403,22 +1403,22 @@ def test_dialog_variante_tela_preenche_a_viewport():
     assert str(d.styles.height) == "85h"
 
 
-def test_dialog_nao_tem_override_de_estilo_fora_do_componente():
+def test_dialog_has_no_style_override_outside_the_component():
     """Fecha a CLASSE, nao so a instancia: `largura`/`tom` sao validados no
     __init__, mas nada no Python impede escrever `dialog.styles.width =`
     depois — a atribuicao inline vence qualquer coisa que o __init__ tenha
     decidido, e nenhum teste nem validacao consegue ver essa escrita
     tardia. Guarda no mesmo formato de
-    `test_toda_variavel_css_e_token_ou_builtin_documentado`: silencioso ate
+    `test_every_css_variable_is_a_token_or_a_documented_builtin`: silencioso ate
     alguem reintroduzir o atalho, e ai falha alto. Precisar de mais espaco
-    e sinal de variante nova em `LARGURAS` (ver "tela"), nunca de excecao
+    e sinal de variante nova em `WIDTHS` (ver "screen"), nunca de excecao
     local.
 
     Duas portas, nao uma: a atribuicao Python (`dialog.styles.width = ...`)
     e a regra CSS lado-a-lado (`AlgumaTela #meu-dialog { height: 85%; }`).
     A segunda escapava do guarda original porque ele so olhava `.styles.`;
     `template_manage.py` e `error.py` hand-rolaram exatamente a variante
-    "tela" via CSS antes desta correcao. Todo id de Dialog neste repo
+    "screen" via CSS antes desta correcao. Todo id de Dialog neste repo
     contem a substring "dialog" (id="dialog", "error-dialog",
     "qp-dialog", "pkg-choice-dialog", ...), entao a regra CSS varre
     qualquer bloco `#*dialog*{ ... }` por width/height/max-height/
@@ -1493,7 +1493,7 @@ async def test_templates_sidebar_shows_hint_when_empty():
 
 
 @pytest.mark.asyncio
-async def test_templates_sidebar_empty_state_action_switches_to_ferramentas():
+async def test_templates_sidebar_empty_state_action_switches_to_tools():
     """The EmptyState's "Abrir Ferramentas" button must not be a dead end."""
     from textual.widgets import Button
 
@@ -1548,7 +1548,7 @@ async def test_templates_sidebar_option_selected_posts_message():
 # EmptyState tests
 # ---------------------------------------------------------------------------
 
-def test_empty_state_exige_uma_acao():
+def test_empty_state_requires_an_action():
     """Um vazio que so informa que esta vazio e um defeito, nao um estado."""
     from dbqm.ui.widgets.empty_state import EmptyState
 
@@ -1557,17 +1557,17 @@ def test_empty_state_exige_uma_acao():
 
 
 @pytest.mark.asyncio
-async def test_empty_state_oferece_a_primeira_acao():
+async def test_empty_state_offers_the_first_action():
     from textual.widgets import Button
     from dbqm.ui.widgets.empty_state import EmptyState
 
     class _EmptyStateApp(ThemedTestApp):
         def compose(self) -> ComposeResult:
             yield EmptyState(
-                o_que="Consultas",
-                porque="Voce ainda nao salvou nenhuma consulta",
-                acao_rotulo="Criar consulta",
-                acao_id="criar-consulta",
+                what="Consultas",
+                why="Voce ainda nao salvou nenhuma consulta",
+                action_label="Criar consulta",
+                action_id="criar-consulta",
             )
 
     app = _EmptyStateApp()
@@ -1577,27 +1577,27 @@ async def test_empty_state_oferece_a_primeira_acao():
 
 
 # ---------------------------------------------------------------------------
-# Esqueleto tests
+# Skeleton tests
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_esqueleto_tem_a_forma_do_conteudo_que_vem():
+async def test_skeleton_has_the_shape_of_the_content_to_come():
     """Do formato do conteudo, nao um rodopio centralizado: evita o salto de
     layout quando o resultado real chega."""
-    from dbqm.ui.widgets.esqueleto import Esqueleto
+    from dbqm.ui.widgets.skeleton import Skeleton
 
     class _EsqueletoApp(ThemedTestApp):
         def compose(self) -> ComposeResult:
-            yield Esqueleto(linhas=6, colunas=3, id="e")
+            yield Skeleton(rows=6, columns=3, id="e")
 
     app = _EsqueletoApp()
     async with app.run_test():
-        esqueleto = app.query_one("#e", Esqueleto)
-        assert len(esqueleto.query(".esqueleto-linha")) == 6
+        esqueleto = app.query_one("#e", Skeleton)
+        assert len(esqueleto.query(".skeleton-row")) == 6
 
 
 @pytest.mark.asyncio
-async def test_somente_leitura_e_visualmente_distinto_de_desabilitado():
+async def test_read_only_is_visually_distinct_from_disabled():
     """Somente leitura parece conteudo; desabilitado parece controle inerte —
     confundir os dois e o defeito que esta tarefa existe para prevenir."""
     from textual.widgets import Input
@@ -1606,7 +1606,7 @@ async def test_somente_leitura_e_visualmente_distinto_de_desabilitado():
         CSS = "Input { width: 20; }"
 
         def compose(self) -> ComposeResult:
-            yield Input(value="a", id="ro", classes="-somente-leitura")
+            yield Input(value="a", id="ro", classes="-read-only")
             yield Input(value="b", id="off", disabled=True)
 
     app = _EstadosApp()
@@ -1617,38 +1617,38 @@ async def test_somente_leitura_e_visualmente_distinto_de_desabilitado():
 
 
 # ---------------------------------------------------------------------------
-# item_hierarquico tests
+# hierarchical_item tests
 # ---------------------------------------------------------------------------
 
-def test_item_hierarquico_poe_identidade_sozinha_na_primeira_linha():
-    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+def test_hierarchical_item_puts_identity_alone_on_the_first_line():
+    from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
-    c = item_hierarquico("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day")
+    c = hierarchical_item("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day")
     linhas = str(c).split("\n")
     assert linhas[0].strip() == "MGORA7ORA9"
     assert "Oracle/TNS" in linhas[1]
     assert "Producao" in linhas[2]
 
 
-def test_item_hierarquico_omite_linhas_vazias():
-    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+def test_hierarchical_item_omits_empty_lines():
+    from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
-    assert len(str(item_hierarquico("SO_NOME")).split("\n")) == 1
+    assert len(str(hierarchical_item("SO_NOME")).split("\n")) == 1
 
 
-def test_item_hierarquico_omite_so_a_linha_do_meio_quando_so_ela_falta():
+def test_hierarchical_item_omits_only_the_middle_line_when_only_it_is_missing():
     """Desambiguacao presente e contexto vazio tem que dar duas linhas,
     sem buraco no meio — nao uma terceira linha em branco pulada."""
-    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+    from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
-    c = item_hierarquico("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9")
+    c = hierarchical_item("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9")
     linhas = str(c).split("\n")
     assert len(linhas) == 2
     assert linhas[0].strip() == "MGORA7ORA9"
     assert "Oracle/TNS" in linhas[1]
 
 
-def test_item_hierarquico_recua_toda_linha_de_um_campo_multi_linha():
+def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
     """Um campo (desambiguacao ou contexto) que ja chega com quebra de
     linha embutida (ex.: connections.py pre-quebrando uma descricao longa
     em duas linhas logicas) tem que ter o recuo em CADA linha, nao so na
@@ -1656,28 +1656,28 @@ def test_item_hierarquico_recua_toda_linha_de_um_campo_multi_linha():
     numa continuacao alinha essa linha com a coluna da IDENTIDADE (a
     proxima entrada), o mesmo defeito que motivou esta fase inteira -
     nao dar pra saber onde uma entrada termina e a outra comeca."""
-    from dbqm.ui.widgets.lista_hierarquica import _RECUO, item_hierarquico
+    from dbqm.ui.widgets.hierarchical_list import _INDENT, hierarchical_item
 
     contexto = "\n".join([
         "Portal ASDADM em ATSSUS ambiente",
         "da sustentacao Mapfre com",
         "replicacao",
     ])
-    c = item_hierarquico("ASDADM (ASD)", "Oracle/TNS - ATSSUS", contexto)
+    c = hierarchical_item("ASDADM (ASD)", "Oracle/TNS - ATSSUS", contexto)
     linhas = str(c).split("\n")
     assert len(linhas) == 5
     assert linhas[0] == "ASDADM (ASD)"
     # As quatro linhas de desambiguacao+contexto tem TODAS o mesmo recuo -
     # nenhuma comeca na coluna 0, coluna da identidade.
     for linha in linhas[1:]:
-        assert linha.startswith(_RECUO), f"linha sem recuo: {linha!r}"
-    assert linhas[1] == _RECUO + "Oracle/TNS - ATSSUS"
-    assert linhas[2] == _RECUO + "Portal ASDADM em ATSSUS ambiente"
-    assert linhas[3] == _RECUO + "da sustentacao Mapfre com"
-    assert linhas[4] == _RECUO + "replicacao"
+        assert linha.startswith(_INDENT), f"linha sem recuo: {linha!r}"
+    assert linhas[1] == _INDENT + "Oracle/TNS - ATSSUS"
+    assert linhas[2] == _INDENT + "Portal ASDADM em ATSSUS ambiente"
+    assert linhas[3] == _INDENT + "da sustentacao Mapfre com"
+    assert linhas[4] == _INDENT + "replicacao"
 
 
-def test_item_hierarquico_nao_interpreta_colchetes_do_conteudo_como_markup():
+def test_hierarchical_item_does_not_read_content_brackets_as_markup():
     """Nome de conexao ou descricao vem de dado do usuario, e texto livre
     com colchete (tag de ambiente, referencia de ticket) e padrao plausivel
     neste dominio — ex.: `Proposta [PROD]`.
@@ -1688,22 +1688,22 @@ def test_item_hierarquico_nao_interpreta_colchetes_do_conteudo_como_markup():
     (barra sobrando). A prova aqui e ida e volta: o que entra tem que sair
     identico em `.plain`, colchete por colchete — nao so "nao explodiu".
     """
-    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+    from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
     entrada = "Proposta [PROD] com [/] e ] solto"
-    c = item_hierarquico(entrada, entrada, entrada)
+    c = hierarchical_item(entrada, entrada, entrada)
     for linha in str(c).split("\n"):
         assert entrada in linha
 
 
 @pytest.mark.asyncio
-async def test_item_hierarquico_usa_a_hierarquia_de_cor_da_gramatica():
+async def test_hierarchical_item_uses_the_grammar_color_hierarchy():
     """Identidade, desambiguacao e contexto tem que sair com tres cores
     diferentes de fato resolvidas no tema ativo — nao apenas o nome do
     token aparecendo na string de markup (licao da Task 1)."""
     from textual.style import Style
 
-    from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+    from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
     def cor_no_offset(conteudo, offset):
         estilo = Style()
@@ -1718,14 +1718,14 @@ async def test_item_hierarquico_usa_a_hierarquia_de_cor_da_gramatica():
 
     app = _App()
     async with app.run_test():
-        conteudo = item_hierarquico(
+        conteudo = hierarchical_item(
             "MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day"
         )
         texto = conteudo.plain
 
-        cor_forte = Style.parse("$texto-forte").foreground
-        cor_apoio = Style.parse("$texto-apoio").foreground
-        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        cor_forte = Style.parse("$ds-text-strong").foreground
+        cor_apoio = Style.parse("$ds-text-muted").foreground
+        cor_desabilitado = Style.parse("$ds-text-disabled").foreground
         assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
 
         pos_identidade = texto.index("MGORA7ORA9")

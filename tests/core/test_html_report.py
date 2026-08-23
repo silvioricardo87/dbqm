@@ -40,17 +40,17 @@ class TestBuildHtml:
         assert path.endswith(".html")
 
 
-def test_relatorio_usa_as_cores_do_design_system():
+def test_report_uses_design_system_colors():
     """O relatorio tinha paleta propria so porque core/ nao podia importar ui/."""
-    from dbqm.core.html_report import css_variaveis
-    from dbqm.design.tokens import TOKENS_ESCURO
+    from dbqm.core.html_report import css_variables
+    from dbqm.design.tokens import DARK_TOKENS
 
-    css = css_variaveis(TOKENS_ESCURO)
-    for chave, valor in TOKENS_ESCURO.items():
+    css = css_variables(DARK_TOKENS)
+    for chave, valor in DARK_TOKENS.items():
         assert f"--{chave}: {valor}" in css
 
 
-def test_relatorio_nao_carrega_mais_a_paleta_antiga():
+def test_report_no_longer_carries_the_old_palette():
     fonte = Path("dbqm/core/html_report.py").read_text(encoding="utf-8")
     for orfa in ("#00d4ff", "#16213e", "#4caf50", "#ff9800", "#f44336"):
         assert orfa not in fonte, f"{orfa} sobrou da paleta paralela"

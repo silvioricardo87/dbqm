@@ -60,7 +60,7 @@ class SqlPasteModal(ModalScreen[dict | None]):
         connections = load_connections()
         conn_options = [(c.name, c.name) for c in connections]
 
-        with Dialog("Nova Consulta (Colar SQL)", largura="lg", id="dialog"):
+        with Dialog("Nova Consulta (Colar SQL)", width="lg", id="dialog"):
             yield Static("[dim]Cole o SQL abaixo. A tabela e colunas serao detectadas automaticamente.[/dim]", id="info", markup=True)
             yield TextArea(id="sql-area", language="sql")
             yield Input(placeholder="Nome da consulta", id="name-input")
@@ -149,7 +149,7 @@ class SqlViewerModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from dbqm.ui.widgets.sql_viewer import SqlViewer
 
-        with Dialog(f"SQL: {self._query_name}", largura="lg", id="dialog"):
+        with Dialog(f"SQL: {self._query_name}", width="lg", id="dialog"):
             yield SqlViewer(self._sql, id="sql-display")
             with Horizontal(id="buttons"):
                 yield Button("Fechar", variant="primary", id="close-btn")
@@ -184,7 +184,7 @@ class EditMenuModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("O que deseja editar?", largura="sm", id="dialog"):
+        with Dialog("O que deseja editar?", width="sm", id="dialog"):
             yield Button("Descricao", id="edit_description")
             yield Button("Conexao", id="edit_connection")
             yield Button("SQL", id="edit_sql")
@@ -237,7 +237,7 @@ class EditSqlModal(ModalScreen[str | None]):
         self._current_sql = current_sql
 
     def compose(self) -> ComposeResult:
-        with Dialog("Editar SQL", largura="lg", id="dialog"):
+        with Dialog("Editar SQL", width="lg", id="dialog"):
             yield TextArea(self._current_sql, id="sql-area", language="sql")
             with Horizontal(id="buttons"):
                 yield Button("Salvar", variant="primary", id="save")
@@ -408,10 +408,10 @@ class QueryManageScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Panel("📋  CONSULTAS", id="qm-panel"):
             yield EmptyState(
-                o_que="Consultas",
-                porque="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
-                acao_rotulo="Criar consulta",
-                acao_id="criar-consulta",
+                what="Consultas",
+                why="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
+                action_label="Criar consulta",
+                action_id="criar-consulta",
                 id="qm-empty",
             )
             yield DataTable(id="qm-table")

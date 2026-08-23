@@ -1,5 +1,5 @@
 """Tests for UI utilities."""
-from dbqm.ui.utils import sanitize_id, escape_markup, prefixo_comum_de_pastas
+from dbqm.ui.utils import sanitize_id, escape_markup, common_folder_prefix
 
 
 def test_sanitize_id_ascii():
@@ -74,7 +74,7 @@ def test_escape_markup_nested():
 
 
 # ---------------------------------------------------------------------------
-# prefixo_comum_de_pastas
+# common_folder_prefix
 # ---------------------------------------------------------------------------
 #
 # Existia sem teste nenhum: toda pasta usada na suite de UI era livre de
@@ -84,40 +84,40 @@ def test_escape_markup_nested():
 # ROTULO pintado, sao o que faz esse mutante morrer.
 
 
-def test_prefixo_comum_de_pastas_familia_unica():
+def test_common_folder_prefix_single_family():
     """O caso que motivou a funcao: uma familia domina a lista inteira."""
-    assert prefixo_comum_de_pastas([
+    assert common_folder_prefix([
         "Mapfre Sustentacao/Faturamento",
         "Mapfre Sustentacao/Apolice",
     ]) == "Mapfre Sustentacao/"
 
 
-def test_prefixo_comum_de_pastas_varios_segmentos():
+def test_common_folder_prefix_several_segments():
     """O prefixo cresce por segmento, nao para no primeiro."""
-    assert prefixo_comum_de_pastas(["A/B/C", "A/B/D"]) == "A/B/"
+    assert common_folder_prefix(["A/B/C", "A/B/D"]) == "A/B/"
 
 
-def test_prefixo_comum_de_pastas_sem_nada_em_comum():
+def test_common_folder_prefix_nothing_in_common():
     """Duas familias lado a lado: o prefixo comum encolhe sozinho para ""
     e a lista volta a mostrar o caminho inteiro — a razao de o prefixo ser
     calculado a cada carga em vez de fixado como literal no codigo."""
-    assert prefixo_comum_de_pastas(["Mapfre/Faturamento", "Interno/Backlog"]) == ""
+    assert common_folder_prefix(["Mapfre/Faturamento", "Interno/Backlog"]) == ""
 
 
-def test_prefixo_comum_de_pastas_compara_segmento_nao_caractere():
+def test_common_folder_prefix_compares_segments_not_characters():
     """"Fatura" e prefixo de "Faturamento" em caracteres, mas nao em
     segmentos — elidir aqui cortaria o comeco de um nome de pasta."""
-    assert prefixo_comum_de_pastas(["Faturamento", "Fatura"]) == ""
+    assert common_folder_prefix(["Faturamento", "Fatura"]) == ""
 
 
-def test_prefixo_comum_de_pastas_menos_de_duas():
+def test_common_folder_prefix_fewer_than_two():
     """Com zero ou uma pasta nao ha redundancia a eliminar: o unico rotulo
     da lista tem de aparecer inteiro."""
-    assert prefixo_comum_de_pastas([]) == ""
-    assert prefixo_comum_de_pastas(["Mapfre Sustentacao/Faturamento"]) == ""
+    assert common_folder_prefix([]) == ""
+    assert common_folder_prefix(["Mapfre Sustentacao/Faturamento"]) == ""
 
 
-def test_prefixo_comum_de_pastas_pasta_que_e_prefixo_da_irma():
+def test_common_folder_prefix_folder_that_prefixes_its_sibling():
     """Caso irmao: uma pasta E o prefixo comum da outra.
 
     O prefixo devolvido ("A/B/") nao se aplica a propria "A/B" — quem
@@ -125,10 +125,10 @@ def test_prefixo_comum_de_pastas_pasta_que_e_prefixo_da_irma():
     o rotulo de "A/B" de virar string vazia. A funcao devolve o prefixo
     correto; o `startswith` do chamador (query_exec.py/group_run.py) e
     load-bearing, nao defensivo."""
-    assert prefixo_comum_de_pastas(["A/B", "A/B/C"]) == "A/B/"
+    assert common_folder_prefix(["A/B", "A/B/C"]) == "A/B/"
 
 
-def test_prefixo_comum_de_pastas_lista_repetida_devolveria_tudo():
+def test_common_folder_prefix_repeated_list_would_return_everything():
     """Comportamento fixado, nao endossado: com a MESMA pasta repetida o
     prefixo comum e ela inteira, e cortar isso apagaria o rotulo.
 
@@ -140,4 +140,4 @@ def test_prefixo_comum_de_pastas_lista_repetida_devolveria_tudo():
     que, se um terceiro chamador passar uma lista com repeticoes um dia, a
     consequencia esteja escrita aqui em vez de aparecer como uma lista de
     rotulos em branco."""
-    assert prefixo_comum_de_pastas(["A/B", "A/B"]) == "A/B/"
+    assert common_folder_prefix(["A/B", "A/B"]) == "A/B/"

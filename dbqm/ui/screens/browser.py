@@ -15,8 +15,8 @@ from dbqm.ui.utils import NavSelect
 from textual import work
 
 from dbqm.ui.widgets.empty_state import EmptyState
-from dbqm.ui.widgets.esqueleto import Esqueleto
-from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+from dbqm.ui.widgets.skeleton import Skeleton
+from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.sql_viewer import SqlViewer
@@ -129,17 +129,17 @@ class BrowserScreen(Vertical):
                 )
                 yield Input(placeholder="Filtrar objetos...", id="obj-filter")
                 yield EmptyState(
-                    o_que="Objetos",
-                    porque="Escolha uma conexao para listar tabelas, views e rotinas",
-                    acao_rotulo="Escolher conexao",
-                    acao_id="escolher-conexao",
+                    what="Objetos",
+                    why="Escolha uma conexao para listar tabelas, views e rotinas",
+                    action_label="Escolher conexao",
+                    action_id="escolher-conexao",
                     id="obj-list-empty",
                 )
                 # A forma da lista que vem, nao um rodopio: reserva o
                 # espaco certo enquanto a conexao busca os objetos. Uma
                 # coluna so: `#obj-list` e um OptionList, uma string por
                 # linha (`_populate_list`), nao uma tabela de duas colunas.
-                yield Esqueleto(linhas=10, colunas=1, id="obj-list-skeleton")
+                yield Skeleton(rows=10, columns=1, id="obj-list-skeleton")
                 yield OptionList(id="obj-list")
 
             with Panel("📋  COLUNAS", id="obj-columns-panel"):
@@ -149,8 +149,8 @@ class BrowserScreen(Vertical):
                 yield ResultTable(id="obj-preview")
                 # Fonte de PACKAGE/ROUTINE: conteudo para consumir, nao um
                 # formulario de edicao — nao usar o mesmo visual de campo
-                # desabilitado (ver `-somente-leitura` em dbqm/ui/theme.py).
-                yield SqlViewer("", id="obj-source", classes="-somente-leitura")
+                # desabilitado (ver `-read-only` em dbqm/ui/theme.py).
+                yield SqlViewer("", id="obj-source", classes="-read-only")
                 with Horizontal(id="obj-preview-buttons"):
                     yield Button("Extrair DDL", id="obj-ddl")
                     yield Button("Carregar mais", id="obj-more")
@@ -170,7 +170,7 @@ class BrowserScreen(Vertical):
         that is coming."""
         empty = self.query_one("#obj-list-empty", EmptyState)
         option_list = self.query_one("#obj-list", OptionList)
-        skeleton = self.query_one("#obj-list-skeleton", Esqueleto)
+        skeleton = self.query_one("#obj-list-skeleton", Skeleton)
         has_conn = self._current_conn is not None
         skeleton.display = loading
         empty.display = not has_conn and not loading
@@ -291,7 +291,7 @@ class BrowserScreen(Vertical):
         option_list = self.query_one("#obj-list", OptionList)
         option_list.clear_options()
         for obj in objects[:500]:
-            option_list.add_option(Option(item_hierarquico(obj), id=obj))
+            option_list.add_option(Option(hierarchical_item(obj), id=obj))
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected

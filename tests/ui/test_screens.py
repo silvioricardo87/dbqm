@@ -11,7 +11,7 @@ from dbqm.ui.screens.connections import ConnectionsScreen
 from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
 
-from tests.ui._helpers import ThemedTestApp, nomes_renderizados
+from tests.ui._helpers import ThemedTestApp, rendered_names
 
 
 class QueryExecTestApp(ThemedTestApp):
@@ -246,7 +246,7 @@ async def test_query_exec_text_filter_narrows_list(tmp_config_dir):
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 1
-        assert nomes_renderizados(option_list) == ["Estoque"]
+        assert rendered_names(option_list) == ["Estoque"]
 
 
 @pytest.mark.asyncio
@@ -260,7 +260,7 @@ async def test_query_exec_text_filter_matches_description(tmp_config_dir):
         screen.query_one("#qe-filter-text", Input).value = "faturados"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
-        assert nomes_renderizados(option_list) == ["Pedidos"]
+        assert rendered_names(option_list) == ["Pedidos"]
 
 
 @pytest.mark.asyncio
@@ -274,7 +274,7 @@ async def test_query_exec_connection_filter_narrows_list(tmp_config_dir):
         screen.query_one("#qe-filter-conn", Select).value = "homolog"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
-        assert nomes_renderizados(option_list) == ["Estoque"]
+        assert rendered_names(option_list) == ["Estoque"]
 
 
 @pytest.mark.asyncio
@@ -293,7 +293,7 @@ async def test_query_exec_text_and_connection_combined(tmp_config_dir):
         screen.query_one("#qe-filter-text", Input).value = "ped"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
-        assert nomes_renderizados(option_list) == ["Pedidos"]
+        assert rendered_names(option_list) == ["Pedidos"]
 
 
 @pytest.mark.asyncio
@@ -308,7 +308,7 @@ async def test_query_exec_no_filter_bar_when_empty(tmp_config_dir):
             screen.query_one("#qe-filter-text", Input)
 
 
-def _rotulos_pintados_do_select(seletor):
+def _painted_select_labels(seletor):
     """Os rotulos do select como o menu aberto os PINTA.
 
     `seletor._options` e a lista que o widget guardou; o que a pessoa le e
@@ -324,7 +324,7 @@ def _rotulos_pintados_do_select(seletor):
 
 
 @pytest.mark.asyncio
-async def test_pastas_viram_select_com_contagem(tmp_config_dir):
+async def test_folders_become_a_select_with_counts(tmp_config_dir):
     """As pastas viram um Select com a contagem em cada rotulo.
 
     A cardinalidade real do mantenedor sao 16 pastas para 68 consultas —
@@ -361,7 +361,7 @@ async def test_pastas_viram_select_com_contagem(tmp_config_dir):
         seletor.focus()
         await pilot.press("enter")
         await pilot.pause()
-        assert _rotulos_pintados_do_select(seletor) == [
+        assert _painted_select_labels(seletor) == [
             "Todas (20)",
             "Alfa (5)",
             "Beta (2)",
@@ -372,11 +372,11 @@ async def test_pastas_viram_select_com_contagem(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_rotulo_de_pasta_elide_o_prefixo_comum(tmp_config_dir):
+async def test_folder_label_elides_the_common_prefix(tmp_config_dir):
     """Com uma familia unica de pastas, o rotulo pintado perde o prefixo.
 
     Nenhuma pasta da suite continha "/" antes deste teste, entao o ramo de
-    elisao (`prefixo_comum_de_pastas`) nunca rodava: trocar a funcao por
+    elisao (`common_folder_prefix`) nunca rodava: trocar a funcao por
     `lambda pastas: ""` deixava tudo verde. Aqui o que se le e o rotulo
     PINTADO no menu aberto — "Alpha (3)", nao "Projeto/Alpha (3)"."""
     from textual.widgets import Select
@@ -404,7 +404,7 @@ async def test_rotulo_de_pasta_elide_o_prefixo_comum(tmp_config_dir):
         seletor.focus()
         await pilot.press("enter")
         await pilot.pause()
-        assert _rotulos_pintados_do_select(seletor) == [
+        assert _painted_select_labels(seletor) == [
             "Todas (6)",
             "Alpha (3)",
             "Beta (1)",
@@ -413,7 +413,7 @@ async def test_rotulo_de_pasta_elide_o_prefixo_comum(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_rotulo_de_pasta_mostra_caminho_inteiro_com_duas_familias(
+async def test_folder_label_shows_the_whole_path_with_two_families(
     tmp_config_dir,
 ):
     """Duas familias lado a lado: o prefixo comum encolhe e o caminho volta.
@@ -444,14 +444,14 @@ async def test_rotulo_de_pasta_mostra_caminho_inteiro_com_duas_familias(
         seletor.focus()
         await pilot.press("enter")
         await pilot.pause()
-        assert _rotulos_pintados_do_select(seletor) == [
+        assert _painted_select_labels(seletor) == [
             "Todas (2)",
             "Interno/Backlog (1)",
             "Projeto/Alpha (1)",
         ]
 
 
-# O guarda `test_listview_saiu_do_vocabulario` mora agora em
+# O guarda `test_listview_left_the_vocabulary` mora agora em
 # `tests/design/test_inventario_layout.py`, junto com os outros guardas
 # de vocabulario da gramatica de layout. Aqui ele ficava escondido no
 # meio de milhares de linhas de teste de tela — longe de quem vai
@@ -631,7 +631,7 @@ def test_format_description_helper():
 
 
 @pytest.mark.asyncio
-async def test_lista_de_conexoes_tem_hierarquia_e_nao_concatena(tmp_config_dir):
+async def test_connection_list_has_hierarchy_and_does_not_concatenate(tmp_config_dir):
     """O item tem hierarquia de linhas; nao e uma string concatenada."""
     from textual.widgets import OptionList
     from dbqm.models.connection import Connection, save_connections
@@ -659,7 +659,7 @@ async def test_lista_de_conexoes_tem_hierarquia_e_nao_concatena(tmp_config_dir):
         assert prompt.splitlines()[0].strip().startswith("MGORA7ORA9")
 
 
-def test_query_list_nao_trunca_mais_a_descricao():
+def test_query_list_no_longer_truncates_the_description():
     """A truncagem em 35 caracteres existia para caber numa linha so.
 
     Raiz ancorada em `__file__` (idioma de `tests/design/_varredura.py`):
@@ -676,10 +676,10 @@ def test_query_list_nao_trunca_mais_a_descricao():
 
 
 @pytest.mark.asyncio
-async def test_lista_de_conexoes_montada_distingue_identidade_de_desambiguacao(
+async def test_mounted_connection_list_distinguishes_identity_from_disambiguation(
     tmp_config_dir,
 ):
-    """Nao basta o `Content` que `item_hierarquico` devolve isolado (Task 3
+    """Nao basta o `Content` que `hierarchical_item` devolve isolado (Task 3
     ja prova isso por span) — aqui a tela real e montada e a opcao real do
     `OptionList` (nao o valor passado pra dentro) e lida de volta; a cor de
     cada linha e resolvida com `Style.parse` do tema ativo da app, o mesmo
@@ -711,9 +711,9 @@ async def test_lista_de_conexoes_montada_distingue_identidade_de_desambiguacao(
         conteudo = lista.get_option_at_index(0).prompt
         texto = conteudo.plain
 
-        cor_forte = Style.parse("$texto-forte").foreground
-        cor_apoio = Style.parse("$texto-apoio").foreground
-        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        cor_forte = Style.parse("$ds-text-strong").foreground
+        cor_apoio = Style.parse("$ds-text-muted").foreground
+        cor_desabilitado = Style.parse("$ds-text-disabled").foreground
         assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
 
         pos_identidade = texto.index("MGORA7ORA9")
@@ -726,8 +726,8 @@ async def test_lista_de_conexoes_montada_distingue_identidade_de_desambiguacao(
 
 
 @pytest.mark.asyncio
-async def test_descricao_largura_cabe_mesmo_com_a_lista_rolando(tmp_config_dir):
-    """`_DESCRICAO_LARGURA` foi derivada assumindo o pior caso (barra de
+async def test_description_width_fits_even_with_the_list_scrolling(tmp_config_dir):
+    """`_DESCRIPTION_WIDTH` foi derivada assumindo o pior caso (barra de
     rolagem do OptionList presente). Este teste prova a suposicao contra o
     widget montado de verdade, nao so no papel: numa lista longa o
     suficiente pra rolar, a largura de texto assumida (mais o recuo que
@@ -738,8 +738,8 @@ async def test_descricao_largura_cabe_mesmo_com_a_lista_rolando(tmp_config_dir):
     identidade da entrada seguinte."""
     from textual.widgets import OptionList
     from dbqm.models.connection import Connection, save_connections
-    from dbqm.ui.screens.connections import _DESCRICAO_LARGURA
-    from dbqm.ui.widgets.lista_hierarquica import _RECUO
+    from dbqm.ui.screens.connections import _DESCRIPTION_WIDTH
+    from dbqm.ui.widgets.hierarchical_list import _INDENT
 
     conexoes = [
         Connection(name=f"CONN{i}", db_type="oracle", user="u", password="p",
@@ -757,7 +757,7 @@ async def test_descricao_largura_cabe_mesmo_com_a_lista_rolando(tmp_config_dir):
             "rolando"
         )
         largura_real = lista.scrollable_content_region.width
-        assert _DESCRICAO_LARGURA + len(_RECUO) <= largura_real
+        assert _DESCRIPTION_WIDTH + len(_INDENT) <= largura_real
 
 
 @pytest.mark.asyncio
@@ -782,7 +782,7 @@ async def test_connections_select_loads_into_form(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_connections_nova_clears_form(tmp_config_dir):
+async def test_connections_new_clears_form(tmp_config_dir):
     """The 'Nova' action/button clears the form for a new entry."""
     _seed_connections(tmp_config_dir / "config")
 
@@ -1916,8 +1916,8 @@ async def test_browser_reload_populates_object_list(tmp_config_dir, monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_browser_lista_de_objetos_montada_e_so_identidade(tmp_config_dir, monkeypatch):
-    """A lista de objetos usa `item_hierarquico` só com a identidade — o
+async def test_mounted_browser_object_list_is_identity_only(tmp_config_dir, monkeypatch):
+    """A lista de objetos usa `hierarchical_item` só com a identidade — o
     filtro de tipo (`#obj-type`) é `allow_blank=False`, então toda linha
     visível já é sempre do mesmo tipo; escrever o tipo de novo em cada
     item não desambiguaria nada. `conteudo` vem do widget montado de
@@ -1964,7 +1964,7 @@ async def test_browser_lista_de_objetos_montada_e_so_identidade(tmp_config_dir, 
         assert texto == "CLIENTE", "sem tipo repetido: so a identidade"
         assert chr(10) not in texto
 
-        cor_forte = Style.parse("$texto-forte").foreground
+        cor_forte = Style.parse("$ds-text-strong").foreground
         assert cor_no_offset(conteudo, 0) == cor_forte
 
 
@@ -2332,7 +2332,7 @@ async def test_history_screen_detail_visible_initially(tmp_config_dir):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
-async def test_historico_vazio_pinta_identidade_e_nao_pinta_tabela(
+async def test_empty_history_paints_identity_and_no_table(
     tmp_config_dir, tamanho
 ):
     """Com historico vazio: as tres partes do estado vazio aparecem, e o
@@ -2346,7 +2346,7 @@ async def test_historico_vazio_pinta_identidade_e_nao_pinta_tabela(
        so o porque e o botao chegavam na tela.
     """
     from dbqm.ui.app import DBQMApp
-    from tests.ui._helpers import linhas_renderizadas, texto_renderizado
+    from tests.ui._helpers import rendered_lines, rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=tamanho) as pilot:
@@ -2355,8 +2355,8 @@ async def test_historico_vazio_pinta_identidade_e_nao_pinta_tabela(
         for _ in range(3):
             await pilot.pause()
 
-        pintado = texto_renderizado(app)
-        linhas = linhas_renderizadas(app)
+        pintado = rendered_text(app)
+        linhas = rendered_lines(app)
         assert "HISTORICO" in pintado, "a aba de historico nem chegou a frente"
 
         # A identidade e cobrada LINHA A LINHA, nao com um `in` na tela
@@ -2374,7 +2374,7 @@ async def test_historico_vazio_pinta_identidade_e_nao_pinta_tabela(
 
 
 @pytest.mark.asyncio
-async def test_historico_vazio_foca_a_saida_que_oferece(tmp_config_dir):
+async def test_empty_history_focuses_the_exit_it_offers(tmp_config_dir):
     """O foco inicial vai para o botao do estado vazio, nao para a tabela
     escondida — senao nada visivel fica marcado e o Enter nao alcanca a
     unica saida da tela."""
@@ -2404,7 +2404,7 @@ class SettingsTestApp(ThemedTestApp):
 # ----------------------------------------------------------------------
 
 
-async def _abrir_app_contando_gravacoes(tmp_config_dir, monkeypatch):
+async def _open_app_counting_writes(tmp_config_dir, monkeypatch):
     """Monta a DBQMApp real e devolve (avisos, numero de gravacoes)."""
     import dbqm.models.settings as mod
     from dbqm.ui.app import DBQMApp
@@ -2429,7 +2429,7 @@ async def _abrir_app_contando_gravacoes(tmp_config_dir, monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("salvo", [{}, {"audit_log_enabled": True}])
-async def test_abrir_o_app_nao_avisa_nem_grava_nada(tmp_config_dir, monkeypatch, salvo):
+async def test_opening_the_app_neither_warns_nor_writes_anything(tmp_config_dir, monkeypatch, salvo):
     """Sem ninguem tocar em nada, a abertura nao pode gerar aviso de
     configuracao nem reescrever o `settings.json`.
 
@@ -2448,7 +2448,7 @@ async def test_abrir_o_app_nao_avisa_nem_grava_nada(tmp_config_dir, monkeypatch,
     if salvo:
         SETTINGS_FILE.write_text(json.dumps(salvo), encoding="utf-8")
 
-    avisos, gravacoes = await _abrir_app_contando_gravacoes(tmp_config_dir, monkeypatch)
+    avisos, gravacoes = await _open_app_counting_writes(tmp_config_dir, monkeypatch)
 
     assert gravacoes == 0, f"{gravacoes} gravacao(oes) de settings sem acao do usuario"
     for proibido in ("Log de auditoria", "Subdiretorios por tipo", "Tema alterado"):
@@ -2456,7 +2456,7 @@ async def test_abrir_o_app_nao_avisa_nem_grava_nada(tmp_config_dir, monkeypatch,
 
 
 @pytest.mark.asyncio
-async def test_migracao_de_tema_nao_vira_aviso_de_troca(tmp_config_dir, monkeypatch):
+async def test_theme_migration_does_not_become_a_switch_notice(tmp_config_dir, monkeypatch):
     """`github-dark` -> `plano-escuro` e renomeacao nossa, nao escolha da
     pessoa: nao anuncia "Tema alterado" nem reescreve o arquivo.
 
@@ -2469,7 +2469,7 @@ async def test_migracao_de_tema_nao_vira_aviso_de_troca(tmp_config_dir, monkeypa
 
     SETTINGS_FILE.write_text(json.dumps({"theme": "github-dark"}), encoding="utf-8")
 
-    avisos, gravacoes = await _abrir_app_contando_gravacoes(tmp_config_dir, monkeypatch)
+    avisos, gravacoes = await _open_app_counting_writes(tmp_config_dir, monkeypatch)
 
     assert not any("Tema alterado" in a for a in avisos), f"aviso indevido: {avisos}"
     assert gravacoes == 0
@@ -2538,8 +2538,8 @@ async def test_settings_screen_loads_saved_settings(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("altura", [24, 34])
-async def test_settings_secao_oracle_alcancavel(tmp_config_dir, altura):
+@pytest.mark.parametrize("height", [24, 34])
+async def test_settings_oracle_section_is_reachable(tmp_config_dir, height):
     """A secao Oracle Instant Client tem de ser ALCANCAVEL num terminal real.
 
     Ela nasceu em y=39 de uma coluna que nao rolava: precisava de 42 linhas
@@ -2554,10 +2554,10 @@ async def test_settings_secao_oracle_alcancavel(tmp_config_dir, altura):
     de um ancestral com `overflow: hidden`.
     """
     from textual.widgets import Button
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = SettingsTestApp()
-    async with app.run_test(size=(120, altura)) as pilot:
+    async with app.run_test(size=(120, height)) as pilot:
         screen = app.query_one(SettingsScreen)
         botao = screen.query_one("#btn-oracle-client-dir", Button)
 
@@ -2571,16 +2571,16 @@ async def test_settings_secao_oracle_alcancavel(tmp_config_dir, altura):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         assert "Definir caminho" in pintado, (
-            "o botao da secao Oracle nao e alcancavel a %d linhas de terminal" % altura
+            "o botao da secao Oracle nao e alcancavel a %d linhas de terminal" % height
         )
         assert "Client em uso" in pintado, (
-            "o status do Instant Client nao e desenhado a %d linhas de terminal" % altura
+            "o status do Instant Client nao e desenhado a %d linhas de terminal" % height
         )
 
 
-def _titulos_de_painel(raiz):
+def _panel_titles(root):
     """Os titulos dos paineis como a tela os PINTA.
 
     `Panel` nao guarda o titulo em `render()` — `Panel` e um `Vertical`, e
@@ -2591,11 +2591,11 @@ def _titulos_de_painel(raiz):
     """
     from dbqm.ui.widgets.panel import Panel
 
-    return [p.query_one("#panel-title").render().plain for p in raiz.query(Panel)]
+    return [p.query_one("#panel-title").render().plain for p in root.query(Panel)]
 
 
 @pytest.mark.asyncio
-async def test_cada_assunto_de_configuracoes_tem_seu_painel(tmp_config_dir):
+async def test_each_settings_subject_has_its_own_panel(tmp_config_dir):
     """Um painel por assunto — nao um painel-saco com quatro assuntos dentro.
 
     A queixa que originou esta fase foi textual: "a tela de configuracoes
@@ -2609,13 +2609,13 @@ async def test_cada_assunto_de_configuracoes_tem_seu_painel(tmp_config_dir):
     """
     app = SettingsTestApp()
     async with app.run_test(size=(120, 40)):
-        titulos = " ".join(_titulos_de_painel(app.query_one(SettingsScreen))).lower()
+        titulos = " ".join(_panel_titles(app.query_one(SettingsScreen))).lower()
         for assunto in ("tema", "auditoria", "exporta", "oracle"):
             assert assunto in titulos, "%s sem painel proprio: %r" % (assunto, titulos)
 
 
 @pytest.mark.asyncio
-async def test_configuracoes_a_80x24_nao_esconde_a_porta(tmp_config_dir):
+async def test_settings_at_80x24_does_not_hide_the_door(tmp_config_dir):
     """A 80x24, na DBQMApp REAL, a lista de MAIS CONFIGURACOES tem de estar la.
 
     Na DBQMApp a tela recebe 20 linhas, nao 24: o Header come 1, a tira de
@@ -2636,7 +2636,7 @@ async def test_configuracoes_a_80x24_nao_esconde_a_porta(tmp_config_dir):
     entradas nao anuncia porta nenhuma.
     """
     from dbqm.ui.app import DBQMApp
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
@@ -2645,7 +2645,7 @@ async def test_configuracoes_a_80x24_nao_esconde_a_porta(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         for entrada in ("Oracle Instant Clients", "Exportar / Importar"):
             assert entrada in pintado, (
                 "a entrada %r de MAIS CONFIGURACOES nao e desenhada a 80x24: %r"
@@ -2654,7 +2654,7 @@ async def test_configuracoes_a_80x24_nao_esconde_a_porta(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_configuracoes_a_80x24_o_que_nao_cabe_rola(tmp_config_dir):
+async def test_settings_at_80x24_what_does_not_fit_scrolls(tmp_config_dir):
     """O que fica abaixo da dobra e alcancavel, e o transbordo e visivel.
 
     A contrapartida do teste acima: EXPORTACAO e FERNET KEY nao cabem a
@@ -2665,7 +2665,7 @@ async def test_configuracoes_a_80x24_o_que_nao_cabe_rola(tmp_config_dir):
     """
     from dbqm.ui.app import DBQMApp
     from dbqm.ui.screens.settings import SettingsScreen
-    from tests.ui._helpers import texto_renderizado
+    from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
@@ -2689,7 +2689,7 @@ async def test_configuracoes_a_80x24_o_que_nao_cabe_rola(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = texto_renderizado(app)
+        pintado = rendered_text(app)
         # Corpo, e nao titulo: uma moldura com o titulo desenhado e o corpo
         # fora da tela e exatamente o defeito que o teste acima cobra.
         assert "Alterar diretorio" in pintado, (
@@ -2703,7 +2703,7 @@ async def test_configuracoes_a_80x24_o_que_nao_cabe_rola(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_configuracoes_nao_tem_botao_que_navega(tmp_config_dir):
+async def test_settings_has_no_button_that_navigates(tmp_config_dir):
     """Botao e acao; quem leva a outra tela e a lista (secao 7 da gramatica).
 
     Os tres botoes que abriam OUTRA TELA (`#btn-export`, `#btn-import`,
@@ -2728,7 +2728,7 @@ async def test_configuracoes_nao_tem_botao_que_navega(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_settings_widgets_moram_dentro_de_um_painel(tmp_config_dir):
+async def test_settings_widgets_live_inside_a_panel(tmp_config_dir):
     """Nada fica solto no fundo — secao 4 da gramatica."""
     from dbqm.ui.widgets.panel import Panel
     from textual.widgets import Button, OptionList
@@ -2749,10 +2749,10 @@ async def test_settings_widgets_moram_dentro_de_um_painel(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_lista_de_mais_configuracoes_nao_quebra_a_80_colunas(tmp_config_dir):
+async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir):
     """Cada entrada da lista cabe em duas linhas, com o recuo intacto.
 
-    `item_hierarquico` recua a desambiguacao para dizer "isto pertence a
+    `hierarchical_item` recua a desambiguacao para dizer "isto pertence a
     entrada acima". Quando o texto e mais largo que a coluna, o Textual
     quebra sozinho no render e a continuacao volta para a coluna 0 — a
     MESMA da identidade da proxima entrada, que e o defeito que originou
@@ -2762,7 +2762,7 @@ async def test_lista_de_mais_configuracoes_nao_quebra_a_80_colunas(tmp_config_di
     montado), e nao numa suposicao.
     """
     from textual.widgets import OptionList
-    from tests.ui._helpers import linhas_renderizadas
+    from tests.ui._helpers import rendered_lines
 
     app = SettingsTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
@@ -2774,24 +2774,24 @@ async def test_lista_de_mais_configuracoes_nao_quebra_a_80_colunas(tmp_config_di
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = linhas_renderizadas(app)
+        pintado = rendered_lines(app)
         r = lista.content_region
         linhas = [
             pintado[y][r.x:r.x + r.width].rstrip()
             for y in range(r.y, r.y + r.height)
         ]
         linhas = [linha for linha in linhas if linha]
-        assert len(linhas) == 2 * len(SettingsScreen.FERRAMENTAS), (
+        assert len(linhas) == 2 * len(SettingsScreen.TOOLS), (
             "alguma entrada quebrou em mais de duas linhas: %r" % linhas
         )
         identidades = [linha for linha in linhas if not linha.startswith(" ")]
-        assert len(identidades) == len(SettingsScreen.FERRAMENTAS), (
+        assert len(identidades) == len(SettingsScreen.TOOLS), (
             "uma continuacao voltou para a coluna 0 da identidade: %r" % linhas
         )
 
 
 @pytest.mark.asyncio
-async def test_redimensionar_reelide_e_nao_varre_o_disco(tmp_config_dir, monkeypatch):
+async def test_resizing_re_elides_and_does_not_scan_the_disk(tmp_config_dir, monkeypatch):
     """A elisao acompanha a largura — e alargar a janela devolve caminho.
 
     Elidir contra uma constante acertaria uma largura e erraria as outras,
@@ -2815,7 +2815,7 @@ async def test_redimensionar_reelide_e_nao_varre_o_disco(tmp_config_dir, monkeyp
 
     monkeypatch.setattr(dbm, "resolve_oracle_client_dir", contando)
 
-    fundo = tmp_config_dir / "um" / "diretorio" / "bem" / "fundo" / "na" / "arvore"
+    fundo = tmp_config_dir / "um" / "diretorio" / "bem" / "ds-background" / "na" / "arvore"
     fundo.mkdir(parents=True)
     save_settings(Settings(default_export_dir=str(fundo)))
 
@@ -2843,48 +2843,48 @@ async def test_redimensionar_reelide_e_nao_varre_o_disco(tmp_config_dir, monkeyp
         )
 
 
-def test_caminho_longo_e_elidido_no_meio():
+def test_long_path_is_elided_in_the_middle():
     """O inicio e o fim identificam um caminho; o meio e o descartavel."""
-    from dbqm.ui.screens.settings import elidir_caminho
+    from dbqm.ui.screens.settings import elide_path
 
     longo = "C:/Users/ricar/AppData/Local/Temp/claude/muito/fundo/exports"
-    curto = elidir_caminho(longo, 40)
+    curto = elide_path(longo, 40)
     assert len(curto) <= 40
     assert curto.startswith("C:/Users")
     assert curto.endswith("exports")
     assert "..." in curto or chr(8230) in curto
 
 
-def test_caminho_que_cabe_nao_e_tocado():
+def test_path_that_fits_is_left_untouched():
     """Elidir o que cabe seria esconder informacao de graca."""
-    from dbqm.ui.screens.settings import elidir_caminho
+    from dbqm.ui.screens.settings import elide_path
 
-    assert elidir_caminho("C:/exports", 40) == "C:/exports"
-    assert elidir_caminho("C:/exports", 10) == "C:/exports"
+    assert elide_path("C:/exports", 40) == "C:/exports"
+    assert elide_path("C:/exports", 10) == "C:/exports"
 
 
-def test_elisao_corta_no_separador_e_nunca_passa_da_largura():
+def test_elision_cuts_at_the_separator_and_never_exceeds_the_width():
     """Corta entre segmentos: meio caminho de um nome nao identifica nada.
 
     E o limite e limite em qualquer largura — inclusive nas absurdas, onde
     a aritmetica de "metade para cada lado" e onde um off-by-one moraria.
     """
-    from dbqm.ui.screens.settings import elidir_caminho
+    from dbqm.ui.screens.settings import elide_path
 
     caminho = "C:/Users/ricar/AppData/Local/Temp/claude/muito/fundo/exports"
-    assert elidir_caminho(caminho, 40) == (
+    assert elide_path(caminho, 40) == (
         "C:/Users" + chr(8230) + "Temp/claude/muito/fundo/exports"
     )
     for largura in range(1, len(caminho) + 2):
-        assert len(elidir_caminho(caminho, largura)) <= largura, largura
-    assert elidir_caminho(caminho, 0) == ""
+        assert len(elide_path(caminho, largura)) <= largura, largura
+    assert elide_path(caminho, 0) == ""
 
     # Sem separador aproveitavel ainda se corta no MEIO, por caractere.
     corrido = "a" * 60
-    assert elidir_caminho(corrido, 21) == "a" * 10 + chr(8230) + "a" * 10
+    assert elide_path(corrido, 21) == "a" * 10 + chr(8230) + "a" * 10
 
 
-def test_elisao_de_caminho_unc_preserva_o_servidor():
+def test_unc_path_elision_preserves_the_server():
     """Num UNC a raiz e o SERVIDOR, e e ela que a elisao promete guardar.
 
     `\\\\servidor\\share\\...` parte em ['', '\\\\', '', '\\\\', 'servidor', ...]:
@@ -2896,26 +2896,26 @@ def test_elisao_de_caminho_unc_preserva_o_servidor():
     Caminho com letra de unidade e caminho POSIX ficam onde estavam: e o
     mesmo primeiro segmento COM NOME nos tres casos.
     """
-    from dbqm.ui.screens.settings import elidir_caminho
+    from dbqm.ui.screens.settings import elide_path
 
-    a = elidir_caminho(r"\\servidor-a\publico\dbqm\clients\instantclient", 32)
-    b = elidir_caminho(r"\\servidor-b\publico\dbqm\clients\instantclient", 32)
+    a = elide_path(r"\\servidor-a\publico\dbqm\clients\instantclient", 32)
+    b = elide_path(r"\\servidor-b\publico\dbqm\clients\instantclient", 32)
     assert a.startswith(r"\\servidor-a"), a
     assert b.startswith(r"\\servidor-b"), b
     assert a != b, "dois servidores diferentes elidiram identicos: %r" % a
     assert a.endswith("instantclient") and len(a) <= 32
 
-    assert elidir_caminho("C:/Users/ricar/AppData/Local/exports", 24).startswith(
+    assert elide_path("C:/Users/ricar/AppData/Local/exports", 24).startswith(
         "C:/Users"
     )
-    assert elidir_caminho("/usr/local/share/dbqm/exports", 20).startswith("/usr")
+    assert elide_path("/usr/local/share/dbqm/exports", 20).startswith("/usr")
 
     for largura in range(1, 60):
-        assert len(elidir_caminho(r"\\servidor-a\publico\dbqm\x", largura)) <= largura
+        assert len(elide_path(r"\\servidor-a\publico\dbqm\x", largura)) <= largura
 
 
 @pytest.mark.asyncio
-async def test_caminho_de_exportacao_cabe_na_coluna(tmp_config_dir):
+async def test_export_path_fits_in_the_column(tmp_config_dir):
     """Um caminho longo nao pode quebrar no meio de um nome e sumir.
 
     Antes desta tarefa a Fernet Key pintava `...\\Local\\Tem` numa linha e
@@ -2925,9 +2925,9 @@ async def test_caminho_de_exportacao_cabe_na_coluna(tmp_config_dir):
     """
     from textual.widgets import Button, Static
     from dbqm.models.settings import Settings, save_settings
-    from tests.ui._helpers import recorte
+    from tests.ui._helpers import crop
 
-    fundo = tmp_config_dir / "um" / "diretorio" / "bem" / "fundo" / "na" / "arvore"
+    fundo = tmp_config_dir / "um" / "diretorio" / "bem" / "ds-background" / "na" / "arvore"
     fundo.mkdir(parents=True)
     save_settings(Settings(default_export_dir=str(fundo)))
 
@@ -2943,7 +2943,7 @@ async def test_caminho_de_exportacao_cabe_na_coluna(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
         rotulo = tela.query_one("#settings-export-dir-current", Static)
-        linhas = [linha.rstrip() for linha in recorte(app, rotulo)]
+        linhas = [linha.rstrip() for linha in crop(app, rotulo)]
         assert any("arvore" in linha for linha in linhas), (
             "o fim do caminho — o que identifica o diretorio — nao e pintado: %r"
             % linhas
@@ -2954,7 +2954,7 @@ async def test_caminho_de_exportacao_cabe_na_coluna(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_nenhum_caminho_transborda_a_caixa_do_rotulo(
+async def test_no_path_overflows_the_label_box(
     tmp_config_dir, monkeypatch
 ):
     """Elidir contra a largura errada e nao elidir: o texto quebra do mesmo jeito.
@@ -2970,16 +2970,16 @@ async def test_nenhum_caminho_transborda_a_caixa_do_rotulo(
       teria 32, e o caminho passava por UMA celula — o ultimo caractere do
       nome do diretorio ia sozinho para a linha de baixo, que e o defeito
       que a elisao existe para evitar. Nenhum `on_resize` da tela via
-      isso; quem mudou de tamanho foi o rotulo (`RotuloCaminho`).
+      isso; quem mudou de tamanho foi o rotulo (`PathLabel`).
     """
     from textual.widgets import Static
     from dbqm.ui.app import DBQMApp
     from dbqm.ui.screens.settings import SettingsScreen
     from dbqm.models.settings import Settings, save_settings
-    from tests.ui._helpers import recorte
+    from tests.ui._helpers import crop
 
     # Nomes longos e SEM separador aproveitavel de proposito: nesse caso
-    # `elidir_caminho` corta por caractere e devolve exatamente o orcamento
+    # `elide_path` corta por caractere e devolve exatamente o orcamento
     # que recebeu. Assim o comprimento da linha pintada denuncia o
     # orcamento, em vez de depender de onde os separadores de um caminho
     # de teste por acaso caem — com um caminho "realista" as duas contas,
@@ -3023,10 +3023,10 @@ async def test_nenhum_caminho_transborda_a_caixa_do_rotulo(
         fernet = tela.query_one("#settings-fernet-status", Static)
         assert any(
             "Local:" in linha and ".dbqm_key" in linha
-            for linha in recorte(app, fernet)
+            for linha in crop(app, fernet)
         ), (
             "o `Local:` e o fim do caminho da chave sairam em linhas "
-            "diferentes: %r" % recorte(app, fernet)
+            "diferentes: %r" % crop(app, fernet)
         )
 
 
@@ -3040,7 +3040,7 @@ async def test_settings_no_settings_section_boxes(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_settings_nao_usa_cor_literal_no_status_do_client(tmp_config_dir, monkeypatch):
+async def test_settings_uses_no_literal_color_in_the_client_status(tmp_config_dir, monkeypatch):
     """O estado 'nenhum encontrado' e informativo, nao um aviso amarelo.
 
     Forca resolve_oracle_client_dir a "nenhum encontrado": sem o monkeypatch
@@ -3097,7 +3097,7 @@ async def test_config_port_screen_shows_mode_phase(tmp_config_dir):
         assert import_phase.display is False
 
 
-async def _escolher_modo(pilot, screen, chave):
+async def _choose_mode(pilot, screen, key):
     """Escolhe Exportar/Importar pelo caminho real: destacar + Enter."""
     from textual.widgets import OptionList
 
@@ -3107,14 +3107,14 @@ async def _escolher_modo(pilot, screen, chave):
     lista.highlighted = next(
         i
         for i in range(lista.option_count)
-        if lista.get_option_at_index(i).nome == chave
+        if lista.get_option_at_index(i).name == key
     )
     await pilot.press("enter")
     await pilot.pause()
 
 
 @pytest.mark.asyncio
-async def test_config_port_escolha_de_modo_e_lista(tmp_config_dir):
+async def test_config_port_mode_choice_is_a_list(tmp_config_dir):
     """Exportar e Importar sao DESTINOS, e destino nao se escolhe por botao.
 
     Os dois botoes lado a lado eram um menu disfarcado — a mesma forma que
@@ -3123,13 +3123,13 @@ async def test_config_port_escolha_de_modo_e_lista(tmp_config_dir):
     ancorada no formulario que ela executa.
     """
     from textual.widgets import Button, OptionList
-    from tests.ui._helpers import nomes_renderizados
+    from tests.ui._helpers import rendered_names
 
     app = ConfigPortTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
         fase = screen.query_one("#cp-mode-phase")
-        assert nomes_renderizados(fase.query_one(OptionList)) == [
+        assert rendered_names(fase.query_one(OptionList)) == [
             "Exportar",
             "Importar",
         ]
@@ -3142,7 +3142,7 @@ async def test_config_port_export_phase_toggle(tmp_config_dir):
     app = ConfigPortTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
-        await _escolher_modo(pilot, screen, "export")
+        await _choose_mode(pilot, screen, "export")
         assert screen.query_one("#cp-mode-phase").display is False
         assert screen.query_one("#cp-export-phase").display is True
         assert screen.query_one("#cp-import-phase").display is False
@@ -3154,14 +3154,14 @@ async def test_config_port_import_phase_toggle(tmp_config_dir):
     app = ConfigPortTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
-        await _escolher_modo(pilot, screen, "import")
+        await _choose_mode(pilot, screen, "import")
         assert screen.query_one("#cp-mode-phase").display is False
         assert screen.query_one("#cp-export-phase").display is False
         assert screen.query_one("#cp-import-phase").display is True
 
 
 @pytest.mark.asyncio
-async def test_config_port_so_tem_botao_de_acao(tmp_config_dir):
+async def test_config_port_has_action_buttons_only(tmp_config_dir):
     """Nenhum botao desta tela navega — os dois que restam EXECUTAM."""
     from textual.widgets import Button
 
@@ -3268,7 +3268,7 @@ async def test_query_exec_folder_select_narrows_list(tmp_config_dir):
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 1
-        assert nomes_renderizados(option_list) == ["q1"]
+        assert rendered_names(option_list) == ["q1"]
 
         seletor.value = ""
         await pilot.pause()
@@ -3648,13 +3648,13 @@ async def test_result_table_pagination(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_esqueleto_de_resultado_tem_a_forma_mediana(tmp_config_dir):
+async def test_result_skeleton_has_the_median_shape(tmp_config_dir):
     """A mediana medida das 68 consultas salvas e 9 colunas, nao 4.
 
     Um esqueleto com a forma errada produz o salto de layout que ele existe
     para impedir — foi o defeito encontrado em browser.py na fase 1.
     """
-    from dbqm.ui.widgets.esqueleto import Esqueleto
+    from dbqm.ui.widgets.skeleton import Skeleton
     from dbqm.ui.screens.query_exec import QueryExecScreen
     from tests.ui._helpers import ThemedTestApp
 
@@ -3664,16 +3664,16 @@ async def test_esqueleto_de_resultado_tem_a_forma_mediana(tmp_config_dir):
 
     app = App_()
     async with app.run_test():
-        esq = app.query_one("#result-skeleton", Esqueleto)
-        assert len(esq.query(".esqueleto-linha")) == 8
-        primeira = esq.query(".esqueleto-linha").first()
-        assert len(primeira.query(".esqueleto-celula")) == 9
+        esq = app.query_one("#result-skeleton", Skeleton)
+        assert len(esq.query(".skeleton-row")) == 8
+        primeira = esq.query(".skeleton-row").first()
+        assert len(primeira.query(".skeleton-cell")) == 9
 
 
 @pytest.mark.asyncio
-async def test_esqueleto_de_grupo_tem_a_forma_mediana(tmp_config_dir):
+async def test_group_skeleton_has_the_median_shape(tmp_config_dir):
     """Mesmo defeito, mesmo call site espelhado em group_exec.py."""
-    from dbqm.ui.widgets.esqueleto import Esqueleto
+    from dbqm.ui.widgets.skeleton import Skeleton
     from tests.ui._helpers import ThemedTestApp
 
     class App_(ThemedTestApp):
@@ -3682,14 +3682,14 @@ async def test_esqueleto_de_grupo_tem_a_forma_mediana(tmp_config_dir):
 
     app = App_()
     async with app.run_test():
-        esq = app.query_one("#ge-results-skeleton", Esqueleto)
-        assert len(esq.query(".esqueleto-linha")) == 8
-        primeira = esq.query(".esqueleto-linha").first()
-        assert len(primeira.query(".esqueleto-celula")) == 9
+        esq = app.query_one("#ge-results-skeleton", Skeleton)
+        assert len(esq.query(".skeleton-row")) == 8
+        primeira = esq.query(".skeleton-row").first()
+        assert len(primeira.query(".skeleton-cell")) == 9
 
 
 @pytest.mark.asyncio
-async def test_registro_vertical_usa_tokens_de_texto(tmp_config_dir):
+async def test_vertical_record_uses_text_tokens(tmp_config_dir):
     """`_show_vertical` deve pintar com os tokens da gramatica, nao texto
     plano com `*** Registro N ***`.
 
@@ -3704,7 +3704,7 @@ async def test_registro_vertical_usa_tokens_de_texto(tmp_config_dir):
     def cor_no_offset(conteudo, offset):
         """Resolve a cor de fato aplicada num offset, somando os spans que
         cobrem esse offset ja resolvidos via `Style.parse` (os spans crus de
-        `Content` guardam a marcacao como string, ex.: "$texto-forte", nao
+        `Content` guardam a marcacao como string, ex.: "$ds-text-strong", nao
         como `Style` — por isso nao da para somar sem resolver antes)."""
         estilo = Style()
         for start, end, span_style in conteudo.spans:
@@ -3734,9 +3734,9 @@ async def test_registro_vertical_usa_tokens_de_texto(tmp_config_dir):
         assert "*** Registro 1 ***" not in texto
         assert "Registro 1" in texto
 
-        cor_forte = Style.parse("$texto-forte").foreground
-        cor_apoio = Style.parse("$texto-apoio").foreground
-        cor_texto = Style.parse("$texto").foreground
+        cor_forte = Style.parse("$ds-text-strong").foreground
+        cor_apoio = Style.parse("$ds-text-muted").foreground
+        cor_texto = Style.parse("$ds-text").foreground
         # Os tres tokens tem de fato cores diferentes no tema ativo, senao
         # o teste abaixo nao provaria discriminacao nenhuma entre eles.
         assert len({cor_forte, cor_apoio, cor_texto}) == 3
@@ -3751,7 +3751,7 @@ async def test_registro_vertical_usa_tokens_de_texto(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_registro_vertical_alinha_rotulos_a_direita_apos_escapar(tmp_config_dir):
+async def test_vertical_record_right_aligns_labels_after_escaping(tmp_config_dir):
     """O rotulo tem de ser escapado ANTES de alinhado, nao depois.
 
     Escapar depois de alinhar acrescenta barras a um rotulo que ja tinha o
@@ -4309,7 +4309,7 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
         await pilot.pause()
         screen = app.query_one(QueryExecScreen)
         seletor = screen.query_one("#folder-select", Select)
-        assert nomes_renderizados(app.query_one("#ql-listview", OptionList)) == [
+        assert rendered_names(app.query_one("#ql-listview", OptionList)) == [
             "q1", "q2",
         ]
 
@@ -4322,7 +4322,7 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
         await pilot.press("enter")
         await pilot.pause()
         assert not seletor.expanded
-        assert nomes_renderizados(app.query_one("#ql-listview", OptionList)) == ["q1"]
+        assert rendered_names(app.query_one("#ql-listview", OptionList)) == ["q1"]
 
         # A -> Todas: mesmo caminho, subindo.
         seletor.focus()
@@ -4331,7 +4331,7 @@ async def test_query_exec_folder_navigation(tmp_config_dir):
         await pilot.press("up")
         await pilot.press("enter")
         await pilot.pause()
-        assert nomes_renderizados(app.query_one("#ql-listview", OptionList)) == [
+        assert rendered_names(app.query_one("#ql-listview", OptionList)) == [
             "q1", "q2",
         ]
 
@@ -4851,19 +4851,19 @@ async def test_action_go_back_at_top_level_is_noop(tmp_config_dir):
 
 
 # ======================================================================
-# FerramentasScreen tests
+# ToolsScreen tests
 # ======================================================================
 
 
-from dbqm.ui.screens.ferramentas import FerramentasScreen
+from dbqm.ui.screens.tools import ToolsScreen
 
 
-class FerramentasTestApp(ThemedTestApp):
+class ToolsTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
-        yield FerramentasScreen()
+        yield ToolsScreen()
 
 
-async def _escolher_ferramenta(pilot, screen, chave):
+async def _choose_tool(pilot, screen, key):
     """Abre uma ferramenta pelo caminho real: destacar na lista + Enter."""
     from textual.widgets import OptionList
 
@@ -4873,14 +4873,14 @@ async def _escolher_ferramenta(pilot, screen, chave):
     lista.highlighted = next(
         i
         for i in range(lista.option_count)
-        if lista.get_option_at_index(i).nome == chave
+        if lista.get_option_at_index(i).name == key
     )
     await pilot.press("enter")
     await pilot.pause()
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_e_lista_e_nao_botoes_de_largura_total(tmp_config_dir):
+async def test_tools_is_a_list_and_not_full_width_buttons(tmp_config_dir):
     """Cinco botoes de largura total sao cinco botoes fingindo ser um menu.
 
     A afirmacao e sobre o MENU, nao sobre a tela inteira: as cinco
@@ -4891,14 +4891,14 @@ async def test_ferramentas_e_lista_e_nao_botoes_de_largura_total(tmp_config_dir)
     construido ainda nao vigia coisa alguma.
     """
     from textual.widgets import Button, OptionList
-    from tests.ui._helpers import nomes_renderizados
+    from tests.ui._helpers import rendered_names
 
-    app = FerramentasTestApp()
+    app = ToolsTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        screen = app.query_one(FerramentasScreen)
+        screen = app.query_one(ToolsScreen)
         menu = screen.query_one("#ferr-menu")
         lista = menu.query_one(OptionList)
-        assert nomes_renderizados(lista) == [
+        assert rendered_names(lista) == [
             "\U0001F465  Gerenciar Grupos",
             "\U0001F4C4  Gerenciar Templates",
             "\U0001F4E6  Package Editor",
@@ -4909,88 +4909,88 @@ async def test_ferramentas_e_lista_e_nao_botoes_de_largura_total(tmp_config_dir)
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_screen_starts_on_the_menu(tmp_config_dir):
-    """FerramentasScreen abre no menu, nao numa ferramenta."""
+async def test_tools_screen_starts_on_the_menu(tmp_config_dir):
+    """ToolsScreen abre no menu, nao numa ferramenta."""
     from textual.widgets import ContentSwitcher
-    app = FerramentasTestApp()
+    app = ToolsTestApp()
     async with app.run_test() as pilot:
-        screen = app.query_one(FerramentasScreen)
+        screen = app.query_one(ToolsScreen)
         assert screen.query_one(ContentSwitcher).current == "ferr-menu"
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_screen_does_not_load_tools_on_mount(tmp_config_dir):
-    """Mounting FerramentasScreen alone must not instantiate any tool
+async def test_tools_screen_does_not_load_tools_on_mount(tmp_config_dir):
+    """Mounting ToolsScreen alone must not instantiate any tool
     screen. In particular, PackageEditorScreen's on_mount() eagerly pushes
     a modal screen (_PackageChoiceModal) the moment it is mounted (see
     dbqm/ui/screens/package_editor.py). If the tool screens were mounted
     up front, that modal would become the app's active screen before any
     user interaction happens at all. Tool screens must be built lazily, on
     first open, so no modal is pushed just from mounting the launcher."""
-    app = FerramentasTestApp()
+    app = ToolsTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert len(app.screen_stack) == 1
 
-        screen = app.query_one(FerramentasScreen)
+        screen = app.query_one(ToolsScreen)
         # Vazios: o "Voltar" que morava aqui era navegacao feita por botao.
         assert not list(screen.query_one("#ferr-packages").children)
         assert not list(screen.query_one("#ferr-executar").children)
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_screen_open_and_back(tmp_config_dir):
-    """Escolher na lista constroi e mostra a ferramenta; `voltar_ao_menu`
+async def test_tools_screen_open_and_back(tmp_config_dir):
+    """Escolher na lista constroi e mostra a ferramenta; `back_to_menu`
     devolve ao menu, e reabrir nao constroi uma segunda instancia."""
     from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.package_editor import PackageEditorScreen
 
-    app = FerramentasTestApp()
+    app = ToolsTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        screen = app.query_one(FerramentasScreen)
+        screen = app.query_one(ToolsScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        await _escolher_ferramenta(pilot, screen, "packages")
+        await _choose_tool(pilot, screen, "packages")
         assert switcher.current == "ferr-packages"
 
         packages_container = screen.query_one("#ferr-packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
 
-        screen.voltar_ao_menu()
+        screen.back_to_menu()
         await pilot.pause()
         assert switcher.current == "ferr-menu"
 
-        await _escolher_ferramenta(pilot, screen, "packages")
+        await _choose_tool(pilot, screen, "packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_screen_open_executar_grupo(tmp_config_dir):
+async def test_tools_screen_open_group_run(tmp_config_dir):
     """Escolher 'Executar Grupo' monta um GroupRunScreen em #ferr-executar."""
     from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.group_run import GroupRunScreen
 
-    app = FerramentasTestApp()
+    app = ToolsTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        screen = app.query_one(FerramentasScreen)
+        screen = app.query_one(ToolsScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        await _escolher_ferramenta(pilot, screen, "executar")
+        await _choose_tool(pilot, screen, "executar")
         assert switcher.current == "ferr-executar"
 
         executar_container = screen.query_one("#ferr-executar")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
-        screen.voltar_ao_menu()
+        screen.back_to_menu()
         await pilot.pause()
         assert switcher.current == "ferr-menu"
 
-        await _escolher_ferramenta(pilot, screen, "executar")
+        await _choose_tool(pilot, screen, "executar")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
 
 @pytest.mark.asyncio
-async def test_ferramentas_group_run_empty_state_action_opens_group_management(
+async def test_tools_group_run_empty_state_action_opens_group_management(
     tmp_config_dir,
 ):
     """With zero groups configured system-wide, GroupRunScreen's EmptyState
@@ -5000,12 +5000,12 @@ async def test_ferramentas_group_run_empty_state_action_opens_group_management(
     from dbqm.ui.widgets.empty_state import EmptyState
     from dbqm.ui.screens.group_manage import GroupManageScreen
 
-    app = FerramentasTestApp()
+    app = ToolsTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        screen = app.query_one(FerramentasScreen)
+        screen = app.query_one(ToolsScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        await _escolher_ferramenta(pilot, screen, "executar")
+        await _choose_tool(pilot, screen, "executar")
         assert switcher.current == "ferr-executar"
 
         run_screen = screen.query_one(GroupRunScreen)
@@ -5310,7 +5310,7 @@ async def test_group_run_folder_select_narrows_list(tmp_config_dir):
         await pilot.pause()
         group_list = screen.query_one("#gr-group-list", OptionList)
         assert group_list.option_count == 1
-        assert nomes_renderizados(group_list) == ["g1"]
+        assert rendered_names(group_list) == ["g1"]
 
         seletor.value = ""
         await pilot.pause()
@@ -5380,16 +5380,16 @@ async def test_group_run_folder_select_is_a_select(tmp_config_dir):
         # A metade que faltava: sem isto o teste passava com as abas de
         # volta ao lado do Select, que e exatamente a regressao que ele diz
         # guardar. Mesmo par de asercoes do irmao de consultas
-        # (test_pastas_viram_select_com_contagem).
+        # (test_folders_become_a_select_with_counts).
         assert not app.query("#gr-folder-bar"), "a barra de botoes some"
         assert not app.query("#gr-folder-hint"), "a dica das setas some junto"
 
 
 @pytest.mark.asyncio
-async def test_group_run_pinta_dois_grupos_de_mesmo_nome(tmp_config_dir):
+async def test_group_run_paints_two_groups_with_the_same_name(tmp_config_dir):
     """Dois grupos homonimos nao podem derrubar a tela.
 
-    Mesmo defeito de `test_query_list_pinta_duas_consultas_de_mesmo_nome`:
+    Mesmo defeito de `test_query_list_paints_two_queries_with_the_same_name`:
     com o nome viajando como `Option(conteudo, id=nome)`,
     `OptionList.add_option` levantava `DuplicateID` e a tela nao montava.
     `groups.json` e editavel a mao, entao o dado ambiguo existe; a lista
@@ -5424,14 +5424,14 @@ async def test_group_run_pinta_dois_grupos_de_mesmo_nome(tmp_config_dir):
         screen = app.query_one(GroupRunScreen)
         group_list = screen.query_one("#gr-group-list", OptionList)
         assert group_list.option_count == 2
-        assert nomes_renderizados(group_list) == ["dup", "dup"]
+        assert rendered_names(group_list) == ["dup", "dup"]
         pintado = [group_list.get_option_at_index(i).prompt.plain for i in range(2)]
         assert "primeiro" in pintado[0] and "1 consulta" in pintado[0]
         assert "segundo" in pintado[1] and "2 consultas" in pintado[1]
 
 
 @pytest.mark.asyncio
-async def test_group_run_seleciona_por_nome_mesmo_com_nomes_repetidos(
+async def test_group_run_selects_by_name_even_with_repeated_names(
     tmp_config_dir,
 ):
     """A selecao de grupo resolve pelo nome, como antes dos ids.
@@ -5480,13 +5480,13 @@ async def test_group_run_seleciona_por_nome_mesmo_com_nomes_repetidos(
 
 
 @pytest.mark.asyncio
-async def test_group_run_item_montado_tem_hierarquia_visivel(tmp_config_dir):
+async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
     """A entrada de grupo montada de verdade ocupa mais de uma linha e cada
     papel sai numa cor distinta — nome, contagem de consultas, descricao.
 
     A lista de grupos trocou a string concatenada com "|" pelo mesmo
-    `item_hierarquico` da lista de consultas, mas so a de consultas tinha
-    guard (`test_query_list_item_montado_tem_hierarquia_visivel`, em
+    `hierarchical_item` da lista de consultas, mas so a de consultas tinha
+    guard (`test_query_list_mounted_item_has_visible_hierarchy`, em
     test_widgets.py). Este e o par que faltava: a descricao vai inteira,
     sem corte artificial, e as cores sao resolvidas com o `Style.parse` do
     tema ativo — o mesmo mecanismo que o Textual usa antes de pintar.
@@ -5549,9 +5549,9 @@ async def test_group_run_item_montado_tem_hierarquia_visivel(tmp_config_dir):
             "a descricao vai inteira: houve QUEBRA, nao corte — %r" % linhas[2:]
         )
 
-        cor_forte = Style.parse("$texto-forte").foreground
-        cor_apoio = Style.parse("$texto-apoio").foreground
-        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        cor_forte = Style.parse("$ds-text-strong").foreground
+        cor_apoio = Style.parse("$ds-text-muted").foreground
+        cor_desabilitado = Style.parse("$ds-text-disabled").foreground
         assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
 
         assert cor_no_offset(conteudo, texto.index("grupo_faturamento")) == cor_forte

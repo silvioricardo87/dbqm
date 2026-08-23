@@ -14,14 +14,14 @@ from pathlib import Path
 # Ancorado no arquivo, nao no cwd: `Path("dbqm/ui")` varre zero arquivo
 # quando o pytest roda de outro diretorio e o teste passa em silencio.
 # Mesmo idioma de `tests/design/_varredura.py` e `test_inventario.py`.
-RAIZ_UI = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
-RAIZ_PROJETO = RAIZ_UI.parents[1]
+UI_ROOT = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
+PROJECT_ROOT = UI_ROOT.parents[1]
 
 # As duas molduras do produto. Sao os unicos arquivos onde desenhar caixa
 # e o trabalho. Caminhos relativos a raiz do projeto, no mesmo formato que
 # `_rel()` produz — a primeira redacao deste guarda comparava string posix
 # relativa contra caminho absoluto e nunca isentava ninguem.
-MOLDURAS = {
+FRAMES = {
     "dbqm/ui/widgets/panel.py",
     "dbqm/ui/widgets/dialog.py",
 }
@@ -35,7 +35,7 @@ MOLDURAS = {
 # $accent` pinta os quatro lados no Textual, so que por dentro da area do
 # widget em vez de fora. Uma varredura que so olhasse `border` deixaria a
 # porta aberta — trocar uma palavra passava o guarda com a caixa intacta.
-BORDA = re.compile(
+BORDER = re.compile(
     r"\b(?:border|outline)(?P<lado>-top|-bottom|-left|-right)?"
     r"\s*:\s*(?P<valor>[^;{}\n]*?)\s*[;}]"
 )
@@ -44,10 +44,10 @@ ABRE_REGRA = re.compile(r"^\s*(?P<seletor>[^{}]+?)\s*\{")
 # Isencoes por (arquivo, seletor), com o motivo escrito. Por SELETOR e nao
 # por arquivo de proposito: uma caixa de secao nova no mesmo arquivo
 # continua sendo reprovada.
-ISENTOS = {
+EXEMPT = {
     # RECOLORE a afordancia que o widget ja desenha sozinho — nao soma
     # caixa nenhuma. O `SelectCurrent` do Textual nasce com `border: tall`;
-    # aqui so a COR muda, para `$identidade`, como sinal de "conexao
+    # aqui so a COR muda, para `$ds-identity`, como sinal de "conexao
     # escolhida". Duas coisas fazem esta isencao diferente das que estavam
     # aqui antes e nao eram verdade:
     #   - a geometria nao muda (a caixa ja existia, e do proprio controle);
@@ -82,19 +82,19 @@ ISENTOS = {
 #     um. Se aparecer um caso real, o caminho e o parser, nao mais regex.
 
 
-def _rel(arquivo: Path) -> str:
-    return arquivo.relative_to(RAIZ_PROJETO).as_posix()
+def _rel(file: Path) -> str:
+    return file.relative_to(PROJECT_ROOT).as_posix()
 
 
-def bordas_cruas() -> list[tuple[str, int, str, str]]:
+def raw_borders() -> list[tuple[str, int, str, str]]:
     """Toda caixa desenhada fora de um componente de moldura.
 
     Devolve `(arquivo, linha, seletor, declaracao)`.
     """
     achados: list[tuple[str, int, str, str]] = []
-    for arquivo in sorted(RAIZ_UI.rglob("*.py")):
+    for arquivo in sorted(UI_ROOT.rglob("*.py")):
         rel = _rel(arquivo)
-        if rel in MOLDURAS:
+        if rel in FRAMES:
             continue
         seletor = ""
         for numero, linha in enumerate(
@@ -103,7 +103,7 @@ def bordas_cruas() -> list[tuple[str, int, str, str]]:
             abre = ABRE_REGRA.match(linha)
             if abre:
                 seletor = abre.group("seletor")
-            for m in BORDA.finditer(linha):
+            for m in BORDER.finditer(linha):
                 # Um lado so e regua, nao caixa.
                 if m.group("lado"):
                     continue
@@ -113,28 +113,28 @@ def bordas_cruas() -> list[tuple[str, int, str, str]]:
                 # round $accent; }` escaparia. Aqui e o VALOR que decide.
                 if m.group("valor").split()[0:1] == ["none"]:
                     continue
-                if (rel, seletor) in ISENTOS:
+                if (rel, seletor) in EXEMPT:
                     continue
                 achados.append((rel, numero, seletor, m.group(0)))
     return achados
 
 
-def test_a_varredura_de_borda_encontra_arquivos():
+def test_the_border_scan_finds_files():
     """Um guarda que varre zero arquivo passa sem vigiar nada."""
-    arquivos = list(RAIZ_UI.rglob("*.py"))
+    arquivos = list(UI_ROOT.rglob("*.py"))
     assert len(arquivos) > 20, f"varredura vazia ou rasa: {len(arquivos)} arquivos"
-    assert all((RAIZ_PROJETO / rel).is_file() for rel in MOLDURAS)
+    assert all((PROJECT_ROOT / rel).is_file() for rel in FRAMES)
 
 
-def test_sem_borda_crua_fora_de_componente_de_moldura():
+def test_no_raw_border_outside_a_frame_component():
     """Um terceiro vocabulario de moldura foi como se chegou a tres."""
-    fora = bordas_cruas()
+    fora = raw_borders()
     assert not fora, "caixa desenhada fora de Panel/Dialog:\n" + "\n".join(
         f"  {rel}:{n}  [{sel}]  {decl}" for rel, n, sel, decl in fora
     )
 
 
-def test_o_guarda_ve_outline_como_caixa():
+def test_the_guard_sees_outline_as_a_box():
     """`outline: round $accent` desenha os quatro lados — e nao e `border`.
 
     Escrito porque a primeira redacao so varria `border`: renderizado, um
@@ -142,9 +142,9 @@ def test_o_guarda_ve_outline_como_caixa():
     moldura, e trocar uma palavra fazia uma caixa nova passar pelo guarda.
     Os `outline-<lado>` continuam sendo regua, como os `border-<lado>`.
     """
-    caixa = BORDA.search("    #qualquer-tela { outline: round $accent; }")
+    caixa = BORDER.search("    #qualquer-tela { outline: round $accent; }")
     assert caixa is not None and caixa.group("lado") is None
-    regua = BORDA.search("    #qualquer-tela { outline-bottom: solid $borda; }")
+    regua = BORDER.search("    #qualquer-tela { outline-bottom: solid $ds-border; }")
     assert regua is not None and regua.group("lado") == "-bottom"
 
 
@@ -157,7 +157,7 @@ def test_o_guarda_ve_outline_como_caixa():
 # ela centraliza o texto DENTRO da caixa do proprio widget e nao desgruda
 # cluster nenhum do assunto que ele opera, que e o dano que a secao 7
 # descreve.
-CENTRO = re.compile(
+CENTERING = re.compile(
     r"(?<![\w-])(?:content-)?align(?:-horizontal)?\s*:\s*"
     r"(?P<valor>[^;{}\n]*?)\s*[;}]"
 )
@@ -166,7 +166,7 @@ CLASSE = re.compile(r"^class\s+(?P<nome>\w+)\s*(?:\((?P<bases>[^)]*)\))?\s*:")
 # Isencoes por (arquivo, seletor), com o motivo escrito — mesmo formato do
 # guarda de borda. Nenhuma delas e um cluster de acao: sao conteudos que
 # OCUPAM a area inteira e nao tem assunto ao lado para se ancorar.
-CENTRO_ISENTOS = {
+CENTERING_EXEMPT = {
     # O estado vazio E a area em que vive: nao ha lista, tabela ou
     # formulario ao lado de quem ele pudesse se desgrudar. Alinhar a
     # esquerda deixaria o texto encostado numa borda com a area toda
@@ -189,8 +189,8 @@ CENTRO_ISENTOS = {
     # com e sem o `content-align`). Ou seja, o que hoje mantem o CTA
     # ancorado a esquerda e a largura dos irmaos, nao este guarda.
     ("dbqm/ui/widgets/empty_state.py", "EmptyState"),
-    ("dbqm/ui/widgets/empty_state.py", "EmptyState .empty-o-que"),
-    ("dbqm/ui/widgets/empty_state.py", "EmptyState .empty-porque"),
+    ("dbqm/ui/widgets/empty_state.py", "EmptyState .empty-what"),
+    ("dbqm/ui/widgets/empty_state.py", "EmptyState .empty-why"),
     # O indicador de progresso cobre a tela enquanto uma chamada remota
     # acontece; mesma razao do estado vazio.
     ("dbqm/ui/widgets/progress.py", "ProgressIndicator Static"),
@@ -216,7 +216,7 @@ CENTRO_ISENTOS = {
 #     nome seria isentada por engano;
 #   - o guarda nao olha se o bloco contem BOTAO. Ele reprova qualquer
 #     centralizacao de layout fora de dialogo, e as excecoes legitimas
-#     entram em `CENTRO_ISENTOS` com o motivo escrito. E de proposito: a
+#     entram em `CENTERING_EXEMPT` com o motivo escrito. E de proposito: a
 #     redacao anterior casava por NOME de seletor (`#botoes`, `.acoes`) e
 #     um cluster chamado `#adhoc-btn-bar` — real, medido — escapava.
 #
@@ -243,11 +243,11 @@ def clusters_centralizados(
     """Toda centralizacao de layout fora de um dialogo.
 
     Devolve `(arquivo, linha, seletor, declaracao)`. Com
-    `aplicar_isencoes=False` devolve tambem as de `CENTRO_ISENTOS` — e o
+    `aplicar_isencoes=False` devolve tambem as de `CENTERING_EXEMPT` — e o
     que o canario usa para medir quanto a deteccao de dialogo isenta.
     """
     achados: list[tuple[str, int, str, str]] = []
-    for arquivo in sorted(RAIZ_UI.rglob("*.py")):
+    for arquivo in sorted(UI_ROOT.rglob("*.py")):
         rel = _rel(arquivo)
         dialogo = False
         seletor = ""
@@ -270,16 +270,16 @@ def clusters_centralizados(
                 seletor = abre.group("seletor")
             if dialogo:
                 continue
-            for m in CENTRO.finditer(linha):
+            for m in CENTERING.finditer(linha):
                 if "center" not in m.group("valor"):
                     continue
-                if aplicar_isencoes and (rel, seletor) in CENTRO_ISENTOS:
+                if aplicar_isencoes and (rel, seletor) in CENTERING_EXEMPT:
                     continue
                 achados.append((rel, numero, seletor, m.group(0)))
     return achados
 
 
-def test_sem_cluster_de_botao_centralizado_fora_de_dialogo():
+def test_no_centered_button_cluster_outside_a_dialog():
     """Centralizar so faz sentido quando o cluster E a tela — um dialogo.
 
     Numa tela de trabalho, centralizar desconecta a acao daquilo que ela
@@ -291,7 +291,7 @@ def test_sem_cluster_de_botao_centralizado_fora_de_dialogo():
     )
 
 
-def test_a_varredura_de_centralizacao_ve_os_dialogos():
+def test_the_centering_scan_sees_the_dialogs():
     """Um guarda que isenta tudo (ou nada) nao vigia nada.
 
     Ancorado em numeros medidos: se a deteccao de dialogo parar de
@@ -299,15 +299,15 @@ def test_a_varredura_de_centralizacao_ve_os_dialogos():
     resultado e o teste acima passa a reprovar o produto inteiro.
     """
     total = 0
-    for arquivo in RAIZ_UI.rglob("*.py"):
+    for arquivo in UI_ROOT.rglob("*.py"):
         for linha in arquivo.read_text(encoding="utf-8").splitlines():
-            for m in CENTRO.finditer(linha):
+            for m in CENTERING.finditer(linha):
                 if "center" in m.group("valor"):
                     total += 1
     assert total > 40, f"varredura rasa demais: {total} centralizacoes"
     # Medido em d2367bb: 62 declaracoes de centralizacao em dbqm/ui, 57
     # delas dentro de dialogo (legitimas pela secao 7) e 5 fora — as cinco
-    # de `CENTRO_ISENTOS`. O teto de 8 e esse 5 com uma folga estreita de
+    # de `CENTERING_EXEMPT`. O teto de 8 e esse 5 com uma folga estreita de
     # proposito: a redacao anterior deste canario era `< total / 2`, que
     # so disparava se a deteccao de dialogo quebrasse quase por inteiro.
     # Ela tolerava perder 25 modais em silencio — e um canario que tolera
@@ -355,7 +355,7 @@ def mencoes_a_listview() -> list[str]:
     """
     return [
         _rel(arquivo)
-        for arquivo in sorted(RAIZ_UI.rglob("*.py"))
+        for arquivo in sorted(UI_ROOT.rglob("*.py"))
         if "ListView" in arquivo.read_text(encoding="utf-8")
     ]
 
@@ -371,14 +371,14 @@ def mencoes_a_listview() -> list[str]:
 #     explicacao e aqui, no guarda.
 
 
-def test_listview_saiu_do_vocabulario():
+def test_listview_left_the_vocabulary():
     """`ListView` fazia o mesmo que `OptionList` em dois lugares.
 
     Dois componentes para uma funcao e o que o teste de inventario da
     fase 1 reprova; a secao 5 da gramatica escolheu `OptionList`.
     """
-    fontes = list(RAIZ_UI.rglob("*.py"))
-    assert fontes, "varredura nao achou fonte nenhuma em %s" % RAIZ_UI
+    fontes = list(UI_ROOT.rglob("*.py"))
+    assert fontes, "varredura nao achou fonte nenhuma em %s" % UI_ROOT
     achados = mencoes_a_listview()
     assert not achados, "ListView ainda mencionado em: %s" % achados
 
@@ -406,13 +406,13 @@ def test_listview_saiu_do_vocabulario():
 def _modulos() -> list[tuple[str, ast.Module]]:
     """(caminho relativo, arvore) de cada fonte de `dbqm/ui`."""
     modulos = []
-    for arquivo in sorted(RAIZ_UI.rglob("*.py")):
+    for arquivo in sorted(UI_ROOT.rglob("*.py")):
         texto = arquivo.read_text(encoding="utf-8")
         modulos.append((_rel(arquivo), ast.parse(texto, filename=str(arquivo))))
     return modulos
 
 
-def _nome_chamado(no: ast.Call) -> str:
+def _called_name(no: ast.Call) -> str:
     """`Option(...)` -> "Option"; `self.x.add_column(...)` -> "add_column"."""
     if isinstance(no.func, ast.Name):
         return no.func.id
@@ -426,13 +426,13 @@ def _nome_chamado(no: ast.Call) -> str:
 # ======================================================================
 
 # Os construtores de item de lista do produto. `Option` e `Selection` sao
-# do Textual; `OpcaoNomeada` e o nosso (dbqm/ui/widgets/lista_hierarquica.py).
-CONSTRUTORES_DE_ITEM = {"Option", "OpcaoNomeada", "Selection"}
+# do Textual; `NamedOption` e o nosso (dbqm/ui/widgets/hierarchical_list.py).
+ITEM_BUILDERS = {"Option", "NamedOption", "Selection"}
 
 # Isencoes por (arquivo, construtor), com o motivo MEDIDO escrito.
-ACHATADO_ISENTOS = {
+FLATTENED_EXEMPT = {
     # `SelectionList` (checklist de conexoes do group_exec) pinta SO A
-    # PRIMEIRA LINHA do prompt: montei um `Selection(item_hierarquico(
+    # PRIMEIRA LINHA do prompt: montei um `Selection(hierarchical_item(
     # "MGORA7ORA9", "oracle - host:1521/svc"), ...)` num app de teste a
     # 60x20 e a linha de desambiguacao simplesmente nao foi desenhada — o
     # item aparece como `▐X▌ MGORA7ORA9` e o alvo some. Aplicar a
@@ -460,7 +460,7 @@ ACHATADO_ISENTOS = {
 #     `Selection` achatado em QUALQUER outro arquivo e reprovado.
 
 
-def _campos_interpolados(no: ast.JoinedStr) -> int:
+def _interpolated_fields(no: ast.JoinedStr) -> int:
     return sum(1 for parte in no.values if isinstance(parte, ast.FormattedValue))
 
 
@@ -474,7 +474,7 @@ def _operandos_da_soma(no: ast.AST) -> list[ast.AST]:
 def _achatamento(no: ast.AST) -> str:
     """Descreve o achatamento, ou "" se o no nao achata nada."""
     if isinstance(no, ast.JoinedStr):
-        campos = _campos_interpolados(no)
+        campos = _interpolated_fields(no)
         if campos >= 2:
             return "f-string com %d campos numa linha so" % campos
         return ""
@@ -493,7 +493,7 @@ def _achatamento(no: ast.AST) -> str:
     return ""
 
 
-def rotulos_achatados() -> list[tuple[str, int, str, str]]:
+def flattened_labels() -> list[tuple[str, int, str, str]]:
     """Todo item de lista montado como uma string unica.
 
     Devolve `(arquivo, linha, construtor, motivo)`.
@@ -513,8 +513,8 @@ def rotulos_achatados() -> list[tuple[str, int, str, str]]:
         for no in ast.walk(modulo):
             if not isinstance(no, ast.Call) or not no.args:
                 continue
-            construtor = _nome_chamado(no)
-            if construtor not in CONSTRUTORES_DE_ITEM:
+            construtor = _called_name(no)
+            if construtor not in ITEM_BUILDERS:
                 continue
             primeiro = no.args[0]
             if isinstance(primeiro, ast.Name):
@@ -522,23 +522,23 @@ def rotulos_achatados() -> list[tuple[str, int, str, str]]:
             motivo = _achatamento(primeiro)
             if not motivo:
                 continue
-            if (rel, construtor) in ACHATADO_ISENTOS:
+            if (rel, construtor) in FLATTENED_EXEMPT:
                 continue
             achados.append((rel, no.lineno, construtor, motivo))
     return achados
 
 
-def test_a_varredura_de_rotulo_ve_os_construtores_de_item():
+def test_the_label_scan_sees_the_item_builders():
     """Um guarda que nao acha construtor nenhum nao vigia lista nenhuma."""
     vistos = {
-        _nome_chamado(no)
+        _called_name(no)
         for _rel_, modulo in _modulos()
         for no in ast.walk(modulo)
         if isinstance(no, ast.Call)
     }
-    assert CONSTRUTORES_DE_ITEM <= vistos, (
+    assert ITEM_BUILDERS <= vistos, (
         "construtor de item de lista sumiu do produto: %s"
-        % (CONSTRUTORES_DE_ITEM - vistos)
+        % (ITEM_BUILDERS - vistos)
     )
     # A forma que o guarda precisa reconhecer, verificada aqui e nao so
     # confiada: dois campos numa string sao achatamento, um campo nao.
@@ -548,15 +548,15 @@ def test_a_varredura_de_rotulo_ve_os_construtores_de_item():
     assert not _achatamento(um)
 
 
-def test_rotulo_de_lista_nao_e_string_achatada():
+def test_list_label_is_not_a_flattened_string():
     """Um item de lista nunca e uma string concatenada (secao 5).
 
     Identidade, desambiguacao e contexto sao TRES papeis; espremidos numa
     linha so, a lista quebra o texto onde couber e o olho nao distingue
     uma continuacao de uma entrada nova. Foi a queixa que originou esta
-    fase. A cura e `item_hierarquico`, nao um separador melhor.
+    fase. A cura e `hierarchical_item`, nao um separador melhor.
     """
-    fora = rotulos_achatados()
+    fora = flattened_labels()
     assert not fora, "item de lista achatado numa string:\n" + "\n".join(
         f"  {rel}:{n}  {construtor}(...)  {motivo}"
         for rel, n, construtor, motivo in fora
@@ -575,14 +575,14 @@ def test_rotulo_de_lista_nao_e_string_achatada():
 #
 # Uma tabela de esquema fixo (`add_columns("#", "Nome", "Descricao")`) foi
 # escrita por alguem que sabia a largura dela; nao entra nesta regra.
-def _colunas_dinamicas(escopo: ast.AST) -> list[tuple[int, str, ast.Call]]:
+def _dynamic_columns(escopo: ast.AST) -> list[tuple[int, str, ast.Call]]:
     """`add_column(...)` cujo nome de coluna nao e literal, neste escopo.
 
     Devolve `(linha, argumento, chamada)`.
     """
     dinamicas: list[tuple[int, str, ast.Call]] = []
     for no in ast.walk(escopo):
-        if not (isinstance(no, ast.Call) and _nome_chamado(no) in {
+        if not (isinstance(no, ast.Call) and _called_name(no) in {
             "add_column",
             "add_columns",
         }):
@@ -595,7 +595,7 @@ def _colunas_dinamicas(escopo: ast.AST) -> list[tuple[int, str, ast.Call]]:
     return dinamicas
 
 
-def _fixa_a_chave(escopo: ast.AST) -> bool:
+def _fixes_the_key(escopo: ast.AST) -> bool:
     for no in ast.walk(escopo):
         if isinstance(no, ast.Attribute) and no.attr == "fixed_columns":
             return True
@@ -604,7 +604,7 @@ def _fixa_a_chave(escopo: ast.AST) -> bool:
     return False
 
 
-def tabelas_de_resultado_sem_chave_fixa() -> list[tuple[str, int, str]]:
+def result_tables_without_fixed_key() -> list[tuple[str, int, str]]:
     """Funcao que monta coluna a partir de dado e nao fixa a chave.
 
     Devolve `(arquivo, linha, coluna_dinamica)`.
@@ -624,7 +624,7 @@ def tabelas_de_resultado_sem_chave_fixa() -> list[tuple[str, int, str]]:
             for filho in ast.iter_child_nodes(pai):
                 pais[id(filho)] = pai
                 nos[id(filho)] = filho
-        for linha, arg, chamada in _colunas_dinamicas(modulo):
+        for linha, arg, chamada in _dynamic_columns(modulo):
             # Escopo = a funcao mais interna que contem a chamada (ou o
             # modulo, se ela estiver solta). A chave pode ser fixada ali
             # ou em qualquer funcao que a envolva — as duas leituras sao
@@ -638,7 +638,7 @@ def tabelas_de_resultado_sem_chave_fixa() -> list[tuple[str, int, str]]:
                 atual = pais.get(id(atual))
             if not escopos:
                 escopos = [modulo]
-            if not any(_fixa_a_chave(e) for e in escopos):
+            if not any(_fixes_the_key(e) for e in escopos):
                 achados.append((rel, linha, arg))
     return achados
 
@@ -666,12 +666,12 @@ def tabelas_de_resultado_sem_chave_fixa() -> list[tuple[str, int, str]]:
 #     dado e pode ter 1 ou 36.
 
 
-def test_a_varredura_de_tabela_encontra_as_colunas():
+def test_the_table_scan_finds_the_columns():
     """Se ninguem mais monta coluna, este guarda parou de vigiar."""
     total = 0
     for _rel_, modulo in _modulos():
         for no in ast.walk(modulo):
-            if isinstance(no, ast.Call) and _nome_chamado(no) in {
+            if isinstance(no, ast.Call) and _called_name(no) in {
                 "add_column",
                 "add_columns",
             }:
@@ -679,9 +679,9 @@ def test_a_varredura_de_tabela_encontra_as_colunas():
     assert total > 15, "varredura rasa demais: %d chamadas de coluna" % total
 
 
-def test_tabela_de_resultado_fixa_a_coluna_chave():
+def test_result_table_fixes_the_key_column():
     """Rolar sem fixar a chave destroi a comparacao (secao 6)."""
-    fora = tabelas_de_resultado_sem_chave_fixa()
+    fora = result_tables_without_fixed_key()
     assert not fora, "tabela de resultado sem chave fixa:\n" + "\n".join(
         f"  {rel}:{n}  add_column({arg})" for rel, n, arg in fora
     )
@@ -701,7 +701,7 @@ def test_tabela_de_resultado_fixa_a_coluna_chave():
 # que foi escrita.
 
 # O que e navegar: trocar de aba do shell, ou abrir outra ferramenta.
-NAVEGACAO = {"action_switch_tab", "open_tool"}
+NAVIGATION = {"action_switch_tab", "open_tool"}
 
 # Isencoes por (arquivo, id do botao), com o motivo escrito. Os quatro
 # CTAs abaixo sao estados vazios: `EmptyState` (dbqm/ui/widgets/empty_state.py)
@@ -716,7 +716,7 @@ NAVEGACAO = {"action_switch_tab", "open_tool"}
 # fluxo, fora do escopo da gramatica de layout (secao 11 do spec). O que
 # este guarda entrega enquanto isso e o TETO: sao quatro, estao nomeados,
 # e o quinto reprova a suite.
-NAVEGACAO_ISENTA = {
+NAVIGATION_EXEMPT = {
     # "Executar consulta" -> aba Consultas. Nao ha historico para criar
     # aqui; ele nasce de uma execucao noutra aba.
     ("dbqm/ui/screens/history.py", "executar-consulta"),
@@ -743,10 +743,10 @@ NAVEGACAO_ISENTA = {
 #   - `action_switch_tab` chamado de um handler de TECLA, de `on_mount` ou
 #     do `OptionList` nao e reprovado, e isso e a regra e nao um furo:
 #     lista, aba e atalho SAO navegacao legitima. So botao nao e;
-#   - a lista de verbos e fechada (`NAVEGACAO`). Um terceiro jeito de
+#   - a lista de verbos e fechada (`NAVIGATION`). Um terceiro jeito de
 #     navegar que apareca amanha precisa ser acrescentado aqui — e o mesmo
-#     custo que `MOLDURAS` e `CONSTRUTORES_DE_ITEM` ja pagam;
-#   - `_ids_do_ramo` sobe pelos `if` que ENVOLVEM a chamada e junta todos os
+#     custo que `FRAMES` e `ITEM_BUILDERS` ja pagam;
+#   - `_branch_ids` sobe pelos `if` que ENVOLVEM a chamada e junta todos os
 #     literais de string que achar no teste de cada um; depois
 #     `botoes_que_navegam` fica com `sorted(ids)[0]`. Numa cadeia
 #     `if/elif`, o `elif` e um `If` ANINHADO no `orelse` do anterior, entao
@@ -780,16 +780,16 @@ def _e_handler_de_botao(no: ast.AST) -> bool:
     return any("Button.Pressed" in t for t in anotacoes + decoradores)
 
 
-def _ids_do_ramo(no: ast.AST, pais: dict[ast.AST, ast.AST], raiz: ast.AST) -> set[str]:
+def _branch_ids(no: ast.AST, parents: dict[ast.AST, ast.AST], root: ast.AST) -> set[str]:
     """Os ids de botao comparados no `if` que envolve *no*."""
     ids: set[str] = set()
-    atual = pais.get(no)
-    while atual is not None and atual is not raiz:
+    atual = parents.get(no)
+    while atual is not None and atual is not root:
         if isinstance(atual, ast.If):
             for teste in ast.walk(atual.test):
                 if isinstance(teste, ast.Constant) and isinstance(teste.value, str):
                     ids.add(teste.value)
-        atual = pais.get(atual)
+        atual = parents.get(atual)
     return ids
 
 
@@ -809,29 +809,29 @@ def botoes_que_navegam() -> list[tuple[str, int, str, str]]:
                     pais[filho] = pai
             for no in ast.walk(handler):
                 verbo = ""
-                if isinstance(no, ast.Attribute) and no.attr in NAVEGACAO:
+                if isinstance(no, ast.Attribute) and no.attr in NAVIGATION:
                     verbo = no.attr
-                elif isinstance(no, ast.Name) and no.id in NAVEGACAO:
+                elif isinstance(no, ast.Name) and no.id in NAVIGATION:
                     verbo = no.id
                 elif (
                     isinstance(no, ast.Constant)
                     and isinstance(no.value, str)
-                    and no.value in NAVEGACAO
+                    and no.value in NAVIGATION
                 ):
                     # `getattr(self.app, "action_switch_tab", None)` — a
                     # forma que os quatro CTAs reais usam.
                     verbo = no.value
                 if not verbo:
                     continue
-                ids = _ids_do_ramo(no, pais, handler) - NAVEGACAO
+                ids = _branch_ids(no, pais, handler) - NAVIGATION
                 botao = sorted(ids)[0] if ids else ""
-                if (rel, botao) in NAVEGACAO_ISENTA:
+                if (rel, botao) in NAVIGATION_EXEMPT:
                     continue
                 achados.append((rel, no.lineno, botao, verbo))
     return achados
 
 
-def test_a_varredura_de_navegacao_ve_os_handlers():
+def test_the_navigation_scan_sees_the_handlers():
     """Um guarda que nao acha handler de botao nao vigia botao nenhum."""
     handlers = [
         no
@@ -844,23 +844,23 @@ def test_a_varredura_de_navegacao_ve_os_handlers():
     # (ou de existir), a isencao vira letra morta e o teto de quatro deixa
     # de ser um teto medido.
     sem_isencao = {(rel, botao) for rel, _n, botao, _v in _botoes_que_navegam_cru()}
-    assert NAVEGACAO_ISENTA <= sem_isencao, (
+    assert NAVIGATION_EXEMPT <= sem_isencao, (
         "isencao que nao corresponde a nenhum botao real: %s"
-        % (NAVEGACAO_ISENTA - sem_isencao)
+        % (NAVIGATION_EXEMPT - sem_isencao)
     )
 
 
 def _botoes_que_navegam_cru() -> list[tuple[str, int, str, str]]:
     """`botoes_que_navegam()` sem aplicar as isencoes."""
-    guardadas = set(NAVEGACAO_ISENTA)
-    NAVEGACAO_ISENTA.clear()
+    guardadas = set(NAVIGATION_EXEMPT)
+    NAVIGATION_EXEMPT.clear()
     try:
         return botoes_que_navegam()
     finally:
-        NAVEGACAO_ISENTA.update(guardadas)
+        NAVIGATION_EXEMPT.update(guardadas)
 
 
-def test_botao_nao_navega():
+def test_button_does_not_navigate():
     """Botao e acao, nunca navegacao (secao 7).
 
     Navegar e trabalho de aba, de lista e de atalho. Um botao que troca de
