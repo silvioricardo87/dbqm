@@ -832,6 +832,59 @@ async def test_query_list_accepts_objects():
         assert items[0].query_name == "obj_q"
 
 
+@pytest.mark.asyncio
+async def test_query_list_item_pintado_tem_hierarquia_visivel():
+    """A entrada montada de verdade dentro da tela (nao so o Content que
+    `item_hierarquico` devolve isolado) ocupa mais de uma linha e a
+    identidade sai visualmente distinta da desambiguacao — cor resolvida
+    pelo `Style.parse` real do tema ativo, o mesmo mecanismo que o Textual
+    usa para pintar a tela (a asserção pintada que a Task 3 deixou para a
+    Task 4 aplicar as telas reais)."""
+    from textual.style import Style
+    from textual.widgets import Static
+    from dbqm.ui.widgets.query_list import _QueryListItem
+
+    def cor_no_offset(conteudo, offset):
+        estilo = Style()
+        for start, end, span_style in conteudo.spans:
+            if start <= offset < end:
+                estilo = estilo + Style.parse(span_style)
+        return estilo.foreground
+
+    queries = [
+        {
+            "name": "consulta_longa", "connection": "MGORA7ORA9", "table": "PEDIDO",
+            "description": "Verifica pedidos pendentes de faturamento no fechamento",
+            "is_favorite": False, "folder": "",
+        },
+    ]
+    app = QueryListTestApp()
+    async with app.run_test() as pilot:
+        ql = app.query_one(QueryListWidget)
+        ql.load_queries(queries)
+        await pilot.pause()
+
+        item = ql.query_one(_QueryListItem)
+        conteudo = item.query_one(Static).content
+        texto = conteudo.plain
+
+        assert chr(10) in texto, "item pintado deve ocupar mais de uma linha"
+        assert " | " not in texto
+
+        cor_forte = Style.parse("$texto-forte").foreground
+        cor_apoio = Style.parse("$texto-apoio").foreground
+        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
+
+        pos_identidade = texto.index("consulta_longa")
+        pos_desambiguacao = texto.index("MGORA7ORA9")
+        pos_contexto = texto.index("Verifica")
+
+        assert cor_no_offset(conteudo, pos_identidade) == cor_forte
+        assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
+        assert cor_no_offset(conteudo, pos_contexto) == cor_desabilitado
+
+
 # ---------------------------------------------------------------------------
 # GroupResultWidget tests
 # ---------------------------------------------------------------------------

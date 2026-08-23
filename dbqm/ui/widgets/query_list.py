@@ -6,10 +6,12 @@ from typing import Any
 
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.content import Content
 from textual.message import Message
 from textual.widgets import Button, Input, ListView, ListItem, Static
 
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
 
 
 class QuerySelected(Message):
@@ -38,17 +40,22 @@ def _attr(obj: Any, key: str, default: Any = "") -> Any:
 class _QueryListItem(ListItem):
     """A single query entry inside the ListView.
 
-    Renders as a single line of formatted text to avoid layout issues
-    with nested containers inside ListItem.
+    Renders with the layout grammar's hierarquia de linhas
+    (`item_hierarquico`): nome sozinho na identidade, conexao+tabela como
+    desambiguacao (o que separa duas consultas de nome parecido), descricao
+    como contexto opcional. Sem nested containers, so um `Static` com um
+    `Content` de ate tres linhas — o mesmo motivo de antes (evitar problema
+    de layout dentro de `ListItem`), so que agora o `Content` pode ocupar
+    mais de uma linha.
     """
 
     DEFAULT_CSS = """
     _QueryListItem {
-        height: 1;
+        height: auto;
         padding: 0 1;
     }
     _QueryListItem Static {
-        height: 1;
+        height: auto;
         width: 1fr;
     }
     """
@@ -60,27 +67,26 @@ class _QueryListItem(ListItem):
 
     def compose(self):
         is_fav = _attr(self.query_data, "is_favorite", False)
-        star = "[$identidade]★[/]" if is_fav else "[dim]☆[/]"
+        star = Content.assemble(
+            ("★ " if is_fav else "☆ ", "$identidade" if is_fav else "$texto-desabilitado")
+        )
 
         name = _attr(self.query_data, "name", "")
         desc = _attr(self.query_data, "description", "")
         conn = _attr(self.query_data, "connection", "")
         table = _attr(self.query_data, "table", "")
 
-        # Truncate description to keep line readable
-        if len(desc) > 35:
-            desc = desc[:32] + "..."
+        # Desambiguacao: conexao e tabela sao o que distingue duas consultas
+        # de nome parecido — mesmo par (alvo, conexao) que o docstring de
+        # item_hierarquico usa como exemplo.
+        desambiguacao = f"{conn} - {table}" if conn and table else (conn or table)
+        # Contexto: descricao, sem corte artificial — a hierarquia (linha
+        # propria, recuada, em $texto-desabilitado) e o que a torna legivel,
+        # nao um limite de caracteres. Colapsa quebras de linha internas
+        # para nao estourar a gramatica de uma linha por papel.
+        contexto = " ".join(desc.split())
 
-        # Build a single formatted line
-        parts = [f"{star} [bold]{name}[/bold]"]
-        if desc:
-            parts.append(f"[dim]{desc}[/dim]")
-        parts.append(f"[$identidade]{conn}[/]")
-        if table:
-            parts.append(f"[dim]{table}[/dim]")
-
-        line = "  │  ".join(parts)
-        yield Static(line, markup=True)
+        yield Static(star + item_hierarquico(name, desambiguacao, contexto))
 
 
 class QueryListWidget(Vertical, can_focus=False):

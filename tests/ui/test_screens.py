@@ -476,6 +476,89 @@ def test_format_description_helper():
 
 
 @pytest.mark.asyncio
+async def test_lista_de_conexoes_tem_hierarquia_e_nao_concatena(tmp_config_dir):
+    """O item tem hierarquia de linhas; nao e uma string concatenada."""
+    from textual.widgets import OptionList
+    from dbqm.models.connection import Connection, save_connections
+    from dbqm.ui.screens.connections import ConnectionsScreen
+    from tests.ui._helpers import ThemedTestApp
+
+    save_connections([
+        Connection(name="MGORA7ORA9", db_type="oracle", user="u", password="p",
+                   mode="tns", tns_name="MGORA7ORA9",
+                   description="Producao prod-day, somente leitura via dblink"),
+        Connection(name="ASDADM", db_type="oracle", user="u", password="p",
+                   mode="tns", tns_name="ATSSUS", description="Sustentacao"),
+    ])
+
+    class App_(ThemedTestApp):
+        def compose(self):
+            yield ConnectionsScreen()
+
+    app = App_()
+    async with app.run_test():
+        lista = app.query_one("#conn-list", OptionList)
+        prompt = str(lista.get_option_at_index(0).prompt)
+        assert chr(10) in prompt, "item deve ocupar mais de uma linha"
+        assert " | " not in prompt, "descricao nao entra concatenada"
+        assert prompt.splitlines()[0].strip().startswith("MGORA7ORA9")
+
+
+def test_query_list_nao_trunca_mais_a_descricao():
+    """A truncagem em 35 caracteres existia para caber numa linha so."""
+    from pathlib import Path
+
+    fonte = Path("dbqm/ui/widgets/query_list.py").read_text(encoding="utf-8")
+    assert "[:32]" not in fonte, "a truncagem deixou de ser necessaria"
+
+
+@pytest.mark.asyncio
+async def test_lista_de_conexoes_pintada_distingue_identidade_de_desambiguacao(
+    tmp_config_dir,
+):
+    """Nao basta o `Content` que `item_hierarquico` devolve isolado (Task 3
+    ja prova isso por span) — aqui a tela real e montada, a opcao real do
+    `OptionList` e lida de volta, e a cor de cada linha e resolvida com
+    `Style.parse` do tema ativo da app, o mesmo mecanismo que o Textual usa
+    para pintar. A asserção pintada que a Task 3 deixou para esta tarefa."""
+    from textual.style import Style
+    from textual.widgets import OptionList
+    from dbqm.models.connection import Connection, save_connections
+
+    def cor_no_offset(conteudo, offset):
+        estilo = Style()
+        for start, end, span_style in conteudo.spans:
+            if start <= offset < end:
+                estilo = estilo + Style.parse(span_style)
+        return estilo.foreground
+
+    save_connections([
+        Connection(name="MGORA7ORA9", db_type="oracle", user="u", password="p",
+                   mode="tns", tns_name="MGORA7ORA9",
+                   description="Producao prod-day, somente leitura via dblink"),
+    ])
+
+    app = ConnectionsTestApp()
+    async with app.run_test():
+        lista = app.query_one("#conn-list", OptionList)
+        conteudo = lista.get_option_at_index(0).prompt
+        texto = conteudo.plain
+
+        cor_forte = Style.parse("$texto-forte").foreground
+        cor_apoio = Style.parse("$texto-apoio").foreground
+        cor_desabilitado = Style.parse("$texto-desabilitado").foreground
+        assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
+
+        pos_identidade = texto.index("MGORA7ORA9")
+        pos_desambiguacao = texto.index("Oracle/TNS")
+        pos_contexto = texto.index("Producao")
+
+        assert cor_no_offset(conteudo, pos_identidade) == cor_forte
+        assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
+        assert cor_no_offset(conteudo, pos_contexto) == cor_desabilitado
+
+
+@pytest.mark.asyncio
 async def test_connections_select_loads_into_form(tmp_config_dir):
     """Selecting a seeded connection populates the embedded form, with the
     password decrypted for display."""
@@ -1628,6 +1711,61 @@ async def test_browser_reload_populates_object_list(tmp_config_dir, monkeypatch)
 
         option_list = screen.query_one("#obj-list", OptionList)
         assert option_list.option_count == 3
+
+
+@pytest.mark.asyncio
+async def test_browser_lista_de_objetos_pintada_tem_hierarquia(tmp_config_dir, monkeypatch):
+    """A lista de objetos, montada de verdade na tela, ocupa mais de uma
+    linha por item e a identidade (nome) sai visualmente distinta do tipo
+    — cor resolvida via `Style.parse` do tema ativo, nao so o span do
+    `Content` isolado (a asserção pintada que a Task 3 deixou para a Task
+    4 aplicar as telas reais)."""
+    from textual.style import Style
+    from textual.widgets import OptionList
+
+    monkeypatch.setattr(
+        "dbqm.core.object_browser.list_objects",
+        lambda db, db_type, obj_type: ["CLIENTE"],
+    )
+
+    def cor_no_offset(conteudo, offset):
+        estilo = Style()
+        for start, end, span_style in conteudo.spans:
+            if start <= offset < end:
+                estilo = estilo + Style.parse(span_style)
+        return estilo.foreground
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "oracle"
+
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+        screen._obj_type = "TABLE"
+
+        worker = screen._reload_objects()
+        await worker.wait()
+        await pilot.pause()
+
+        option_list = screen.query_one("#obj-list", OptionList)
+        conteudo = option_list.get_option_at_index(0).prompt
+        texto = conteudo.plain
+
+        assert chr(10) in texto, "item deve ocupar mais de uma linha"
+        assert texto.splitlines()[0].strip() == "CLIENTE"
+
+        cor_forte = Style.parse("$texto-forte").foreground
+        cor_apoio = Style.parse("$texto-apoio").foreground
+        assert cor_forte != cor_apoio
+
+        pos_identidade = texto.index("CLIENTE")
+        pos_desambiguacao = texto.index("Tabela")
+
+        assert cor_no_offset(conteudo, pos_identidade) == cor_forte
+        assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
 
 
 @pytest.mark.asyncio

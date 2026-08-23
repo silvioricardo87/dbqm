@@ -9,6 +9,7 @@ from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -277,11 +278,13 @@ class ConnectionsScreen(Vertical):
             db_label = DB_TYPE_LABELS.get(conn.db_type, conn.db_type)
             if conn.db_type == "oracle" and conn.mode == "tns":
                 db_label = "Oracle/TNS"
-            label = f"{conn.name}  ({db_label} - {conn.display_target()})"
-            desc = _format_description(conn.description)
-            if desc:
-                label += f"  | {desc}"
-            option_list.add_option(Option(label, id=conn.name))
+            # Identidade e o nome, sozinho: e o que a pessoa procura numa
+            # lista de conexoes. Tipo+alvo desambiguam entradas parecidas;
+            # a descricao e contexto opcional, recuado e apagado.
+            desambiguacao = f"{db_label} - {conn.display_target()}"
+            contexto = _format_description(conn.description)
+            item = item_hierarquico(conn.name, desambiguacao, contexto)
+            option_list.add_option(Option(item, id=conn.name))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option_list.id != "conn-list":
