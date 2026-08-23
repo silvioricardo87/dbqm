@@ -11,7 +11,7 @@ from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
-from dbqm.ui.widgets.lista_hierarquica import item_hierarquico
+from dbqm.ui.widgets.lista_hierarquica import _RECUO, item_hierarquico
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -46,13 +46,44 @@ DEFAULT_HOSTS = {
     "mysql": "localhost",
 }
 
-# Largura de coluna assumida para quebrar a descricao em linhas — uma
-# aproximacao (a largura real do painel varia), nao uma medida exata da
-# tela. O limite que importa e o de LINHAS (_DESCRICAO_MAX_LINHAS), nao de
-# caracteres: caractere e a medida errada porque nao diz nada sobre quantas
-# linhas o texto vai ocupar depois de quebrado (o mesmo argumento que
-# tirou o corte de 35 caracteres do query_list.py).
-_DESCRICAO_LARGURA = 60
+# Largura de #conn-list-panel (CSS abaixo). Constante de modulo, unica
+# fonte pro CSS e pra derivacao da largura de quebra logo adiante — os
+# dois nao podem divergir (motivo da rodada anterior: 60 de largura
+# assumida contra um painel de 42 inteiro, que so por si ja era menor que
+# o "limite" da descricao).
+_LARGURA_PAINEL_LISTA = 42
+
+# Consumo de largura entre a borda do painel e o primeiro caractere de
+# texto de uma opcao, cada numero lido do CSS que o declara (nenhum
+# medido em runtime):
+#   - `Panel` (dbqm/ui/widgets/panel.py): `border: round` = 1 coluna de
+#     cada lado.
+#   - `Panel > #panel-body`: `padding: 1 1` = 1 coluna de cada lado
+#     (vertical, horizontal) — o valor horizontal e o que importa aqui.
+#   - `OptionList` (textual.widgets, DEFAULT_CSS): `padding: 0 1` = 1
+#     coluna de cada lado; a borda propria dela (`border: tall`) e
+#     zerada por `Panel #panel-body OptionList { border: none; }`, entao
+#     nao entra nesta conta.
+# Cada um desses "de cada lado" vale 2 (esquerda + direita).
+_BORDA_PANEL = 2
+_PADDING_PANEL_BODY = 2
+_PADDING_OPTION_LIST = 2
+
+# O recuo que `item_hierarquico` (dbqm/ui/widgets/lista_hierarquica.py)
+# antepoe as linhas de desambiguacao/contexto — mesma constante, nao um
+# "2" solto aqui, pra nao poder divergir dela.
+_RECUO_CONTEXTO = len(_RECUO)
+
+# Largura de fato disponivel pro TEXTO da descricao: o que sobra do
+# painel depois da borda do Panel, do padding do corpo, do padding do
+# OptionList e do recuo que a propria linha de contexto consome.
+_DESCRICAO_LARGURA = (
+    _LARGURA_PAINEL_LISTA
+    - _BORDA_PANEL
+    - _PADDING_PANEL_BODY
+    - _PADDING_OPTION_LIST
+    - _RECUO_CONTEXTO
+)
 _DESCRICAO_MAX_LINHAS = 2
 
 
@@ -95,7 +126,7 @@ class ConnectionsScreen(Vertical):
         height: 1fr;
     }
     ConnectionsScreen #conn-list-panel {
-        width: 42;
+        width: __LARGURA_PAINEL_LISTA__;
     }
     ConnectionsScreen #conn-form-panel {
         width: 1fr;
@@ -137,7 +168,7 @@ class ConnectionsScreen(Vertical):
     ConnectionsScreen #conn-form-buttons Button {
         margin: 0 1;
     }
-    """
+    """.replace("__LARGURA_PAINEL_LISTA__", str(_LARGURA_PAINEL_LISTA))
 
     # Maps a logical field name to its (label id, widget id) — used to
     # show/hide field groups depending on the selected db type/mode.
