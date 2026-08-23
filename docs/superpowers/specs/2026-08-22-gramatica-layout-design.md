@@ -112,10 +112,16 @@ A hierarquia faz o trabalho que um separador faria, e faz melhor: também diz *o
 - **coluna-chave fixa** (`fixed_columns=1`), que nunca sai de vista ao rolar
 - **zebra nas linhas** (`zebra_stripes=True`)
 - **rolagem lateral** para as demais colunas
-- **modo registro** por atalho, um registro por tela, campos empilhados
+- **modo registro**, que **já existe** — `ResultTable.toggle_vertical()`, tecla `V`,
+  documentado no modal de ajuda e ligado em `adhoc` e `query_exec`
 
-A tecla do modo registro não é fixada aqui: ela sai do conjunto de atalhos já em
-uso na tela de resultado, e é escolhida no plano para não colidir com nenhum.
+**Correção desta redação.** A primeira versão deste spec apresentava o modo registro
+como decisão nova, a implementar. Ele já está no produto desde antes desta fase:
+`_show_vertical` monta um bloco por registro com os campos empilhados e o rótulo
+alinhado à direita. Descobri isso ao decompor o plano, e propor a construção dele
+teria criado um componente duplicado — o defeito que o teste de inventário existe
+para reprovar. O que resta é alinhá-lo à tipografia da gramática (hoje usa `***`
+como marcador e texto plano, sem tokens), não construí-lo.
 
 O Textual já oferece `fixed_columns` e `zebra_stripes`; `result_table.py` não usa
 nenhum dos dois. A plataforma tinha a resposta e o produto não pegou.
