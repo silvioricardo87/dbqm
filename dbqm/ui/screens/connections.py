@@ -1,6 +1,8 @@
 """Connection management screen — master list + embedded edit form."""
 from __future__ import annotations
 
+import textwrap
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Input, OptionList, Select, Static, TextArea
@@ -44,18 +46,37 @@ DEFAULT_HOSTS = {
     "mysql": "localhost",
 }
 
-_DESCRIPTION_PREVIEW_LEN = 60
+# Largura de coluna assumida para quebrar a descricao em linhas — uma
+# aproximacao (a largura real do painel varia), nao uma medida exata da
+# tela. O limite que importa e o de LINHAS (_DESCRICAO_MAX_LINHAS), nao de
+# caracteres: caractere e a medida errada porque nao diz nada sobre quantas
+# linhas o texto vai ocupar depois de quebrado (o mesmo argumento que
+# tirou o corte de 35 caracteres do query_list.py).
+_DESCRICAO_LARGURA = 60
+_DESCRICAO_MAX_LINHAS = 2
 
 
 def _format_description(description: str) -> str:
-    """One-line preview of a connection description for list display."""
+    """Preview da descricao em ate `_DESCRICAO_MAX_LINHAS` linhas.
+
+    Corta por LINHAS renderizadas (aproximadas por `_DESCRICAO_LARGURA`),
+    nao pelo total de caracteres: sem nenhum limite, uma descricao longa
+    empurraria as outras conexoes da lista pra fora da tela — o contexto
+    de `item_hierarquico` ja da a ela sua propria linha recuada, mas isso
+    nao limita quantas linhas ela toma.
+    """
     if not description:
         return ""
-    # Collapse newlines so the description fits in a single line.
     flat = " ".join(description.split())
-    if len(flat) > _DESCRIPTION_PREVIEW_LEN:
-        flat = flat[: _DESCRIPTION_PREVIEW_LEN - 3].rstrip() + "..."
-    return flat
+    linhas = textwrap.wrap(flat, width=_DESCRICAO_LARGURA) or [""]
+    if len(linhas) <= _DESCRICAO_MAX_LINHAS:
+        return "\n".join(linhas)
+    linhas = linhas[:_DESCRICAO_MAX_LINHAS]
+    ultima = linhas[-1].rstrip()
+    if len(ultima) > _DESCRICAO_LARGURA - 3:
+        ultima = ultima[: _DESCRICAO_LARGURA - 3].rstrip()
+    linhas[-1] = ultima + "..."
+    return "\n".join(linhas)
 
 
 class ConnectionsScreen(Vertical):

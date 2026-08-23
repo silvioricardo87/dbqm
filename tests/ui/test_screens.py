@@ -468,11 +468,21 @@ def test_format_description_helper():
     assert _format_description("short note") == "short note"
     # Newlines collapse to single spaces.
     assert _format_description("line1\nline2") == "line1 line2"
-    # Long content is truncated with an ellipsis.
+    # A description past the old 60-char ceiling but that still fits inside
+    # the two-line budget survives whole, with no ellipsis: the limit is
+    # LINES, not characters.
+    media = "Producao prod-day, somente leitura via dblink, ambiente compartilhado"
+    assert len(media) > 60
+    out_media = _format_description(media)
+    assert "..." not in out_media
+    assert out_media.count("\n") <= 1
+    assert out_media.replace("\n", " ") == media
+    # Content that overflows the line budget is cut with an ellipsis, and
+    # the result never exceeds the two-line budget.
     long = "x" * 200
     out = _format_description(long)
     assert out.endswith("...")
-    assert len(out) <= 60
+    assert out.count("\n") <= 1
 
 
 @pytest.mark.asyncio
@@ -513,14 +523,18 @@ def test_query_list_nao_trunca_mais_a_descricao():
 
 
 @pytest.mark.asyncio
-async def test_lista_de_conexoes_pintada_distingue_identidade_de_desambiguacao(
+async def test_lista_de_conexoes_montada_distingue_identidade_de_desambiguacao(
     tmp_config_dir,
 ):
     """Nao basta o `Content` que `item_hierarquico` devolve isolado (Task 3
-    ja prova isso por span) — aqui a tela real e montada, a opcao real do
-    `OptionList` e lida de volta, e a cor de cada linha e resolvida com
-    `Style.parse` do tema ativo da app, o mesmo mecanismo que o Textual usa
-    para pintar. A asserção pintada que a Task 3 deixou para esta tarefa."""
+    ja prova isso por span) — aqui a tela real e montada e a opcao real do
+    `OptionList` (nao o valor passado pra dentro) e lida de volta; a cor de
+    cada linha e resolvida com `Style.parse` do tema ativo da app, o mesmo
+    mecanismo que o Textual usa para resolver estilo antes de pintar.
+
+    Isso prova a FIACAO — que o `Content` certo chega intacto ao widget
+    montado, com o tema real resolvendo as tres cores certas — nao a
+    pintura de pixel em si (nenhum screenshot e tirado aqui)."""
     from textual.style import Style
     from textual.widgets import OptionList
     from dbqm.models.connection import Connection, save_connections
@@ -1714,14 +1728,17 @@ async def test_browser_reload_populates_object_list(tmp_config_dir, monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_browser_lista_de_objetos_pintada_tem_hierarquia(tmp_config_dir, monkeypatch):
-    """A lista de objetos, montada de verdade na tela, ocupa mais de uma
-    linha por item e a identidade (nome) sai visualmente distinta do tipo
-    — cor resolvida via `Style.parse` do tema ativo, nao so o span do
-    `Content` isolado (a asserção pintada que a Task 3 deixou para a Task
-    4 aplicar as telas reais)."""
+async def test_browser_lista_de_objetos_montada_e_so_identidade(tmp_config_dir, monkeypatch):
+    """A lista de objetos usa `item_hierarquico` só com a identidade — o
+    filtro de tipo (`#obj-type`) é `allow_blank=False`, então toda linha
+    visível já é sempre do mesmo tipo; escrever o tipo de novo em cada
+    item não desambiguaria nada. `conteudo` vem do widget montado de
+    verdade (`Option.prompt` dentro de uma app com tema ativo), não do
+    `Content` isolado, e a cor da identidade é resolvida via
+    `Style.parse` do tema real — fiação até o widget montado, não pintura
+    de pixel (nenhum screenshot é tirado aqui)."""
     from textual.style import Style
-    from textual.widgets import OptionList
+    from textual.widgets import OptionList, Select
 
     monkeypatch.setattr(
         "dbqm.core.object_browser.list_objects",
@@ -1742,6 +1759,8 @@ async def test_browser_lista_de_objetos_pintada_tem_hierarquia(tmp_config_dir, m
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
+        assert screen.query_one("#obj-type", Select)._allow_blank is False
+
         screen._current_conn = _FakeConn()
         screen._db = object()
         screen._obj_type = "TABLE"
@@ -1754,18 +1773,11 @@ async def test_browser_lista_de_objetos_pintada_tem_hierarquia(tmp_config_dir, m
         conteudo = option_list.get_option_at_index(0).prompt
         texto = conteudo.plain
 
-        assert chr(10) in texto, "item deve ocupar mais de uma linha"
-        assert texto.splitlines()[0].strip() == "CLIENTE"
+        assert texto == "CLIENTE", "sem tipo repetido: so a identidade"
+        assert chr(10) not in texto
 
         cor_forte = Style.parse("$texto-forte").foreground
-        cor_apoio = Style.parse("$texto-apoio").foreground
-        assert cor_forte != cor_apoio
-
-        pos_identidade = texto.index("CLIENTE")
-        pos_desambiguacao = texto.index("Tabela")
-
-        assert cor_no_offset(conteudo, pos_identidade) == cor_forte
-        assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
+        assert cor_no_offset(conteudo, 0) == cor_forte
 
 
 @pytest.mark.asyncio

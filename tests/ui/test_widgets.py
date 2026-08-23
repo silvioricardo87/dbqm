@@ -833,13 +833,16 @@ async def test_query_list_accepts_objects():
 
 
 @pytest.mark.asyncio
-async def test_query_list_item_pintado_tem_hierarquia_visivel():
+async def test_query_list_item_montado_tem_hierarquia_visivel():
     """A entrada montada de verdade dentro da tela (nao so o Content que
     `item_hierarquico` devolve isolado) ocupa mais de uma linha e a
     identidade sai visualmente distinta da desambiguacao — cor resolvida
     pelo `Style.parse` real do tema ativo, o mesmo mecanismo que o Textual
-    usa para pintar a tela (a asserção pintada que a Task 3 deixou para a
-    Task 4 aplicar as telas reais)."""
+    usa para resolver estilo antes de pintar.
+
+    Prova a FIACAO ate o widget montado (`Static.content` de fato guardado
+    dentro do `_QueryListItem`), nao a pintura de pixel em si — nenhum
+    screenshot e tirado aqui."""
     from textual.style import Style
     from textual.widgets import Static
     from dbqm.ui.widgets.query_list import _QueryListItem

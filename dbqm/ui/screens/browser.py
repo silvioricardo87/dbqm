@@ -33,20 +33,6 @@ TYPE_OPTIONS = [
     ("Rotinas", "ROUTINE"),
 ]
 
-# Rotulo de desambiguacao por linha da lista de objetos — `list_objects` so
-# devolve o nome (sem owner/schema: sempre o schema da conexao), entao o
-# tipo e o unico dado que de fato distingue o que a pessoa esta olhando.
-# Substitui o prefixo em emoji que a lista usava antes: emoji de largura
-# variavel colado ao nome quebra o alinhamento em terminais que nao o
-# medem como o Textual mede (o mesmo tipo de risco documentado em
-# `result_table.py` para escape de markup), e nao tinha estilo proprio.
-TYPE_LABELS = {
-    "TABLE": "Tabela",
-    "VIEW": "View",
-    "PACKAGE": "Package",
-    "ROUTINE": "Rotina",
-}
-
 
 class BrowserScreen(Vertical):
     """Screen widget for browsing database objects as three live panels.
@@ -292,18 +278,19 @@ class BrowserScreen(Vertical):
         else:
             objects = self._objects
 
-        # Identidade e o nome do objeto; desambiguacao e o tipo (Tabela,
-        # View, Package, Rotina) — o unico outro dado que `list_objects`
-        # devolve. Sem contexto: nao ha terceiro campo real para nao
-        # inventar (owner, contagem de linhas etc. nao vem desta consulta).
-        tipo_label = TYPE_LABELS.get(self._obj_type, self._obj_type)
-
+        # So identidade, sem desambiguacao: o `Select` de tipo acima e
+        # `allow_blank=False` (sempre um TYPE_OPTIONS valido selecionado),
+        # entao toda linha visivel aqui e sempre do MESMO tipo — escrever
+        # o tipo por extenso em cada item repetiria o que o filtro ja
+        # fixou, ocupando uma linha por objeto sem desambiguar nada de
+        # verdade. E sem contexto tambem: `list_objects` nao devolve
+        # owner, contagem de linhas ou qualquer outro metadado por objeto
+        # (so o nome) — inventar um terceiro campo aqui seria o
+        # mapeamento mecanico que este componente existe para evitar.
         option_list = self.query_one("#obj-list", OptionList)
         option_list.clear_options()
         for obj in objects[:500]:
-            option_list.add_option(
-                Option(item_hierarquico(obj, tipo_label), id=obj)
-            )
+            option_list.add_option(Option(item_hierarquico(obj), id=obj))
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
