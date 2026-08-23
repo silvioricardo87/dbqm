@@ -16,6 +16,8 @@ para que so a DBQMApp real prove que registra e ativa o tema sozinha.
 """
 from __future__ import annotations
 
+import re
+
 from textual.app import App
 
 from dbqm.ui.theme import ESTADOS_INERTES_CSS, PADRAO, TEMAS_TEXTUAL
@@ -58,3 +60,29 @@ def nomes_renderizados(option_list) -> list[str]:
         linhas = texto.splitlines() or [""]
         nomes.append(linhas[0].lstrip(_ESTRELAS).rstrip())
     return nomes
+
+
+_ESCAPES_SVG = {"&#160;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"'}
+
+
+def texto_renderizado(app) -> str:
+    """O texto que a tela REALMENTE pinta, linha a linha.
+
+    Le o SVG de `App.export_screenshot()` — que so contem o que coube na
+    viewport — e devolve o texto dos `<text>` com o escape desfeito. Existe
+    porque `widget.region` mente sobre visibilidade: a secao Oracle da tela
+    de Configuracoes tinha `region.height == 3` e ainda assim nao aparecia,
+    recortada por um ancestral com `overflow: hidden`. Um teste que afirma
+    `region.height > 0` passa com o defeito presente.
+
+    O `\xa0` do SVG vira espaco comum para que a busca por uma frase
+    ("Client em uso") funcione como a pessoa a le.
+    """
+    svg = app.export_screenshot()
+    linhas = []
+    for bruto in re.findall(r">([^<>]*)</text>", svg):
+        texto = bruto
+        for de, para in _ESCAPES_SVG.items():
+            texto = texto.replace(de, para)
+        linhas.append(texto.replace("\xa0", " "))
+    return "\n".join(linhas)

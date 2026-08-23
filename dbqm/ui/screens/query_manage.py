@@ -10,6 +10,7 @@ from textual.widgets import Button, DataTable, Input, Select, Static, TextArea
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +394,9 @@ class QueryManageScreen(Vertical):
     QueryManageScreen {
         height: 1fr;
     }
+    QueryManageScreen #qm-panel {
+        margin: 1 2;
+    }
     QueryManageScreen #qm-empty {
         height: 1fr;
     }
@@ -402,14 +406,15 @@ class QueryManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        yield EmptyState(
-            o_que="Consultas",
-            porque="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
-            acao_rotulo="Criar consulta",
-            acao_id="criar-consulta",
-            id="qm-empty",
-        )
-        yield DataTable(id="qm-table")
+        with Panel("📋  CONSULTAS", id="qm-panel"):
+            yield EmptyState(
+                o_que="Consultas",
+                porque="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
+                acao_rotulo="Criar consulta",
+                acao_id="criar-consulta",
+                id="qm-empty",
+            )
+            yield DataTable(id="qm-table")
 
     def on_mount(self) -> None:
         self._setup_table()

@@ -11,6 +11,7 @@ from textual import work
 from dbqm.ui.utils import escape_markup, NavSelect, prefixo_comum_de_pastas
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.esqueleto import Esqueleto
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.query_list import ClearFiltersRequested, QueryListWidget, QuerySelected
@@ -32,9 +33,11 @@ class QueryExecScreen(Vertical):
     }
     QueryExecScreen #selection-phase {
         height: 1fr;
+        margin: 1 2 0 2;
     }
     QueryExecScreen #results-phase {
         height: 1fr;
+        margin: 1 2 0 2;
     }
     QueryExecScreen #result-info {
         height: auto;
@@ -90,7 +93,7 @@ class QueryExecScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Selection phase
-        with Vertical(id="selection-phase"):
+        with Panel("📋  CONSULTAS", id="selection-phase"):
             yield EmptyState(
                 o_que="Consultas",
                 porque="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
@@ -101,7 +104,7 @@ class QueryExecScreen(Vertical):
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
         # Results phase (hidden initially)
-        with Vertical(id="results-phase"):
+        with Panel("📊  RESULTADO", id="results-phase"):
             yield Static("", id="result-info")
             # A forma da tabela que vem, nao um rodopio: reserva o espaco
             # certo para a primeira execucao, hidden ate `_execute` mostrar.
@@ -136,7 +139,9 @@ class QueryExecScreen(Vertical):
         from dbqm.models.query import load_queries
 
         queries = load_queries()
-        selection = self.query_one("#selection-phase")
+        # `.corpo` e nao o painel: montagem em runtime nao passa pelo
+        # roteamento de `compose_add_child` e cairia fora da moldura.
+        selection = self.query_one("#selection-phase", Panel).corpo
         empty_msg = self.query_one("#empty-message", EmptyState)
 
         if not queries:

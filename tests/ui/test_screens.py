@@ -2405,6 +2405,49 @@ async def test_settings_screen_loads_saved_settings(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("altura", [24, 34])
+async def test_settings_secao_oracle_alcancavel(tmp_config_dir, altura):
+    """A secao Oracle Instant Client tem de ser ALCANCAVEL num terminal real.
+
+    Ela nasceu em y=39 de uma coluna que nao rolava: precisava de 42 linhas
+    de terminal para aparecer, e nao havia como chegar nela. O ajuste do
+    caminho do Instant Client saiu na v1.20.0 justamente para desfazer um
+    ORACLE_HOME de 32 bits que derrubava conexoes em producao — invisivel
+    para quem nao tem uma tela gigante.
+
+    A afirmacao e sobre o que a tela PINTA, e nao sobre `region.height`:
+    com o defeito presente a regiao media 3 linhas de altura nos tres
+    tamanhos testados e ainda assim nada era desenhado, porque o corte vem
+    de um ancestral com `overflow: hidden`.
+    """
+    from textual.widgets import Button
+    from tests.ui._helpers import texto_renderizado
+
+    app = SettingsTestApp()
+    async with app.run_test(size=(120, altura)) as pilot:
+        screen = app.query_one(SettingsScreen)
+        botao = screen.query_one("#btn-oracle-client-dir", Button)
+
+        # O caminho do teclado: focar o botao e o que um Tab faz, e e o
+        # `set_focus` que manda o Textual rolar o ancestral ate ele.
+        botao.focus()
+        await pilot.pause()
+        # A rolagem que o foco dispara e animada: sem esperar, a medicao
+        # cai no meio do caminho (scroll_y 14 de 24) e o teste reprova por
+        # impaciencia em vez de por defeito.
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        pintado = texto_renderizado(app)
+        assert "Definir caminho" in pintado, (
+            "o botao da secao Oracle nao e alcancavel a %d linhas de terminal" % altura
+        )
+        assert "Client em uso" in pintado, (
+            "o status do Instant Client nao e desenhado a %d linhas de terminal" % altura
+        )
+
+
+@pytest.mark.asyncio
 async def test_settings_two_column_panels(tmp_config_dir):
     """CONFIG DA APLICACAO and PORTABILIDADE panels both exist."""
     from dbqm.ui.widgets.panel import Panel

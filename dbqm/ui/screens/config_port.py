@@ -8,6 +8,8 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Checkbox, Input, Static
 
+from dbqm.ui.widgets.panel import Panel
+
 
 class ConfigPortScreen(Vertical):
     """Screen widget for exporting and importing configurations.
@@ -22,12 +24,13 @@ class ConfigPortScreen(Vertical):
     ConfigPortScreen {
         height: 1fr;
         padding: 1 2;
+        /* O formulario de importacao passa da dobra num terminal de 24
+           linhas assim que os dois campos e a barra de acoes se somam a
+           moldura: a tela rola, em vez de esconder o botao Importar. */
+        overflow-y: auto;
     }
-
-    /* -- Mode selection -- */
-    ConfigPortScreen #cp-mode-phase {
+    ConfigPortScreen Panel {
         height: auto;
-        padding: 1;
     }
     ConfigPortScreen .cp-mode-buttons {
         height: auto;
@@ -39,12 +42,6 @@ class ConfigPortScreen(Vertical):
     }
 
     /* -- Export phase -- */
-    ConfigPortScreen #cp-export-phase {
-        height: auto;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
-    }
     ConfigPortScreen .cp-checks {
         height: auto;
         margin-bottom: 1;
@@ -66,12 +63,6 @@ class ConfigPortScreen(Vertical):
     }
 
     /* -- Import phase -- */
-    ConfigPortScreen #cp-import-phase {
-        height: auto;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
-    }
     ConfigPortScreen .cp-field {
         height: auto;
         margin-bottom: 1;
@@ -100,15 +91,13 @@ class ConfigPortScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Phase 1: mode selection
-        with Vertical(id="cp-mode-phase"):
-            yield Static("[bold]Exportar ou Importar configuracoes[/]", markup=True)
+        with Panel("🔄  EXPORTAR OU IMPORTAR", id="cp-mode-phase"):
             with Horizontal(classes="cp-mode-buttons"):
                 yield Button("Exportar", id="cp-btn-export", variant="primary")
                 yield Button("Importar", id="cp-btn-import", variant="default")
 
         # Phase 2: export form
-        with Vertical(id="cp-export-phase"):
-            yield Static("[bold]Exportar configuracoes[/]", markup=True, classes="cp-field-label")
+        with Panel("⬆️  EXPORTAR CONFIGURACOES", id="cp-export-phase"):
             with Vertical(classes="cp-checks"):
                 yield Checkbox("Conexoes", id="cp-chk-connections", value=True)
                 yield Checkbox("Consultas", id="cp-chk-queries", value=True)
@@ -124,8 +113,7 @@ class ConfigPortScreen(Vertical):
                 yield Button("Voltar", id="cp-export-back", variant="default")
 
         # Phase 3: import form
-        with Vertical(id="cp-import-phase"):
-            yield Static("[bold]Importar configuracoes[/]", markup=True, classes="cp-field-label")
+        with Panel("⬇️  IMPORTAR CONFIGURACOES", id="cp-import-phase"):
             with Vertical(classes="cp-field"):
                 yield Static("Caminho do arquivo .dbqm:", classes="cp-field-label")
                 yield Input(placeholder="Ex: C:\\exports\\config.dbqm", id="cp-import-path")

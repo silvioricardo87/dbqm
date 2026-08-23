@@ -14,6 +14,7 @@ from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect, prefixo_comum_d
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
 from dbqm.ui.widgets.progress import ProgressIndicator
@@ -78,9 +79,11 @@ class GroupRunScreen(Vertical):
     }
     GroupRunScreen #gr-selection-phase {
         height: 1fr;
+        margin: 1 2 0 2;
     }
     GroupRunScreen #gr-results-phase {
         height: 1fr;
+        margin: 1 2 0 2;
     }
     GroupRunScreen #gr-result-info {
         height: auto;
@@ -121,7 +124,7 @@ class GroupRunScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Selection phase
-        with Vertical(id="gr-selection-phase"):
+        with Panel("👥  GRUPOS", id="gr-selection-phase"):
             yield EmptyState(
                 o_que="Grupos",
                 porque="Grupos comparam a mesma consulta em varias conexoes de uma vez",
@@ -132,7 +135,7 @@ class GroupRunScreen(Vertical):
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
         # Results phase (hidden initially)
-        with Vertical(id="gr-results-phase"):
+        with Panel("📊  COMPARACAO", id="gr-results-phase"):
             yield Static("", id="gr-result-info")
             yield GroupResultWidget(id="gr-group-result")
 
@@ -157,7 +160,9 @@ class GroupRunScreen(Vertical):
         from dbqm.models.group import load_groups
 
         groups = load_groups()
-        selection = self.query_one("#gr-selection-phase")
+        # `.corpo` e nao o painel: montagem em runtime nao passa pelo
+        # roteamento de `compose_add_child` e cairia fora da moldura.
+        selection = self.query_one("#gr-selection-phase", Panel).corpo
         empty_msg = self.query_one("#gr-empty-message", EmptyState)
 
         if not groups:

@@ -10,6 +10,7 @@ from textual.widgets import Button, DataTable, Input, Static, TextArea
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +135,9 @@ class TemplateManageScreen(Vertical):
     TemplateManageScreen {
         height: 1fr;
     }
+    TemplateManageScreen #tm-panel {
+        margin: 1 2;
+    }
     TemplateManageScreen #tm-empty {
         height: 1fr;
     }
@@ -143,14 +147,15 @@ class TemplateManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        yield EmptyState(
-            o_que="Templates",
-            porque="Templates guardam consultas com parametros para reusar depois",
-            acao_rotulo="Criar template",
-            acao_id="criar-template",
-            id="tm-empty",
-        )
-        yield DataTable(id="tm-table")
+        with Panel("📄  TEMPLATES", id="tm-panel"):
+            yield EmptyState(
+                o_que="Templates",
+                porque="Templates guardam consultas com parametros para reusar depois",
+                acao_rotulo="Criar template",
+                acao_id="criar-template",
+                id="tm-empty",
+            )
+            yield DataTable(id="tm-table")
 
     def on_mount(self) -> None:
         self._setup_table()

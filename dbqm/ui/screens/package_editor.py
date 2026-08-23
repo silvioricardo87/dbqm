@@ -11,6 +11,7 @@ from textual import work
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.progress import ProgressIndicator
 
 
@@ -524,6 +525,9 @@ class PackageEditorScreen(Vertical):
     PackageEditorScreen {
         height: 1fr;
     }
+    PackageEditorScreen #pe-editor-panel {
+        margin: 1 2 0 2;
+    }
     PackageEditorScreen #pe-info-bar {
         height: auto;
         padding: 0 1;
@@ -545,9 +549,10 @@ class PackageEditorScreen(Vertical):
     PackageEditorScreen #pe-error-panel {
         height: auto;
         max-height: 8;
-        padding: 0 1;
-        background: $surface;
-        overflow-y: auto;
+        margin: 0 2 1 2;
+    }
+    PackageEditorScreen #pe-error-text {
+        height: auto;
     }
     PackageEditorScreen #pe-empty {
         height: 1fr;
@@ -573,12 +578,17 @@ class PackageEditorScreen(Vertical):
         self._db = None
 
     def compose(self) -> ComposeResult:
-        yield Static("", id="pe-info-bar")
-        with Horizontal(id="pe-tab-bar"):
-            yield Button("Spec", variant="primary", id="pe-tab-spec")
-            yield Button("Body", variant="default", id="pe-tab-body")
-        yield TextArea("", language="sql", id="pe-editor-area")
-        yield Static("", id="pe-error-panel")
+        with Panel("📦  PACKAGE", id="pe-editor-panel"):
+            yield Static("", id="pe-info-bar")
+            with Horizontal(id="pe-tab-bar"):
+                yield Button("Spec", variant="primary", id="pe-tab-spec")
+                yield Button("Body", variant="default", id="pe-tab-body")
+            yield TextArea("", language="sql", id="pe-editor-area")
+        # O id `#pe-error-panel` passou do Static para a moldura, porque e
+        # ele que os pontos de exibicao ligam e desligam; o texto vive em
+        # `#pe-error-text`.
+        with Panel("⚠  COMPILACAO", id="pe-error-panel"):
+            yield Static("", id="pe-error-text")
         yield ProgressIndicator()
         yield Static(
             "[dim]Carregando editor de packages...[/dim]",
@@ -587,9 +597,7 @@ class PackageEditorScreen(Vertical):
 
     def on_mount(self) -> None:
         # Hide editor widgets until package is loaded
-        self.query_one("#pe-info-bar").display = False
-        self.query_one("#pe-tab-bar").display = False
-        self.query_one("#pe-editor-area").display = False
+        self.query_one("#pe-editor-panel").display = False
         self.query_one("#pe-error-panel").display = False
 
         # Start the modal flow
@@ -655,9 +663,7 @@ class PackageEditorScreen(Vertical):
 
         # Show editor widgets, hide empty
         self.query_one("#pe-empty").display = False
-        self.query_one("#pe-info-bar").display = True
-        self.query_one("#pe-tab-bar").display = True
-        self.query_one("#pe-editor-area").display = True
+        self.query_one("#pe-editor-panel").display = True
         self.query_one("#pe-error-panel").display = False
 
         # Load spec content into TextArea
@@ -833,7 +839,8 @@ class PackageEditorScreen(Vertical):
     ) -> None:
         """Handle compilation result on the main thread."""
         self.query_one(ProgressIndicator).stop()
-        error_panel = self.query_one("#pe-error-panel", Static)
+        error_panel = self.query_one("#pe-error-panel", Panel)
+        error_texto = self.query_one("#pe-error-text", Static)
 
         if errors:
             # Show compilation errors
@@ -844,13 +851,13 @@ class PackageEditorScreen(Vertical):
                 lines.append(
                     f"  Linha {err['line']}, Col {err['col']}: {err['message']}"
                 )
-            error_panel.update("\n".join(lines))
+            error_texto.update("\n".join(lines))
             error_panel.display = True
         elif not success:
-            error_panel.update(f"[bold $op-falha]Erro: {error_msg}[/]")
+            error_texto.update(f"[bold $op-falha]Erro: {error_msg}[/]")
             error_panel.display = True
         else:
-            error_panel.update(
+            error_texto.update(
                 f"[bold]  {target.capitalize()} compilado com sucesso![/]"
             )
             error_panel.display = True

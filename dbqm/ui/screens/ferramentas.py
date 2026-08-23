@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.widgets import Button, ContentSwitcher, Label
+from textual.widgets import Button, ContentSwitcher
+
+from dbqm.ui.widgets.panel import Panel
 
 
 class FerramentasScreen(Vertical):
@@ -18,11 +20,7 @@ class FerramentasScreen(Vertical):
     }
     FerramentasScreen #ferr-menu {
         height: 1fr;
-        padding: 1 2;
-    }
-    FerramentasScreen #ferr-menu-title {
-        text-style: bold;
-        margin-bottom: 1;
+        margin: 1 2;
     }
     FerramentasScreen #ferr-menu Button {
         width: 100%;
@@ -43,8 +41,10 @@ class FerramentasScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial="ferr-menu"):
-            with Vertical(id="ferr-menu"):
-                yield Label("Ferramentas", id="ferr-menu-title")
+            # So o menu ganha moldura. Cada painel de ferramenta hospeda
+            # uma TELA inteira, que ja e composta de Panels — enquadrar de
+            # novo aqui seria caixa dentro de caixa (diretriz 5).
+            with Panel("🧰  FERRAMENTAS", id="ferr-menu"):
                 yield Button("\U0001F465  Gerenciar Grupos", id="ferr-open-grupos")
                 yield Button("\U0001F4C4  Gerenciar Templates", id="ferr-open-templates")
                 yield Button("\U0001F4E6  Package Editor", id="ferr-open-packages")

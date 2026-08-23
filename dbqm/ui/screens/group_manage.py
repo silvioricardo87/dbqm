@@ -10,6 +10,7 @@ from textual.widgets import Button, DataTable, Input, Select, Static, SelectionL
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 
 
 # ---------------------------------------------------------------------------
@@ -452,6 +453,9 @@ class GroupManageScreen(Vertical):
     GroupManageScreen {
         height: 1fr;
     }
+    GroupManageScreen #gm-panel {
+        margin: 1 2;
+    }
     GroupManageScreen #gm-empty {
         height: 1fr;
     }
@@ -461,14 +465,15 @@ class GroupManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        yield EmptyState(
-            o_que="Grupos",
-            porque="Grupos comparam a mesma consulta em varias conexoes de uma vez",
-            acao_rotulo="Criar grupo",
-            acao_id="criar-grupo",
-            id="gm-empty",
-        )
-        yield DataTable(id="gm-table")
+        with Panel("👥  GRUPOS", id="gm-panel"):
+            yield EmptyState(
+                o_que="Grupos",
+                porque="Grupos comparam a mesma consulta em varias conexoes de uma vez",
+                acao_rotulo="Criar grupo",
+                acao_id="criar-grupo",
+                id="gm-empty",
+            )
+            yield DataTable(id="gm-table")
 
     def on_mount(self) -> None:
         self._setup_table()

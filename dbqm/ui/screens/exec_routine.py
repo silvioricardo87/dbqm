@@ -11,6 +11,7 @@ from textual import work
 
 from dbqm.ui.utils import sanitize_id, escape_markup
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.progress import ProgressIndicator
 
 
@@ -45,8 +46,8 @@ class ExecRoutineScreen(Vertical):
         height: 1fr;
     }
     ExecRoutineScreen #er-select-phase {
-        height: 1fr;
-        padding: 1 2;
+        height: auto;
+        margin: 1 2;
     }
     ExecRoutineScreen #er-select-phase Select {
         width: 60;
@@ -124,8 +125,14 @@ class ExecRoutineScreen(Vertical):
         self._param_inputs: dict[str, Input] = {}
 
     def compose(self) -> ComposeResult:
+        # Um Panel por fase. Nao subdividi a fase 3 em tres paineis
+        # irmaos (detalhe / parametros / resultado) de proposito: os
+        # filhos dela sao dimensionados em `1fr` dentro de um unico
+        # container, e reparti-los mudaria a altura de cada um e ainda
+        # poria um `VerticalScroll` focavel dentro de um corpo de painel
+        # que tambem rola — rolagem aninhada, que prende o teclado.
         # Phase 1: Connection + type selection
-        with Vertical(id="er-select-phase"):
+        with Panel("🔌  CONEXAO E TIPO", id="er-select-phase"):
             yield Label("Selecione a conexao:")
             yield Select([], prompt="Conexao", id="er-conn-select")
             yield Label("Tipo de objeto:", id="er-type-label")
@@ -133,13 +140,13 @@ class ExecRoutineScreen(Vertical):
                 pass  # buttons added dynamically
         yield ProgressIndicator()
         # Phase 2: Object list
-        with Vertical(id="er-list-phase"):
+        with Panel("📂  OBJETOS", id="er-list-phase"):
             with Horizontal(id="er-filter-bar"):
                 yield Input(placeholder="Filtrar...", id="er-filter-input")
                 yield Button("Buscar", id="er-filter-btn", variant="primary")
             yield DataTable(id="er-obj-table")
         # Phase 3: Detail + params + execution
-        with Vertical(id="er-detail-phase"):
+        with Panel("▶  ROTINA", id="er-detail-phase"):
             yield Static("", id="er-detail-info")
             yield DataTable(id="er-routines-table")
             with VerticalScroll(id="er-param-area"):

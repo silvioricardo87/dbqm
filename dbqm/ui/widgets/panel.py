@@ -36,6 +36,14 @@ class Panel(Vertical):
     Panel > #panel-body {
         height: 1fr;
         padding: 1 1;
+        /* Transbordo vertical VISIVEL: um painel mais alto que a caixa
+           rola, em vez de cortar em silencio. A secao Oracle Instant
+           Client das Configuracoes nascia em y=39 de um corpo que nao
+           rolava — nao havia como chegar nela num terminal de 24 linhas.
+           `auto` e nao `scroll` de proposito: quando o filho ocupa `1fr`
+           (DataTable, OptionList) nada transborda, nenhuma barra aparece
+           e nao se cria rolagem aninhada em cima da do proprio widget. */
+        overflow-y: auto;
     }
     /* guideline 5: inner widgets carry no border of their own */
     Panel #panel-body DataTable,
@@ -73,6 +81,18 @@ class Panel(Vertical):
             body = self.query_one("#panel-body", Vertical)
             body.mount(*self._panel_pending_children)
             self._panel_pending_children = []
+
+    @property
+    def corpo(self) -> Vertical:
+        """O container onde o conteudo do painel vive.
+
+        `compose_add_child` so roteia o que o chamador rende dentro do
+        `with Panel(...)`. Montagem em RUNTIME (`painel.mount(...)`, como a
+        barra de filtro e a lista de `query_exec`/`group_run` fazem) nao
+        passa por ele e cairia como IRMA de `#panel-title`/`#panel-body`,
+        fora da moldura. Quem monta depois do compose monta aqui.
+        """
+        return self.query_one("#panel-body", Vertical)
 
     def set_title(self, title: str) -> None:
         self._title = title

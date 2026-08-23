@@ -17,6 +17,7 @@ from dbqm.core import oracle_client_installer as oci
 from dbqm.core.paths import CLIENTS_DIR
 from dbqm.ui.modals.confirm import ConfirmModal
 from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 
 
 class OracleClientsScreen(Vertical):
@@ -26,16 +27,12 @@ class OracleClientsScreen(Vertical):
     OracleClientsScreen {
         height: 1fr;
         padding: 1 2;
+        /* Tres secoes empilhadas de altura automatica passam de 24 linhas
+           assim que ha um client instalado: a tela rola, com o transbordo
+           visivel, em vez de cortar a ultima secao em silencio. */
+        overflow-y: auto;
     }
-    OracleClientsScreen .oc-section {
-        height: auto;
-        margin-bottom: 1;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
-    }
-    OracleClientsScreen .oc-label {
-        text-style: bold;
+    OracleClientsScreen Panel {
         height: auto;
         margin-bottom: 1;
     }
@@ -89,8 +86,7 @@ class OracleClientsScreen(Vertical):
         self._busy = False
 
     def compose(self) -> ComposeResult:
-        with Vertical(classes="oc-section"):
-            yield Static("Plataforma detectada", classes="oc-label")
+        with Panel("🖥️  PLATAFORMA DETECTADA", id="oc-platform-panel"):
             yield Static(
                 f"[b]{oci.host_platform_label(self._host)}[/b]   "
                 f"[dim]({self._host[0]}/{self._host[1]})[/dim]",
@@ -103,8 +99,7 @@ class OracleClientsScreen(Vertical):
                 markup=True,
             )
 
-        with Vertical(classes="oc-section"):
-            yield Static("Clients instalados", classes="oc-label")
+        with Panel("📦  CLIENTS INSTALADOS", id="oc-installed-panel"):
             yield EmptyState(
                 o_que="Clients instalados",
                 porque="O Oracle Instant Client permite conectar a bancos Oracle sem instalacao completa",
@@ -118,8 +113,7 @@ class OracleClientsScreen(Vertical):
                 yield Button("Remover selecionado", variant="error", id="oc-remove-btn")
                 yield Button("Atualizar lista", variant="default", id="oc-refresh-btn")
 
-        with Vertical(classes="oc-section"):
-            yield Static("Disponiveis para download", classes="oc-label")
+        with Panel("⬇️  DISPONIVEIS PARA DOWNLOAD", id="oc-available-panel"):
             yield DataTable(id="oc-available-table", cursor_type="row")
             with Horizontal():
                 yield Button("Instalar selecionado", variant="primary", id="oc-install-btn")

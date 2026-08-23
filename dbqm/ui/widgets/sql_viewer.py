@@ -9,6 +9,13 @@ class SqlViewer(Static):
     """A read-only SQL display widget with syntax highlighting.
 
     Uses Rich's Syntax object for monokai-themed SQL highlighting.
+
+    Nao desenha moldura propria. Os tres lugares que a montam ja a colocam
+    dentro de uma: `Panel("RESULTADOS")` no adhoc, `Panel("DADOS")` no
+    browser e um `Dialog` no `SqlViewerModal`. O `border: round $accent`
+    que ela carregava era caixa dentro de caixa nos tres — exatamente o
+    que a diretriz 5 do `Panel` zera para DataTable/OptionList/TextArea/
+    Input/Select, e que so nao a alcancava por ela ser um `Static`.
     """
 
     DEFAULT_CSS = """
@@ -16,7 +23,6 @@ class SqlViewer(Static):
         height: auto;
         max-height: 20;
         overflow-y: auto;
-        border: round $accent;
         padding: 1;
     }
     """
