@@ -1387,6 +1387,35 @@ def test_item_hierarquico_omite_so_a_linha_do_meio_quando_so_ela_falta():
     assert "Oracle/TNS" in linhas[1]
 
 
+def test_item_hierarquico_recua_toda_linha_de_um_campo_multi_linha():
+    """Um campo (desambiguacao ou contexto) que ja chega com quebra de
+    linha embutida (ex.: connections.py pre-quebrando uma descricao longa
+    em duas linhas logicas) tem que ter o recuo em CADA linha, nao so na
+    primeira. Recuo e a pista de "isto pertence a entrada acima"; perde-la
+    numa continuacao alinha essa linha com a coluna da IDENTIDADE (a
+    proxima entrada), o mesmo defeito que motivou esta fase inteira -
+    nao dar pra saber onde uma entrada termina e a outra comeca."""
+    from dbqm.ui.widgets.lista_hierarquica import _RECUO, item_hierarquico
+
+    contexto = "\n".join([
+        "Portal ASDADM em ATSSUS ambiente",
+        "da sustentacao Mapfre com",
+        "replicacao",
+    ])
+    c = item_hierarquico("ASDADM (ASD)", "Oracle/TNS - ATSSUS", contexto)
+    linhas = str(c).split("\n")
+    assert len(linhas) == 5
+    assert linhas[0] == "ASDADM (ASD)"
+    # As quatro linhas de desambiguacao+contexto tem TODAS o mesmo recuo -
+    # nenhuma comeca na coluna 0, coluna da identidade.
+    for linha in linhas[1:]:
+        assert linha.startswith(_RECUO), f"linha sem recuo: {linha!r}"
+    assert linhas[1] == _RECUO + "Oracle/TNS - ATSSUS"
+    assert linhas[2] == _RECUO + "Portal ASDADM em ATSSUS ambiente"
+    assert linhas[3] == _RECUO + "da sustentacao Mapfre com"
+    assert linhas[4] == _RECUO + "replicacao"
+
+
 def test_item_hierarquico_nao_interpreta_colchetes_do_conteudo_como_markup():
     """Nome de conexao ou descricao vem de dado do usuario, e texto livre
     com colchete (tag de ambiente, referencia de ticket) e padrao plausivel

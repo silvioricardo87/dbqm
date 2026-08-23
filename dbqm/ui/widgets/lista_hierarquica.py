@@ -36,6 +36,33 @@ from textual.content import Content
 _RECUO = "  "
 
 
+def _campo_recuado(texto: str, estilo: str) -> Content:
+    """Monta um campo (desambiguacao ou contexto) com o recuo em TODA
+    linha, nao so na primeira.
+
+    Um campo pode chegar aqui com quebra de linha ja embutida — por
+    exemplo `connections.py` pre-quebra uma descricao longa em duas
+    linhas logicas antes de chamar `item_hierarquico`. Se o recuo fosse
+    aplicado uma vez so, na frente do bloco inteiro (como uma unica
+    `Content.assemble` faria), a segunda linha em diante ficaria alinhada
+    a coluna 0 — a MESMA coluna da identidade da proxima entrada. Recuo e
+    a pista de "isto pertence a entrada acima"; perde-la numa continuacao
+    e o defeito que motivou esta fase inteira, so que numa escala menor.
+
+    Cada linha vira seu proprio `Content.assemble(_RECUO, (linha, estilo))`
+    — recuo como span proprio, nao espaco somado ao texto do campo por
+    quem chama — e as linhas sao unidas com `Content("\n").join(...)`,
+    que preserva os spans de cada uma. Nenhum espaco extra entra no
+    `.plain` alem do recuo em si; `.plain` continua igual ao texto que o
+    chamador passou, so que com o recuo antes de cada linha.
+    """
+    partes = [
+        Content.assemble(_RECUO, (linha, estilo))
+        for linha in texto.split("\n")
+    ]
+    return Content("\n").join(partes)
+
+
 def item_hierarquico(
     identidade: str,
     desambiguacao: str = "",
@@ -49,14 +76,21 @@ def item_hierarquico(
     `group_result.py._status_cell`). Cada campo e um trecho estilizado via
     `Content.assemble`, nao markup parseado — o texto do usuario chega ao
     `Content` final byte a byte, sem escape e sem risco de fechar tag.
+
+    Se `desambiguacao` ou `contexto` trouxerem `\n` (um chamador que
+    pre-quebra texto longo em varias linhas logicas), CADA linha recebe o
+    recuo — ver `_campo_recuado`. Isto NAO cobre a quebra automatica que
+    o proprio Textual faz quando uma linha unica (sem `\n`) e mais larga
+    que o widget: aquele wrap e feito no render, depois que este `Content`
+    ja foi montado, e o Textual nao oferece um jeito de dar indentacao
+    persistente a continuacao de uma linha assim. Quem quiser recuo
+    garantido numa linha muito longa precisa pre-quebra-la em `\n` antes
+    de chamar esta funcao (e dimensionar a largura de quebra contando que
+    agora toda linha do campo paga o recuo).
     """
     linha = Content.assemble((identidade, "bold $texto-forte"))
     if desambiguacao:
-        linha = linha + "\n" + Content.assemble(
-            _RECUO, (desambiguacao, "$texto-apoio")
-        )
+        linha = linha + "\n" + _campo_recuado(desambiguacao, "$texto-apoio")
     if contexto:
-        linha = linha + "\n" + Content.assemble(
-            _RECUO, (contexto, "$texto-desabilitado")
-        )
+        linha = linha + "\n" + _campo_recuado(contexto, "$texto-desabilitado")
     return linha
