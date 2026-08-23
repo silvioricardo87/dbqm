@@ -14,7 +14,12 @@ from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.esqueleto import Esqueleto
 from dbqm.ui.widgets.progress import ProgressIndicator
-from dbqm.ui.widgets.query_list import ClearFiltersRequested, QueryListWidget, QuerySelected
+from dbqm.ui.widgets.query_list import (
+    ClearFiltersRequested,
+    LARGURA_PAINEL_LISTA,
+    QueryListWidget,
+    QuerySelected,
+)
 from dbqm.ui.widgets.result_table import ResultTable
 
 from dbqm.core.query_engine import QueryResult
@@ -31,9 +36,18 @@ class QueryExecScreen(Vertical):
     QueryExecScreen {
         height: 1fr;
     }
+    /* Largura FIXA, e nao `1fr`: a lista de consultas quebra a descricao
+       em `\\n` antes do render para que toda linha de continuacao pague o
+       recuo, e para quebrar e preciso saber a largura de antemao. O
+       numero vem de `query_list.LARGURA_PAINEL_LISTA` — a mesma
+       constante que a quebra usa, para que CSS e aritmetica nao possam
+       divergir. O preco (o painel para de crescer com o terminal) esta
+       escrito la. `#results-phase` continua elastico: tabela precisa de
+       toda a largura que houver. */
     QueryExecScreen #selection-phase {
         height: 1fr;
         margin: 1 2 0 2;
+        width: __LARGURA_PAINEL_LISTA__;
     }
     QueryExecScreen #results-phase {
         height: 1fr;
@@ -67,7 +81,7 @@ class QueryExecScreen(Vertical):
         width: 34;
         margin: 0 0 0 1;
     }
-    """
+    """.replace("__LARGURA_PAINEL_LISTA__", str(LARGURA_PAINEL_LISTA))
 
     def __init__(
         self,

@@ -29,16 +29,116 @@ Isso evita de raiz a assimetria conhecida do parser do Textual entre `\[` e
 construida em cima desse comportamento) sem tocar em `escape_markup` — que e
 compartilhada com seis outros chamadores e nao e usada aqui.
 
-Ao lado do `Content`, o modulo entrega `OpcaoNomeada` — a `Option` que
-leva esse conteudo pro `OptionList` carregando o nome do item como dado,
-e nao como `id`. A razao esta na docstring da classe.
+Ao lado do `Content`, o modulo entrega o par `largura_de_quebra` /
+`quebrar_em_linhas`, que e o que torna a hierarquia verdadeira em texto
+longo: sem pre-quebra em `\n`, a continuacao de uma linha larga demais
+volta para a coluna 0 — a coluna da identidade da entrada SEGUINTE — e o
+defeito reaparece inteiro. A conta mora aqui, e nao em cada tela, porque
+so depende do CSS de `Panel`/`OptionList`; a largura do painel e que fica
+com a tela.
+
+E entrega tambem `OpcaoNomeada` — a `Option` que leva esse conteudo pro
+`OptionList` carregando o nome do item como dado, e nao como `id`. A
+razao esta na docstring da classe.
 """
 from __future__ import annotations
+
+import textwrap
 
 from textual.content import Content
 from textual.widgets.option_list import Option
 
 _RECUO = "  "
+
+
+# ----------------------------------------------------------------------
+# Largura de quebra — a conta que todo chamador que pre-quebra texto
+# precisa fazer, num lugar so.
+#
+# Quem pre-quebra (ver `quebrar_em_linhas` e a docstring de
+# `item_hierarquico`) precisa saber quantas colunas sobram para o TEXTO
+# dentro de um `OptionList` que vive num `Panel`. Cada parcela abaixo e
+# lida do CSS que a declara, nenhuma medida em runtime:
+#
+#   - `Panel` (dbqm/ui/widgets/panel.py): `border: round` = 1 coluna de
+#     cada lado.
+#   - `Panel > #panel-body`: `padding: 1 1` = 1 coluna de cada lado
+#     (vertical, horizontal); o horizontal e o que importa aqui.
+#   - `OptionList` (textual.widgets, DEFAULT_CSS): `padding: 0 1` = 1
+#     coluna de cada lado; a borda propria dela (`border: tall`) e zerada
+#     por `Panel #panel-body OptionList { border: none; }`, entao nao
+#     entra nesta conta.
+#
+# Cada "de cada lado" vale 2 (esquerda + direita).
+_BORDA_PANEL = 2
+_PADDING_PANEL_BODY = 2
+_PADDING_OPTION_LIST = 2
+
+# A barra de rolagem vertical do OptionList — 2 colunas, o padrao do
+# proprio Textual (`Widget().styles.scrollbar_size_vertical == 2`; nenhuma
+# das listas sobrescreve `scrollbar-size-vertical`, entao vale o padrao).
+# So aparece quando a lista transborda verticalmente, o que depende de
+# quantos itens existem — fora do controle de quem monta a tela.
+# Descontada INCONDICIONALMENTE: o pior caso (lista rolavel) e o caso
+# comum em uso real, e nao descontar significa que a largura calculada so
+# bate pra uma lista curta demais pra rolar.
+#
+# Esta e a parcela que custou quatro rodadas na lista de Conexoes, e o
+# motivo esta na assimetria da API do Textual: `content_region` NAO
+# desconta a barra de rolagem, `scrollable_content_region` desconta. Uma
+# largura derivada de `content_region` medido numa lista curta passa em
+# teste e sai errada em uso — foi assim que a linha "...ambiente" saiu
+# sem recuo, alinhada com a coluna de identidade da entrada seguinte.
+# Quem for reverificar esta conta: meca com a lista REALMENTE rolando
+# (`show_vertical_scrollbar is True`) e leia `scrollable_content_region`.
+_SCROLLBAR_VERTICAL = 2
+
+# O recuo que `_campo_recuado` antepoe a CADA linha de
+# desambiguacao/contexto. Entra na conta porque a largura util e a do
+# texto, nao a da linha: pre-quebrar em N colunas e depois somar o recuo
+# devolve N+2 colunas de linha, que e exatamente 2 a mais do que cabe.
+_RECUO_CONTEXTO = len(_RECUO)
+
+
+def largura_de_quebra(largura_do_painel: int) -> int:
+    """Colunas de TEXTO disponiveis num item de lista, dado o painel.
+
+    Recebe a largura do `Panel` que hospeda o `OptionList` (o valor que o
+    CSS da tela declara) e devolve o que sobra para o texto depois da
+    borda do Panel, do padding do corpo, do padding do OptionList, da
+    barra de rolagem (pior caso) e do recuo que a propria linha paga.
+
+    A largura do painel FICA COM A TELA — Conexoes e Consultas tem
+    paineis de tamanhos diferentes e assim deve ser (um e a coluna
+    esquerda de um master-detail, o outro e a tela inteira). O que e
+    compartilhado e a DERIVACAO, que so depende do CSS de `Panel` e de
+    `OptionList` e e identica nos dois lugares — duplica-la seria abrir
+    espaco para as duas copias divergirem quando esse CSS mudar.
+    """
+    return (
+        largura_do_painel
+        - _BORDA_PANEL
+        - _PADDING_PANEL_BODY
+        - _PADDING_OPTION_LIST
+        - _SCROLLBAR_VERTICAL
+        - _RECUO_CONTEXTO
+    )
+
+
+def quebrar_em_linhas(texto: str, largura: int) -> str:
+    """Pre-quebra *texto* em `\\n` a cada *largura* colunas.
+
+    O `\\n` e o que garante o recuo: `item_hierarquico` recua cada linha
+    logica, e so elas — a quebra automatica que o Textual faz numa linha
+    unica larga demais acontece no render e nao tem como ser recuada (ver
+    a docstring de `item_hierarquico`). Colapsa espaco em branco antes de
+    quebrar para que uma descricao com quebras proprias nao estoure a
+    gramatica de uma linha por papel.
+    """
+    if not texto:
+        return ""
+    achatado = " ".join(texto.split())
+    return "\n".join(textwrap.wrap(achatado, width=largura) or [""])
 
 
 def _campo_recuado(texto: str, estilo: str) -> Content:
@@ -90,8 +190,11 @@ def item_hierarquico(
     ja foi montado, e o Textual nao oferece um jeito de dar indentacao
     persistente a continuacao de uma linha assim. Quem quiser recuo
     garantido numa linha muito longa precisa pre-quebra-la em `\n` antes
-    de chamar esta funcao (e dimensionar a largura de quebra contando que
-    agora toda linha do campo paga o recuo).
+    de chamar esta funcao — e e o que `quebrar_em_linhas` faz, na largura
+    que `largura_de_quebra` deriva (ela ja desconta o recuo que toda
+    linha do campo passa a pagar). As listas de Conexoes e de Consultas
+    fazem isso; e por isso que os paineis das duas tem largura fixa no
+    CSS.
     """
     linha = Content.assemble((identidade, "bold $texto-forte"))
     if desambiguacao:

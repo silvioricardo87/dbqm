@@ -762,3 +762,145 @@ async def test_o_voltar_das_ferramentas_nao_vaza_para_outra_aba(tmp_config_dir):
         assert "Nova" not in pintado, (
             "sobrou acao da aba Conexoes: %r" % pintado[-300:]
         )
+
+
+# ======================================================================
+# A lista de Consultas: continuacao de descricao nunca na coluna da
+# identidade.
+#
+# Este e o defeito que abriu a fase inteira, nas palavras do mantenedor:
+# "a lista de conexoes acima de duas linhas fica dificil de distinguir
+# quando termina o nome de uma conexao e quando comeca outra". Conexoes
+# foi curada; Consultas seguia doente em TODA largura, porque
+# `query_list` entregava a descricao como uma linha longa e a quebra
+# automatica do Textual (feita no render, depois do `Content` montado)
+# nao tem como recuar a continuacao.
+#
+# Os dois testes abaixo cobrem os dois lados da mesma cura: o de cima
+# prova a ARITMETICA contra o widget montado, o de baixo prova o
+# RENDERIZADO. Nenhum dos dois sozinho basta — a conta pode fechar no
+# papel e a tela sair torta, e o renderizado de um tamanho so nao diz
+# que a conta vale nos outros.
+# ======================================================================
+
+
+def _consultas_de_descricao_longa(quantidade: int = 24):
+    """Consultas suficientes pra lista ROLAR, metade com descricao que
+    nao cabe numa linha do painel."""
+    from dbqm.models.query import Query
+
+    longa = (
+        "Descricao longa o bastante para transbordar a largura do painel "
+        "e provar a hierarquia do item em mais de uma quebra por largura."
+    )
+    return [
+        Query(
+            name=f"Consulta {i:02d}",
+            sql="select 1 from dual",
+            connection="ASDADM",
+            table="ASD",
+            description=longa if i % 2 == 0 else "curta",
+        )
+        for i in range(quantidade)
+    ]
+
+
+async def _abrir_consultas(pilot):
+    await pilot.pause()
+    await pilot.press("f7")
+    await pilot.pause()
+    await pilot.wait_for_scheduled_animations()
+    await pilot.pause()
+
+
+@pytest.mark.asyncio
+async def test_largura_de_quebra_da_lista_de_consultas_cabe_rolando(tmp_config_dir):
+    """`_LARGURA_TEXTO` foi derivada assumindo o pior caso (barra de
+    rolagem presente). Prova a suposicao contra o widget montado.
+
+    Mede COM A LISTA ROLANDO e le `scrollable_content_region`, nao
+    `content_region`: a licao que fechou a mesma correcao em Conexoes
+    depois de tres rodadas falhas e que `content_region` NAO desconta a
+    barra de rolagem — uma largura derivada dele com uma lista curta
+    passa no teste e sai errada em uso. A afirmacao e a RELACAO (texto +
+    recuo cabe no que sobra), nao um numero cravado: um numero cravado
+    envelhece junto com o CSS sem avisar.
+    """
+    from textual.widgets import OptionList
+    from dbqm.models.query import save_queries
+    from dbqm.ui.widgets.lista_hierarquica import _RECUO
+    from dbqm.ui.widgets.query_list import _LARGURA_TEXTO
+
+    save_queries(_consultas_de_descricao_longa())
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _abrir_consultas(pilot)
+        lista = app.query_one("#ql-listview", OptionList)
+        assert lista.show_vertical_scrollbar, (
+            "o teste so prova o pior caso se a lista estiver realmente "
+            "rolando"
+        )
+        assert _LARGURA_TEXTO + len(_RECUO) <= lista.scrollable_content_region.width
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
+async def test_descricao_de_consulta_nunca_cai_na_coluna_da_identidade(
+    tmp_config_dir, tamanho
+):
+    """Nenhuma linha de descricao pode comecar na coluna da identidade.
+
+    Afirma o que a tela PINTA, na DBQMApp real, dentro da regiao util do
+    proprio `OptionList` — e nao um atributo do `Content`, que continuava
+    verde com o defeito presente (o `Content` sempre teve o recuo; quem o
+    perdia era a quebra do render).
+
+    Medido antes da correcao, nas duas larguras: a continuacao de
+    "Descricao longa..." saia em `indent=0`, encostada na coluna do
+    `☆ Consulta ...` seguinte. As duas larguras estao aqui porque a
+    quebra automatica cai em pontos diferentes em cada uma — uma so nao
+    prova que a largura de quebra vale nas outras.
+    """
+    from textual.widgets import OptionList
+    from dbqm.models.query import save_queries
+    from tests.ui._helpers import linhas_renderizadas
+
+    save_queries(_consultas_de_descricao_longa())
+
+    app = DBQMApp()
+    async with app.run_test(size=tamanho) as pilot:
+        await _abrir_consultas(pilot)
+        lista = app.query_one("#ql-listview", OptionList)
+        assert lista.show_vertical_scrollbar, (
+            "o defeito so aparece com a lista rolando (a barra rouba 2 "
+            "colunas): o teste nao partiu do estado que descreve"
+        )
+
+        regiao = lista.scrollable_content_region
+        painted = linhas_renderizadas(app)
+        linhas = [
+            painted[y][regiao.x : regiao.x + regiao.width]
+            for y in range(regiao.y, min(regiao.y + regiao.height, len(painted)))
+        ]
+
+        # Identidade e a unica linha que pode encostar na coluna 0 — e ela
+        # se anuncia pela estrela de favorito.
+        continuacoes = [
+            linha for linha in linhas
+            if linha.strip() and not linha.startswith((" ", "★", "☆"))
+        ]
+        assert not continuacoes, (
+            "linha de descricao/desambiguacao na coluna da identidade "
+            "em %sx%s: %r" % (tamanho[0], tamanho[1], continuacoes)
+        )
+
+        # E a lista realmente mostrou uma descricao de mais de uma linha —
+        # senao o teste passaria por nao ter o que checar.
+        recuadas = [linha for linha in linhas if linha.startswith("  Descricao longa")]
+        assert recuadas, "nenhuma descricao longa foi pintada: %r" % linhas
+        continuacao = [linha for linha in linhas if linha.startswith("  provar a hierarquia")]
+        assert continuacao, (
+            "a descricao coube numa linha so; sem transbordo nao ha o que "
+            "provar: %r" % linhas
+        )

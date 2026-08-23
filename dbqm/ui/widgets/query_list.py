@@ -11,7 +11,42 @@ from textual.message import Message
 from textual.widgets import Button, Input, OptionList, Static
 
 from dbqm.ui.widgets.empty_state import EmptyState
-from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
+from dbqm.ui.widgets.lista_hierarquica import (
+    OpcaoNomeada,
+    item_hierarquico,
+    largura_de_quebra,
+    quebrar_em_linhas,
+)
+
+
+# Largura do painel que hospeda esta lista (`#selection-phase`, em
+# `dbqm/ui/screens/query_exec.py`). Mora aqui, e nao la, porque quem
+# precisa dela para quebrar o texto e este modulo; a tela importa esta
+# constante para o proprio CSS, de modo que a largura declarada e a
+# largura assumida na quebra sejam literalmente o mesmo numero.
+#
+# O PRECO desta constante, escrito porque e uma escolha e nao um ganho
+# puro: o painel de Consultas DEIXA DE SER ELASTICO. Antes ele crescia
+# com o terminal (116 colunas num terminal de 120); agora para em 76 e o
+# que sobra a direita fica vazio. Foi a troca aceita para curar o defeito
+# que abriu esta fase — a descricao de uma consulta transbordava a
+# largura, o Textual quebrava a linha no render, e a continuacao caia na
+# coluna 0, a MESMA coluna da identidade da consulta seguinte; o olho nao
+# distinguia continuacao de entrada nova. Recuo garantido exige quebra
+# em `\n` antes do render (ver `item_hierarquico`), e quebrar em `\n`
+# exige saber a largura antes do render.
+#
+# 76 e a largura que o painel ja tinha no terminal mais estreito que o
+# produto suporta (80 colunas menos o `margin: 1 2 0 2` da tela, 4
+# colunas). Escolhida assim de proposito: a 80x24 nada muda de lugar, e
+# so terminais mais largos pagam o preco.
+LARGURA_PAINEL_LISTA = 76
+
+# Colunas de texto que sobram dentro desse painel — derivacao unica,
+# compartilhada com a lista de Conexoes (que tem painel de 42). Ver
+# `largura_de_quebra` para as parcelas e para a armadilha da barra de
+# rolagem.
+_LARGURA_TEXTO = largura_de_quebra(LARGURA_PAINEL_LISTA)
 
 
 class QuerySelected(Message):
@@ -60,12 +95,20 @@ def _query_option(query: Any) -> OpcaoNomeada:
     # Desambiguacao: conexao e tabela sao o que distingue duas consultas
     # de nome parecido — mesmo par (alvo, conexao) que o docstring de
     # item_hierarquico usa como exemplo.
-    desambiguacao = f"{conn} - {table}" if conn and table else (conn or table)
+    alvo = f"{conn} - {table}" if conn and table else (conn or table)
     # Contexto: descricao, sem corte artificial — a hierarquia (linha
     # propria, recuada, em $texto-desabilitado) e o que a torna legivel,
-    # nao um limite de caracteres. Colapsa quebras de linha internas
-    # para nao estourar a gramatica de uma linha por papel.
-    contexto = " ".join(desc.split())
+    # nao um limite de caracteres. O que ha e QUEBRA, nao corte: nenhum
+    # caractere se perde, so ganha `\n` a cada `_LARGURA_TEXTO` colunas.
+    #
+    # A quebra e o conserto. Sem ela, `item_hierarquico` recebia a
+    # descricao como UMA linha longa, o Textual a quebrava no render e a
+    # continuacao saia na coluna 0 — colada, para o olho, na identidade
+    # da consulta seguinte. Os dois campos passam por aqui porque os dois
+    # sao texto do usuario de comprimento livre: um nome de conexao e uma
+    # tabela longos transbordam do mesmo jeito que a descricao.
+    desambiguacao = quebrar_em_linhas(alvo, _LARGURA_TEXTO)
+    contexto = quebrar_em_linhas(desc, _LARGURA_TEXTO)
 
     conteudo = star + item_hierarquico(name, desambiguacao, contexto)
     return OpcaoNomeada(conteudo, name)

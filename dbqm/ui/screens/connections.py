@@ -11,7 +11,7 @@ from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
-from dbqm.ui.widgets.lista_hierarquica import _RECUO, item_hierarquico
+from dbqm.ui.widgets.lista_hierarquica import item_hierarquico, largura_de_quebra
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -53,55 +53,18 @@ DEFAULT_HOSTS = {
 # o "limite" da descricao).
 _LARGURA_PAINEL_LISTA = 42
 
-# Consumo de largura entre a borda do painel e o primeiro caractere de
-# texto de uma opcao, cada numero lido do CSS que o declara (nenhum
-# medido em runtime):
-#   - `Panel` (dbqm/ui/widgets/panel.py): `border: round` = 1 coluna de
-#     cada lado.
-#   - `Panel > #panel-body`: `padding: 1 1` = 1 coluna de cada lado
-#     (vertical, horizontal) — o valor horizontal e o que importa aqui.
-#   - `OptionList` (textual.widgets, DEFAULT_CSS): `padding: 0 1` = 1
-#     coluna de cada lado; a borda propria dela (`border: tall`) e
-#     zerada por `Panel #panel-body OptionList { border: none; }`, entao
-#     nao entra nesta conta.
-# Cada um desses "de cada lado" vale 2 (esquerda + direita).
-_BORDA_PANEL = 2
-_PADDING_PANEL_BODY = 2
-_PADDING_OPTION_LIST = 2
-
-# A barra de rolagem vertical do OptionList - 2 colunas, o padrao do
-# proprio Textual (Widget().styles.scrollbar_size_vertical == 2; nada em
-# #conn-list sobrescreve scrollbar-size-vertical, entao vale o padrao).
-# So aparece quando a lista transborda verticalmente, o que depende de
-# quantas conexoes existem - fora do controle desta tela. Descontada
-# incondicionalmente: o pior caso (lista rolavel) e o caso comum em uso
-# real, e nao descontar significa que a largura calculada so bate pra
-# uma lista curta demais pra rolar (foi assim que a linha "ambiente"
-# saiu sem recuo na entrada real que expos este defeito). Medido nos
-# dois estados: com poucas conexoes (sem rolagem),
-# OptionList.content_region.width fica em 36 (bate com a conta sem este
-# desconto); com conexoes suficientes pra rolar,
-# OptionList.scrollable_content_region.width cai pra 34 - exatamente
-# estes 2 a menos.
-_SCROLLBAR_VERTICAL = 2
-
-# O recuo que `item_hierarquico` (dbqm/ui/widgets/lista_hierarquica.py)
-# antepoe as linhas de desambiguacao/contexto — mesma constante, nao um
-# "2" solto aqui, pra nao poder divergir dela.
-_RECUO_CONTEXTO = len(_RECUO)
-
 # Largura de fato disponivel pro TEXTO da descricao: o que sobra do
 # painel depois da borda do Panel, do padding do corpo, do padding do
 # OptionList, da barra de rolagem (pior caso) e do recuo que a propria
-# linha de contexto consome.
-_DESCRICAO_LARGURA = (
-    _LARGURA_PAINEL_LISTA
-    - _BORDA_PANEL
-    - _PADDING_PANEL_BODY
-    - _PADDING_OPTION_LIST
-    - _SCROLLBAR_VERTICAL
-    - _RECUO_CONTEXTO
-)
+# linha de contexto consome. A conta em si mora em `lista_hierarquica`
+# (`largura_de_quebra`), junto do recuo que ela desconta e do relato das
+# quatro rodadas que ela custou; o que fica aqui e so a largura DESTE
+# painel, que e escolha desta tela. Medido nos dois estados: com poucas
+# conexoes (sem rolagem), OptionList.content_region.width fica em 36
+# (bate com a conta sem o desconto da barra); com conexoes suficientes
+# pra rolar, OptionList.scrollable_content_region.width cai pra 34 —
+# exatamente os 2 da barra a menos.
+_DESCRICAO_LARGURA = largura_de_quebra(_LARGURA_PAINEL_LISTA)
 _DESCRICAO_MAX_LINHAS = 2
 
 
