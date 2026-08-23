@@ -137,6 +137,23 @@ class ConfigPortScreen(Vertical):
             self._show_mode_phase()
         self.call_after_refresh(self._set_initial_focus)
 
+    def ao_reabrir(self) -> None:
+        """Volta a fase inicial quando a tela e reaberta pela lista.
+
+        A tela continua MONTADA depois do `Esc` — e ate aqui reabria na fase
+        em que tinha ficado: quem exportou uma vez reencontrava o formulario
+        de exportacao, sem o formulario de importacao a vista, embora a
+        entrada que acabou de escolher se chame "Exportar / Importar".
+
+        A restricao que mantem as telas montadas protege um worker vivo (o
+        download de 150+ MB do Instant Client, que escreve na propria
+        arvore). Aqui nao ha nada disso: a fase e so qual dos tres paineis
+        esta com `display` ligado, os workers de exportar/importar acham
+        seus campos por id independentemente da fase visivel, e o que a
+        pessoa digitou continua nos `Input`.
+        """
+        self.on_mount()
+
     def _set_initial_focus(self) -> None:
         try:
             if self._initial_mode == "export":

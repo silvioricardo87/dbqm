@@ -558,14 +558,12 @@ class PackageEditorScreen(Vertical):
        VERTICAL deste corpo — lista densa de diagnostico nao pede respiro —
        que devolve 4 linhas de texto (cabecalho + 3 erros) sem tomar nada do
        editor. O resto nao some: `Panel` desconta o cromo do teto, o corpo
-       cabe exato e rola. Medidas em `test_transbordo_vertical.py`. */
+       cabe exato e rola. Medidas em `test_transbordo_vertical.py`. A
+       densidade em si mora no componente (`Panel(denso=True)`), nao aqui. */
     PackageEditorScreen #pe-error-panel {
         height: auto;
         max-height: 8;
         margin: 0 2 1 2;
-    }
-    PackageEditorScreen #pe-error-panel #panel-body {
-        padding: 0 1;
     }
     PackageEditorScreen #pe-error-text {
         height: auto;
@@ -603,7 +601,7 @@ class PackageEditorScreen(Vertical):
         # O id `#pe-error-panel` passou do Static para a moldura, porque e
         # ele que os pontos de exibicao ligam e desligam; o texto vive em
         # `#pe-error-text`.
-        with Panel("⚠  COMPILACAO", id="pe-error-panel"):
+        with Panel("⚠  COMPILACAO", id="pe-error-panel", denso=True):
             yield Static("", id="pe-error-text")
         # SOLTOS de proposito, fora de qualquer painel — a excecao a §4
         # ("nada fica solto no fundo") esta escrita por extenso no docstring

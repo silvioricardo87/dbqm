@@ -205,6 +205,8 @@ The app is a single tabbed dashboard. Switch tabs with `F1`–`F8`:
 
 A collapsible **Templates** sidebar (`Ctrl+B`) lists saved SQL templates; choosing one injects its SQL into the active tab's editor.
 
+Above the status bar, a contextual **action bar** shows the actions available on the current screen with their shortcut keys (`N Nova`, `T Testar`, …); the entries are clickable too. Screens that open a deeper screen inside their own tab — Configuracoes › Oracle Instant Clients and Configuracoes › Exportar / Importar — announce `Esc Voltar` there, which is how you go back.
+
 ## Query Groups & Comparison
 
 Groups run the same logical query across multiple databases and compare results:

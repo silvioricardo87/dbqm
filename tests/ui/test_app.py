@@ -289,19 +289,255 @@ async def test_voltar_do_config_port_devolve_as_configuracoes(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_nenhuma_rota_de_configuracoes_notifica_erro(tmp_config_dir):
-    """Nada de `#screen-area`: o sintoma era um toast de erro, nao um crash.
+async def test_nenhuma_rota_de_configuracoes_falha_em_silencio(tmp_config_dir):
+    """A rota chega, e chega sem reportar erro por canal NENHUM.
 
-    Um teste que so afirmasse "a tela montou" passaria mesmo com um erro
-    notificado no caminho. Aqui o toast e o que se vigia.
+    A versao anterior deste teste so olhava o toast, porque o toast era o
+    sintoma historico (`except Exception` + `notify`). Ela passava com a
+    rota REMONTADA quebrada: sem o `except`, um `NoMatches` sai do handler
+    sem virar toast, e o teste seguia verde com a tela nao abrindo. Um
+    teste que so vigia o sintoma de ontem nao vigia o defeito.
+
+    Entao aqui se cobram os tres canais por onde uma falha de rota pode
+    sair — a tela nao aparecer, um toast de erro, um modal de erro
+    empilhado — e nao so o do meio.
     """
+    from tests.ui._helpers import texto_renderizado
+
+    esperado = {
+        "portabilidade": "EXPORTAR OU IMPORTAR",
+        "oracle-clients": "PLATAFORMA DETECTADA",
+    }
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        for chave in ("portabilidade", "oracle-clients"):
+        for chave, marca in esperado.items():
             await _abrir_ferramenta_de_config(pilot, app, chave)
+            assert marca in texto_renderizado(app).upper(), (
+                "a rota %r nao chegou: %r nao e desenhado" % (chave, marca)
+            )
+            assert len(app.screen_stack) == 1, (
+                "a rota %r empilhou um modal (de erro?): %r"
+                % (chave, app.screen_stack)
+            )
             app.action_go_back()
             await pilot.pause()
         erros = [
             n.message for n in app._notifications if n.severity == "error"
         ]
         assert not erros, "rota de Configuracoes notificou erro: %r" % erros
+
+
+@pytest.mark.asyncio
+async def test_tela_hospedada_diz_qual_tecla_volta(tmp_config_dir):
+    """`Esc` e a unica saida de uma tela hospedada, e ela precisa ser DITA.
+
+    `DBQMApp.compose` nao rende `Footer`, entao o
+    `Binding("escape", "go_back", "Back")` do app nao aparece em lugar
+    nenhum, e `OracleClientsScreen` nunca teve botao de voltar: a saida
+    existia e nada na tela a mencionava. A secao 7 da gramatica proibe um
+    BOTAO que navega — nao proibe dizer qual tecla volta.
+
+    A afirmacao e sobre a linha PINTADA, e nao sobre `ActionBar._actions`:
+    a barra media duas linhas e a StatusBar cobria a segunda, entao as
+    acoes estavam em `_actions` e em tela nenhuma.
+    """
+    from tests.ui._helpers import linhas_renderizadas, texto_renderizado
+
+    def anuncia_voltar(app):
+        return any(
+            "Esc" in linha and "Voltar" in linha
+            for linha in linhas_renderizadas(app)
+        )
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("f6")
+        await pilot.pause()
+        assert not anuncia_voltar(app), (
+            "nos paineis nao ha de onde voltar; anunciar `Esc` seria mentira"
+        )
+
+        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        assert anuncia_voltar(app), (
+            "a tela hospedada nao diz como se sai dela: %r"
+            % linhas_renderizadas(app)[-4:]
+        )
+
+        # Sair da aba e voltar nao pode apagar o anuncio: a tela hospedada
+        # continua na frente. Quem repoe e `SettingsScreen._set_actions`,
+        # que `on_tabbed_content_tab_activated` procura pelo nome.
+        await pilot.press("f1")
+        await pilot.pause()
+        await pilot.press("f6")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+        assert anuncia_voltar(app), "trocar de aba e voltar apagou o anuncio"
+
+        # E o que ele anuncia funciona tambem por CLIQUE, que e a outra
+        # forma de acionar a barra. Clicado onde esta escrito, e nao
+        # chamando `action_select_action` na mao: fora do processamento de
+        # mensagem da propria barra o `_sender` da `ActionSelected` nao e a
+        # `ActionBar`, e o encaminhamento do app (que confere o remetente
+        # para nao entrar em laco) nao acontece — um teste assim mediria
+        # uma rota que o clique nao usa.
+        linhas = linhas_renderizadas(app)
+        y = next(
+            i for i, linha in enumerate(linhas)
+            if "Esc" in linha and "Voltar" in linha
+        )
+        await pilot.click(offset=(linhas[y].index("Voltar"), y))
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+        assert "PLATAFORMA DETECTADA" not in texto_renderizado(app).upper()
+        assert not anuncia_voltar(app), "voltou, e o anuncio ficou"
+
+
+@pytest.mark.asyncio
+async def test_reabrir_exportar_importar_volta_a_escolha_de_modo(tmp_config_dir):
+    """Reabrir pela lista mostra o que a lista prometeu, nao a fase antiga.
+
+    A tela continua MONTADA depois do `Esc` — isso protege o worker de
+    download de 150+ MB do gerenciador de clients, que escreve na propria
+    arvore. `ConfigPortScreen` nao tem nada disso, e ficar montada nela
+    significava reabrir na fase em que tinha parado: quem exportou uma vez
+    reencontrava o formulario de exportacao, embora a entrada que acabou de
+    escolher se chame "Exportar / Importar".
+    """
+    from textual.widgets import Button
+    from dbqm.ui.screens.config_port import ConfigPortScreen
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+        tela = app.query_one(ConfigPortScreen)
+        tela.query_one("#cp-btn-export", Button).press()
+        await pilot.pause()
+        assert "EXPORTAR CONFIGURACOES" in texto_renderizado(app).upper()
+
+        await pilot.press("escape")
+        await pilot.pause()
+        await _abrir_ferramenta_de_config(pilot, app, "portabilidade")
+
+        pintado = texto_renderizado(app).upper()
+        assert "EXPORTAR OU IMPORTAR" in pintado, (
+            "reabriu numa fase que a entrada da lista nao prometeu: %r"
+            % pintado[-600:]
+        )
+        assert "CONFIRMAR SENHA" not in pintado, (
+            "o formulario de exportacao continua na frente ao reabrir"
+        )
+
+
+@pytest.fixture
+def dois_clients_instalados(tmp_config_dir, monkeypatch):
+    """Dois Instant Clients instalados, e a validacao de arquitetura desligada.
+
+    Sem isto o teste dependeria do que existe na maquina de quem roda:
+    `list_installed_clients` varre `CLIENTS_DIR` de verdade e
+    `validate_oracle_client_dir` abre a DLL para conferir 32/64 bits. O que
+    se quer exercitar aqui e a rota da tela, nao a deteccao.
+    """
+    import dbqm.core.db_manager as dbm
+    import dbqm.core.oracle_client_installer as oci
+    import dbqm.ui.screens.oracle_clients as oc
+
+    base = tmp_config_dir / "clients"
+    base.mkdir()
+    for nome in ("instantclient_19_x64", "instantclient_23_x64"):
+        (base / nome).mkdir()
+
+    monkeypatch.setattr(dbm, "validate_oracle_client_dir", lambda caminho: None)
+    monkeypatch.setattr(oci, "CLIENTS_DIR", base)
+    monkeypatch.setattr(oc, "CLIENTS_DIR", base)
+    return base
+
+
+@pytest.mark.asyncio
+async def test_gerenciador_de_clients_abre_num_painel_com_titulo(
+    dois_clients_instalados, tmp_config_dir
+):
+    """Abrir o gerenciador nao pode cair no meio de uma tabela sem cabecalho.
+
+    A tela e mais alta que 24 linhas e o Textual rola ate quem recebe foco.
+    Com o foco inicial na tabela de DISPONIVEIS — o terceiro painel — o
+    gerenciador abria rolado ate la, e a primeira coisa depois de escolher
+    a entrada da lista era uma tabela sem titulo em cima: nada dizia em que
+    tela a pessoa tinha acabado de entrar.
+
+    Medido no caminho real, a 80x24, que e onde a rolagem existe: num
+    terminal alto a tela inteira cabe e o defeito nao aparece.
+    """
+    from tests.ui._helpers import linhas_renderizadas
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+
+        # As primeiras linhas pintadas abaixo da tira de abas: e ali que
+        # tem de haver um titulo de painel dizendo onde a pessoa entrou.
+        topo = [linha for linha in linhas_renderizadas(app)[3:] if linha.strip()][:3]
+        assert any(
+            "PLATAFORMA DETECTADA" in linha or "CLIENTS INSTALADOS" in linha
+            for linha in topo
+        ), ("a tela abriu no meio de um painel, sem titulo a vista: %r" % topo)
+
+
+@pytest.mark.asyncio
+async def test_escolher_um_client_atualiza_o_status_ao_voltar(
+    dois_clients_instalados, tmp_config_dir
+):
+    """O rotulo `Client em uso` nao pode contradizer o que se acabou de salvar.
+
+    Este e o pior momento possivel para o rotulo envelhecer: a rota ate o
+    gerenciador foi desenhada em volta dele — quem precisa do gerenciador
+    esta olhando para o `Client em uso`, e a entrada da lista fica encostada
+    nesse status de proposito. Se depois de escolher um client o rotulo
+    continuar mostrando o anterior, a tela desmente a configuracao que ela
+    mesma acabou de gravar.
+
+    A afirmacao e sobre o texto PINTADO depois do `Esc`, nao sobre
+    `load_settings()`: o defeito era exatamente uma configuracao correta com
+    uma tela errada em cima dela.
+    """
+    from textual.widgets import Button, DataTable
+    from dbqm.models.settings import Settings, load_settings, save_settings
+    from tests.ui._helpers import texto_renderizado
+
+    antigo = dois_clients_instalados / "instantclient_23_x64"
+    novo = dois_clients_instalados / "instantclient_19_x64"
+    save_settings(Settings(oracle_client_dir=str(antigo)))
+
+    app = DBQMApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("f6")
+        await pilot.pause()
+        antes = texto_renderizado(app)
+        assert "instantclient_23_x64" in antes, (
+            "o teste nao partiu do estado que descreve: %r" % antes[:400]
+        )
+
+        await _abrir_ferramenta_de_config(pilot, app, "oracle-clients")
+        tabela = app.query_one("#oc-installed-table", DataTable)
+        tabela.move_cursor(row=0)
+        await pilot.pause()
+        app.query_one("#oc-use-btn", Button).press()
+        await pilot.pause()
+        assert load_settings().oracle_client_dir == str(novo), (
+            "o gerenciador nao gravou a escolha — o teste mediria outra coisa"
+        )
+
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        depois = texto_renderizado(app)
+        assert "instantclient_19_x64" in depois, (
+            "o `Client em uso` nao acompanhou a escolha: %r" % depois[:600]
+        )
+        assert "instantclient_23_x64" not in depois, (
+            "o `Client em uso` ainda mostra o client anterior: %r" % depois[:600]
+        )

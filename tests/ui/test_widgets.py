@@ -2,7 +2,7 @@
 import pytest
 from textual.app import ComposeResult
 
-from tests.ui._helpers import ThemedTestApp, nomes_renderizados
+from tests.ui._helpers import ThemedTestApp, nomes_renderizados, recorte
 
 
 # ---------------------------------------------------------------------------
@@ -1236,6 +1236,50 @@ async def test_panel_renders_title_and_body():
         # DOM. A `height: 1` title with a `border-bottom` leaves zero rows for
         # text, so it renders blank — assert the text reaches the screen.
         assert "PARAMETROS" in app.export_screenshot()
+
+
+@pytest.mark.asyncio
+async def test_panel_denso_devolve_as_duas_linhas_do_padding():
+    """Densidade e decisao do COMPONENTE, com nome, e nao CSS por tela.
+
+    O padding vertical do corpo custa duas linhas por painel. Isso e
+    barato com um painel na tela e caro com seis — as Configuracoes
+    gastavam 12 de 24 linhas em ar. Duas telas ja tinham reescrito
+    `#panel-body { padding: 0 1 }` por conta propria, que e o "cada tela
+    decide por si" que a secao 4 da gramatica existe para remover.
+
+    A medida e a ALTURA pintada, e nao a regra de estilo: uma regra de CSS
+    pode ler certo e nao valer nada (foi assim que `Panel { height: auto }`
+    ficou quebrado por uma fase inteira).
+    """
+    class _App(ThemedTestApp):
+        # `auto` para que a altura do painel seja a do conteudo: e ela que
+        # muda quando o padding do corpo sai.
+        CSS = "Panel { height: auto; }"
+
+        def compose(self) -> ComposeResult:
+            with Panel("FOLGADO", id="folgado"):
+                yield Static("uma linha")
+            with Panel("DENSO", id="denso", denso=True):
+                yield Static("uma linha")
+
+    app = _App()
+    async with app.run_test(size=(40, 24)) as pilot:
+        await pilot.pause()
+        folgado = app.query_one("#folgado", Panel)
+        denso = app.query_one("#denso", Panel)
+        assert denso.has_class("-denso")
+        assert folgado.region.height - denso.region.height == 2, (
+            "o modificador nao devolveu as duas linhas: folgado=%r denso=%r"
+            % (folgado.region, denso.region)
+        )
+        moldura = recorte(app, denso)
+        assert moldura[0].startswith("╭") and moldura[-1].startswith("╰"), (
+            "a moldura do painel denso deixou de ser desenhada: %r" % moldura
+        )
+        assert any("uma linha" in linha for linha in moldura), (
+            "o conteudo do painel denso nao e pintado: %r" % moldura
+        )
 
 
 # ---------------------------------------------------------------------------

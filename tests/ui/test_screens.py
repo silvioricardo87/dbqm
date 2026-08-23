@@ -2482,26 +2482,91 @@ async def test_cada_assunto_de_configuracoes_tem_seu_painel(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_configuracoes_a_80x24_pinta_todos_os_assuntos(tmp_config_dir):
-    """O terminal padrao e 80x24, e e nele que a tela precisa funcionar.
+async def test_configuracoes_a_80x24_nao_esconde_a_porta(tmp_config_dir):
+    """A 80x24, na DBQMApp REAL, a lista de MAIS CONFIGURACOES tem de estar la.
 
-    Afirma o que a tela PINTA, e nao `region`: a secao Oracle ja teve
-    `region.height == 3` sem ser desenhada, recortada por um ancestral com
-    `overflow: hidden`. Aqui os quatro assuntos precisam estar visiveis de
-    uma vez, sem rolar, num terminal de 24 linhas.
+    Na DBQMApp a tela recebe 20 linhas, nao 24: o Header come 1, a tira de
+    abas 2, a regua abaixo dela 1 e a StatusBar 1. Um harness que compoe a
+    `SettingsScreen` sozinha lhe da as 24 inteiras — e foi assim que a
+    versao anterior deste teste afirmou que os quatro assuntos apareciam
+    "sem rolar" quando no app EXPORTACAO nao aparecia. Medido: `EXPORTACAO
+    no harness = True, no app = False`. E a licao da Task 4 outra vez —
+    medir no estado em que o defeito acontece — entao aqui se monta o app.
+
+    E os seis paineis nao cabem mesmo em 20 linhas: as duas colunas somam
+    ~36 linhas de conteudo cada. A secao 4 da gramatica nao promete que
+    tudo cabe; promete que o que nao cabe ROLA, com o transbordo visivel.
+    O que ela nao tolera e o que estava acontecendo com MAIS CONFIGURACOES:
+    a moldura e o titulo desenhados e NENHUMA entrada, com o corpo
+    comecando fora da tela. Esse painel e a unica porta para as duas telas
+    que esta fase ressuscitou depois de seis semanas mortas; um titulo sem
+    entradas nao anuncia porta nenhuma.
     """
+    from dbqm.ui.app import DBQMApp
     from tests.ui._helpers import texto_renderizado
 
-    app = SettingsTestApp()
+    app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("f6")
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        pintado = texto_renderizado(app).upper()
-        for assunto in ("TEMA", "AUDITORIA", "EXPORTACAO", "ORACLE INSTANT CLIENT"):
-            assert assunto in pintado, (
-                "o assunto %r nao e desenhado num terminal de 80x24" % assunto
+
+        pintado = texto_renderizado(app)
+        for entrada in ("Oracle Instant Clients", "Exportar / Importar"):
+            assert entrada in pintado, (
+                "a entrada %r de MAIS CONFIGURACOES nao e desenhada a 80x24: %r"
+                % (entrada, pintado[-800:])
             )
+
+
+@pytest.mark.asyncio
+async def test_configuracoes_a_80x24_o_que_nao_cabe_rola(tmp_config_dir):
+    """O que fica abaixo da dobra e alcancavel, e o transbordo e visivel.
+
+    A contrapartida do teste acima: EXPORTACAO e FERNET KEY nao cabem a
+    80x24 e nao ha aritmetica que os faca caber. O que a secao 4 exige e
+    que rolem em vez de sumir — a versao sem moldura desta tela nascia com
+    a secao Oracle em y=39 num container `overflow: hidden`, sem rolagem
+    nenhuma, e simplesmente nao havia como chegar nela.
+    """
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.settings import SettingsScreen
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("f6")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        tela = app.query_one(SettingsScreen)
+        colunas = [
+            tela.query_one("#settings-col-esquerda"),
+            tela.query_one("#settings-col-direita"),
+        ]
+        for coluna in colunas:
+            assert coluna.max_scroll_y > 0, (
+                "%s nao rola: o que passa da dobra estaria fora de alcance"
+                % coluna.id
+            )
+            coluna.scroll_end(animate=False)
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        pintado = texto_renderizado(app)
+        # Corpo, e nao titulo: uma moldura com o titulo desenhado e o corpo
+        # fora da tela e exatamente o defeito que o teste acima cobra.
+        assert "Alterar diretorio" in pintado, (
+            "o corpo de EXPORTACAO nao aparece nem rolando ate o fim: %r"
+            % pintado[-800:]
+        )
+        assert "Criptografa as senhas" in pintado, (
+            "o corpo de FERNET KEY nao aparece nem rolando ate o fim: %r"
+            % pintado[-800:]
+        )
 
 
 @pytest.mark.asyncio
@@ -2686,6 +2751,36 @@ def test_elisao_corta_no_separador_e_nunca_passa_da_largura():
     assert elidir_caminho(corrido, 21) == "a" * 10 + chr(8230) + "a" * 10
 
 
+def test_elisao_de_caminho_unc_preserva_o_servidor():
+    """Num UNC a raiz e o SERVIDOR, e e ela que a elisao promete guardar.
+
+    `\\\\servidor\\share\\...` parte em ['', '\\\\', '', '\\\\', 'servidor', ...]:
+    os dois primeiros segmentos sao vazios. Parando no terceiro pedaco, a
+    cabeca era uma barra so — duas pastas em dois servidores diferentes
+    elidiam IDENTICAS, e o `Client em uso` de um client de rede nao dizia
+    de qual maquina ele vinha.
+
+    Caminho com letra de unidade e caminho POSIX ficam onde estavam: e o
+    mesmo primeiro segmento COM NOME nos tres casos.
+    """
+    from dbqm.ui.screens.settings import elidir_caminho
+
+    a = elidir_caminho(r"\\servidor-a\publico\dbqm\clients\instantclient", 32)
+    b = elidir_caminho(r"\\servidor-b\publico\dbqm\clients\instantclient", 32)
+    assert a.startswith(r"\\servidor-a"), a
+    assert b.startswith(r"\\servidor-b"), b
+    assert a != b, "dois servidores diferentes elidiram identicos: %r" % a
+    assert a.endswith("instantclient") and len(a) <= 32
+
+    assert elidir_caminho("C:/Users/ricar/AppData/Local/exports", 24).startswith(
+        "C:/Users"
+    )
+    assert elidir_caminho("/usr/local/share/dbqm/exports", 20).startswith("/usr")
+
+    for largura in range(1, 60):
+        assert len(elidir_caminho(r"\\servidor-a\publico\dbqm\x", largura)) <= largura
+
+
 @pytest.mark.asyncio
 async def test_caminho_de_exportacao_cabe_na_coluna(tmp_config_dir):
     """Um caminho longo nao pode quebrar no meio de um nome e sumir.
@@ -2722,6 +2817,83 @@ async def test_caminho_de_exportacao_cabe_na_coluna(tmp_config_dir):
         )
         assert any(chr(8230) in linha for linha in linhas), (
             "o caminho longo nao foi elidido: %r" % linhas
+        )
+
+
+@pytest.mark.asyncio
+async def test_nenhum_caminho_transborda_a_caixa_do_rotulo(
+    tmp_config_dir, monkeypatch
+):
+    """Elidir contra a largura errada e nao elidir: o texto quebra do mesmo jeito.
+
+    Dois jeitos de errar a largura, os dois medidos na DBQMApp a 80x24:
+
+    - O prefixo `Local: ` da Fernet Key fica na MESMA linha do caminho (os
+      outros dois rotulos quebram a linha antes), e nao estava saindo do
+      orcamento: o caminho elidido cabia em 32 celulas e a linha inteira
+      dava 37, entao a quebra automatica gastava uma linha do painel.
+    - A largura era medida cedo demais. Na montagem a coluna ainda nao
+      sabe que vai precisar de barra de rolagem: o rotulo media 33 onde
+      teria 32, e o caminho passava por UMA celula — o ultimo caractere do
+      nome do diretorio ia sozinho para a linha de baixo, que e o defeito
+      que a elisao existe para evitar. Nenhum `on_resize` da tela via
+      isso; quem mudou de tamanho foi o rotulo (`RotuloCaminho`).
+    """
+    from textual.widgets import Static
+    from dbqm.ui.app import DBQMApp
+    from dbqm.ui.screens.settings import SettingsScreen
+    from dbqm.models.settings import Settings, save_settings
+    from tests.ui._helpers import recorte
+
+    # Nomes longos e SEM separador aproveitavel de proposito: nesse caso
+    # `elidir_caminho` corta por caractere e devolve exatamente o orcamento
+    # que recebeu. Assim o comprimento da linha pintada denuncia o
+    # orcamento, em vez de depender de onde os separadores de um caminho
+    # de teste por acaso caem — com um caminho "realista" as duas contas,
+    # a certa e a errada, podem cair no mesmo corte e o teste passa com o
+    # defeito presente (aconteceu ao escrever este).
+    fundo = tmp_config_dir / ("exportacao" + "z" * 70)
+    fundo.mkdir(parents=True)
+    save_settings(Settings(default_export_dir=str(fundo)))
+    monkeypatch.setattr(
+        "dbqm.core.paths.KEY_FILE",
+        tmp_config_dir / ("chave" + "y" * 70 + ".dbqm_key"),
+    )
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("f6")
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+
+        tela = app.query_one(SettingsScreen)
+        for wid in ("settings-export-dir-current", "settings-fernet-status"):
+            rotulo = tela.query_one("#" + wid, Static)
+            largura = rotulo.content_region.width
+            assert largura, "%s nao foi medido: o teste nao mede nada" % wid
+            for linha in rotulo.render().plain.splitlines():
+                if chr(8230) not in linha:
+                    continue  # prosa pode quebrar; caminho nao
+                assert len(linha) <= largura, (
+                    "%s: a linha do caminho tem %d celulas numa caixa de %d — "
+                    "a quebra automatica come uma linha do painel: %r"
+                    % (wid, len(linha), largura, linha)
+                )
+
+        # E o prefixo e o fim do caminho saem na MESMA linha PINTADA.
+        coluna = tela.query_one("#settings-col-direita")
+        coluna.scroll_end(animate=False)
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
+        fernet = tela.query_one("#settings-fernet-status", Static)
+        assert any(
+            "Local:" in linha and ".dbqm_key" in linha
+            for linha in recorte(app, fernet)
+        ), (
+            "o `Local:` e o fim do caminho da chave sairam em linhas "
+            "diferentes: %r" % recorte(app, fernet)
         )
 
 
@@ -4378,6 +4550,14 @@ async def test_oracle_clients_empty_state_action_focuses_available_table(
     app = OracleClientsTestApp()
     async with app.run_test() as pilot:
         from dbqm.ui.widgets.empty_state import EmptyState
+
+        # A tela poe o foco inicial neste mesmo botao (`_set_initial_focus`,
+        # adiado por `call_after_refresh`). Sem deixar a montagem assentar,
+        # o foco inicial chegaria DEPOIS do clique e desfaria o que este
+        # teste mede.
+        await pilot.pause()
+        await pilot.wait_for_scheduled_animations()
+        await pilot.pause()
 
         screen = app.query_one(OracleClientsScreen)
         empty = screen.query_one("#oc-installed-empty", EmptyState)

@@ -23,6 +23,7 @@ from textual.widgets import Button, ContentSwitcher, OptionList, Select, Static,
 
 from dbqm.ui.theme import get_theme
 from dbqm.ui.utils import NavSelect, NavVerticalScroll
+from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.lista_hierarquica import OpcaoNomeada, item_hierarquico
 from dbqm.ui.widgets.panel import Panel
 
@@ -68,12 +69,24 @@ def elidir_caminho(caminho: str, largura: int) -> str:
     # `split` com grupo capturante intercala segmentos e separadores:
     # ['C:', '/', 'Users', '/', ...]. Indice par = segmento, impar = separador.
     pecas = _SEPARADOR.split(texto)
-    if len(pecas) >= 5:  # raiz + separador + ao menos dois segmentos
-        cabeca = "".join(pecas[:3])
+
+    # A cabeca vai ate o primeiro segmento COM NOME. Num caminho comum isso
+    # e `pecas[:3]` (`C:` + `\` + `Users`). Num UNC nao: `\\servidor\share`
+    # parte em ['', '\\', '', '\\', 'servidor', ...] — os dois primeiros
+    # segmentos sao vazios — e parar no terceiro daria uma cabeca de uma
+    # barra so. Duas pastas em dois servidores diferentes elidiriam
+    # IDENTICAS, e num UNC o servidor e justamente a raiz que esta funcao
+    # promete preservar ("de que arvore o caminho vem").
+    corte = 2
+    while corte + 2 < len(pecas) and not pecas[corte]:
+        corte += 2
+
+    if len(pecas) >= corte + 3:  # cabeca + separador + ao menos um segmento
+        cabeca = "".join(pecas[: corte + 1])
         if len(cabeca) + len(RETICENCIA) < largura:
             cauda = ""
             i = len(pecas) - 1
-            while i >= 3:
+            while i >= corte + 1:
                 candidata = "".join(pecas[i:])
                 if len(cabeca) + len(RETICENCIA) + len(candidata) > largura:
                     break
@@ -86,6 +99,39 @@ def elidir_caminho(caminho: str, largura: int) -> str:
     frente = (sobra + 1) // 2
     fim = sobra - frente
     return texto[:frente] + RETICENCIA + (texto[len(texto) - fim:] if fim else "")
+
+
+class RotuloCaminho(Static):
+    """`Static` que pede repintura quando a PROPRIA largura muda.
+
+    O `on_resize` da TELA nao cobre este caso: quem muda de tamanho aqui e
+    o rotulo, nao a tela. Na montagem a coluna ainda nao sabe que vai
+    precisar de barra de rolagem, e o rotulo mede 33 celulas onde vai ter
+    32 — elidido contra 33 o caminho passava por UMA celula e a quebra
+    automatica jogava o ultimo caractere sozinho na linha de baixo, que e
+    o defeito que `elidir_caminho` existe para evitar, chegando por outra
+    porta. `events.Resize` nao borbulha (`bubble=False` em
+    `textual/events.py`), entao ninguem acima ficaria sabendo.
+
+    So a LARGURA conta. Repintar muda a altura do rotulo, o que gera outro
+    `Resize`; sem esta comparacao o par repintura-evento se realimentaria.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._largura_vista = -1
+
+    def on_resize(self, event) -> None:
+        # `event.size` e a largura NOVA; `content_region` so vira a nova
+        # depois do proximo layout — por isso a repintura e adiada, e nao
+        # feita aqui dentro.
+        if event.size.width == self._largura_vista:
+            return
+        self._largura_vista = event.size.width
+        for ancestral in self.ancestors:
+            if isinstance(ancestral, SettingsScreen):
+                ancestral.call_after_refresh(ancestral._pintar_caminhos)
+                return
 
 
 class SettingsScreen(Vertical):
@@ -107,10 +153,16 @@ class SettingsScreen(Vertical):
     SettingsScreen #settings-main {
         height: 1fr;
     }
+    /* Sem padding VERTICAL: as duas linhas que ele custava (uma no topo,
+       uma no rodape) sao 10% da viewport num terminal de 24, e sem elas o
+       painel MAIS CONFIGURACOES — a unica porta para as duas telas que
+       esta fase ressuscitou — passa de "titulo com zero entradas" para as
+       duas entradas desenhadas. Medido a 80x24 na DBQMApp real, em
+       `test_configuracoes_a_80x24_nao_esconde_a_porta`. */
     SettingsScreen .settings-coluna {
         width: 1fr;
         height: 1fr;
-        padding: 1 1;
+        padding: 0 1;
     }
     /* `auto` mede o conteudo desde a Task 6; a coluna e que rola quando a
        soma dos paineis passa da tela. Sem isto cada painel esticaria ate a
@@ -118,12 +170,6 @@ class SettingsScreen(Vertical):
     SettingsScreen .settings-coluna > Panel {
         height: auto;
         margin-bottom: 1;
-    }
-    /* O padding vertical do corpo custa 2 linhas POR PAINEL, e agora sao
-       seis paineis: 12 linhas de uma tela de 24 gastas em ar. O padding
-       horizontal fica — e ele que separa o texto da borda. */
-    SettingsScreen .settings-coluna > Panel > #panel-body {
-        padding: 0 1;
     }
     SettingsScreen .settings-hospede {
         height: 1fr;
@@ -190,7 +236,8 @@ class SettingsScreen(Vertical):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dir_exportacao = ""
-        self._montadas: set[str] = set()
+        #: chave -> a tela hospedada ja montada (ver `_abrir_ferramenta`).
+        self._montadas: dict[str, Vertical] = {}
         self._client_oracle: tuple[str | None, str] = (None, "none")
         self._client_oracle_erro = ""
 
@@ -200,7 +247,7 @@ class SettingsScreen(Vertical):
                 with NavVerticalScroll(
                     id="settings-col-esquerda", classes="settings-coluna"
                 ):
-                    with Panel("🎨  TEMA", id="settings-panel-tema"):
+                    with Panel("🎨  TEMA", id="settings-panel-tema", denso=True):
                         yield NavSelect(
                             [
                                 ("Plano Escuro", "plano-escuro"),
@@ -210,7 +257,7 @@ class SettingsScreen(Vertical):
                             allow_blank=False,
                         )
 
-                    with Panel("📋  AUDITORIA", id="settings-panel-auditoria"):
+                    with Panel("📋  AUDITORIA", id="settings-panel-auditoria", denso=True):
                         with Vertical(classes="settings-linha"):
                             yield Switch(id="settings-audit-switch")
                             yield Static(
@@ -219,12 +266,16 @@ class SettingsScreen(Vertical):
                                 classes="settings-nota",
                             )
 
-                    with Panel("📁  EXPORTACAO", id="settings-panel-exportacao"):
+                    with Panel(
+                        "📁  EXPORTACAO",
+                        id="settings-panel-exportacao",
+                        denso=True,
+                    ):
                         yield Static(
                             "Onde os arquivos exportados sao salvos.",
                             classes="settings-nota",
                         )
-                        yield Static(
+                        yield RotuloCaminho(
                             "", id="settings-export-dir-current", markup=True
                         )
                         with Horizontal(classes="settings-acoes"):
@@ -244,18 +295,20 @@ class SettingsScreen(Vertical):
                     id="settings-col-direita", classes="settings-coluna"
                 ):
                     with Panel(
-                        "🔌  ORACLE INSTANT CLIENT", id="settings-panel-oracle"
+                        "🔌  ORACLE INSTANT CLIENT",
+                        id="settings-panel-oracle",
+                        denso=True,
                     ):
                         # Curto de proposito: cada linha de prosa aqui e
                         # uma linha a menos para a lista de MAIS
                         # CONFIGURACOES, que num terminal de 24 fica logo
                         # abaixo deste painel.
                         yield Static(
-                            "Prioritario sobre o ORACLE_HOME do sistema, "
-                            "que pode apontar para outra arquitetura.",
+                            "Vence o ORACLE_HOME, que pode "
+                            "ser de outra arquitetura.",
                             classes="settings-nota",
                         )
-                        yield Static(
+                        yield RotuloCaminho(
                             "", id="settings-oracle-client-current", markup=True
                         )
                         with Horizontal(classes="settings-acoes"):
@@ -269,12 +322,18 @@ class SettingsScreen(Vertical):
                     # entrada do gerenciador de clients fica encostada no
                     # status que faz alguem querer abri-lo.
                     with Panel(
-                        "🧰  MAIS CONFIGURACOES", id="settings-panel-ferramentas"
+                        "🧰  MAIS CONFIGURACOES",
+                        id="settings-panel-ferramentas",
+                        denso=True,
                     ):
                         yield OptionList(id="settings-ferramentas-list")
 
-                    with Panel("🔑  FERNET KEY", id="settings-panel-fernet"):
-                        yield Static("", id="settings-fernet-status", markup=True)
+                    with Panel(
+                        "🔑  FERNET KEY",
+                        id="settings-panel-fernet",
+                        denso=True,
+                    ):
+                        yield RotuloCaminho("", id="settings-fernet-status", markup=True)
 
             yield Vertical(
                 id="settings-host-portabilidade", classes="settings-hospede"
@@ -328,11 +387,13 @@ class SettingsScreen(Vertical):
     def _pintar_caminhos(self) -> None:
         """Repinta os tres rotulos que carregam caminho.
 
-        Repintar e so formatar: nenhuma destas funcoes vai ao disco. A
-        deteccao do Instant Client (`resolve_oracle_client_dir`) VAI — ela
-        varre os diretorios de instalacao comuns do sistema — e por isso
-        mora em `_refresh_oracle_client_status`, chamada quando a resposta
-        pode ter mudado, e nao aqui, que roda a cada resize do terminal.
+        Repintar nao faz VARREDURA de disco. Toca o disco uma vez, e so:
+        `_pintar_fernet` chama `KEY_FILE.exists()` — um `stat` num caminho
+        conhecido. A deteccao do Instant Client
+        (`resolve_oracle_client_dir`) e que varre os diretorios de
+        instalacao comuns do sistema, e por isso mora em
+        `_refresh_oracle_client_status`, chamada quando a resposta pode ter
+        mudado, e nao aqui, que roda a cada resize do terminal.
         """
         self._pintar_dir_exportacao()
         self._pintar_client_oracle()
@@ -403,19 +464,26 @@ class SettingsScreen(Vertical):
         mostrado = elidir_caminho(str(path), largura) if largura else str(path)
         label.update(f"[b]Client em uso:[/]\n{mostrado}\n[b]Origem:[/] {source}")
 
+    #: Dos tres rotulos com caminho, este e o unico que poe o caminho na
+    #: MESMA linha que o seu rotulo — os outros dois quebram a linha antes.
+    #: As celulas do prefixo nao estao disponiveis para o caminho, e cobrar
+    #: a largura inteira fazia a linha passar da caixa e queimar uma linha
+    #: na quebra automatica (37 celulas contra 32 de caixa, medidas a 80x24).
+    PREFIXO_FERNET = "Local: "
+
     def _pintar_fernet(self) -> None:
         from dbqm.core.paths import KEY_FILE
 
         status = self.query_one("#settings-fernet-status", Static)
         exists = KEY_FILE.exists()
         state = "Presente" if exists else "[$texto-apoio]Sera gerada no primeiro uso[/]"
-        largura = self._largura_util(status)
+        orcamento = self._largura_util(status) - len(self.PREFIXO_FERNET)
         local = str(KEY_FILE)
-        if largura:
-            local = elidir_caminho(local, largura)
+        if orcamento > 0:
+            local = elidir_caminho(local, orcamento)
         status.update(
             f"[b]Status:[/b] {state}\n"
-            f"[b]Local:[/b] [$texto-desabilitado]{local}[/]\n\n"
+            f"[b]{self.PREFIXO_FERNET}[/b][$texto-desabilitado]{local}[/]\n\n"
             "[$texto-desabilitado]Criptografa as senhas de conexao salvas. "
             "Nao ha acao manual: ela e criada automaticamente.[/]"
         )
@@ -455,15 +523,33 @@ class SettingsScreen(Vertical):
         """
         hospede = self.query_one(f"#{self._HOSPEDES[chave]}", Vertical)
         if chave not in self._montadas:
-            hospede.mount(self._construir(chave))
-            self._montadas.add(chave)
+            tela = self._construir(chave)
+            hospede.mount(tela)
+            self._montadas[chave] = tela
+        else:
+            # Reabrir uma tela que continua montada mostrava a fase em que
+            # ela FICOU: quem exportou, saiu com `Esc` e voltou reencontrava
+            # o formulario de exportacao, enquanto a entrada da lista
+            # prometia "Exportar / Importar". Quem sabe se ha estado que
+            # precisa sobreviver ao ida-e-volta e a propria tela — o
+            # gerenciador de clients nao implementa isto justamente porque
+            # tem um download de 150+ MB escrevendo na sua arvore.
+            reabrir = getattr(self._montadas[chave], "ao_reabrir", None)
+            if callable(reabrir):
+                reabrir()
         self.query_one(ContentSwitcher).current = self._HOSPEDES[chave]
+        self._set_actions()
 
-    def voltar_ao_inicio(self) -> bool:
-        """Volta da tela hospedada para os paineis. `False` se ja estava la.
+    def voltar_ao_inicio(self) -> None:
+        """Volta da tela hospedada para os paineis; nao faz nada se ja estava la.
 
-        Devolve bool porque quem chama pelo `Esc` (`DBQMApp.action_go_back`)
-        precisa saber se o `Esc` foi consumido aqui.
+        Nao devolve mais um "o `Esc` foi consumido aqui": os tres chamadores
+        (`DBQMApp.action_go_back`, `ConfigPortScreen._go_back_to_settings` e
+        o clique em Voltar da barra de acoes) descartavam o bool, e nenhum
+        deles tem uma segunda rota de `Esc` para tentar caso esta nao pegue.
+        Documentar um valor como load-bearing e ninguem carrega nada com ele
+        e a mesma classe de mentira silenciosa que o resto desta fase
+        vem desfazendo.
 
         A tela hospedada continua MONTADA, so escondida — como
         `FerramentasScreen` ja faz com as suas cinco. Desmontar seria
@@ -473,16 +559,86 @@ class SettingsScreen(Vertical):
         """
         switcher = self.query_one(ContentSwitcher)
         if switcher.current == "settings-main":
-            return False
+            return
         switcher.current = "settings-main"
-        self.call_after_refresh(self._focar_lista_de_ferramentas)
-        return True
+        self._set_actions()
+        self.call_after_refresh(self._reentrar_nos_paineis)
+
+    def _reentrar_nos_paineis(self) -> None:
+        """Volta a mostrar os paineis: ressincroniza e devolve o foco a lista.
+
+        Depois do refresh, e nao durante o `Esc`: a elisao de caminho mede a
+        largura no rotulo montado, e enquanto o `ContentSwitcher` nao
+        refez o layout essa largura ainda e a de quem estava escondido.
+        """
+        self._ressincronizar_com_o_disco()
+        self._focar_lista_de_ferramentas()
+
+    def _ressincronizar_com_o_disco(self) -> None:
+        """Reconcilia os paineis com o que as telas hospedadas gravaram.
+
+        `OracleClientsScreen._use_selected` grava `oracle_client_dir` e
+        salva — e o rotulo `Client em uso` ficava mostrando o client
+        ANTERIOR. Nao e uma desatualizacao qualquer: a rota ate o
+        gerenciador foi desenhada em volta desse rotulo (a entrada da lista
+        fica encostada nele de proposito), entao ele envelhecia exatamente
+        no momento em que a pessoa agiu sobre ele — a tela desmentindo a
+        configuracao que ela mesma acabou de gravar.
+
+        Repinta os DOIS rotulos que saem de `settings.json`, e nao so o do
+        Oracle: o custo e uma leitura de arquivo numa tecla, e a alternativa
+        e depender de alguem lembrar de acrescentar uma linha aqui na
+        proxima vez que uma tela hospedada escrever uma configuracao.
+        """
+        from dbqm.models.settings import load_settings
+
+        try:
+            self._dir_exportacao = load_settings().default_export_dir
+        except Exception:
+            pass
+        self._pintar_dir_exportacao()
+        self._refresh_oracle_client_status()
 
     def _focar_lista_de_ferramentas(self) -> None:
         try:
             self.query_one("#settings-ferramentas-list", OptionList).focus()
         except Exception:
             pass
+
+    # ------------------------------------------------------------------
+    # Barra de acoes
+    # ------------------------------------------------------------------
+
+    def _set_actions(self) -> None:
+        """Anuncia o `Esc` enquanto uma tela hospedada estiver na frente.
+
+        `DBQMApp.compose` nao rende um `Footer`, entao o
+        `Binding("escape", "go_back", "Back")` do app nunca e DESENHADO: a
+        unica saida de `OracleClientsScreen` — que nao tem botao de voltar —
+        era uma tecla que nada na tela mencionava. A secao 7 da gramatica
+        proibe um BOTAO que navega; nao proibe dizer qual tecla volta, e e
+        isso que a barra de acoes faz para o resto do app.
+
+        O nome do metodo nao e enfeite: `DBQMApp.on_tabbed_content_tab_
+        activated` procura `_set_actions`/`_set_list_actions` na tela da aba
+        recem-ativada. Sem ele, sair da aba e voltar apagaria o anuncio com
+        a tela hospedada ainda na frente.
+        """
+        try:
+            barra = self.app.query_one(ActionBar)
+        except Exception:
+            return
+        try:
+            dentro = self.query_one(ContentSwitcher).current != "settings-main"
+        except Exception:
+            dentro = False
+        barra.set_actions(
+            [Action("Voltar", "Esc", "settings-voltar")] if dentro else []
+        )
+
+    def on_action_selected(self, message: ActionSelected) -> None:
+        if message.action_id == "settings-voltar":
+            self.voltar_ao_inicio()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option_list.id != "settings-ferramentas-list":

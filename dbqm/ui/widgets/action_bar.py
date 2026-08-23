@@ -35,6 +35,15 @@ class ActionBar(Static):
         background: $surface;
         border-top: solid $borda;
         dock: bottom;
+        /* A linha que a StatusBar ocupa. O Textual NAO empilha irmaos
+           docados na mesma borda: `_arrange_dock_widgets` poe cada um em
+           `height - widget_height` e reserva `max(...)` — os dois caem no
+           mesmo canto de baixo e quem e desenhado por ultimo cobre o
+           outro. Era o que acontecia aqui desde sempre: a barra media duas
+           linhas (regua + texto), a StatusBar pintava por cima da segunda
+           e o unico vestigio das acoes na tela era a regua. Nenhum teste
+           via: todos afirmavam sobre `_actions`, e nao sobre o pintado. */
+        margin-bottom: 1;
     }
     """
 

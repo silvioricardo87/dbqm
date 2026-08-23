@@ -54,6 +54,14 @@ class Panel(Vertical):
            e nao se cria rolagem aninhada em cima da do proprio widget. */
         overflow-y: auto;
     }
+    /* Densidade: corpo sem o padding VERTICAL (o horizontal fica — e ele
+       que separa o texto da borda). Duas linhas por painel e barato quando
+       ha um painel na tela e caro quando ha seis: as Configuracoes gastavam
+       12 linhas de 24 em ar. E uma DECISAO DO COMPONENTE, com nome, e nao
+       um `#panel-body { padding: 0 1 }` reescrito em cada tela que precisa
+       — a segunda copia dessas ja tinha aparecido, e "cada tela decide por
+       si" e exatamente o que a secao 4 da gramatica existe para remover. */
+    Panel.-denso > #panel-body { padding: 0 1; }
     /* Ligada por `_ajustar_corpo` quando o proprio painel pede
        `height: auto`. Classe, e nao escrita direta de altura em `styles`,
        porque `dbqm/ui` tem um guarda contra esse tipo de escrita fora do
@@ -69,7 +77,14 @@ class Panel(Vertical):
     Panel #panel-body Select { border: none; }
     """
 
-    def __init__(self, title: str, *, accent: bool = False, id: str | None = None) -> None:
+    def __init__(
+        self,
+        title: str,
+        *,
+        accent: bool = False,
+        denso: bool = False,
+        id: str | None = None,
+    ) -> None:
         super().__init__(id=id)
         self._title = title
         # NOTE: intentionally NOT named `_pending_children` — Textual's own
@@ -81,6 +96,8 @@ class Panel(Vertical):
         self._panel_pending_children: list[Widget] = []
         if accent:
             self.add_class("accent-focus")
+        if denso:
+            self.add_class("-denso")
 
     def compose(self) -> ComposeResult:
         yield Label(self._title, id="panel-title")

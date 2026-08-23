@@ -48,13 +48,17 @@ class OracleClientsScreen(Vertical):
     OracleClientsScreen .oc-acoes {
         height: auto;
     }
+    /* Duas linhas de informacao nao pedem 11 linhas de caixa. Com o
+       padding vertical do corpo e uma margem por linha, este painel
+       gastava 11 para dizer a plataforma e o diretorio — e era ele que
+       empurrava CLIENTS INSTALADOS para fora da tela quando o foco
+       inicial parava la (`_set_initial_focus`). Denso e sem margens ele
+       cabe em 6, e a tela abre mostrando os dois primeiros paineis. */
     OracleClientsScreen #oc-platform {
         height: auto;
-        margin-bottom: 1;
     }
     OracleClientsScreen #oc-clients-dir {
         height: auto;
-        margin-bottom: 1;
     }
     OracleClientsScreen #oc-installed-table {
         height: auto;
@@ -98,7 +102,11 @@ class OracleClientsScreen(Vertical):
         self._busy = False
 
     def compose(self) -> ComposeResult:
-        with Panel("🖥️  PLATAFORMA DETECTADA", id="oc-platform-panel"):
+        with Panel(
+            "🖥️  PLATAFORMA DETECTADA",
+            id="oc-platform-panel",
+            denso=True,
+        ):
             yield Static(
                 f"[b]{oci.host_platform_label(self._host)}[/b]   "
                 f"[dim]({self._host[0]}/{self._host[1]})[/dim]",
@@ -146,8 +154,27 @@ class OracleClientsScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
+        """Comeca no PRIMEIRO painel interativo, e nao no ultimo.
+
+        A tela e mais alta que 24 linhas e rola, e o Textual rola ate o que
+        recebe foco. Focando a tabela de DISPONIVEIS — o terceiro painel —
+        o gerenciador abria ja rolado ate ela: a primeira coisa depois de
+        escolher a entrada da lista era uma tabela sem cabecalho e sem
+        titulo em cima. Focando aqui, a tela abre num painel COM titulo, e
+        quem quer instalar chega a DISPONIVEIS por Tab (ou pelo botao
+        "Escolher client" do estado vazio, que existe para isso).
+
+        Nao se rola para o topo a forca depois de focar: isso poe o foco
+        fora da vista, que e pior do que comecar um painel abaixo. Quem
+        paga o topo e a altura do painel de plataforma, enxugada junto.
+        """
         try:
-            self.query_one("#oc-available-table", DataTable).focus()
+            if self._installed:
+                self.query_one("#oc-installed-table", DataTable).focus()
+            else:
+                self.query_one("#oc-installed-empty", EmptyState).query_one(
+                    Button
+                ).focus()
         except Exception:
             pass
 
