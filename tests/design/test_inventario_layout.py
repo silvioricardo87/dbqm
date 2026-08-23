@@ -745,7 +745,26 @@ NAVEGACAO_ISENTA = {
 #     lista, aba e atalho SAO navegacao legitima. So botao nao e;
 #   - a lista de verbos e fechada (`NAVEGACAO`). Um terceiro jeito de
 #     navegar que apareca amanha precisa ser acrescentado aqui — e o mesmo
-#     custo que `MOLDURAS` e `CONSTRUTORES_DE_ITEM` ja pagam.
+#     custo que `MOLDURAS` e `CONSTRUTORES_DE_ITEM` ja pagam;
+#   - `_ids_do_ramo` sobe pelos `if` que ENVOLVEM a chamada e junta todos os
+#     literais de string que achar no teste de cada um; depois
+#     `botoes_que_navegam` fica com `sorted(ids)[0]`. Numa cadeia
+#     `if/elif`, o `elif` e um `If` ANINHADO no `orelse` do anterior, entao
+#     subir pelos pais colhe tambem o teste do ramo de cima e os ids se
+#     misturam: um ramo que navega cujo id ordene DEPOIS de um id isento do
+#     mesmo arquivo herda a isencao e passa calado. Verificado por quebra:
+#     um `elif "zzz-..."` ao lado do isento `"executar-consulta"` em
+#     `history.py` escapa; trocado para `"aaa-..."`, o mesmo ramo reprova. Os
+#     handlers de hoje sao rasos — um `if` por ramo, sem cadeia com isento
+#     dentro —, entao nada escapa AGORA. A protecao acaba onde a cadeia
+#     comeca, e o conserto seria olhar so o `if` mais proximo, o que por sua
+#     vez perde os handlers que aninham de verdade;
+#   - o verbo tambem e aceito como STRING literal, porque e a forma que os
+#     quatro CTAs reais usam (`getattr(self.app, "action_switch_tab", None)`).
+#     O preco: o guarda prova que o NOME esta escrito ali, nao que a
+#     navegacao acontece. Esvaziar a chamada e deixar so o `getattr` mantem
+#     este teste verde com o CTA mudo — quem cobre esse lado sao os testes
+#     de comportamento de cada CTA, nao esta varredura.
 
 
 def _e_handler_de_botao(no: ast.AST) -> bool:

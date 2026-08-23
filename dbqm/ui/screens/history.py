@@ -70,9 +70,21 @@ class HistoryScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
+        """Foca o que a tela esta MOSTRANDO.
+
+        Com historico vazio quem esta na tela e o `EmptyState`, e a unica
+        coisa acionavel nele e o botao. Focar a tabela nessa hora punha o
+        foco num widget escondido: nada visivel ficava marcado, e a tecla
+        de Enter nao alcancava a saida que a tela acabou de oferecer.
+        """
         table = self.query_one("#hist-table", DataTable)
         if table.display:
             table.focus()
+            return
+        try:
+            self.query_one("#hist-empty", EmptyState).query_one(Button).focus()
+        except Exception:
+            pass
 
     def _reload(self) -> None:
         """Load and display history entries."""
@@ -83,6 +95,7 @@ class HistoryScreen(Vertical):
 
         empty = self.query_one("#hist-empty", EmptyState)
         table = self.query_one("#hist-table", DataTable)
+        detail_panel = self.query_one("#hist-detail-panel")
 
         table.clear(columns=True)
         table.cursor_type = "row"
@@ -94,12 +107,24 @@ class HistoryScreen(Vertical):
         table.add_column("Status", key="status", width=10)
 
         if not self._entries:
+            # Esconder a tabela e o que as outras dez listas vazias do dbqm
+            # ja faziam (`connections`, `query_list`, `browser`, ...): sem
+            # isso, o cabecalho `Data Conexao Tipo SQL Tempo Status` era
+            # pintado colado no estado vazio, prometendo uma tabela que nao
+            # existe. O painel de DETALHES some pelo mesmo motivo — nao ha
+            # registro para detalhar — e devolver as suas 8 linhas ao painel
+            # de cima e o que faz a linha de identidade (`Historico`) caber
+            # em 80x24, onde antes era recortada inteira.
             empty.display = True
+            table.display = False
+            detail_panel.display = False
             self._show_detail(None)
             self._set_list_actions()
             return
 
         empty.display = False
+        table.display = True
+        detail_panel.display = True
 
         for i, e in enumerate(self._entries, 1):
             if e.entry_type == "group":
@@ -211,9 +236,7 @@ class HistoryScreen(Vertical):
     def _on_clear_confirmed(self, confirmed: bool) -> None:
         if not confirmed:
             # Stay on the history screen, restore focus
-            table = self.query_one("#hist-table", DataTable)
-            if table.display:
-                table.focus()
+            self._set_initial_focus()
             return
 
         from dbqm.core.history import clear_history
@@ -221,6 +244,9 @@ class HistoryScreen(Vertical):
         clear_history()
         self.notify("Historico limpo!", timeout=5)
         self._reload()
+        # Limpar deixa a tela vazia: o foco tem de acompanhar a tabela que
+        # acabou de sair de cena, senao fica num widget escondido.
+        self._set_initial_focus()
 
     # ------------------------------------------------------------------
     # Action bar handlers

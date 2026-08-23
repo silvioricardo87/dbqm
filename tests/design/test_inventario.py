@@ -103,3 +103,37 @@ def test_moldura_de_dialog_existe_em_um_lugar_so():
         if "border: thick" in texto:
             fora.append(arquivo.relative_to(RAIZ.parent).as_posix())
     assert not fora, f"moldura de dialog escrita a mao em: {fora}"
+
+
+# ---------------------------------------------------------------------------
+# Bloco de esqueleto (`$superficie-elevada` de fundo) escrito a mao
+# ---------------------------------------------------------------------------
+#
+# O `Esqueleto` era o unico dos quatro componentes compartilhados sem
+# guarda nenhuma — as tres telas que o usam (`browser`, `group_exec`,
+# `query_exec`) o importam hoje, mas nada impedia a quarta de repetir a
+# grade de blocos a mao.
+#
+# A marca vigiada e o FUNDO do bloco: `$superficie-elevada` e um token que
+# em `dbqm/ui/` so tem um uso — pintar a celula-fantasma do esqueleto.
+# Mesma aposta da guarda de moldura do `Dialog`, que vigia `border: thick`:
+# quem repete um componente repete copiando o CSS dele.
+#
+# LIMITES CONHECIDOS (o que esta guarda NAO ve):
+# - Um esqueleto a mao que escolha OUTRO token de fundo (ex.: `$painel`) ou
+#   que desenhe os blocos com glifo (`Static("░░░░")`) em vez de fundo
+#   passa reto. A guarda fecha o caminho da copia-colagem, nao o da
+#   reinvencao.
+# - Ela nao olha o HTML (`core/html_report.py` usa a forma
+#   `var(--superficie-elevada)`, que e outra linguagem e outro consumidor).
+
+
+def test_bloco_de_esqueleto_existe_em_um_lugar_so():
+    fora = []
+    for arquivo in sorted(RAIZ.rglob("*.py")):
+        if arquivo.name == "esqueleto.py":
+            continue
+        texto = arquivo.read_text(encoding="utf-8")
+        if "$superficie-elevada" in texto:
+            fora.append(arquivo.relative_to(RAIZ.parent).as_posix())
+    assert not fora, f"bloco de esqueleto escrito a mao em: {fora}"

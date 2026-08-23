@@ -665,7 +665,16 @@ class SettingsScreen(Vertical):
 
         settings = load_settings()
         new_theme = str(event.value)
-        if new_theme == settings.theme:
+        # Comparar com o tema NORMALIZADO, nao com o texto cru do arquivo.
+        # `on_mount` enche o Select com `get_theme(settings.theme).name`, e o
+        # proprio `Select._on_mount` reemite `Changed` depois — fora do
+        # alcance de qualquer `prevent` posto aqui (medido). Na primeira
+        # abertura depois de subir da 1.17.x o arquivo ainda diz
+        # `github-dark` e o Select diz `plano-escuro`: com a comparacao crua
+        # isso passava por troca de tema, gravava e anunciava "Tema
+        # alterado: plano-escuro" a quem nao alterou tema nenhum. Sao o
+        # mesmo tema — `github-dark` foi so renomeado.
+        if new_theme == get_theme(settings.theme).name:
             return
         settings.theme = new_theme
         save_settings(settings)
@@ -678,14 +687,33 @@ class SettingsScreen(Vertical):
     def on_switch_changed(self, event: Switch.Changed) -> None:
         from dbqm.models.settings import load_settings, save_settings
 
+        # `Switch.Changed` nao prova que alguem mexeu no interruptor: o
+        # proprio `on_mount` atribui `Switch.value` para MOSTRAR o que ja
+        # esta salvo, e toda vez que o valor salvo difere do `False` de
+        # fabrica do `Switch` a atribuicao emite `Changed`. Acontecia em
+        # toda abertura do app, com ninguem tocando em nada:
+        # `create_export_subdirs` nasce `True` (aviso em qualquer config), e
+        # `audit_log_enabled` nasce `False` mas fica `True` assim que a
+        # pessoa liga auditoria (aviso dai em diante). Cada um virava um
+        # aviso E uma reescrita do `settings.json` — medido: 1 gravacao com
+        # config nova, 2 com auditoria ligada.
+        #
+        # A guarda e por IGUALDADE, nao por instante de montagem: se o valor
+        # que chegou ja e o que esta gravado, nada aconteceu — vale tanto
+        # para o eco da montagem quanto para qualquer outro reemissor, e nao
+        # depende de acertar quando a tempestade de mount assenta.
         if event.switch.id == "settings-audit-switch":
             settings = load_settings()
+            if settings.audit_log_enabled == event.value:
+                return
             settings.audit_log_enabled = event.value
             save_settings(settings)
             status = "ativado" if event.value else "desativado"
             self.notify(f"Log de auditoria {status}!")
         elif event.switch.id == "settings-export-subdirs-switch":
             settings = load_settings()
+            if settings.create_export_subdirs == event.value:
+                return
             settings.create_export_subdirs = event.value
             save_settings(settings)
             status = "ativado" if event.value else "desativado"

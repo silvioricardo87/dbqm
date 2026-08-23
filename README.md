@@ -17,7 +17,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execution plan (`--explain`)** — From the CLI: `dbqm sql "<query>" <conn> --explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` on Oracle (or native `EXPLAIN` on PostgreSQL/MySQL) and prints the plan in one step.
 - **Dark/Light themes** — "Plano" design system (dark default, light variant), switchable in settings; shared design tokens (`dbqm/design/tokens.py`) drive the TUI, CLI output, and HTML reports so all three stay visually consistent
 - **Design tokens** — 15 semantic color tokens (surfaces, text, borda, identidade, and a veredito axis for OK/DIFF/AUSENTE) shared across the TUI, Rich-based CLI output, and HTML report CSS; WCAG contrast-checked against every surface it declares as valid (`VALIDO_SOBRE` in `dbqm/design/tokens.py`). Known gap outside that check: Textual's built-in `$text-muted` and Rich's `[dim]` modifier sit outside the token layer and are not contrast-checked
-- **Shared components** — `Dialog` (floating-layer chrome), `EmptyState` (mandatory what/why/first-action for empty lists), `Veredito`/`StatusOperacao` (match/diff/absent + op-result markup), and `Esqueleto` (loading skeleton + distinct disabled/read-only states) are the single implementation for their respective jobs across the TUI; zero literal colors remain outside the token layer, and a component-inventory test locks all four against a second hand-rolled copy reappearing
+- **Shared components** — `Dialog` (floating-layer chrome), `EmptyState` (mandatory what/why/first-action for empty lists), `Veredito`/`StatusOperacao` (match/diff/absent + op-result markup), and `Esqueleto` (loading skeleton + distinct disabled/read-only states) are the single implementation for their respective jobs across the TUI; zero literal colors remain outside the token layer, and all four are locked against a second hand-rolled copy reappearing — `Dialog`, `EmptyState` and `Esqueleto` by the component-inventory guards in `tests/design/test_inventario.py`, `Veredito` by its own guard in `tests/ui/test_widgets.py`
 - **Layout grammar** — Structure is decided once for the whole TUI, not per screen: `Panel` is the only section frame (a screen taller than the terminal scrolls instead of truncating in silence); navigation follows cardinality (tabs → `Select` with counts → `OptionList` → `DataTable`, with `ListView` out of the vocabulary); a list item is a 2–3 line hierarchy (identity / disambiguation / context) instead of a concatenated string; a result table pins its key column, stripes its rows and scrolls sideways rather than truncating; and actions are anchored to the panel they operate, with destructive ones set apart. Six repo-wide guards in `tests/design/test_inventario_layout.py` enforce it — each one verified by breaking the rule it protects, and each one documenting in code what it cannot see
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
 - **Data export** — Export results to CSV, JSON, TXT, PNG, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
@@ -66,7 +66,7 @@ venv\Scripts\activate
 # Linux/macOS
 source venv/bin/activate
 
-pip install -r requirements.txt
+pip install .
 ```
 
 ### Windows on ARM (win-arm64)
@@ -226,8 +226,6 @@ Groups run the same logical query across multiple databases and compare results:
 ```
 dbqm/
 ├── pyproject.toml                 # Package metadata & dependencies
-├── main.py                        # Legacy entry point (delegates to dbqm.main)
-├── requirements.txt               # Dependencies (alternative to pyproject.toml)
 ├── dbqm/
 │   ├── _version.py                # Package version
 │   ├── main.py                    # Entry point (TUI + CLI dispatch)
@@ -246,7 +244,8 @@ dbqm/
 │   │   │   ├── group_manage.py    # Group CRUD
 │   │   │   ├── template_manage.py # Template CRUD
 │   │   │   ├── adhoc.py           # Ad-hoc SQL execution
-│   │   │   ├── ddl.py             # DDL extraction
+│   │   │   ├── ferramentas.py     # Ferramentas tab (DDL, rotinas, editor de package)
+│   │   │   ├── group_run.py       # Group execution runner (shared by tab and CLI)
 │   │   │   ├── exec_routine.py     # Execute packages, procedures, functions
 │   │   │   ├── browser.py         # Object browser (tables, views, packages)
 │   │   │   ├── history.py         # Execution history
@@ -271,18 +270,16 @@ dbqm/
 │   │   │   ├── empty_state.py     # EmptyState — mandatory "what/why/first action" for empty lists
 │   │   │   ├── veredito.py        # Veredito/StatusOperacao markup (match/diff/absent, op result color)
 │   │   │   └── esqueleto.py       # Loading skeleton + distinct disabled/read-only states
-│   │   ├── modals/                # Dialog screens
-│   │   │   ├── param_input.py     # Query parameter input
-│   │   │   ├── confirm.py         # Yes/No confirmation
-│   │   │   ├── text_input.py      # Single text input
-│   │   │   ├── export_picker.py   # Export format selector
-│   │   │   ├── export_dir_setup.py     # Default export directory
-│   │   │   ├── oracle_client_dir.py    # Oracle Instant Client directory
-│   │   │   ├── column_maps.py     # DE-PARA value mapping
-│   │   │   ├── error.py           # Error display modal
-│   │   │   └── help.py            # Keyboard shortcuts overlay
-│   │   └── legacy/
-│   │       └── display.py         # Rich renderables for PNG/TXT export
+│   │   └── modals/                # Dialog screens
+│   │       ├── param_input.py     # Query parameter input
+│   │       ├── confirm.py         # Yes/No confirmation
+│   │       ├── text_input.py      # Single text input
+│   │       ├── export_picker.py   # Export format selector
+│   │       ├── export_dir_setup.py     # Default export directory
+│   │       ├── oracle_client_dir.py    # Oracle Instant Client directory
+│   │       ├── column_maps.py     # DE-PARA value mapping
+│   │       ├── error.py           # Error display modal
+│   │       └── help.py            # Keyboard shortcuts overlay
 │   ├── core/                      # Business logic (database-agnostic)
 │   │   ├── paths.py               # Centralized path resolution (~/.dbqm)
 │   │   ├── db_manager.py          # Connection handling
@@ -308,7 +305,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (931 tests)
+└── tests/                         # Test suite (940 tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     ├── design/                    # Design-system guards (color tokens, contrast, layout grammar)

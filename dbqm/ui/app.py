@@ -14,6 +14,45 @@ from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
 from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
 
+class AbasPrincipais(TabbedContent):
+    """`TabbedContent` em que FOCAR nao e NAVEGAR.
+
+    O `TabbedContent` de fabrica trata foco como navegacao: `TabPane` posta
+    `TabPane.Focused` a cada `DescendantFocus`, e
+    `TabbedContent._on_tab_pane_focused` responde com
+    ``self.active = event.tab_pane.id``. Qualquer widget que ganhe foco
+    dentro de um painel INATIVO arrasta a aba junto — inclusive um painel
+    que o `ContentSwitcher` ja escondeu (medido: `pane.display` False, e
+    ``w.focus()`` mesmo assim leva `active` de `tab-historico` para
+    `tab-conexoes`).
+
+    E exatamente o que toda tela do dbqm faz: cada uma agenda o proprio
+    foco inicial com `call_after_refresh` no seu `on_mount`. Quando a
+    pessoa troca de aba antes de a tempestade de montagem assentar, o foco
+    atrasado da tela ANTERIOR chega depois e desfaz a troca — a aba pisca
+    `tab-conexoes` -> `tab-coleta` -> `tab-conexoes` e para na errada. Foi
+    o que se mediu com um `F5` logo na abertura: `active='tab-conexoes'`
+    com sete paineis ainda desabilitados.
+
+    Aqui a mensagem morre. Trocar de aba no dbqm e clicar no cabecalho ou
+    apertar a tecla de funcao — as duas rotas continuam intactas, porque
+    passam por `Tabs.active`, nao por foco. Nenhuma tela depende do
+    comportamento de fabrica: `DBQMApp._focus_screen_widget` so foca dentro
+    do painel que JA esta ativo.
+    """
+
+    def _on_tab_pane_focused(self, event) -> None:  # type: ignore[override]
+        # `prevent_default`, nao apenas `stop`: o Textual despacha a MESMA
+        # mensagem para o handler de CADA classe da MRO
+        # (`MessagePump._get_dispatch_methods`), entao um `stop()` sozinho
+        # so barra o borbulhamento — o `_on_tab_pane_focused` do
+        # `TabbedContent` rodaria em seguida e a aba trocaria assim mesmo
+        # (medido: a correcao com `stop()` sozinho nao mudou nada). E
+        # `_no_default_action` que interrompe a varredura da MRO.
+        event.prevent_default()
+        event.stop()
+
+
 class DBQMApp(App):
     """DB Query Manager — single tabbed dashboard shell."""
 
@@ -104,7 +143,7 @@ class DBQMApp(App):
         yield Header()
         with Horizontal(id="body"):
             yield TemplatesSidebar(id="templates-sidebar")
-            with TabbedContent(id="main-tabs", initial=initial_tab):
+            with AbasPrincipais(id="main-tabs", initial=initial_tab):
                 with TabPane("🔍  Coleta", id="tab-coleta"):
                     from dbqm.ui.screens.adhoc import AdhocScreen
                     yield AdhocScreen(id="adhoc-screen")

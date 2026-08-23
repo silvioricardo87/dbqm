@@ -61,14 +61,17 @@ dbqm/
 │   ├── connection.py  # db_type ∈ {oracle, sqlserver, postgresql, mysql}
 │   ├── query.py  group.py  settings.py  template.py
 └── ui/                # Textual TUI (imports core; core never imports ui)
-    ├── app.py         # Main App: layout, routing, keybindings, #screen-area
+    ├── app.py         # Main App: single tabbed shell (TabbedContent), routing,
+    │                  #   keybindings; `AbasPrincipais` keeps focus from switching tabs
     ├── theme.py  utils.py
     ├── screens/       # One Vertical-widget screen per feature (adhoc, query_exec,
-    │                  #   group_exec, browser, ddl, connections, history, settings, ...)
-    ├── widgets/       # Reusable components (panel, sidebar, result_table, action_bar,
-    │                  #   lista_hierarquica, sql_viewer, status_bar, progress, ...)
+    │                  #   group_exec, group_run, browser, connections, history,
+    │                  #   ferramentas, exec_routine, package_editor, settings, ...)
+    ├── widgets/       # Reusable components (panel, templates_sidebar, result_table,
+    │                  #   action_bar, lista_hierarquica, sql_viewer, status_bar,
+    │                  #   progress, dialog, empty_state, veredito, esqueleto, ...)
     └── modals/        # Dialog screens (confirm, param_input, export_picker,
-                       #   connection_form, error, help, ...)
+                       #   export_dir_setup, column_maps, error, help, ...)
 ```
 
 > Note: there is **no `ui/flows/`** — the old Rich/prompt "flow" layer was
@@ -113,11 +116,11 @@ Conventional Commits: `<type>(<scope>): <description>`
 
 - Framework: **pytest + pytest-asyncio** (`pytest.ini_options` in `pyproject.toml`;
   `testpaths=["tests"]`, `pythonpath=["."]`)
-- Layout mirrors `dbqm/`: `tests/core/`, `tests/models/`, `tests/ui/`, `tests/api/`,
+- Layout mirrors `dbqm/`: `tests/core/`, `tests/models/`, `tests/ui/`,
   plus `tests/design/` (the design-system guards), `tests/test_cli.py` and shared
   fixtures in `tests/conftest.py`
-- Run: `python -m pytest tests/ -x -q` (currently **931** tests, of which
-  35 in `tests/design/` are the color and layout guards)
+- Run: `python -m pytest tests/ -x -q` (currently **940** tests, of which
+  36 in `tests/design/` are the color and layout guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory
 - Prefer pure, directly-testable functions in `core/` (e.g. `classify_sql`,
@@ -256,29 +259,87 @@ to each guard before concluding "the guard is green, so the rule holds".
 
 ### Known debt, recorded on purpose (not fixed here)
 
-- On startup (Coleta tab) the ActionBar paints **Conexoes'** actions. Pre-existing
-  mis-wiring, identical at `384ea25`; making the ActionBar render finally exposed it.
-- Every app mount fires a spurious `Subdiretorios por tipo: ativado` toast:
-  `Settings.create_export_subdirs` defaults to `True` and `Switch` to `False`, so
-  the assignment in `on_mount` emits `Switch.Changed`.
+> Struck-through entries were re-measured and either fixed or found not to
+> reproduce; the note on each says which, and what was measured. They stay
+> visible on purpose — a debt entry that quietly disappears teaches the next
+> reader nothing about why it was there.
+
+- ~~On startup (Coleta tab) the ActionBar paints **Conexoes'** actions.~~ **Does not
+  reproduce.** Re-measured 9/9 (3 sizes x 3 repeats, config with one connection;
+  same result with and without the tab-focus fix): on Coleta the bar is **empty**.
+  `AdhocScreen` exposes neither `_set_actions` nor `_set_list_actions`, so
+  `on_tabbed_content_tab_activated` clears the bar — which is what the code says.
+  With an **empty** config the app opens on Conexoes and shows Conexoes' actions,
+  which is right. What remains is a smaller, different thing: the tab that hosts
+  the SQL editor announces no action at all until the first execution.
+- ~~Every app mount fires a spurious `Subdiretorios por tipo: ativado` toast.~~
+  **Fixed** — and there were three, not one. `on_switch_changed` /
+  `on_select_changed` now return early when the incoming value already equals the
+  stored one. The three: export subdirs on every launch; audit log on every launch
+  for anyone with `audit_log_enabled` on; and `Tema alterado: plano-escuro` on the
+  first launch after upgrading from 1.17.x — that one was the `github-dark` ->
+  `plano-escuro` **rename** announcing itself as a user's choice. Each also
+  rewrote `settings.json` (measured: 1 write with a fresh config, 2 with audit on).
 - The two Oracle Instant Client tests in `tests/core/test_db_manager.py` read the
   **live user config** instead of `tmp_config_dir` — any user who actually sets
   `oracle_client_dir` breaks them on their own machine.
-- `Breadcrumb` (`dbqm/ui/widgets/breadcrumb.py`) is now entirely unused, and
-  `package_editor.py:703-707` still queries for it (a fourth dead query).
+- `Breadcrumb` (`dbqm/ui/widgets/breadcrumb.py`) is **fully dead**: zero live
+  instances, `package_editor.py:701-708` still queries it and every call raises
+  into a bare `except`, and it is still exported from `widgets/__init__.py:3,15-16`.
 - The connection checklist in `group_exec` is the one flat list label left.
   `SelectionList` paints **only the first line** of a prompt (measured), so
   applying `item_hierarquico` there would delete the target instead of
   clarifying it; the real fix is a different widget.
-- `tests/ui/test_app.py::test_f_keys_switch_tabs` and
-  `::test_gerenciador_de_clients_abre_num_painel_com_titulo` failed once in a
-  full run that took 293s (vs 214s and 234s for the runs on either side of it,
-  both green) and passed in isolation on the same tree. Timing-sensitive under
-  load — worth pinning down before it fails in CI and gets blamed on a change.
+- ~~`test_f_keys_switch_tabs` / `test_gerenciador_de_clients_abre_num_painel_com_titulo`
+  are timing-sensitive under load.~~ **Fixed at the root** — it was not a flaky
+  test, it was stock `TabbedContent` treating FOCUS as NAVIGATION
+  (`_on_tab_pane_focused` -> `self.active = pane.id`). Since every screen schedules
+  its own initial focus, the previous screen's late focus undid the tab switch.
+  `AbasPrincipais` (`ui/app.py`) kills the message with `prevent_default()` —
+  `stop()` alone is not enough, because Textual dispatches the same message to the
+  handler of EVERY class in the MRO (measured: `stop()` changed nothing). Covered
+  by `test_foco_em_painel_inativo_nao_troca_de_aba` and
+  `test_tecla_de_funcao_na_abertura_chega_na_aba_pedida`, both of which fail
+  deterministically without the fix with the flake's own message
+  (`assert 'tab-conexoes' == 'tab-historico'`).
 - Fixed-schema tables (`history`, `query_manage`, `template_manage`, …) are out
   of `tabela_com_chave_fixa` by design. The spec's line about giving `history`
   a pinned key and zebra was never implemented; zebra there would blend the
   `marcar_veredito` cells at runtime, invisible to the contrast guard.
+- **`history` starves vertically, and that outweighs the line above.** At 80x24,
+  `#hist-detail-panel { min-height: 8 }` (`history.py:35-38`) eats half the screen
+  and leaves the table a **4-line** viewport: with 30 entries, **2 are visible**. A
+  pinned key and zebra stripes do not fix a list that does not fit.
+- **Downgrading the theme still breaks**, but now only after a user action. Rolling
+  back to 1.17.x with `theme: plano-escuro` in `settings.json` raises
+  `InvalidThemeError: Theme 'plano-escuro' has not been registered`. Data and the
+  Fernet key stay readable; recovery is hand-editing one key. Until the false theme
+  toast was fixed, 1.21's first launch rewrote that key by itself and the rollback
+  broke with nobody having touched anything; now the file only changes when someone
+  actually picks a theme.
+- **Guard 6 (`test_botao_nao_navega`) has an `elif`-chain hole.** `_ids_do_ramo`
+  (`tests/design/test_inventario_layout.py:764-776`) gathers the literal ids from
+  every enclosing `if` test and takes `sorted(ids)[0]`. In an `if/elif` chain the
+  `elif` is an `If` nested in the previous one's `orelse`, so walking up the parents
+  also picks up the sibling branch's id: a navigating branch whose id sorts AFTER an
+  exempt id inherits the exemption and passes in silence. Break-tested: an `elif
+  "zzz-..."` beside the exempt `"executar-consulta"` in `history.py` escapes;
+  renamed to `"aaa-..."`, the same branch fails. Today's handlers are flat, so
+  nothing escapes now. Also recorded in the guard's own "Limites conhecidos" block,
+  which is where the next reader looks.
+- **Guard 6 accepts the string literal `"action_switch_tab"` as proof of
+  navigation.** That is the form the four real CTAs use
+  (`getattr(self.app, "action_switch_tab", None)`), but it means gutting the call
+  while keeping the `getattr` leaves the guard green with a silent CTA — it proves
+  the NAME is written there, not that navigation happens.
+- **The tab strip breaks decision 2 of the grammar** ("~7 fixed, fit the width"):
+  there are **eight**. Measured at 80 columns on launch, the strip ends at
+  `⚙️  Confi` — label cut mid-word, Consultas and Ferramentas invisible — and it
+  scrolls with **no overflow indicator**, which breaks decision 1 as well.
+- **Two vocabularies for the action row.** `adhoc` uses auto-width buttons anchored
+  left; `connections` uses full-width buttons with centred labels — byte for byte
+  the "full-width buttons pretending to be a menu" that §7 criticises. It escapes
+  the guard because `text-align` is out of the guard's scope.
 
 ## Git Policy
 

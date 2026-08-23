@@ -110,9 +110,18 @@ async def test_all_panes_enabled_after_mount(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
-    """Simulates a mouse click on a tab header by setting
-    TabbedContent.active directly, and confirms the switch takes effect and
-    the target pane remains enabled.
+    """Ativar a aba pela API do `TabbedContent` troca a aba e deixa o
+    painel de destino habilitado.
+
+    Nao e "simular um clique", como dizia a docstring antiga — clique de
+    mouse entra por `Tabs`, esta atribuicao entra pela reativa `active`. E
+    a rota mais NUA das duas: se ela e estavel, a do clique tambem e.
+
+    Era ela que piscava sob carga (a revisao mediu 8 de 15 perdendo a
+    aba). O motivo estava no PRODUTO, nao aqui, e a corrida so vira
+    deterministica quando se dispara o foco atrasado a mao — por isso o
+    teste que guarda a raiz e o vizinho
+    `test_foco_em_painel_inativo_nao_troca_de_aba`, nao este.
     """
     app = DBQMApp()
     async with app.run_test() as pilot:
@@ -123,6 +132,68 @@ async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
         assert tabs.active == "tab-historico"
         pane = app.query_one("#tab-historico", TabPane)
         assert not pane.disabled
+
+
+@pytest.mark.asyncio
+async def test_foco_em_painel_inativo_nao_troca_de_aba(tmp_config_dir):
+    """Focar um widget de OUTRA aba nao pode arrastar a aba ativa junto.
+
+    E a raiz da instabilidade das tres travessias de aba deste arquivo. O
+    `TabbedContent` de fabrica responde a `TabPane.Focused` com
+    ``self.active = pane.id``, e toda tela do dbqm agenda o proprio foco
+    inicial (`call_after_refresh` no `on_mount`). Trocar de aba durante a
+    montagem deixava o foco atrasado da tela anterior desfazer a troca.
+
+    O `focus()` abaixo e literalmente o que essas telas fazem — e funciona
+    mesmo com o painel ja escondido pelo `ContentSwitcher`, que era o que
+    tornava a corrida invisivel. Afirma-se o que a tela PINTA, nao so o
+    valor de `active`: com a aba errada ativa, e o conteudo de Conexoes
+    que aparece.
+    """
+    from tests.ui._helpers import texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        tabs = app.query_one("#main-tabs", TabbedContent)
+        tabs.active = "tab-historico"
+        await pilot.pause()
+
+        intruso = next(
+            w for w in app.query_one("#connections-screen").query("*") if w.can_focus
+        )
+        intruso.focus()
+        await pilot.pause()
+
+        assert tabs.active == "tab-historico"
+        pintado = texto_renderizado(app)
+        assert "HISTORICO" in pintado
+        assert "CONEXOES" not in pintado
+
+
+@pytest.mark.asyncio
+async def test_tecla_de_funcao_na_abertura_chega_na_aba_pedida(tmp_config_dir):
+    """Um `F5` apertado ANTES de a montagem assentar nao pode ser engolido.
+
+    Medido no produto antes da correcao: `f5` com zero pausas terminava em
+    `active='tab-conexoes'` com sete paineis ainda desabilitados — a tecla
+    parecia nao ter existido. Aqui a tecla e apertada no primeiro instante
+    possivel, sem nenhuma pausa de assentamento antes dela.
+    """
+    app = DBQMApp()
+    async with app.run_test() as pilot:
+        await pilot.press("f5")
+        # O foco atrasado que a tela de Conexoes agenda no proprio `on_mount`
+        # chega DEPOIS da tecla. Disparado aqui de proposito, para que a
+        # corrida aconteca sempre — solta, ela so aparecia uma vez a cada
+        # dez execucoes, e um teste que falha 1/10 nao guarda nada.
+        intruso = next(
+            w for w in app.query_one("#connections-screen").query("*") if w.can_focus
+        )
+        intruso.focus()
+        for _ in range(4):
+            await pilot.pause()
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
 
 
 def test_dbqm_app_registra_e_ativa_tema_na_construcao(tmp_config_dir):

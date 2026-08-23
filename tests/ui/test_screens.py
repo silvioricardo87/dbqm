@@ -2189,6 +2189,36 @@ class HistoryTestApp(ThemedTestApp):
         yield HistoryScreen()
 
 
+def _salvar_duas_entradas() -> None:
+    """Grava um historico minimo (uma consulta, um grupo)."""
+    from dbqm.core.history import save_history, HistoryEntry
+
+    save_history(
+        [
+            HistoryEntry(
+                id="001",
+                timestamp="2025-01-15T10:30:00",
+                entry_type="query",
+                name="test_query",
+                connection="dev_oracle",
+                row_count=42,
+                elapsed=1.5,
+                success=True,
+            ),
+            HistoryEntry(
+                id="002",
+                timestamp="2025-01-15T10:35:00",
+                entry_type="group",
+                name="test_group",
+                connection="",
+                all_match=False,
+                summary="1 divergente",
+                elapsed=3.2,
+            ),
+        ]
+    )
+
+
 @pytest.mark.asyncio
 async def test_history_screen_renders(tmp_config_dir):
     app = HistoryTestApp()
@@ -2198,7 +2228,13 @@ async def test_history_screen_renders(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_shows_table_and_detail_together(tmp_config_dir):
-    """Table and detail panel are both visible at once — no phase swap."""
+    """Table and detail panel are both visible at once — no phase swap.
+
+    Com HISTORICO: e so quando ha registro que a tabela e o detalhe tem o
+    que mostrar. Antes este teste montava a tela VAZIA e ainda exigia os
+    dois de pe — era o defeito escrito como contrato.
+    """
+    _salvar_duas_entradas()
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
@@ -2222,7 +2258,7 @@ async def test_history_panels_have_titles(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_screen_empty(tmp_config_dir):
-    """With no history, should show empty message; table stays docked/visible."""
+    """Sem historico, o estado vazio aparece e a tabela SAI de cena."""
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
@@ -2230,7 +2266,7 @@ async def test_history_screen_empty(tmp_config_dir):
         assert empty.display is True
         from textual.widgets import DataTable
         table = screen.query_one("#hist-table", DataTable)
-        assert table.display is True
+        assert table.display is False
         assert table.row_count == 0
 
 
@@ -2259,31 +2295,7 @@ async def test_history_empty_state_action_switches_to_query_exec(tmp_config_dir)
 @pytest.mark.asyncio
 async def test_history_screen_with_data(tmp_config_dir):
     """With history entries, should show them in the table."""
-    from dbqm.core.history import save_history, HistoryEntry
-
-    entries = [
-        HistoryEntry(
-            id="001",
-            timestamp="2025-01-15T10:30:00",
-            entry_type="query",
-            name="test_query",
-            connection="dev_oracle",
-            row_count=42,
-            elapsed=1.5,
-            success=True,
-        ),
-        HistoryEntry(
-            id="002",
-            timestamp="2025-01-15T10:35:00",
-            entry_type="group",
-            name="test_group",
-            connection="",
-            all_match=False,
-            summary="1 divergente",
-            elapsed=3.2,
-        ),
-    ]
-    save_history(entries)
+    _salvar_duas_entradas()
 
     app = HistoryTestApp()
     async with app.run_test() as pilot:
@@ -2298,12 +2310,81 @@ async def test_history_screen_with_data(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_screen_detail_visible_initially(tmp_config_dir):
-    """Detail panel is docked and visible on mount (no phase swap)."""
+    """Com registros, o painel de detalhe ja nasce visivel (sem troca de fase)."""
+    _salvar_duas_entradas()
     app = HistoryTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
         detail = screen.query_one("#hist-detail")
         assert detail.display is True
+        assert screen.query_one("#hist-detail-panel").display is True
+
+
+# ----------------------------------------------------------------------
+# Historico vazio: o que a tela PINTA, na DBQMApp real, nos dois tamanhos
+#
+# Nao ha harness proprio aqui de proposito. O recorte do estado vazio so
+# aparece com a altura que a aba REALMENTE sobra para a tela — cabecalho,
+# faixa de abas, barra de acoes e barra de status ja descontados. Um
+# `HistoryTestApp` sozinho recebe as 24 linhas inteiras e pinta tudo.
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
+async def test_historico_vazio_pinta_identidade_e_nao_pinta_tabela(
+    tmp_config_dir, tamanho
+):
+    """Com historico vazio: as tres partes do estado vazio aparecem, e o
+    cabecalho da tabela nao.
+
+    Dois defeitos ao mesmo tempo, os dois medidos no render:
+
+    1. O cabecalho `Data Conexao Tipo SQL Tempo Status` era pintado colado
+       no estado vazio (as outras dez listas do dbqm escondem a irma).
+    2. Em 80x24 a linha de identidade (`Historico`) era recortada INTEIRA —
+       so o porque e o botao chegavam na tela.
+    """
+    from dbqm.ui.app import DBQMApp
+    from tests.ui._helpers import linhas_renderizadas, texto_renderizado
+
+    app = DBQMApp()
+    async with app.run_test(size=tamanho) as pilot:
+        await pilot.pause()
+        app.action_switch_tab("tab-historico")
+        for _ in range(3):
+            await pilot.pause()
+
+        pintado = texto_renderizado(app)
+        linhas = linhas_renderizadas(app)
+        assert "HISTORICO" in pintado, "a aba de historico nem chegou a frente"
+
+        # A identidade e cobrada LINHA A LINHA, nao com um `in` na tela
+        # inteira: a propria faixa de abas escreve "📜  Historico", e um
+        # `"Historico" in pintado` passava verde com a linha recortada.
+        # Dentro do painel ela esta sozinha na linha, entre as bordas.
+        assert any(
+            linha.strip("│ ") == "Historico" for linha in linhas
+        ), "a linha de identidade do estado vazio nao foi pintada"
+        assert "Cada consulta ou grupo executado fica registrado aqui" in pintado
+        assert "Executar consulta" in pintado
+        # Nenhuma coluna da tabela pode estar pintada.
+        for coluna in ("Conexao", "Tempo", "Status"):
+            assert coluna not in pintado, f"cabecalho {coluna!r} pintado no vazio"
+
+
+@pytest.mark.asyncio
+async def test_historico_vazio_foca_a_saida_que_oferece(tmp_config_dir):
+    """O foco inicial vai para o botao do estado vazio, nao para a tabela
+    escondida — senao nada visivel fica marcado e o Enter nao alcanca a
+    unica saida da tela."""
+    from textual.widgets import Button
+
+    app = HistoryTestApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.query_one(HistoryScreen)
+        assert app.focused is screen.query_one("#executar-consulta", Button)
 
 
 # ======================================================================
@@ -2316,6 +2397,84 @@ from dbqm.ui.screens.settings import SettingsScreen
 class SettingsTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield SettingsScreen()
+
+
+# ----------------------------------------------------------------------
+# Abrir o app nao e o usuario mexendo nos controles
+# ----------------------------------------------------------------------
+
+
+async def _abrir_app_contando_gravacoes(tmp_config_dir, monkeypatch):
+    """Monta a DBQMApp real e devolve (avisos, numero de gravacoes)."""
+    import dbqm.models.settings as mod
+    from dbqm.ui.app import DBQMApp
+
+    gravacoes = []
+    real = mod.save_settings
+
+    def espiao(settings):
+        gravacoes.append(settings)
+        return real(settings)
+
+    monkeypatch.setattr(mod, "save_settings", espiao)
+
+    app = DBQMApp()
+    async with app.run_test() as pilot:
+        await pilot.press("f6")
+        for _ in range(3):
+            await pilot.pause()
+        avisos = [str(n.message) for n in app._notifications]
+    return avisos, len(gravacoes)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("salvo", [{}, {"audit_log_enabled": True}])
+async def test_abrir_o_app_nao_avisa_nem_grava_nada(tmp_config_dir, monkeypatch, salvo):
+    """Sem ninguem tocar em nada, a abertura nao pode gerar aviso de
+    configuracao nem reescrever o `settings.json`.
+
+    Medido antes da correcao: com config nova, um aviso ("Subdiretorios por
+    tipo: ativado") e uma gravacao; com `audit_log_enabled` ligado no
+    arquivo, dois avisos e duas gravacoes. Os dois casos tem a mesma causa —
+    `on_mount` atribui `Switch.value` para MOSTRAR o que ja esta salvo, e o
+    `Switch.Changed` disso era lido como acao do usuario. O segundo
+    parametro existe porque so ele exercita o interruptor de auditoria: numa
+    config nova ele ja nasce igual ao padrao do `Switch` e nem emite.
+    """
+    import json
+
+    from dbqm.core.paths import SETTINGS_FILE
+
+    if salvo:
+        SETTINGS_FILE.write_text(json.dumps(salvo), encoding="utf-8")
+
+    avisos, gravacoes = await _abrir_app_contando_gravacoes(tmp_config_dir, monkeypatch)
+
+    assert gravacoes == 0, f"{gravacoes} gravacao(oes) de settings sem acao do usuario"
+    for proibido in ("Log de auditoria", "Subdiretorios por tipo", "Tema alterado"):
+        assert not any(proibido in a for a in avisos), f"aviso indevido: {avisos}"
+
+
+@pytest.mark.asyncio
+async def test_migracao_de_tema_nao_vira_aviso_de_troca(tmp_config_dir, monkeypatch):
+    """`github-dark` -> `plano-escuro` e renomeacao nossa, nao escolha da
+    pessoa: nao anuncia "Tema alterado" nem reescreve o arquivo.
+
+    Aparecia uma vez so — na primeira abertura depois de subir da 1.17.x —
+    que e exatamente quando ninguem esta olhando um teste.
+    """
+    import json
+
+    from dbqm.core.paths import SETTINGS_FILE
+
+    SETTINGS_FILE.write_text(json.dumps({"theme": "github-dark"}), encoding="utf-8")
+
+    avisos, gravacoes = await _abrir_app_contando_gravacoes(tmp_config_dir, monkeypatch)
+
+    assert not any("Tema alterado" in a for a in avisos), f"aviso indevido: {avisos}"
+    assert gravacoes == 0
+    # E a migracao continua valendo onde importa: o tema em uso.
+    assert json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))["theme"] == "github-dark"
 
 
 @pytest.mark.asyncio
