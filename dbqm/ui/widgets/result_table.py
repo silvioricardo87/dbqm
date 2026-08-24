@@ -6,10 +6,12 @@ import math
 from typing import Any
 
 from textual.containers import Vertical
+from textual.content import Content
 from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
 from dbqm.core.query_engine import QueryResult
+from dbqm.ui.utils import escape_markup
 
 
 class ResultTable(Vertical, can_focus=False):
@@ -44,7 +46,7 @@ class ResultTable(Vertical, can_focus=False):
         super().__init__(name=name, id=id, classes=classes)
         self.page_size = page_size
         self._result: QueryResult | None = None
-        self._data_table = DataTable()
+        self._data_table = DataTable(zebra_stripes=True)
         self._vertical_view = Static("", classes="vertical-view")
 
     def compose(self):
@@ -148,6 +150,12 @@ class ResultTable(Vertical, can_focus=False):
         self._data_table.clear(columns=True)
         if self._result is None:
             return
+        # The fixed key column is what makes horizontal scrolling usable:
+        # without it, scrolling to the right makes you lose sight of which
+        # record the row belongs to, and the remaining columns stop meaning
+        # anything. With a single column, fixing protects nothing and steals
+        # width.
+        self._data_table.fixed_columns = 1 if len(self._result.columns) > 1 else 0
         for col in self._result.columns:
             self._data_table.add_column(str(col), key=str(col))
         for row in self._current_page_rows():
@@ -169,13 +177,41 @@ class ResultTable(Vertical, can_focus=False):
             self._vertical_view.update("(sem resultados)")
             return
         str_columns = [str(c) for c in columns]
+        # The width comes from the ORIGINAL text (the real column
+        # identifier) - not from the escaped text. Escaping AFTER formatting
+        # the width, as the first version did, adds backslashes to an
+        # already-aligned label and only misaligns the columns whose name
+        # has a bracket (unlikely in an Oracle identifier, but the wrong
+        # order is only one line). Here the order is inverted: escape first,
+        # align the escaped result; the width stays anchored to the real
+        # column name, so the common case (no bracket) is identical to
+        # before.
+        #
+        # That guarantee only holds for the bracket-free case. A column name
+        # with `[` or `]` ends up slightly misaligned even after this fix:
+        # Textual's markup parser treats the two asymmetrically at render
+        # time - `\[` collapses back to 1 char, `\]` survives as 2 (the
+        # backslash stays). This is NOT fixed by inverting the
+        # escape/alignment order again - it has already been measured in
+        # both orders and both misalign because of that parser asymmetry,
+        # not because of the order. A real fix would require touching
+        # `escape_markup` (dbqm/ui/utils.py), shared with `mark_verdict` and
+        # others - out of scope here.
         max_col_len = max(len(c) for c in str_columns)
         blocks: list[str] = []
         base = self.current_page * self.page_size
         for i, row in enumerate(rows):
-            lines = [f"*** Registro {base + i + 1} ***"]
+            # Typography from the grammar (Task 2): the record identifier in
+            # $ds-text-strong, the field label in $ds-text-muted and the value
+            # in $ds-text — swaps `*** Registro N ***`/plain text for colour
+            # with meaning. The right-alignment of the labels is kept: it is
+            # what makes a stacked record scannable.
+            cabecalho = escape_markup(f"Registro {base + i + 1}")
+            lines = [f"[bold $ds-text-strong]{cabecalho}[/]"]
             for col, val in zip(str_columns, row):
                 display_val = str(val) if val is not None else ""
-                lines.append(f"  {col:>{max_col_len}}: {display_val}")
+                rotulo = f"{escape_markup(col):>{max_col_len}}"
+                valor = escape_markup(display_val)
+                lines.append(f"  [$ds-text-muted]{rotulo}[/]: [$ds-text]{valor}[/]")
             blocks.append("\n".join(lines))
-        self._vertical_view.update("\n\n".join(blocks))
+        self._vertical_view.update(Content.from_markup("\n\n".join(blocks)))

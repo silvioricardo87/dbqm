@@ -1,6 +1,6 @@
 """Tests for modal dialogs."""
 import pytest
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.widgets import Button, Input, Label
 
 from dbqm.ui.modals.confirm import ConfirmModal
@@ -8,8 +8,10 @@ from dbqm.ui.modals.export_picker import ExportPickerModal
 from dbqm.ui.modals.param_input import ParamModal
 from dbqm.ui.modals.text_input import TextInputModal
 
+from tests.ui._helpers import ThemedTestApp
 
-class ModalTestApp(App):
+
+class ModalTestApp(ThemedTestApp):
     result = None
 
     def __init__(self, modal):
@@ -160,7 +162,7 @@ async def test_confirm_modal_sim_returns_true():
 
 
 @pytest.mark.asyncio
-async def test_confirm_modal_nao_returns_false():
+async def test_confirm_modal_no_returns_false():
     modal = ConfirmModal("Remover?")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
@@ -423,7 +425,7 @@ async def test_request_export_shows_setup_first_when_not_prompted(tmp_config_dir
 
     save_settings(Settings(export_dir_prompted=False))
 
-    class _App(App):
+    class _App(ThemedTestApp):
         def on_mount(self):
             request_export(self, callback=lambda fmt: None)
 
@@ -441,7 +443,7 @@ async def test_request_export_skips_setup_after_prompted(tmp_config_dir):
 
     save_settings(Settings(export_dir_prompted=True))
 
-    class _App(App):
+    class _App(ThemedTestApp):
         def on_mount(self):
             request_export(self, callback=lambda fmt: None)
 

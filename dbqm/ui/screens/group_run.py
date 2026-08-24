@@ -5,16 +5,26 @@ import time
 from typing import Any
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, HorizontalScroll, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
-from textual.widgets import Button, ListItem, ListView, Static
+from textual.widgets import Button, OptionList, Select, Static
 from textual import work
 
-from dbqm.ui.utils import sanitize_id, escape_markup
+from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect, common_folder_prefix
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.group_result import GroupResultWidget
+from dbqm.ui.widgets.hierarchical_list import (
+    NamedOption,
+    hierarchical_item,
+    wrap_width,
+    wrap_lines,
+)
 from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
+from dbqm.ui.widgets.verdict import mark_operation, mark_verdict
 
 from dbqm.core.group_engine import GroupResult
 
@@ -22,6 +32,39 @@ from dbqm.core.group_engine import GroupResult
 # ---------------------------------------------------------------------------
 # Small helper widget for group items in the list
 # ---------------------------------------------------------------------------
+
+# Width of the panel that hosts the group list (`#gr-selection-phase`, in
+# the CSS just below). A module constant because the CSS and the text
+# wrapping have to be literally the same number — diverging is the defect
+# back again, only silently.
+#
+# The PRICE, written down because it is a choice and not a pure gain: the
+# selection panel STOPS BEING ELASTIC (it used to grow with the terminal,
+# 116 columns on a 120-column terminal; now it stops at 76). It was the
+# trade accepted in the Conexoes and Consultas lists and it is the same
+# one here: a guaranteed indent on the continuation requires wrapping on
+# `\n` before the render (see `hierarchical_item`), and wrapping on `\n`
+# requires knowing the width before the render.
+#
+# 76, and not 42: this list has the SHAPE of Consultas, not that of
+# Conexoes. Conexoes uses 42 because it is the left column of a
+# master-detail (the list shares the screen with the edit form); here the
+# selection takes up the whole screen and gives way to the results phase
+# when a group is chosen — the same phase swap as `QueryExecScreen`. And
+# 76 is the measured number, not an invented one: it is the width that
+# `#gr-selection-phase` ALREADY had at 80 columns, the narrowest terminal
+# the product supports (80 minus the 4 of `margin: 1 2 0 2`). At 80x24
+# nothing moves; only wider terminals pay the price.
+_LIST_PANEL_WIDTH = 76
+
+# Text columns left over inside that panel. The derivation (Panel border,
+# body padding, OptionList padding, scrollbar in the worst case, line
+# indent) lives in `wrap_width`, shared with Conexoes and Consultas; what
+# belongs to this screen is only the panel width above. See there as well
+# the trap that cost four rounds: `content_region` does NOT subtract the
+# scrollbar, `scrollable_content_region` does.
+_TEXT_WIDTH = wrap_width(_LIST_PANEL_WIDTH)
+
 
 class _GroupSelected(Message):
     """Posted when a group is selected from the list."""
@@ -31,44 +74,46 @@ class _GroupSelected(Message):
         super().__init__()
 
 
-class _GroupListItem(ListItem):
-    """A single group entry in the selection list.
+def _group_option(group: Any) -> NamedOption:
+    """Build a group's `NamedOption` for the `OptionList`.
 
-    Renders as a single line of formatted text to avoid layout issues
-    with nested containers inside ListItem.
+    Same line hierarchy as `_query_option`
+    (dbqm/ui/widgets/query_list.py) and `connections.py`: identity on its
+    own, disambiguation indented, optional context indented — instead of
+    the `|`-concatenated string this item used before. The query count is
+    what disambiguates two groups with similar names (easily confused with
+    each other on this screen); the description is free context, with no
+    artificial truncation — what it gets is WRAPPING into logical lines,
+    at the panel width, so that the continuation stays indented instead of
+    falling into the identity column of the next group (see the comment in
+    the body).
+
+    The group name travels in the option's `nome` attribute, and not in
+    the `id` — see `NamedOption`: two groups with the same name in a
+    hand-edited `groups.json` are ambiguous data, but ambiguous data must
+    not bring the screen down.
     """
+    name = group.name
+    n_queries = len(group.queries)
+    queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
 
-    DEFAULT_CSS = """
-    _GroupListItem {
-        height: 1;
-        padding: 0 1;
-    }
-    _GroupListItem Static {
-        height: 1;
-        width: 1fr;
-    }
-    """
+    # WRAP, not truncate: no character is lost, the description only gains
+    # a `\n` every `_TEXT_WIDTH` columns. Without this it reached
+    # `hierarchical_item` as ONE long line, Textual wrapped it at render
+    # time — after the `Content` was assembled, when there is no longer
+    # any way to indent the continuation — and the second line came out in
+    # column 0, the SAME column as the identity of the next group. The eye
+    # could not tell one from the other: it is the defect that opened this
+    # phase, here for the third time.
+    #
+    # Only the description goes through here. `queries_label` is generated
+    # ("2 consultas"), it is not user text and has no way of overflowing
+    # 66 columns; wrapping it would be ceremony with no defect to justify
+    # it.
+    contexto = wrap_lines(group.description or "", _TEXT_WIDTH)
 
-    def __init__(self, group: Any) -> None:
-        self.group_data = group
-        self.group_name: str = group.name
-        super().__init__()
-
-    def compose(self):
-        name = self.group_data.name
-        desc = self.group_data.description or ""
-        if len(desc) > 35:
-            desc = desc[:32] + "..."
-        n_queries = len(self.group_data.queries)
-        queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
-
-        parts = [f"[bold]{name}[/bold]"]
-        if desc:
-            parts.append(f"[dim]{desc}[/dim]")
-        parts.append(f"[#e3b341]{queries_label}[/#e3b341]")
-
-        line = "  |  ".join(parts)
-        yield Static(line, markup=True)
+    conteudo = hierarchical_item(name, queries_label, contexto)
+    return NamedOption(conteudo, name)
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +124,7 @@ class _GroupListItem(ListItem):
 class GroupRunScreen(Vertical):
     """Screen widget for executing groups and comparing results.
 
-    Phase 1 — group selection (folder tabs + list).
+    Phase 1 — group selection (folder select + list).
     Phase 2 — results (GroupResultWidget).
     """
 
@@ -87,11 +132,22 @@ class GroupRunScreen(Vertical):
     GroupRunScreen {
         height: 1fr;
     }
+    /* FIXED width, and not elastic: the group list wraps the description
+       on `\\n` before the render so that every continuation line pays the
+       indent, and to wrap you have to know the width beforehand. The
+       number comes from `_LIST_PANEL_WIDTH` — the same constant the
+       wrapping uses, so that CSS and arithmetic cannot diverge. The price
+       (the panel stops growing with the terminal) is written down there.
+       `#gr-results-phase` stays elastic: a comparison table needs all the
+       width there is. */
     GroupRunScreen #gr-selection-phase {
         height: 1fr;
+        margin: 1 2 0 2;
+        width: __LARGURA_PAINEL_LISTA__;
     }
     GroupRunScreen #gr-results-phase {
         height: 1fr;
+        margin: 1 2 0 2;
     }
     GroupRunScreen #gr-result-info {
         height: auto;
@@ -101,30 +157,15 @@ class GroupRunScreen(Vertical):
     }
     GroupRunScreen #gr-empty-message {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
-    GroupRunScreen #gr-folder-bar {
-        height: 3;
+    GroupRunScreen #gr-folder-select {
         width: 1fr;
-        padding: 0 1;
-        background: $surface;
-        scrollbar-size-horizontal: 1;
-    }
-    GroupRunScreen #gr-folder-bar Button {
-        min-width: 6;
-        margin: 0 1 0 0;
-    }
-    GroupRunScreen #gr-folder-hint {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-        text-style: dim italic;
+        margin: 0 1 1 1;
     }
     GroupRunScreen #gr-group-list {
         height: 1fr;
     }
-    """
+    """.replace("__LARGURA_PAINEL_LISTA__", str(_LIST_PANEL_WIDTH))
 
     def __init__(
         self,
@@ -140,22 +181,25 @@ class GroupRunScreen(Vertical):
         self._raw_query_rows: dict[str, list[list]] | None = None  # original rows per query
         self._showing_mapped: bool = True
         self._all_groups: list = []
-        self._folder_map: dict[str, str] = {}
-        self._folder_buttons: list[Button] = []
-        self._active_folder_idx: int = 0
+        # "" = Todas, None = Sem pasta, any other value = folder name
+        # — same scheme as `QueryExecScreen._active_folder`.
+        self._active_folder: str | None = ""
+        self._has_folders: bool = False
 
     def compose(self) -> ComposeResult:
         # Selection phase
-        with Vertical(id="gr-selection-phase"):
-            yield Static(
-                "[dim]Nenhum grupo configurado[/]",
+        with Panel("👥  GRUPOS", id="gr-selection-phase"):
+            yield EmptyState(
+                what="Grupos",
+                why="Grupos comparam a mesma consulta em varias conexoes de uma vez",
+                action_label="Gerenciar grupos",
+                action_id="gerenciar-grupos",
                 id="gr-empty-message",
-                markup=True,
             )
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
         # Results phase (hidden initially)
-        with Vertical(id="gr-results-phase"):
+        with Panel("📊  COMPARACAO", id="gr-results-phase"):
             yield Static("", id="gr-result-info")
             yield GroupResultWidget(id="gr-group-result")
 
@@ -166,7 +210,7 @@ class GroupRunScreen(Vertical):
 
     def _set_initial_focus(self) -> None:
         try:
-            gl = self.query_one("#gr-group-list", ListView)
+            gl = self.query_one("#gr-group-list", OptionList)
             gl.focus()
         except Exception:
             pass
@@ -180,8 +224,11 @@ class GroupRunScreen(Vertical):
         from dbqm.models.group import load_groups
 
         groups = load_groups()
-        selection = self.query_one("#gr-selection-phase")
-        empty_msg = self.query_one("#gr-empty-message", Static)
+        # `.body` and not the panel: mounting at runtime does not go
+        # through the `compose_add_child` routing and would land outside
+        # the frame.
+        selection = self.query_one("#gr-selection-phase", Panel).body
+        empty_msg = self.query_one("#gr-empty-message", EmptyState)
 
         if not groups:
             empty_msg.display = True
@@ -190,109 +237,123 @@ class GroupRunScreen(Vertical):
         empty_msg.display = False
         self._all_groups = groups
 
-        # Determine folders
-        folders = sorted({g.folder for g in groups if g.folder})
+        # Determine folders — a Select with a count per option, not tabs:
+        # the same cardinality decision as
+        # `QueryExecScreen._load_selection`.
+        from collections import Counter
 
-        group_list = ListView(id="gr-group-list")
+        contagem_pastas = Counter(g.folder for g in groups if g.folder)
+        folders = sorted(contagem_pastas)
+        self._has_folders = bool(folders)
+
+        group_list = OptionList(id="gr-group-list")
 
         if folders:
-            folder_bar = HorizontalScroll(id="gr-folder-bar")
-            selection.mount(folder_bar)
-            btn_todas = Button("Todas", id="gr-folder-todas", variant="primary")
-            folder_bar.mount(btn_todas)
-            self._folder_buttons = [btn_todas]
+            prefixo = common_folder_prefix(folders)
+            options = [(f"Todas ({len(groups)})", "")]
             for folder in folders:
-                safe_id = sanitize_id(folder)
-                self._folder_map[safe_id] = folder
-                btn = Button(folder, id=f"gr-folder-{safe_id}", variant="default")
-                folder_bar.mount(btn)
-                self._folder_buttons.append(btn)
-            has_no_folder = any(not g.folder for g in groups)
-            if has_no_folder:
-                btn_sem = Button("Sem pasta", id="gr-folder-sem-pasta", variant="default")
-                folder_bar.mount(btn_sem)
-                self._folder_buttons.append(btn_sem)
-            # Hint for keyboard navigation
-            selection.mount(Static("[dim]← → alternar pastas[/dim]", id="gr-folder-hint", markup=True))
-            self._active_folder_idx = 0
+                rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
+                options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
+            sem_pasta = sum(1 for g in groups if not g.folder)
+            if sem_pasta:
+                options.append((f"Sem pasta ({sem_pasta})", None))
+            selection.mount(
+                NavSelect(options, allow_blank=False, id="gr-folder-select")
+            )
+            self._active_folder = ""
 
         selection.mount(group_list)
+        filtered_empty = EmptyState(
+            what="Grupos",
+            why="A pasta selecionada esconde os grupos que existem",
+            action_label="Ver todos os grupos",
+            action_id="ver-todos-grupos",
+            id="gr-filter-empty",
+        )
+        filtered_empty.display = False
+        selection.mount(filtered_empty)
         self._populate_group_list(groups)
 
     def _populate_group_list(self, groups: list) -> None:
-        """Populate the group ListView."""
-        group_list = self.query_one("#gr-group-list", ListView)
-        group_list.clear()
+        """Populate the group OptionList.
+
+        Reached with an empty ``groups`` only via a folder filter with no
+        matches (the "no groups at all" case is handled earlier, by
+        ``#gr-empty-message``, before this is ever called) — an `Option`
+        can't host a widget, so the empty case is an EmptyState sitting
+        beside the OptionList instead of inside it.
+        """
+        group_list = self.query_one("#gr-group-list", OptionList)
+        group_list.clear_options()
         sorted_groups = sorted(groups, key=lambda g: g.name.lower())
+        try:
+            filtered_empty = self.query_one("#gr-filter-empty", EmptyState)
+        except Exception:
+            filtered_empty = None
         if not sorted_groups:
-            group_list.append(
-                ListItem(Static("[dim]Nenhum grupo configurado[/]", markup=True))
-            )
+            if filtered_empty is not None:
+                filtered_empty.display = True
+            group_list.display = False
             return
+        if filtered_empty is not None:
+            filtered_empty.display = False
+        group_list.display = True
         for g in sorted_groups:
-            group_list.append(_GroupListItem(g))
+            group_list.add_option(_group_option(g))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle folder filter button presses."""
+        """Handle the empty-state actions."""
         btn_id = event.button.id or ""
-        if not btn_id.startswith("gr-folder-"):
+        if btn_id == "gerenciar-grupos":
+            # GroupRunScreen only ever lives nested inside ToolsScreen
+            # (see tools.py::_build_tool) — guarded for the standalone
+            # hosting tests also use.
+            try:
+                from dbqm.ui.screens.tools import ToolsScreen
+                self.app.query_one(ToolsScreen).open_tool("grupos")
+            except Exception:
+                pass
             return
 
-        # Sync index
-        for i, b in enumerate(self._folder_buttons):
-            if b is event.button:
-                self._active_folder_idx = i
-                break
-
-        self._activate_folder_button(event.button)
-
-    # ------------------------------------------------------------------
-    # Folder keyboard navigation (← →)
-    # ------------------------------------------------------------------
-
-    def on_key(self, event) -> None:
-        """Handle left/right for folder switching only in selection phase."""
-        if event.key not in ("left", "right"):
-            return
-        if self._current_group_result is not None or not self._folder_buttons:
-            return
-        if event.key == "left":
-            self._active_folder_idx = max(0, self._active_folder_idx - 1)
-        else:
-            self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
-        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
-        event.prevent_default()
-        event.stop()
-
-    def _activate_folder_button(self, btn: Button) -> None:
-        """Activate a folder button and filter the group list."""
-        for b in self._folder_buttons:
-            b.variant = "default"
-        btn.variant = "primary"
-
-        btn_id = btn.id or ""
-        safe_id = btn_id.removeprefix("gr-folder-")
-
-        if safe_id == "todas":
+        if btn_id == "ver-todos-grupos":
+            self._active_folder = ""
+            if self._has_folders:
+                try:
+                    self.query_one("#gr-folder-select", Select).value = ""
+                except Exception:
+                    pass
             self._populate_group_list(self._all_groups)
-        elif safe_id == "sem-pasta":
+            return
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """React to the folder select."""
+        if event.select.id != "gr-folder-select":
+            return
+        self._active_folder = event.value
+        if self._active_folder is None:
             self._populate_group_list([g for g in self._all_groups if not g.folder])
-        else:
-            folder_label = self._folder_map.get(safe_id, "")
+        elif self._active_folder:
             self._populate_group_list(
-                [g for g in self._all_groups if g.folder == folder_label]
+                [g for g in self._all_groups if g.folder == self._active_folder]
             )
-        # Keep focus on the list
+        else:
+            self._populate_group_list(self._all_groups)
+        # Keep focus on the list, same as the old folder tabs did.
         try:
-            self.query_one("#gr-group-list", ListView).focus()
+            self.query_one("#gr-group-list", OptionList).focus()
         except Exception:
             pass
 
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle group selection from the list."""
-        item = event.item
-        if isinstance(item, _GroupListItem):
-            self._on_group_chosen(item.group_name)
+        if event.option_list.id != "gr-group-list":
+            return
+        if not isinstance(event.option, NamedOption):
+            return
+        # An empty name goes through as well: `_on_group_chosen` answers
+        # "Grupo nao encontrado", which is information — better than a
+        # visible row that does nothing when chosen.
+        self._on_group_chosen(event.option.name)
 
     # ------------------------------------------------------------------
     # Group selected -> parameterize & execute
@@ -356,6 +417,7 @@ class GroupRunScreen(Vertical):
         """Start group execution in a worker thread."""
         self._current_params = params
         self.query_one(ProgressIndicator).start(
+            f"{mark_operation('running')} "
             f"Executando grupo [bold]{escape_markup(group.name)}[/] ({len(group.queries)} consultas)..."
         )
         self._run_group(group, params)
@@ -402,6 +464,7 @@ class GroupRunScreen(Vertical):
 
                 self.app.call_from_thread(
                     self._update_progress,
+                    f"{mark_operation('running')} "
                     f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
                 )
 
@@ -498,13 +561,13 @@ class GroupRunScreen(Vertical):
 
         # Update info bar
         overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
-        overall_color = "green" if group_result.all_match else "yellow"
+        overall_status = "match" if group_result.all_match else "diff"
         group_name = str(group_result.group_name) if group_result.group_name else ""
         info = self.query_one("#gr-result-info", Static)
         info.update(
             f"[bold]{escape_markup(group_name)}[/] | "
             f"{len(group_result.query_results)} consultas | "
-            f"[{overall_color} bold]{overall}[/]"
+            f"[bold]{mark_verdict(overall_status, label=overall)}[/]"
         )
 
         # Load result into GroupResultWidget
@@ -640,11 +703,11 @@ class GroupRunScreen(Vertical):
         group_name = str(new_gr.group_name) if new_gr.group_name else ""
         if self._showing_mapped:
             overall = "CONSISTENTE" if new_gr.all_match else "DIVERGENTE"
-            overall_color = "green" if new_gr.all_match else "yellow"
+            overall_status = "match" if new_gr.all_match else "diff"
             info.update(
                 f"[bold]{escape_markup(group_name)}[/] | "
                 f"{len(new_gr.query_results)} consultas | "
-                f"[{overall_color} bold]{overall}[/]"
+                f"[bold]{mark_verdict(overall_status, label=overall)}[/]"
             )
         else:
             info.update(
@@ -839,8 +902,7 @@ class GroupRunScreen(Vertical):
 
         # Restore focus to group list
         try:
-            from textual.widgets import ListView
-            self.query_one("#gr-group-list", ListView).focus()
+            self.query_one("#gr-group-list", OptionList).focus()
         except Exception:
             pass
 
@@ -862,19 +924,6 @@ class _QueryPickerModal(ModalScreen[str | None]):
     _QueryPickerModal {
         align: center middle;
     }
-    _QueryPickerModal #qp-dialog {
-        width: 50;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _QueryPickerModal #qp-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _QueryPickerModal Button {
         width: 100%;
         margin: 0 0 1 0;
@@ -891,8 +940,7 @@ class _QueryPickerModal(ModalScreen[str | None]):
         self._qname_map: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="qp-dialog"):
-            yield Static("Selecionar consulta", id="qp-title")
+        with Dialog("Selecionar consulta", width="sm", id="qp-dialog"):
             for qn in self._query_names:
                 safe_id = sanitize_id(qn)
                 self._qname_map[safe_id] = qn
@@ -920,19 +968,6 @@ class _IndividualResultModal(ModalScreen[None]):
     _IndividualResultModal {
         align: center middle;
     }
-    _IndividualResultModal #ir-dialog {
-        width: 90%;
-        height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _IndividualResultModal #ir-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _IndividualResultModal #ir-info {
         height: auto;
         color: $text-muted;
@@ -954,8 +989,7 @@ class _IndividualResultModal(ModalScreen[None]):
         self._result = result
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="ir-dialog"):
-            yield Static(self._query_name, id="ir-title")
+        with Dialog(self._query_name, width="screen", id="ir-dialog"):
             yield Static(
                 f"{self._result.row_count} registros | "
                 f"{self._result.elapsed:.2f}s | "
@@ -986,18 +1020,7 @@ class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
         align: center middle;
     }
     _TemplateInputModal #ti-dialog {
-        width: 80;
-        max-height: 90%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
         overflow-y: auto;
-    }
-    _TemplateInputModal #ti-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     _TemplateInputModal .ti-field-row {
         height: auto;
@@ -1033,8 +1056,7 @@ class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Input as TInput
 
-        with Vertical(id="ti-dialog"):
-            yield Static("Preencher campos do template", id="ti-title")
+        with Dialog("Preencher campos do template", width="lg", id="ti-dialog"):
             for field_name in self._fields:
                 with Horizontal(classes="ti-field-row"):
                     yield Static(
@@ -1087,19 +1109,6 @@ class _RenderedTemplateModal(ModalScreen[None]):
     _RenderedTemplateModal {
         align: center middle;
     }
-    _RenderedTemplateModal #rt-dialog {
-        width: 90%;
-        height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _RenderedTemplateModal #rt-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _RenderedTemplateModal TextArea {
         height: 1fr;
         margin-bottom: 1;
@@ -1125,8 +1134,7 @@ class _RenderedTemplateModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import TextArea
 
-        with Vertical(id="rt-dialog"):
-            yield Static("Template Gerado", id="rt-title")
+        with Dialog("Template Gerado", width="screen", id="rt-dialog"):
             yield TextArea(self._rendered_text, id="rt-content", read_only=True)
             with Horizontal(id="rt-buttons"):
                 yield Button("Copiar", variant="primary", id="rt-copy")

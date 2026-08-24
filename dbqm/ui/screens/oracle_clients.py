@@ -16,6 +16,8 @@ from textual import work
 from dbqm.core import oracle_client_installer as oci
 from dbqm.core.paths import CLIENTS_DIR
 from dbqm.ui.modals.confirm import ConfirmModal
+from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 
 
 class OracleClientsScreen(Vertical):
@@ -25,26 +27,39 @@ class OracleClientsScreen(Vertical):
     OracleClientsScreen {
         height: 1fr;
         padding: 1 2;
+        /* With one client installed the three framed sections go past the
+           fold of a 24-line terminal (41 lines measured at 80x24, see
+           `tests/design/test_vertical_overflow.py`) and the screen
+           scrolls, with the overflow visible. The unframed version of this
+           screen measured 59 and did NOT scroll — `Vertical` is born with
+           `overflow: hidden`, and the DISPONIVEIS section simply did not
+           exist for anyone who only had 24 lines. It is this `overflow-y`
+           that pays for the chrome. */
+        overflow-y: auto;
     }
-    OracleClientsScreen .oc-section {
+    OracleClientsScreen Panel {
         height: auto;
         margin-bottom: 1;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
     }
-    OracleClientsScreen .oc-label {
-        text-style: bold;
+    /* A button bar is as tall as a button. Without this it inherits
+       `Horizontal`'s own `height: 1fr` and, inside a panel body of
+       automatic height, stretches up to the height of the CONTAINER: the
+       two bottom panels were born with 23 lines each (instead of 12 and
+       14) and pushed the DISPONIVEIS section to y=23, below the fold. */
+    OracleClientsScreen .oc-actions {
         height: auto;
-        margin-bottom: 1;
     }
+    /* Two lines of information do not call for an 11-line box. With the
+       body's vertical padding and one margin per line, this panel spent 11
+       to state the platform and the directory — and it was the one pushing
+       CLIENTS INSTALADOS off the screen when the initial focus landed
+       there (`_set_initial_focus`). Dense and marginless it fits in 6, and
+       the screen opens showing the first two panels. */
     OracleClientsScreen #oc-platform {
         height: auto;
-        margin-bottom: 1;
     }
     OracleClientsScreen #oc-clients-dir {
         height: auto;
-        margin-bottom: 1;
     }
     OracleClientsScreen #oc-installed-table {
         height: auto;
@@ -88,8 +103,11 @@ class OracleClientsScreen(Vertical):
         self._busy = False
 
     def compose(self) -> ComposeResult:
-        with Vertical(classes="oc-section"):
-            yield Static("Plataforma detectada", classes="oc-label")
+        with Panel(
+            "🖥️  PLATAFORMA DETECTADA",
+            id="oc-platform-panel",
+            dense=True,
+        ):
             yield Static(
                 f"[b]{oci.host_platform_label(self._host)}[/b]   "
                 f"[dim]({self._host[0]}/{self._host[1]})[/dim]",
@@ -102,18 +120,23 @@ class OracleClientsScreen(Vertical):
                 markup=True,
             )
 
-        with Vertical(classes="oc-section"):
-            yield Static("Clients instalados", classes="oc-label")
+        with Panel("📦  CLIENTS INSTALADOS", id="oc-installed-panel"):
+            yield EmptyState(
+                what="Clients instalados",
+                why="O Oracle Instant Client permite conectar a bancos Oracle sem instalacao completa",
+                action_label="Escolher client",
+                action_id="escolher-client",
+                id="oc-installed-empty",
+            )
             yield DataTable(id="oc-installed-table", cursor_type="row")
-            with Horizontal():
+            with Horizontal(classes="oc-actions"):
                 yield Button("Usar este client", variant="primary", id="oc-use-btn")
                 yield Button("Remover selecionado", variant="error", id="oc-remove-btn")
                 yield Button("Atualizar lista", variant="default", id="oc-refresh-btn")
 
-        with Vertical(classes="oc-section"):
-            yield Static("Disponiveis para download", classes="oc-label")
+        with Panel("⬇️  DISPONIVEIS PARA DOWNLOAD", id="oc-available-panel"):
             yield DataTable(id="oc-available-table", cursor_type="row")
-            with Horizontal():
+            with Horizontal(classes="oc-actions"):
                 yield Button("Instalar selecionado", variant="primary", id="oc-install-btn")
 
         yield Static("", id="oc-status", markup=True)
@@ -132,18 +155,43 @@ class OracleClientsScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
+        """Starts on the FIRST interactive panel, and not on the last.
+
+        The screen is taller than 24 lines and scrolls, and Textual scrolls
+        to whatever receives focus. Focusing the DISPONIVEIS table — the
+        third panel — made the manager open already scrolled down to it: the
+        first thing after choosing the list entry was a table with no header
+        and no title above it. Focusing here, the screen opens on a panel
+        WITH a title, and whoever wants to install reaches DISPONIVEIS by
+        Tab (or through the empty state's "Escolher client" button, which
+        exists for that).
+
+        We do not force a scroll to the top after focusing: that puts the
+        focus out of view, which is worse than starting one panel down. What
+        pays for the top is the height of the platform panel, trimmed along
+        with it.
+        """
         try:
-            self.query_one("#oc-available-table", DataTable).focus()
+            if self._installed:
+                self.query_one("#oc-installed-table", DataTable).focus()
+            else:
+                self.query_one("#oc-installed-empty", EmptyState).query_one(
+                    Button
+                ).focus()
         except Exception:
             pass
 
     def _refresh_installed(self) -> None:
         self._installed = oci.list_installed_clients()
         table = self.query_one("#oc-installed-table", DataTable)
+        empty = self.query_one("#oc-installed-empty", EmptyState)
         table.clear()
         if not self._installed:
-            table.add_row("[dim]Nenhum client instalado em ~/.dbqm/clients/[/]", "")
+            empty.display = True
+            table.display = False
             return
+        empty.display = False
+        table.display = True
         for c in self._installed:
             table.add_row(c.path.name, c.version or "[dim]?[/]")
 
@@ -159,7 +207,9 @@ class OracleClientsScreen(Vertical):
             table.add_row(pkg.version, pkg.arch_key, pkg.archive_type)
 
     def _set_status(self, text: str, level: str = "info") -> None:
-        color = {"info": "$text-muted", "ok": "green", "err": "red"}.get(level, "$text-muted")
+        color = {"info": "$ds-text-muted", "ok": "$ds-text-muted", "err": "$ds-op-failure"}.get(
+            level, "$ds-text-muted"
+        )
         self.query_one("#oc-status", Static).update(f"[{color}]{text}[/]")
 
     def _set_busy(self, busy: bool) -> None:
@@ -181,6 +231,13 @@ class OracleClientsScreen(Vertical):
             self._start_remove()
         elif event.button.id == "oc-use-btn":
             self._use_selected()
+        elif event.button.id == "escolher-client":
+            # The label describes exactly what this button does: it takes
+            # the focus to the list of available packages. Actually
+            # installing requires a row selected there (_start_install), so
+            # promising "Instalar client" here would promise more than a
+            # single Enter delivers.
+            self.query_one("#oc-available-table", DataTable).focus()
 
     def _use_selected(self) -> None:
         """Pin the selected install in dbqm settings so it wins over ORACLE_HOME."""

@@ -1,6 +1,8 @@
 """Connection management screen — master list + embedded edit form."""
 from __future__ import annotations
 
+import textwrap
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Input, OptionList, Select, Static, TextArea
@@ -8,6 +10,8 @@ from textual.widgets.option_list import Option
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.hierarchical_list import hierarchical_item, wrap_width
 from dbqm.ui.widgets.panel import Panel
 
 
@@ -42,18 +46,49 @@ DEFAULT_HOSTS = {
     "mysql": "localhost",
 }
 
-_DESCRIPTION_PREVIEW_LEN = 60
+# Width of #conn-list-panel (CSS below). A module constant, the single
+# source both for the CSS and for the wrap-width derivation just ahead —
+# the two cannot diverge (the reason for the previous round: 60 columns of
+# assumed width against a whole panel of 42, which by itself was already
+# smaller than the description's "limit").
+_LIST_PANEL_WIDTH = 42
+
+# The width actually available for the description TEXT: what is left of
+# the panel after the Panel border, the body padding, the OptionList
+# padding, the scrollbar (worst case) and the indent that the context line
+# itself consumes. The arithmetic itself lives in `hierarchical_list`
+# (`wrap_width`), together with the indent it subtracts and the account of
+# the four rounds it cost; what stays here is only the width of THIS
+# panel, which is this screen's choice. Measured in both states: with few
+# connections (no scrolling), OptionList.content_region.width sits at 36
+# (matching the arithmetic without the scrollbar subtraction); with enough
+# connections to scroll, OptionList.scrollable_content_region.width drops
+# to 34 — exactly the scrollbar's 2 columns less.
+_DESCRIPTION_WIDTH = wrap_width(_LIST_PANEL_WIDTH)
+_DESCRIPTION_MAX_LINES = 2
 
 
 def _format_description(description: str) -> str:
-    """One-line preview of a connection description for list display."""
+    """Description preview in at most `_DESCRIPTION_MAX_LINES` lines.
+
+    Truncates by rendered LINES (approximated by `_DESCRIPTION_WIDTH`), not
+    by total characters: with no limit at all, a long description would push
+    the other connections in the list off the screen — `hierarchical_item`'s
+    context already gives it its own indented line, but that does not limit
+    how many lines it takes.
+    """
     if not description:
         return ""
-    # Collapse newlines so the description fits in a single line.
     flat = " ".join(description.split())
-    if len(flat) > _DESCRIPTION_PREVIEW_LEN:
-        flat = flat[: _DESCRIPTION_PREVIEW_LEN - 3].rstrip() + "..."
-    return flat
+    linhas = textwrap.wrap(flat, width=_DESCRIPTION_WIDTH) or [""]
+    if len(linhas) <= _DESCRIPTION_MAX_LINES:
+        return "\n".join(linhas)
+    linhas = linhas[:_DESCRIPTION_MAX_LINES]
+    ultima = linhas[-1].rstrip()
+    if len(ultima) > _DESCRIPTION_WIDTH - 3:
+        ultima = ultima[: _DESCRIPTION_WIDTH - 3].rstrip()
+    linhas[-1] = ultima + "..."
+    return "\n".join(linhas)
 
 
 class ConnectionsScreen(Vertical):
@@ -72,17 +107,13 @@ class ConnectionsScreen(Vertical):
         height: 1fr;
     }
     ConnectionsScreen #conn-list-panel {
-        width: 42;
+        width: __LARGURA_PAINEL_LISTA__;
     }
     ConnectionsScreen #conn-form-panel {
         width: 1fr;
     }
     ConnectionsScreen #conn-empty {
         height: auto;
-        padding: 1;
-        content-align: center middle;
-        text-align: center;
-        color: $text-muted;
     }
     ConnectionsScreen #conn-list {
         height: 1fr;
@@ -113,12 +144,35 @@ class ConnectionsScreen(Vertical):
         margin-top: 1;
         height: auto;
         width: 100%;
-        align: center middle;
+        /* Anchored to the left, on the column of the form fields these
+           buttons operate on (section 7 of the grammar). */
     }
     ConnectionsScreen #conn-form-buttons Button {
-        margin: 0 1;
+        margin: 0 1 0 0;
     }
-    """
+    /* Destructive action SEPARATED from the others (section 7): four
+       columns of breathing room instead of one, so that Excluir does not
+       sit flush against Salvar. Horizontal spacing and not a row of its
+       own on purpose — a second row would cost three lines of the form,
+       which at 80x24 already overflows.
+
+       TWO ids in the selector, and not one: the rule above
+       (`#conn-form-buttons Button`) is worth 1 id + 1 type and its short
+       `margin` zeroes out `margin-left`. With a single id this rule LOST
+       and became dead CSS — seen in the render at 120 columns, where the
+       space before Excluir was still one column.
+
+       What the three columns cost, measured on the real DBQMApp (Conexoes
+       tab, 30 lines, one width at a time): the `Excluir` box is only whole
+       from 97 columns on with this margin, against 94 without it; the
+       label, 94 against 93. No access is lost — `X Excluir` is still on
+       the ActionBar, and at 80x24 the button was already out of sight
+       before this phase. It is written down because separating the
+       destructive action is a choice with a price, not a pure gain. */
+    ConnectionsScreen #conn-form-buttons #conn-btn-delete {
+        margin-left: 4;
+    }
+    """.replace("__LARGURA_PAINEL_LISTA__", str(_LIST_PANEL_WIDTH))
 
     # Maps a logical field name to its (label id, widget id) — used to
     # show/hide field groups depending on the selected db type/mode.
@@ -147,10 +201,12 @@ class ConnectionsScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Horizontal(id="conn-body"):
             with Panel("🔌  CONEXOES", id="conn-list-panel"):
-                yield Static(
-                    "[dim]Nenhuma conexao configurada[/]",
+                yield EmptyState(
+                    what="Conexoes",
+                    why="O dbqm precisa de pelo menos uma conexao para executar consultas",
+                    action_label="Adicionar conexao",
+                    action_id="adicionar-conexao",
                     id="conn-empty",
-                    markup=True,
                 )
                 yield OptionList(id="conn-list")
                 yield Button("Nova", id="conn-btn-new")
@@ -257,27 +313,36 @@ class ConnectionsScreen(Vertical):
 
         connections = load_connections()
         option_list = self.query_one("#conn-list", OptionList)
-        empty_msg = self.query_one("#conn-empty", Static)
+        empty_msg = self.query_one("#conn-empty", EmptyState)
+        new_btn = self.query_one("#conn-btn-new", Button)
 
         option_list.clear_options()
 
         if not connections:
             empty_msg.display = True
             option_list.display = False
+            # The create action already lives inside the EmptyState;
+            # duplicating the "Nova" button here would only repeat the same
+            # action twice on the screen.
+            new_btn.display = False
             return
 
         empty_msg.display = False
         option_list.display = True
+        new_btn.display = True
 
         for conn in connections:
             db_label = DB_TYPE_LABELS.get(conn.db_type, conn.db_type)
             if conn.db_type == "oracle" and conn.mode == "tns":
                 db_label = "Oracle/TNS"
-            label = f"{conn.name}  ({db_label} - {conn.display_target()})"
-            desc = _format_description(conn.description)
-            if desc:
-                label += f"  | {desc}"
-            option_list.add_option(Option(label, id=conn.name))
+            # The identity is the name, alone: it is what the person looks
+            # for in a list of connections. Type+target disambiguate similar
+            # entries; the description is optional context, indented and
+            # dimmed.
+            desambiguacao = f"{db_label} - {conn.display_target()}"
+            contexto = _format_description(conn.description)
+            item = hierarchical_item(conn.name, desambiguacao, contexto)
+            option_list.add_option(Option(item, id=conn.name))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option_list.id != "conn-list":
@@ -354,7 +419,7 @@ class ConnectionsScreen(Vertical):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
-        if btn_id == "conn-btn-new":
+        if btn_id in ("conn-btn-new", "adicionar-conexao"):
             self._handle_new()
         elif btn_id == "conn-btn-test":
             self._handle_test()

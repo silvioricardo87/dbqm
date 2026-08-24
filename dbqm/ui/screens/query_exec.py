@@ -4,14 +4,22 @@ from __future__ import annotations
 from datetime import datetime
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, HorizontalScroll, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Select, Static
 from textual import work
 
-from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect
+from dbqm.ui.utils import escape_markup, NavSelect, common_folder_prefix
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
+from dbqm.ui.widgets.skeleton import Skeleton
 from dbqm.ui.widgets.progress import ProgressIndicator
-from dbqm.ui.widgets.query_list import QueryListWidget, QuerySelected
+from dbqm.ui.widgets.query_list import (
+    ClearFiltersRequested,
+    LIST_PANEL_WIDTH,
+    QueryListWidget,
+    QuerySelected,
+)
 from dbqm.ui.widgets.result_table import ResultTable
 
 from dbqm.core.query_engine import QueryResult
@@ -20,7 +28,7 @@ from dbqm.core.query_engine import QueryResult
 class QueryExecScreen(Vertical):
     """Screen widget for executing saved queries.
 
-    Phase 1 — query selection (folder tabs + QueryListWidget).
+    Phase 1 — query selection (folder select + QueryListWidget).
     Phase 2 — results (info bar + ResultTable).
     """
 
@@ -28,11 +36,22 @@ class QueryExecScreen(Vertical):
     QueryExecScreen {
         height: 1fr;
     }
+    /* FIXED width, and not `1fr`: the query list breaks the description
+       on `\\n` before the render so that every continuation line pays the
+       indent, and to break it the width must be known beforehand. The
+       number comes from `query_list.LIST_PANEL_WIDTH` — the same
+       constant the wrapping uses, so that CSS and arithmetic cannot
+       diverge. The price (the panel stops growing with the terminal) is
+       written down there. `#results-phase` stays elastic: a table needs
+       all the width there is. */
     QueryExecScreen #selection-phase {
         height: 1fr;
+        margin: 1 2 0 2;
+        width: __LARGURA_PAINEL_LISTA__;
     }
     QueryExecScreen #results-phase {
         height: 1fr;
+        margin: 1 2 0 2;
     }
     QueryExecScreen #result-info {
         height: auto;
@@ -42,25 +61,13 @@ class QueryExecScreen(Vertical):
     }
     QueryExecScreen #empty-message {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
-    QueryExecScreen #folder-bar {
-        height: 3;
+    QueryExecScreen #result-skeleton {
+        display: none;
+    }
+    QueryExecScreen #folder-select {
         width: 1fr;
-        padding: 0 1;
-        background: $surface;
-        scrollbar-size-horizontal: 1;
-    }
-    QueryExecScreen #folder-bar Button {
-        min-width: 6;
-        margin: 0 1 0 0;
-    }
-    QueryExecScreen #folder-hint {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-        text-style: dim italic;
+        margin: 0 1 1 1;
     }
     QueryExecScreen #qe-filter-bar {
         height: auto;
@@ -74,7 +81,7 @@ class QueryExecScreen(Vertical):
         width: 34;
         margin: 0 0 0 1;
     }
-    """
+    """.replace("__LARGURA_PAINEL_LISTA__", str(LIST_PANEL_WIDTH))
 
     def __init__(
         self,
@@ -90,24 +97,39 @@ class QueryExecScreen(Vertical):
         self._current_result: QueryResult | None = None
         self._raw_rows: list[list] | None = None  # rows before column maps
         self._showing_mapped: bool = True
-        self._folder_map: dict[str, str] = {}
-        self._folder_buttons: list[Button] = []
-        self._active_folder_idx: int = 0
-        self._active_folder_safe_id: str = "todas"
+        # "" = Todas, None = Sem pasta, any other value = the folder name.
+        # Mirrors the value of `#folder-select`; None is distinct from the
+        # Select's own "blank" sentinel (`Select.NULL`), so there is no
+        # ambiguity between "no folder selected" (does not happen here,
+        # allow_blank=False) and "folder = no folder".
+        self._active_folder: str | None = ""
+        self._has_folders: bool = False
 
     def compose(self) -> ComposeResult:
         # Selection phase
-        with Vertical(id="selection-phase"):
-            yield Static(
-                "[dim]Nenhuma consulta configurada[/]",
+        with Panel("📋  CONSULTAS", id="selection-phase"):
+            yield EmptyState(
+                what="Consultas",
+                why="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
+                action_label="Criar consulta",
+                action_id="criar-consulta-coleta",
                 id="empty-message",
-                markup=True,
             )
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
         # Results phase (hidden initially)
-        with Vertical(id="results-phase"):
+        with Panel("📊  RESULTADO", id="results-phase"):
             yield Static("", id="result-info")
+            # The shape of the table that is coming, not a spinner: reserves
+            # the right space for the first execution, hidden until
+            # `_execute` shows it. 9 is the median of the maintainer's 68
+            # saved queries (min 1, max 36), surveyed in phase 1 of this plan
+            # — not reproducible from this repository's config/queries.json,
+            # which is a different, smaller set. It is the best guess
+            # available (much better than the arbitrary 4), not a truth of
+            # the domain: a skeleton with the wrong shape causes the very
+            # layout jump it exists to prevent.
+            yield Skeleton(rows=8, columns=9, id="result-skeleton")
             yield ResultTable(id="result-table")
 
     def on_mount(self) -> None:
@@ -131,8 +153,10 @@ class QueryExecScreen(Vertical):
         from dbqm.models.query import load_queries
 
         queries = load_queries()
-        selection = self.query_one("#selection-phase")
-        empty_msg = self.query_one("#empty-message", Static)
+        # `.body` and not the panel: runtime mounting does not go through
+        # `compose_add_child`'s routing and would land outside the chrome.
+        selection = self.query_one("#selection-phase", Panel).body
+        empty_msg = self.query_one("#empty-message", EmptyState)
 
         if not queries:
             empty_msg.display = True
@@ -149,7 +173,12 @@ class QueryExecScreen(Vertical):
         selection.mount(
             Horizontal(
                 Input(
-                    placeholder="Filtrar por nome ou descricao...",
+                    # Without the ellipsis: with the chrome, this `1fr`
+                    # measures 35 columns out of 80 (it used to be 43) and
+                    # the text came out clipped as "...descricao..", which
+                    # looks like a defect. 29 characters fit whole in the
+                    # narrowest width the product supports.
+                    placeholder="Filtrar por nome ou descricao",
                     id="qe-filter-text",
                 ),
                 NavSelect(conn_options, prompt="Todas as conexoes", id="qe-filter-conn"),
@@ -157,92 +186,61 @@ class QueryExecScreen(Vertical):
             )
         )
 
-        # Determine folders
-        folders = sorted({q.folder for q in queries if q.folder})
+        # Determine folders — variable cardinality (the real maintainer has
+        # 16), so navigation is a Select with the count per option, not
+        # tabs: 16 buttons in a HorizontalScroll forced sideways scrolling
+        # to find a folder, and most of each button was the same repeated
+        # prefix.
+        from collections import Counter
+
+        contagem_pastas = Counter(q.folder for q in queries if q.folder)
+        folders = sorted(contagem_pastas)
+        self._has_folders = bool(folders)
 
         ql = QueryListWidget(id="ql-main")
 
         if folders:
-            folder_bar = HorizontalScroll(id="folder-bar")
-            selection.mount(folder_bar)
-            # "Todas" button
-            btn_todas = Button("Todas", id="folder-todas", variant="primary")
-            folder_bar.mount(btn_todas)
-            self._folder_buttons = [btn_todas]
+            prefixo = common_folder_prefix(folders)
+            options = [(f"Todas ({len(queries)})", "")]
             for folder in folders:
-                safe_id = sanitize_id(folder)
-                self._folder_map[safe_id] = folder
-                btn = Button(folder, id=f"folder-{safe_id}", variant="default")
-                folder_bar.mount(btn)
-                self._folder_buttons.append(btn)
-            has_no_folder = any(not q.folder for q in queries)
-            if has_no_folder:
-                btn_sem = Button("Sem pasta", id="folder-sem-pasta", variant="default")
-                folder_bar.mount(btn_sem)
-                self._folder_buttons.append(btn_sem)
-            # Hint for keyboard navigation
-            selection.mount(Static("[dim]← → alternar pastas[/dim]", id="folder-hint", markup=True))
-            self._active_folder_idx = 0
+                rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
+                options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
+            sem_pasta = sum(1 for q in queries if not q.folder)
+            if sem_pasta:
+                options.append((f"Sem pasta ({sem_pasta})", None))
+            selection.mount(
+                NavSelect(options, allow_blank=False, id="folder-select")
+            )
+            self._active_folder = ""
 
         selection.mount(ql)
         ql.load_queries(queries)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle folder filter button presses."""
+        """Handle the empty-state action."""
         btn_id = event.button.id or ""
-        if not btn_id.startswith("folder-"):
+        if btn_id == "criar-consulta-coleta":
+            # Queries are created from the Coleta tab ("Salvar como
+            # consulta" there), not from this screen — guarded because
+            # QueryExecScreen is also mounted standalone in tests, where
+            # self.app has no action_switch_tab (that lives on DBQMApp
+            # only).
+            switch = getattr(self.app, "action_switch_tab", None)
+            if callable(switch):
+                switch("tab-coleta")
             return
-
-        # Sync index
-        for i, b in enumerate(self._folder_buttons):
-            if b is event.button:
-                self._active_folder_idx = i
-                break
-
-        self._activate_folder_button(event.button)
-
-    # ------------------------------------------------------------------
-    # Folder keyboard navigation (← →)
-    # ------------------------------------------------------------------
-
-    def on_key(self, event) -> None:
-        """Handle left/right for folder switching only in selection phase."""
-        if event.key not in ("left", "right"):
-            return
-        # In results phase, let DataTable handle arrows
-        if self._current_result is not None or not self._folder_buttons:
-            return
-        if event.key == "left":
-            self._active_folder_idx = max(0, self._active_folder_idx - 1)
-        else:
-            self._active_folder_idx = min(len(self._folder_buttons) - 1, self._active_folder_idx + 1)
-        self._activate_folder_button(self._folder_buttons[self._active_folder_idx])
-        event.prevent_default()
-        event.stop()
-
-    def _activate_folder_button(self, btn: Button) -> None:
-        """Simulate clicking a folder button."""
-        for b in self._folder_buttons:
-            b.variant = "default"
-        btn.variant = "primary"
-        btn_id = btn.id or ""
-        self._active_folder_safe_id = btn_id.removeprefix("folder-")
-        self._apply_filters()
-        # Keep focus on the list
-        self.query_one("#ql-main", QueryListWidget).focus()
 
     # ------------------------------------------------------------------
     # Text + connection filtering
     # ------------------------------------------------------------------
 
     def _folder_subset(self) -> list:
-        """Queries within the currently selected folder tab."""
-        safe_id = self._active_folder_safe_id
-        if safe_id == "sem-pasta":
+        """Queries within the currently selected folder."""
+        valor = self._active_folder
+        if valor is None:
             return [q for q in self._all_queries if not q.folder]
-        if safe_id and safe_id != "todas":
-            label = self._folder_map.get(safe_id, "")
-            return [q for q in self._all_queries if q.folder == label]
+        if valor:
+            return [q for q in self._all_queries if q.folder == valor]
         return list(self._all_queries)
 
     def _apply_filters(self) -> None:
@@ -267,9 +265,38 @@ class QueryExecScreen(Vertical):
             self._apply_filters()
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """React to the connection filter selection."""
+        """React to the connection and folder filter selections."""
         if event.select.id == "qe-filter-conn":
             self._apply_filters()
+        elif event.select.id == "folder-select":
+            self._active_folder = event.value
+            self._apply_filters()
+            # Keep focus on the list, same as the old folder tabs did.
+            try:
+                self.query_one("#ql-main", QueryListWidget).focus()
+            except Exception:
+                pass
+
+    def on_clear_filters_requested(self, message: ClearFiltersRequested) -> None:
+        """The QueryListWidget's filtered-to-nothing EmptyState asked to
+        clear the filters that live up here (folder select, connection,
+        free-text search) — the widget already cleared its own inline
+        search box."""
+        self._active_folder = ""
+        if self._has_folders:
+            try:
+                self.query_one("#folder-select", Select).value = ""
+            except Exception:
+                pass
+        try:
+            self.query_one("#qe-filter-text", Input).value = ""
+        except Exception:
+            pass
+        try:
+            self.query_one("#qe-filter-conn", Select).clear()
+        except Exception:
+            pass
+        self._apply_filters()
 
     # ------------------------------------------------------------------
     # Query selected → parameterize & execute
@@ -330,10 +357,38 @@ class QueryExecScreen(Vertical):
     def _execute(self, query, conn, params: dict[str, str]) -> None:
         """Start query execution in a worker thread."""
         self._current_params = params
-        self.query_one(ProgressIndicator).start(
-            f"Executando [bold]{escape_markup(query.name)}[/] em [bold]{escape_markup(conn.name)}[/]..."
+        message = (
+            f"Executando [bold]{escape_markup(query.name)}[/] em "
+            f"[bold]{escape_markup(conn.name)}[/]..."
         )
+        if self._current_result is None:
+            # First load into the (still empty) results area: show the
+            # shape of the table that is coming instead of a spinner, so
+            # the layout does not jump when the real result lands.
+            self.query_one("#selection-phase").display = False
+            self.query_one("#results-phase").display = True
+            self.query_one("#result-table", ResultTable).display = False
+            self.query_one("#result-skeleton", Skeleton).display = True
+            self.query_one("#result-info", Static).update(message)
+        else:
+            # Reexecuting: a result is already on screen. Keep it visible
+            # and use the message indicator, not the skeleton — replacing
+            # good data with placeholder blocks would be a worse jump than
+            # the one the skeleton exists to avoid.
+            self.query_one(ProgressIndicator).start(message)
         self._run_query(query, conn, params)
+
+    def _abort_first_load_if_pending(self) -> None:
+        """Undo the skeleton phase-switch from `_execute` when the FIRST
+        execution never produced a result — otherwise a failed first
+        execution strands the screen on an empty results phase with no way
+        back to the query list."""
+        if self._current_result is not None:
+            return
+        self.query_one("#selection-phase").display = True
+        self.query_one("#results-phase").display = False
+        self.query_one("#result-skeleton", Skeleton).display = False
+        self.query_one("#result-table", ResultTable).display = True
 
     @work(thread=True)
     def _run_query(self, query, conn, params: dict[str, str]) -> None:
@@ -358,6 +413,7 @@ class QueryExecScreen(Vertical):
     def _show_error(self, msg: str) -> None:
         """Show error notification and stop progress indicator."""
         self.query_one(ProgressIndicator).stop()
+        self._abort_first_load_if_pending()
         self.notify(f"Erro: {msg}", severity="error", timeout=8)
 
     def _on_result(self, query, conn, params: dict[str, str], result: QueryResult, raw_rows: list[list] | None = None) -> None:
@@ -365,6 +421,7 @@ class QueryExecScreen(Vertical):
         self.query_one(ProgressIndicator).stop()
 
         if not result.success:
+            self._abort_first_load_if_pending()
             self.notify(f"Erro: {result.error}", severity="error", timeout=8)
             return
 
@@ -379,6 +436,11 @@ class QueryExecScreen(Vertical):
         self.query_one("#selection-phase").display = False
         results_phase = self.query_one("#results-phase")
         results_phase.display = True
+
+        # Real data arrived: the skeleton (if it was up for a first load)
+        # gives way to the table it stood in for.
+        self.query_one("#result-skeleton", Skeleton).display = False
+        self.query_one("#result-table", ResultTable).display = True
 
         # Update info bar
         info = self.query_one("#result-info", Static)
@@ -565,6 +627,8 @@ class QueryExecScreen(Vertical):
         """Return to the query selection phase."""
         self.query_one("#selection-phase").display = True
         self.query_one("#results-phase").display = False
+        self.query_one("#result-skeleton", Skeleton).display = False
+        self.query_one("#result-table", ResultTable).display = True
         self._current_result = None
         self._raw_rows = None
         self._showing_mapped = True

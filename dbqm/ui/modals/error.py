@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
+
+from dbqm.ui.widgets.dialog import Dialog
 
 
 class ErrorModal(ModalScreen[None]):
@@ -14,20 +16,6 @@ class ErrorModal(ModalScreen[None]):
     DEFAULT_CSS = """
     ErrorModal {
         align: center middle;
-    }
-    ErrorModal #error-dialog {
-        width: 80;
-        max-height: 80%;
-        background: $surface;
-        border: thick $error;
-        padding: 1 2;
-    }
-    ErrorModal #error-title {
-        text-style: bold;
-        color: $error;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     ErrorModal #error-scroll {
         height: 1fr;
@@ -52,8 +40,7 @@ class ErrorModal(ModalScreen[None]):
         self._detail = detail
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="error-dialog"):
-            yield Static(self._title, id="error-title")
+        with Dialog(self._title, id="error-dialog", tone="destructive", width="lg"):
             with VerticalScroll(id="error-scroll"):
                 yield Static(self._detail, id="error-detail")
             yield Button("Fechar", variant="error", id="close-btn")

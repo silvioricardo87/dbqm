@@ -124,6 +124,16 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
 
     Oracle: user_tables / user_objects / user_views.
     SQL Server: information_schema (no packages).
+
+    Limite conhecido, nao corrigido aqui: para `obj_type="ROUTINE"` (Oracle,
+    PostgreSQL e MySQL), a consulta junta PROCEDURE e FUNCTION e devolve so
+    o nome (`object_name`/`routine_name`) — quem chama nao tem como saber
+    qual e qual. A UI (`dbqm/ui/screens/browser.py`, filtro "Rotinas") por
+    isso mostra "Rotina" pra ambos, sem distinguir. Corrigir de verdade
+    exige mudar a forma de retorno desta funcao (de `list[str]` pra algo
+    como `list[tuple[str, str]]`, nome+tipo por objeto) em TODAS as
+    branches de ROUTINE abaixo, nao so na de Oracle — fora do escopo de
+    quem so mexe em tela.
     """
     cursor = db.cursor()
     try:

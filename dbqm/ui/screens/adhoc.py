@@ -34,7 +34,7 @@ def _format_plsql_message(result: AdhocResult) -> str:
 
     Only the success header — DBMS_OUTPUT lines render in the dedicated panel.
     """
-    return f"[green bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"
+    return f"[bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"
 
 
 class AdhocScreen(Vertical):
@@ -62,18 +62,21 @@ class AdhocScreen(Vertical):
     }
     AdhocScreen #adhoc-conn-select {
         width: 100%;
-        border: round $error;
     }
-    AdhocScreen #adhoc-conn-select.--conn-selected {
-        border: round $success;
+    /* "Conexao escolhida" RECOLORE a afordancia que o proprio Select ja
+       desenha (o bloco `tall` do `SelectCurrent`, ▊▔▁▎), em vez de somar
+       uma caixa. A redacao anterior punha `border: round $ds-identity` no
+       Select: `round` e o vocabulario da MOLDURA (Panel/Dialog), e o
+       controle escolhido passava a parecer um painel — alem de perder duas
+       colunas e quebrar o nome da conexao em duas linhas. Aqui a geometria
+       nao muda; muda a cor. */
+    AdhocScreen #adhoc-conn-select.--conn-selected SelectCurrent {
+        border: tall $ds-identity;
     }
     AdhocScreen #adhoc-dbms-toggle {
         width: 100%;
         height: auto;
         margin: 1 0 0 0;
-        padding: 0 1;
-        border: round $primary;
-        background: $surface;
         content-align: left middle;
     }
     AdhocScreen #adhoc-editor-panel {
@@ -85,10 +88,24 @@ class AdhocScreen(Vertical):
     AdhocScreen #adhoc-btn-bar {
         height: auto;
         padding: 1 0 0 0;
-        align: center middle;
+        /* Encostado a esquerda, na coluna do TextArea que estes botoes
+           operam (secao 7 da gramatica). Medido a 80x24 na DBQMApp real:
+           a barra comeca em x=34 e `Executar` comecava em x=35 —
+           centralizar gastava uma coluna de recuo numa barra que ja nao
+           cabia. O transbordo em si e anterior a esta fase e continua:
+           os quatro botoes somam 81 colunas contra as 44 da barra.
+           Remedido uma coluna por vez na DBQMApp real (aba Coleta, 24
+           linhas, uma conexao salva), porque os numeros da primeira
+           redacao — 100 e 120 — nao se reproduziram: a CAIXA de `Gerar
+           SQL` so fecha inteira a partir de 92 colunas (o rotulo ja
+           aparece completo em 90), e a de `Salvar como consulta` a partir
+           de 115, com o rotulo completo em 116. Os dois criterios estao
+           escritos porque divergem: a caixa e o que o olho ve como botao,
+           o rotulo e o que se consegue ler. */
     }
     AdhocScreen #adhoc-btn-bar Button {
-        margin: 0 1;
+        /* Margem so a direita: a esquerda e o alinhamento com o editor. */
+        margin: 0 1 0 0;
     }
     AdhocScreen #adhoc-results-panel {
         height: 2fr;
@@ -111,8 +128,10 @@ class AdhocScreen(Vertical):
     AdhocScreen #adhoc-dml-result {
         height: auto;
         padding: 1 2;
-        content-align: center middle;
-        text-align: center;
+        /* Alinhado a esquerda como os dois irmaos com quem divide o
+           `#res-output` (o `SqlViewer` e o painel de DBMS_OUTPUT).
+           Centralizar so este era a improvisacao por tela que a
+           gramatica existe para remover: a mesma area, tres alinhamentos. */
     }
     AdhocScreen #adhoc-dbms-panel {
         height: 1fr;
@@ -612,13 +631,13 @@ class AdhocScreen(Vertical):
 
         if result.success:
             dml_static.update(
-                f"[green bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"
+                f"[bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"
             )
         else:
             errors = result.error or "Erro desconhecido"
             dml_static.update(
-                f"[yellow bold]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
-                f"[red]{errors}[/]"
+                f"[bold $ds-op-failure]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
+                f"[$ds-op-failure]{errors}[/]"
             )
 
         try:

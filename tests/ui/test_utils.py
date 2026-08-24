@@ -1,5 +1,5 @@
 """Tests for UI utilities."""
-from dbqm.ui.utils import sanitize_id, escape_markup
+from dbqm.ui.utils import sanitize_id, escape_markup, common_folder_prefix
 
 
 def test_sanitize_id_ascii():
@@ -71,3 +71,73 @@ def test_escape_markup_clean():
 
 def test_escape_markup_nested():
     assert escape_markup("[red]error[/]") == "\\[red\\]error\\[/\\]"
+
+
+# ---------------------------------------------------------------------------
+# common_folder_prefix
+# ---------------------------------------------------------------------------
+#
+# It existed with no test at all: every folder used in the UI suite was
+# prefix-free ("Grupo A", "FolderA", "Pasta0") and none contained "/", so the
+# elision branch never ran — replacing the function body with `return ""`
+# kept 326 tests green. These cases, plus the screen test that reads the
+# painted LABEL, are what kills that mutant.
+
+
+def test_common_folder_prefix_single_family():
+    """The case that motivated the function: one family dominates the whole
+    list."""
+    assert common_folder_prefix([
+        "Mapfre Sustentacao/Faturamento",
+        "Mapfre Sustentacao/Apolice",
+    ]) == "Mapfre Sustentacao/"
+
+
+def test_common_folder_prefix_several_segments():
+    """The prefix grows segment by segment, it does not stop at the first."""
+    assert common_folder_prefix(["A/B/C", "A/B/D"]) == "A/B/"
+
+
+def test_common_folder_prefix_nothing_in_common():
+    """Two families side by side: the common prefix shrinks on its own to ""
+    and the list goes back to showing the whole path — the reason the prefix
+    is computed on every load instead of being hardcoded as a literal."""
+    assert common_folder_prefix(["Mapfre/Faturamento", "Interno/Backlog"]) == ""
+
+
+def test_common_folder_prefix_compares_segments_not_characters():
+    """"Fatura" is a prefix of "Faturamento" in characters, but not in
+    segments — eliding here would cut off the start of a folder name."""
+    assert common_folder_prefix(["Faturamento", "Fatura"]) == ""
+
+
+def test_common_folder_prefix_fewer_than_two():
+    """With zero or one folder there is no redundancy to remove: the list's
+    only label has to show up in full."""
+    assert common_folder_prefix([]) == ""
+    assert common_folder_prefix(["Mapfre Sustentacao/Faturamento"]) == ""
+
+
+def test_common_folder_prefix_folder_that_prefixes_its_sibling():
+    """Sibling case: one folder IS the common prefix of the other.
+
+    The returned prefix ("A/B/") does not apply to "A/B" itself — the caller
+    has to check `startswith` before cutting, and that is what stops "A/B"'s
+    label from turning into an empty string. The function returns the
+    correct prefix; the caller's `startswith`
+    (query_exec.py/group_run.py) is load-bearing, not defensive."""
+    assert common_folder_prefix(["A/B", "A/B/C"]) == "A/B/"
+
+
+def test_common_folder_prefix_repeated_list_would_return_everything():
+    """Behaviour pinned down, not endorsed: with the SAME folder repeated the
+    common prefix is the whole of it, and cutting that would erase the label.
+
+    There is no guard against this inside the function on purpose — the two
+    callers pass `sorted(Counter(...))`, that is, dictionary keys, which are
+    unique by construction. With unique entries, the only way for the prefix
+    to cover a whole folder is the sibling case above, where the caller's
+    `startswith` already saves the label. This test exists so that, if a
+    third caller one day passes a list with repetitions, the consequence is
+    written down here instead of showing up as a list of blank labels."""
+    assert common_folder_prefix(["A/B", "A/B"]) == "A/B/"

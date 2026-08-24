@@ -8,14 +8,58 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Header, TabbedContent, TabPane
 
-from dbqm.ui.theme import GITHUB_DARK, GITHUB_LIGHT
+from dbqm.ui.theme import INERT_STATES_CSS, TEXTUAL_THEMES, get_theme
 from dbqm.ui.widgets.status_bar import StatusBar
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
 from dbqm.ui.widgets.templates_sidebar import TemplatesSidebar
 
 
+class MainTabs(TabbedContent):
+    """`TabbedContent` in which FOCUSING is not NAVIGATING.
+
+    The stock `TabbedContent` treats focus as navigation: `TabPane` posts
+    `TabPane.Focused` on every `DescendantFocus`, and
+    `TabbedContent._on_tab_pane_focused` answers with
+    ``self.active = event.tab_pane.id``. Any widget that takes focus
+    inside an INACTIVE pane drags the tab along — including a pane that
+    the `ContentSwitcher` has already hidden (measured: `pane.display`
+    False, and ``w.focus()`` still moves `active` from `tab-historico` to
+    `tab-conexoes`).
+
+    That is exactly what every dbqm screen does: each one schedules its
+    own initial focus with `call_after_refresh` in its `on_mount`. When
+    the person switches tabs before the mount storm settles, the delayed
+    focus of the PREVIOUS screen arrives later and undoes the switch — the
+    tab blinks `tab-conexoes` -> `tab-coleta` -> `tab-conexoes` and stops
+    on the wrong one. That is what was measured with an `F5` right at
+    startup: `active='tab-conexoes'` with seven panes still disabled.
+
+    Here the message dies. Switching tabs in dbqm is clicking the header
+    or pressing the function key — both routes stay intact, because they
+    go through `Tabs.active`, not through focus. No screen depends on the
+    stock behavior: `DBQMApp._focus_screen_widget` only focuses inside
+    the pane that is ALREADY active.
+    """
+
+    def _on_tab_pane_focused(self, event) -> None:  # type: ignore[override]
+        # `prevent_default`, not just `stop`: Textual dispatches the SAME
+        # message to the handler of EVERY class in the MRO
+        # (`MessagePump._get_dispatch_methods`), so a lone `stop()` only
+        # blocks bubbling — `TabbedContent`'s `_on_tab_pane_focused`
+        # would run next and the tab would switch anyway (measured: the
+        # fix with `stop()` alone changed nothing). It is
+        # `_no_default_action` that interrupts the MRO sweep.
+        event.prevent_default()
+        event.stop()
+
+
 class DBQMApp(App):
     """DB Query Manager — single tabbed dashboard shell."""
+
+    # Distinct inert states (Task 12) — see the comment in
+    # `dbqm/ui/theme.py::INERT_STATES_CSS` for why it lives there and why
+    # it is `DEFAULT_CSS`, not `CSS`.
+    DEFAULT_CSS = INERT_STATES_CSS
 
     #: Maps each tab id to the id of the screen widget it hosts.
     TAB_TO_SCREEN: dict[str, str] = {
@@ -38,6 +82,18 @@ class DBQMApp(App):
         # never clobbers a real switch that happens to land during the
         # initial mount focus-storm window.
         self._user_switched_tab = False
+
+        # The theme must be up before the first compose/mount: the widgets'
+        # DEFAULT_CSS (Panel etc.) is applied as soon as they are mounted,
+        # which happens before on_mount runs. If the theme were only
+        # swapped in on_mount, any `$token` that is not also a Textual
+        # built-in variable (e.g. $ds-border) would fail to resolve on the
+        # first render.
+        from dbqm.models.settings import load_settings
+
+        for tema in TEXTUAL_THEMES.values():
+            self.register_theme(tema)
+        self.theme = get_theme(load_settings().theme).name
 
     BINDINGS = [
         Binding("f1", "switch_tab('tab-coleta')", "Coleta", show=False),
@@ -87,7 +143,7 @@ class DBQMApp(App):
         yield Header()
         with Horizontal(id="body"):
             yield TemplatesSidebar(id="templates-sidebar")
-            with TabbedContent(id="main-tabs", initial=initial_tab):
+            with MainTabs(id="main-tabs", initial=initial_tab):
                 with TabPane("🔍  Coleta", id="tab-coleta"):
                     from dbqm.ui.screens.adhoc import AdhocScreen
                     yield AdhocScreen(id="adhoc-screen")
@@ -110,23 +166,18 @@ class DBQMApp(App):
                     from dbqm.ui.screens.query_exec import QueryExecScreen
                     yield QueryExecScreen(id="query-exec-screen")
                 with TabPane("🧰  Ferramentas", id="tab-ferramentas"):
-                    from dbqm.ui.screens.ferramentas import FerramentasScreen
-                    yield FerramentasScreen(id="ferramentas-screen")
+                    from dbqm.ui.screens.tools import ToolsScreen
+                    yield ToolsScreen(id="ferramentas-screen")
         yield ActionBar()
         yield StatusBar()
 
     def on_mount(self) -> None:
-        """Load settings, register themes, and set initial state."""
-        from dbqm.models.settings import load_settings
+        """Load connections/queries/groups and set initial state. The theme
+        has already been registered and applied in __init__, before the first
+        mount."""
         from dbqm.models.connection import load_connections
         from dbqm.models.query import load_queries
         from dbqm.models.group import load_groups
-
-        settings = load_settings()
-
-        self.register_theme(GITHUB_DARK)
-        self.register_theme(GITHUB_LIGHT)
-        self.theme = settings.theme
 
         connections = load_connections()
         queries = load_queries()
@@ -264,6 +315,16 @@ class DBQMApp(App):
         are restored when switching back. Everything else clears the bar.
         This is best-effort and never hard-codes phase ids.
         """
+        # The pinned action belongs to the tab that put it there (see
+        # `ActionBar.set_pinned_action`): clearing it here, BEFORE asking
+        # the new screen, is what stops the Ferramentas' `Esc Voltar` from
+        # showing up in Conexoes, where it goes back nowhere. The screen
+        # that still needs it puts it back in its own `_set_actions`.
+        try:
+            self.query_one(ActionBar).set_pinned_action(None)
+        except Exception:
+            pass
+
         screen = self._active_screen()
         if screen is None:
             try:
@@ -337,10 +398,10 @@ class DBQMApp(App):
     def on_key(self, event) -> None:
         """Use arrow keys to navigate between widgets in the active tab.
 
-        DataTable, ListView, TextArea, and OptionList handle arrows
-        internally. For other widgets (Button, Switch, Input, Select),
-        arrows move focus. Disabled when a modal is active so modals
-        handle their own navigation.
+        DataTable, OptionList, and TextArea handle arrows internally.
+        For other widgets (Button, Switch, Input, Select), arrows move
+        focus. Disabled when a modal is active so modals handle their
+        own navigation.
         """
         if event.key not in ("up", "down"):
             return
@@ -348,7 +409,7 @@ class DBQMApp(App):
         if len(self.screen_stack) > 1:
             return
 
-        from textual.widgets import DataTable, ListView, TextArea, OptionList
+        from textual.widgets import DataTable, OptionList, TextArea
 
         focused = self.focused
         if focused is None:
@@ -356,7 +417,7 @@ class DBQMApp(App):
 
         widget_chain = [focused] + list(focused.ancestors)
         for w in widget_chain:
-            if isinstance(w, (DataTable, ListView, TextArea, OptionList)):
+            if isinstance(w, (DataTable, OptionList, TextArea)):
                 return
 
         self._focus_within_section(forward=(event.key == "down"))
@@ -451,7 +512,7 @@ class DBQMApp(App):
         except Exception:
             return
 
-        for action in action_bar._actions:
+        for action in action_bar.visible_actions():
             if action.key and action.key.lower() == key.lower():
                 # Post to the active tab's screen so it receives the message.
                 screen = self._active_screen()
@@ -479,12 +540,34 @@ class DBQMApp(App):
         """Set focus to the first interactive widget within a screen."""
         try:
             for widget in screen_widget.query("*"):
-                if widget.can_focus and widget.display:
+                if widget.can_focus and widget.display and self._ancestors_displayed(
+                    widget, screen_widget
+                ):
                     widget.focus()
                     return
             screen_widget.focus()
         except Exception:
             pass
+
+    @staticmethod
+    def _ancestors_displayed(widget, root) -> bool:
+        """True if every ancestor of ``widget`` up to (and including) ``root``
+        has ``display`` on. ``widget.display`` alone is a per-widget flag: a
+        widget nested inside a hidden container (e.g. EmptyState's action
+        Button, once the container itself is hidden with `display = False`
+        because the list it stands in for has content) still reports its OWN
+        display as True. Without this check, ``_focus_screen_widget`` would
+        pick that invisible-but-"displayed" button as the screen's first
+        focusable widget instead of the real, visible content after it.
+        """
+        node = widget.parent
+        while node is not None:
+            if not node.display:
+                return False
+            if node is root:
+                return True
+            node = node.parent
+        return True
 
     # ------------------------------------------------------------------
     # Back navigation
@@ -511,6 +594,18 @@ class DBQMApp(App):
                 if screen.query_one("#results-phase").display:
                     screen.go_back_to_selection()
                     self.query_one(ActionBar).set_actions([])
+            elif screen_id == "settings-screen":
+                # `OracleClientsScreen` never had a back button: without
+                # this keyboard route it would be a dead end inside the
+                # tab. And a back button would be a button doing
+                # navigation, which section 7 of the grammar forbids.
+                screen.back_to_start()
+            elif screen_id == "ferramentas-screen":
+                # Same reason: the five "Voltar" that lived inside the
+                # tool panes were navigation done by button and left in
+                # Task 8. `ToolsScreen._set_actions` draws the `Esc` in the
+                # bar while one of them is open.
+                screen.back_to_menu()
         except Exception:
             pass
 

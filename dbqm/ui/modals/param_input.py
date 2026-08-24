@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll, Horizontal
+from textual.containers import VerticalScroll, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static
 
 from dbqm.ui.utils import sanitize_id
+from dbqm.ui.widgets.dialog import Dialog
 
 
 class ParamModal(ModalScreen[dict[str, str] | None]):
@@ -22,22 +23,8 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         align: center middle;
     }
 
-    ParamModal #dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
     ParamModal #param-scroll {
         height: 1fr;
-    }
-
-    ParamModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
 
     ParamModal #subtitle {
@@ -85,9 +72,8 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
         self._param_id_to_name: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
+        with Dialog(self.query_name, id="dialog"):
             with VerticalScroll(id="param-scroll"):
-                yield Static(self.query_name, id="title")
                 if self.description:
                     yield Static(self.description, id="subtitle")
 

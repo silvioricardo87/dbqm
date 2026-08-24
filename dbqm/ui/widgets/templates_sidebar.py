@@ -5,8 +5,10 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.message import Message
-from textual.widgets import Label, OptionList, Static
+from textual.widgets import Button, Label, OptionList, Static
 from textual.widgets.option_list import Option
+
+from dbqm.ui.widgets.empty_state import EmptyState
 
 
 class TemplatesSidebar(Vertical):
@@ -19,18 +21,18 @@ class TemplatesSidebar(Vertical):
     DEFAULT_CSS = """
     TemplatesSidebar {
         width: 26;
-        border-right: solid $border;
+        border-right: solid $ds-border;
         background: $panel;
         padding: 0;
     }
     TemplatesSidebar.-collapsed { display: none; }
     TemplatesSidebar > #tpl-title {
         height: auto; background: $surface; color: $accent; text-style: bold;
-        border-bottom: solid $border; padding: 0 1;
+        border-bottom: solid $ds-border; padding: 0 1;
     }
     TemplatesSidebar OptionList { border: none; background: $panel; height: 1fr; }
     TemplatesSidebar > #tpl-empty {
-        height: 1fr; padding: 1 1; color: $text-muted;
+        height: 1fr;
     }
     """
 
@@ -44,8 +46,11 @@ class TemplatesSidebar(Vertical):
     def compose(self) -> ComposeResult:
         yield Label("📄  TEMPLATES", id="tpl-title")
         yield OptionList(id="tpl-list")
-        yield Static(
-            "Nenhum template salvo.\n\nCrie templates na aba Ferramentas para\nreutiliza-los aqui.",
+        yield EmptyState(
+            what="Templates",
+            why="Crie templates na aba Ferramentas para reaproveitar consultas com parametros",
+            action_label="Abrir Ferramentas",
+            action_id="abrir-ferramentas",
             id="tpl-empty",
         )
 
@@ -69,7 +74,7 @@ class TemplatesSidebar(Vertical):
         except Exception:
             pass
         # Show the hint only when there are no templates.
-        self.query_one("#tpl-empty", Static).display = count == 0
+        self.query_one("#tpl-empty", EmptyState).display = count == 0
         ol.display = count > 0
 
     def toggle(self) -> None:
@@ -80,3 +85,12 @@ class TemplatesSidebar(Vertical):
         sql = self._sqls.get(str(event.option.id), "")
         if sql:
             self.post_message(self.TemplateChosen(sql))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "abrir-ferramentas":
+            # Guarded: TemplatesSidebar is also mounted standalone in tests,
+            # where self.app has no action_switch_tab (that lives on
+            # DBQMApp only).
+            switch = getattr(self.app, "action_switch_tab", None)
+            if callable(switch):
+                switch("tab-ferramentas")

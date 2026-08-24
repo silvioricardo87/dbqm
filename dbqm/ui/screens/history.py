@@ -3,10 +3,13 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.widgets import DataTable, Static
+from textual.content import Content
+from textual.widgets import Button, DataTable, Static
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
+from dbqm.ui.widgets.verdict import mark_operation, mark_verdict
 
 
 class HistoryScreen(Vertical):
@@ -25,10 +28,6 @@ class HistoryScreen(Vertical):
     }
     HistoryScreen #hist-empty {
         height: auto;
-        padding: 2;
-        content-align: center middle;
-        text-align: center;
-        color: $text-muted;
     }
     HistoryScreen #hist-table {
         height: 1fr;
@@ -54,8 +53,11 @@ class HistoryScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with Panel("📜  HISTORICO", id="hist-list-panel"):
-            yield Static(
-                "[dim]Nenhum historico de execucao.[/dim]",
+            yield EmptyState(
+                what="Historico",
+                why="Cada consulta ou grupo executado fica registrado aqui",
+                action_label="Executar consulta",
+                action_id="executar-consulta",
                 id="hist-empty",
             )
             yield DataTable(id="hist-table")
@@ -68,9 +70,22 @@ class HistoryScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def _set_initial_focus(self) -> None:
+        """Focus what the screen is SHOWING.
+
+        With an empty history what is on screen is the `EmptyState`, and the
+        only actionable thing in it is the button. Focusing the table at
+        that point put the focus on a hidden widget: nothing visible was
+        marked, and the Enter key did not reach the way out the screen had
+        just offered.
+        """
         table = self.query_one("#hist-table", DataTable)
         if table.display:
             table.focus()
+            return
+        try:
+            self.query_one("#hist-empty", EmptyState).query_one(Button).focus()
+        except Exception:
+            pass
 
     def _reload(self) -> None:
         """Load and display history entries."""
@@ -79,8 +94,9 @@ class HistoryScreen(Vertical):
         entries = load_history()
         self._entries = entries[:50]
 
-        empty = self.query_one("#hist-empty", Static)
+        empty = self.query_one("#hist-empty", EmptyState)
         table = self.query_one("#hist-table", DataTable)
+        detail_panel = self.query_one("#hist-detail-panel")
 
         table.clear(columns=True)
         table.cursor_type = "row"
@@ -92,28 +108,37 @@ class HistoryScreen(Vertical):
         table.add_column("Status", key="status", width=10)
 
         if not self._entries:
+            # Hiding the table is what the other ten empty lists in dbqm
+            # already did (`connections`, `query_list`, `browser`, ...):
+            # without it, the `Data Conexao Tipo SQL Tempo Status` header was
+            # painted right against the empty state, promising a table that
+            # does not exist. The DETAIL panel goes away for the same reason
+            # — there is no record to detail — and giving its 8 lines back to
+            # the panel above is what makes the identity line (`Historico`)
+            # fit at 80x24, where before it was clipped entirely.
             empty.display = True
+            table.display = False
+            detail_panel.display = False
             self._show_detail(None)
             self._set_list_actions()
             return
 
         empty.display = False
+        table.display = True
+        detail_panel.display = True
 
         for i, e in enumerate(self._entries, 1):
             if e.entry_type == "group":
                 tipo = "grupo"
                 if e.all_match is True:
-                    status = "[green]OK[/green]"
+                    status = mark_verdict("match")
                 elif e.all_match is False:
-                    status = "[red]DIFF[/red]"
+                    status = mark_verdict("diff")
                 else:
                     status = "-"
             else:
                 tipo = "query"
-                if e.success:
-                    status = "[green]OK[/green]"
-                else:
-                    status = "[red]ERRO[/red]"
+                status = mark_operation("ok") if e.success else mark_operation("failure")
 
             table.add_row(
                 str(e.timestamp) if e.timestamp else "",
@@ -121,7 +146,11 @@ class HistoryScreen(Vertical):
                 tipo,
                 str(e.name) if e.name else "",
                 f"{e.elapsed:.1f}s",
-                status,
+                # DataTable formats string cells with Rich's plain parser,
+                # which does not know about `$token` (only Textual's content
+                # markup does). Content.from_markup resolves the token before
+                # the cell gets there.
+                Content.from_markup(status),
                 key=str(i),
             )
 
@@ -181,10 +210,9 @@ class HistoryScreen(Vertical):
                 lines.append(f"[bold]Erro:[/bold] {str(entry.error)}")
         elif entry.entry_type == "group":
             if entry.all_match is not None:
-                status = (
-                    "[green]CONSISTENTE[/green]"
-                    if entry.all_match
-                    else "[red]DIVERGENTE[/red]"
+                status = mark_verdict(
+                    "match" if entry.all_match else "diff",
+                    label="CONSISTENTE" if entry.all_match else "DIVERGENTE",
                 )
                 lines.append(f"[bold]Resultado:[/bold] {status}")
             if entry.summary:
@@ -209,9 +237,7 @@ class HistoryScreen(Vertical):
     def _on_clear_confirmed(self, confirmed: bool) -> None:
         if not confirmed:
             # Stay on the history screen, restore focus
-            table = self.query_one("#hist-table", DataTable)
-            if table.display:
-                table.focus()
+            self._set_initial_focus()
             return
 
         from dbqm.core.history import clear_history
@@ -219,6 +245,10 @@ class HistoryScreen(Vertical):
         clear_history()
         self.notify("Historico limpo!", timeout=5)
         self._reload()
+        # Clearing leaves the screen empty: the focus has to follow the
+        # table that has just left the stage, otherwise it stays on a hidden
+        # widget.
+        self._set_initial_focus()
 
     # ------------------------------------------------------------------
     # Action bar handlers
@@ -229,3 +259,12 @@ class HistoryScreen(Vertical):
 
         if action == "hist_clear":
             self._handle_clear()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "executar-consulta":
+            # Guarded: HistoryScreen is also mounted standalone in tests,
+            # where self.app has no action_switch_tab (that lives on
+            # DBQMApp only).
+            switch = getattr(self.app, "action_switch_tab", None)
+            if callable(switch):
+                switch("tab-consultas")

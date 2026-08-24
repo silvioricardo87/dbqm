@@ -3,11 +3,41 @@
 from __future__ import annotations
 
 from textual.containers import Vertical, VerticalScroll
+from textual.content import Content
 from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
 from dbqm.core.group_engine import GroupResult, ComparisonResult
 from dbqm.ui.utils import sanitize_id
+from dbqm.ui.widgets.verdict import mark_verdict
+
+# The internal statuses of the comparison engine (dbqm.core.group_engine) use
+# a vocabulary of their own, historical; the verdict component uses another
+# one. This dict is the only bridge between the two — this translation is not
+# spread across the rest of the file.
+_STATUS_TO_VERDICT: dict[str, str] = {
+    "OK": "match",
+    "OK*": "match-normalized",
+    "DIFF": "diff",
+    "ABSENT": "absent",
+}
+
+
+def _status_cell(status: str) -> Content:
+    """Status cell ready for `DataTable.add_row`.
+
+    `add_row` parses a string with plain Rich, which does not resolve `$token`
+    (it raises `rich.errors.MarkupError`); that is why the verdict markup has
+    to go through `Content.from_markup` before it gets there — the same
+    pattern used in `dbqm/ui/screens/history.py`.
+
+    A status outside the known vocabulary blows up here (a KeyError becomes a
+    ValueError via `mark_verdict`), it never renders a colorless cell
+    silently.
+    """
+    if status not in _STATUS_TO_VERDICT:
+        raise ValueError(f"status de comparacao desconhecido: {status!r}")
+    return Content.from_markup(mark_verdict(_STATUS_TO_VERDICT[status]))
 
 
 class GroupResultWidget(Vertical, can_focus=False):
@@ -116,16 +146,6 @@ class GroupResultWidget(Vertical, can_focus=False):
         except Exception:
             pass
 
-    def _status_markup(self, status: str) -> str:
-        """Return Rich-markup-colored status label."""
-        colors = {
-            "OK": "[green]OK[/]",
-            "OK*": "[green]OK*[/]",
-            "DIFF": "[yellow]DIFF[/]",
-            "ABSENT": "[red]ABSENT[/]",
-        }
-        return colors.get(status, status)
-
     def _render_flat(self, container) -> None:
         """Render flat mode: one DataTable per compare column."""
         gr = self._group_result
@@ -144,6 +164,23 @@ class GroupResultWidget(Vertical, can_focus=False):
             if not self._hide_status:
                 table.add_column("Status", key="status")
 
+            # Fixed key column (section 6 of the grammar): the "Chave" column
+            # is the identity of the compared record, and the columns that
+            # follow are one per query in the group — as many as the group
+            # has. When scrolling to the right without fixing it, what
+            # disappears is precisely the value that says WHICH record the
+            # cells left on screen belong to. Fixed after building the
+            # columns because only here is the final count known; with a
+            # single column, fixing protects nothing and steals width (same
+            # rule as in `result_table.py`).
+            #
+            # Zebra striping does NOT come in here, and the absence is
+            # deliberate: these status cells are painted by `_status_cell`,
+            # and the zebra blend happens at runtime, invisible to the phase-1
+            # contrast test — the verdict's contrast would stop being the
+            # computed value and nobody would be warned.
+            table.fixed_columns = 1 if len(table.columns) > 1 else 0
+
             rows = comp.rows
             if self._status_filter and not self._hide_status:
                 rows = [r for r in rows if r.status in self._status_filter]
@@ -154,8 +191,8 @@ class GroupResultWidget(Vertical, can_focus=False):
                     val = row.values.get(qn)
                     cells.append(str(val) if val is not None else "-")
                 if not self._hide_status:
-                    cells.append(str(row.status))
-                table.add_row(*cells)
+                    cells.append(_status_cell(row.status))
+                table.add_row(*cells, key=str(row.key_value))
 
             container.mount(table)
 
@@ -198,6 +235,10 @@ class GroupResultWidget(Vertical, can_focus=False):
             if not self._hide_status:
                 table.add_column("Status", key="__status__")
 
+            # Fixed key column, same reason as in flat mode: here the row's
+            # identity is the query name, in the "Consulta" column.
+            table.fixed_columns = 1 if len(table.columns) > 1 else 0
+
             # One row per query
             for qn in query_names:
                 cells = [str(qn)]
@@ -207,7 +248,7 @@ class GroupResultWidget(Vertical, can_focus=False):
                     cells.append(str(val) if val is not None else "-")
                 if not self._hide_status:
                     cells.append("")  # no per-query status
-                table.add_row(*cells)
+                table.add_row(*cells, key=f"q::{qn}")
 
             # Result row at the bottom (only when showing status)
             if not self._hide_status:
@@ -217,11 +258,11 @@ class GroupResultWidget(Vertical, can_focus=False):
                     cr = lookup.get((key, col))
                     status = str(cr.status) if cr else "ABSENT"
                     worst_statuses.append(status)
-                    result_cells.append(status)
+                    result_cells.append(_status_cell(status))
                 priority = {"ABSENT": 3, "DIFF": 2, "OK*": 1, "OK": 0}
                 overall = max(worst_statuses, key=lambda s: priority.get(s, 0))
-                result_cells.append(str(overall))
-                table.add_row(*result_cells)
+                result_cells.append(_status_cell(overall))
+                table.add_row(*result_cells, key="__resultado__")
 
             container.mount(table)
 
@@ -239,17 +280,17 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         lines = []
         overall = "CONSISTENTE" if gr.all_match else "DIVERGENTE"
-        overall_color = "green" if gr.all_match else "yellow"
-        lines.append(f"[{overall_color} bold]{overall}[/]")
+        overall_status = "match" if gr.all_match else "diff"
+        lines.append(f"[bold]{mark_verdict(overall_status, label=overall)}[/]")
         lines.append("")
 
         for comp in gr.comparisons:
             col_name = str(comp.column) if comp.column is not None else ""
             lines.append(f"[bold]{col_name}[/]:")
-            lines.append(f"  [green]Iguais:[/]      {comp.equal_count}/{comp.total_keys}")
+            lines.append(f"  {mark_verdict('match', label='Iguais:')}      {comp.equal_count}/{comp.total_keys}")
             if comp.normalized_count > 0:
-                lines.append(f"  [green]Normalizados:[/] {comp.normalized_count}/{comp.total_keys}")
-            lines.append(f"  [yellow]Diferentes:[/]  {comp.diff_count}/{comp.total_keys}")
-            lines.append(f"  [red]Ausentes:[/]    {comp.absent_count}/{comp.total_keys}")
+                lines.append(f"  {mark_verdict('match-normalized', label='Normalizados:')} {comp.normalized_count}/{comp.total_keys}")
+            lines.append(f"  {mark_verdict('diff', label='Diferentes:')}  {comp.diff_count}/{comp.total_keys}")
+            lines.append(f"  {mark_verdict('absent', label='Ausentes:')}    {comp.absent_count}/{comp.total_keys}")
 
         summary.update("\n".join(lines))

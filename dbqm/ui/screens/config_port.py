@@ -6,7 +6,10 @@ from pathlib import Path
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Button, Checkbox, Input, Static
+from textual.widgets import Button, Checkbox, Input, OptionList, Static
+
+from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
+from dbqm.ui.widgets.panel import Panel
 
 
 class ConfigPortScreen(Vertical):
@@ -16,35 +19,51 @@ class ConfigPortScreen(Vertical):
     Import flow: enter file path, enter password, import.
 
     Pass initial_mode="export" or "import" to skip mode selection.
+
+    The exit from this screen is the `Esc`, handled by whoever hosts it
+    (`SettingsScreen.back_to_start`, reached through
+    `DBQMApp.action_go_back`) and announced by
+    `SettingsScreen._set_actions`. There used to be a "Voltar" button here
+    that mounted a new `SettingsScreen` inside `#screen-area`, a container
+    removed in e02b8a8 (v1.17.0): for six weeks it only notified
+    "Erro: No nodes match '#screen-area'". Task 7 resurrected the route and
+    Task 8 removed the button — going back is navigation, and section 7 of
+    the grammar forbids a button that navigates. Leaving the export form
+    takes you back to Configuracoes, not to the mode choice; re-entering
+    through the list reopens at the mode choice (`on_reopen`).
     """
+
+    #: (key, identity, disambiguation) of the two deep phases. The key
+    #: travels as DATA in the option (`NamedOption.nome`), never as `id`.
+    MODOS = (
+        ("export", "Exportar", "gera um .dbqm protegido por senha"),
+        ("import", "Importar", "le um .dbqm gerado por outro dbqm"),
+    )
 
     DEFAULT_CSS = """
     ConfigPortScreen {
         height: 1fr;
         padding: 1 2;
+        /* Medido em 80x24 (`tests/design/test_vertical_overflow.py`):
+           quem passa da dobra e o formulario de EXPORTACAO — 29 linhas,
+           tres checkboxes mais dois pares rotulo+senha mais a barra de
+           acoes, contra 22 do de importacao e 22 da escolha de modo, que
+           cabem. Como `Panel` tem `height: auto` aqui, o painel cresce
+           alem da tela e e ESTE `overflow-y` que rola: sem ele o botao
+           Exportar ficaria fora de alcance. */
+        overflow-y: auto;
     }
-
-    /* -- Mode selection -- */
-    ConfigPortScreen #cp-mode-phase {
+    ConfigPortScreen Panel {
         height: auto;
-        padding: 1;
     }
-    ConfigPortScreen .cp-mode-buttons {
+    /* `auto`: a lista mede as duas entradas e para. Com `1fr` ela
+       esticaria ate o fim do painel e a moldura viraria uma caixa quase
+       vazia com o conteudo encostado no topo. */
+    ConfigPortScreen #cp-mode-list {
         height: auto;
-        margin-top: 1;
-    }
-    ConfigPortScreen .cp-mode-buttons Button {
-        margin-right: 1;
-        min-width: 20;
     }
 
     /* -- Export phase -- */
-    ConfigPortScreen #cp-export-phase {
-        height: auto;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
-    }
     ConfigPortScreen .cp-checks {
         height: auto;
         margin-bottom: 1;
@@ -66,12 +85,6 @@ class ConfigPortScreen(Vertical):
     }
 
     /* -- Import phase -- */
-    ConfigPortScreen #cp-import-phase {
-        height: auto;
-        padding: 1;
-        background: $surface;
-        border: round $accent;
-    }
     ConfigPortScreen .cp-field {
         height: auto;
         margin-bottom: 1;
@@ -85,6 +98,9 @@ class ConfigPortScreen(Vertical):
     }
 
     /* -- Actions -- */
+    /* Ancoradas a esquerda, encostadas no formulario que executam
+       (secao 7 da gramatica). Sobrou UM botao por fase: o "Voltar" que
+       dividia a barra com ele era navegacao, e navegacao nao e botao. */
     ConfigPortScreen .cp-actions {
         height: auto;
         margin-top: 1;
@@ -100,15 +116,15 @@ class ConfigPortScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Phase 1: mode selection
-        with Vertical(id="cp-mode-phase"):
-            yield Static("[bold]Exportar ou Importar configuracoes[/]", markup=True)
-            with Horizontal(classes="cp-mode-buttons"):
-                yield Button("Exportar", id="cp-btn-export", variant="primary")
-                yield Button("Importar", id="cp-btn-import", variant="default")
+        # A list, not two buttons: choosing between export and import is
+        # NAVIGATION — it leads to a form, it does not run anything. Two
+        # buttons side by side were a menu in disguise, the same shape the
+        # Ferramentas menu had (section 7 of the grammar).
+        with Panel("🔄  EXPORTAR OU IMPORTAR", id="cp-mode-phase"):
+            yield OptionList(id="cp-mode-list")
 
         # Phase 2: export form
-        with Vertical(id="cp-export-phase"):
-            yield Static("[bold]Exportar configuracoes[/]", markup=True, classes="cp-field-label")
+        with Panel("⬆️  EXPORTAR CONFIGURACOES", id="cp-export-phase"):
             with Vertical(classes="cp-checks"):
                 yield Checkbox("Conexoes", id="cp-chk-connections", value=True)
                 yield Checkbox("Consultas", id="cp-chk-queries", value=True)
@@ -121,11 +137,9 @@ class ConfigPortScreen(Vertical):
                 yield Input(placeholder="Confirme a senha", password=True, id="cp-export-password-confirm")
             with Horizontal(classes="cp-actions"):
                 yield Button("Exportar", id="cp-do-export", variant="primary")
-                yield Button("Voltar", id="cp-export-back", variant="default")
 
         # Phase 3: import form
-        with Vertical(id="cp-import-phase"):
-            yield Static("[bold]Importar configuracoes[/]", markup=True, classes="cp-field-label")
+        with Panel("⬇️  IMPORTAR CONFIGURACOES", id="cp-import-phase"):
             with Vertical(classes="cp-field"):
                 yield Static("Caminho do arquivo .dbqm:", classes="cp-field-label")
                 yield Input(placeholder="Ex: C:\\exports\\config.dbqm", id="cp-import-path")
@@ -134,9 +148,14 @@ class ConfigPortScreen(Vertical):
                 yield Input(placeholder="Senha usada na exportacao", password=True, id="cp-import-password")
             with Horizontal(classes="cp-actions"):
                 yield Button("Importar", id="cp-do-import", variant="primary")
-                yield Button("Voltar", id="cp-import-back", variant="default")
 
     def on_mount(self) -> None:
+        lista = self.query_one("#cp-mode-list", OptionList)
+        lista.clear_options()
+        for chave, identidade, desambiguacao in self.MODOS:
+            lista.add_option(
+                NamedOption(hierarchical_item(identidade, desambiguacao), chave)
+            )
         if self._initial_mode == "export":
             self._show_export_phase()
         elif self._initial_mode == "import":
@@ -145,6 +164,23 @@ class ConfigPortScreen(Vertical):
             self._show_mode_phase()
         self.call_after_refresh(self._set_initial_focus)
 
+    def on_reopen(self) -> None:
+        """Goes back to the initial phase when the screen is reopened from the list.
+
+        The screen stays MOUNTED after the `Esc` — and until now it reopened
+        at the phase it had been left in: whoever exported once would meet
+        the export form again, with no import form in sight, even though the
+        entry they had just picked is called "Exportar / Importar".
+
+        The constraint that keeps the screens mounted protects a live worker
+        (the 150+ MB Instant Client download, which writes into its own
+        tree). Here there is nothing of the sort: the phase is only which of
+        the three panels has `display` on, the export/import workers find
+        their fields by id regardless of the visible phase, and what the
+        person typed stays in the `Input`s.
+        """
+        self.on_mount()
+
     def _set_initial_focus(self) -> None:
         try:
             if self._initial_mode == "export":
@@ -152,7 +188,7 @@ class ConfigPortScreen(Vertical):
             elif self._initial_mode == "import":
                 self.query_one("#cp-import-path", Input).focus()
             else:
-                self.query_one("#cp-btn-export", Button).focus()
+                self.query_one("#cp-mode-list", OptionList).focus()
         except Exception:
             pass
 
@@ -175,38 +211,25 @@ class ConfigPortScreen(Vertical):
         self.query_one("#cp-export-phase").display = False
         self.query_one("#cp-import-phase").display = True
 
-    def _go_back_to_settings(self) -> None:
-        """Navigate back to the Settings screen."""
-        try:
-            from dbqm.ui.screens.settings import SettingsScreen
-            from textual.containers import Container
-            from dbqm.ui.widgets.breadcrumb import Breadcrumb
-
-            screen_area = self.app.query_one("#screen-area", Container)
-            screen_area.remove_children()
-            self.app.query_one(Breadcrumb).set_path(["Sistema", "Config"])
-
-            settings = SettingsScreen(id="settings-screen")
-            screen_area.mount(settings)
-        except Exception as e:
-            self.notify(f"Erro: {e}", severity="error")
-
     # ------------------------------------------------------------------
-    # Button handlers
+    # Handlers
     # ------------------------------------------------------------------
+
+    def on_option_list_option_selected(
+        self, event: OptionList.OptionSelected
+    ) -> None:
+        if event.option_list.id != "cp-mode-list":
+            return
+        event.stop()
+        chave = getattr(event.option, "name", "")
+        if chave == "export":
+            self._show_export_phase()
+        elif chave == "import":
+            self._show_import_phase()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
-        if btn_id == "cp-btn-export":
-            self._show_export_phase()
-        elif btn_id == "cp-btn-import":
-            self._show_import_phase()
-        elif btn_id in ("cp-export-back", "cp-import-back"):
-            if self._initial_mode:
-                self._go_back_to_settings()
-            else:
-                self._show_mode_phase()
-        elif btn_id == "cp-do-export":
+        if btn_id == "cp-do-export":
             self._handle_export()
         elif btn_id == "cp-do-import":
             self._handle_import()

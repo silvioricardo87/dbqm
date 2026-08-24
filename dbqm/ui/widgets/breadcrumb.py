@@ -52,7 +52,7 @@ class Breadcrumb(Static):
                     f"[@click=breadcrumb_navigate({i})][{segment}][/]"
                 )
             else:
-                parts.append(f"[bold bright_white]{segment}[/bold bright_white]")
+                parts.append(f"[bold $ds-text-strong]{segment}[/]")
         self.update("".join(parts))
 
     def action_breadcrumb_navigate(self, index: int) -> None:

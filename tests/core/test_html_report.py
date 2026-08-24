@@ -14,7 +14,7 @@ class TestHelpers:
 
     def test_status_label(self):
         assert _status_label("OK") == "OK"
-        assert _status_label("DIFF") == "DIFF"
+        assert _status_label("DIFF") == "DIFERE"
         assert _status_label("ABSENT") == "AUSENTE"
 
 
@@ -38,3 +38,19 @@ class TestBuildHtml:
         path = export_group_html(sample_group_result)
         assert Path(path).exists()
         assert path.endswith(".html")
+
+
+def test_report_uses_design_system_colors():
+    """O relatorio tinha paleta propria so porque core/ nao podia importar ui/."""
+    from dbqm.core.html_report import css_variables
+    from dbqm.design.tokens import DARK_TOKENS
+
+    css = css_variables(DARK_TOKENS)
+    for chave, valor in DARK_TOKENS.items():
+        assert f"--{chave}: {valor}" in css
+
+
+def test_report_no_longer_carries_the_old_palette():
+    fonte = Path("dbqm/core/html_report.py").read_text(encoding="utf-8")
+    for orfa in ("#00d4ff", "#16213e", "#4caf50", "#ff9800", "#f44336"):
+        assert orfa not in fonte, f"{orfa} sobrou da paleta paralela"

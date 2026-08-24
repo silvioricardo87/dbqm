@@ -9,6 +9,9 @@ from textual.widgets import Button, Input, Select, Static, TextArea
 from textual import work
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.progress import ProgressIndicator
 
 
@@ -23,19 +26,6 @@ class _PackageChoiceModal(ModalScreen[str | None]):
     DEFAULT_CSS = """
     _PackageChoiceModal {
         align: center middle;
-    }
-    _PackageChoiceModal #pkg-choice-dialog {
-        width: 50;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _PackageChoiceModal #pkg-choice-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     _PackageChoiceModal #pkg-choice-buttons {
         width: 100%;
@@ -53,8 +43,7 @@ class _PackageChoiceModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="pkg-choice-dialog"):
-            yield Static("Package Editor", id="pkg-choice-title")
+        with Dialog("Package Editor", width="sm", id="pkg-choice-dialog"):
             with Horizontal(id="pkg-choice-buttons"):
                 yield Button("Editar existente", variant="primary", id="pkg-choice-edit")
                 yield Button("Criar novo", variant="default", id="pkg-choice-new")
@@ -75,19 +64,6 @@ class _PackageSearchModal(ModalScreen[dict | None]):
     DEFAULT_CSS = """
     _PackageSearchModal {
         align: center middle;
-    }
-    _PackageSearchModal #pkg-search-dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _PackageSearchModal #pkg-search-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     _PackageSearchModal .pkg-search-row {
         height: auto;
@@ -120,8 +96,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="pkg-search-dialog"):
-            yield Static("Buscar Package", id="pkg-search-title")
+        with Dialog("Buscar Package", id="pkg-search-dialog"):
             with Horizontal(classes="pkg-search-row"):
                 yield Select([], prompt="Selecione a conexao Oracle", id="pkg-search-conn")
             with Horizontal(classes="pkg-search-row"):
@@ -149,7 +124,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
 
         if not oracle_conns:
             self.query_one("#pkg-search-error", Static).update(
-                "Nenhuma conexao Oracle configurada."
+                "Conexao Oracle necessaria — adicione uma na aba Conexoes."
             )
             self.query_one("#pkg-search-error").display = True
 
@@ -239,19 +214,6 @@ class _PackageCreateModal(ModalScreen[dict | None]):
     _PackageCreateModal {
         align: center middle;
     }
-    _PackageCreateModal #pkg-create-dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _PackageCreateModal #pkg-create-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _PackageCreateModal .pkg-create-row {
         height: auto;
         padding: 0 0 1 0;
@@ -292,8 +254,7 @@ class _PackageCreateModal(ModalScreen[dict | None]):
         self._mode = "blank"
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="pkg-create-dialog"):
-            yield Static("Criar Package", id="pkg-create-title")
+        with Dialog("Criar Package", id="pkg-create-dialog"):
             with Horizontal(classes="pkg-create-row"):
                 yield Select([], prompt="Selecione a conexao Oracle", id="pkg-create-conn")
             with Horizontal(classes="pkg-create-row"):
@@ -327,7 +288,7 @@ class _PackageCreateModal(ModalScreen[dict | None]):
 
         if not oracle_conns:
             self.query_one("#pkg-create-error", Static).update(
-                "Nenhuma conexao Oracle configurada."
+                "Conexao Oracle necessaria — adicione uma na aba Conexoes."
             )
             self.query_one("#pkg-create-error").display = True
 
@@ -415,19 +376,6 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
     _WizardRoutineModal {
         align: center middle;
     }
-    _WizardRoutineModal #wizard-dialog {
-        width: 70;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    _WizardRoutineModal #wizard-title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
     _WizardRoutineModal .wizard-row {
         height: auto;
         padding: 0 0 1 0;
@@ -437,6 +385,9 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
     }
     _WizardRoutineModal .wizard-row Input {
         width: 1fr;
+    }
+    _WizardRoutineModal #wizard-empty {
+        height: auto;
     }
     _WizardRoutineModal #wizard-list {
         height: auto;
@@ -464,8 +415,7 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
         self._routines: list[dict] = []
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="wizard-dialog"):
-            yield Static("Wizard - Adicionar Rotinas", id="wizard-title")
+        with Dialog("Wizard - Adicionar Rotinas", id="wizard-dialog"):
             with Horizontal(classes="wizard-row"):
                 yield Input(placeholder="Nome da rotina", id="wizard-routine-name")
             with Horizontal(classes="wizard-row"):
@@ -484,16 +434,33 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
                     placeholder="Tipo de retorno (apenas para FUNCTION)",
                     id="wizard-routine-return",
                 )
-            yield Static("Nenhuma rotina adicionada.", id="wizard-list")
+            yield EmptyState(
+                what="Rotinas",
+                why="Cada rotina adicionada aqui vira uma entrada no esqueleto do pacote",
+                action_label="Informar nome da rotina",
+                action_id="informar-nome-rotina",
+                id="wizard-empty",
+            )
+            yield Static("", id="wizard-list")
             with Horizontal(id="wizard-buttons"):
                 yield Button("Adicionar", variant="primary", id="wizard-add")
                 yield Button("Concluir", variant="default", id="wizard-done")
+
+    def on_mount(self) -> None:
+        self.query_one("#wizard-list", Static).display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "wizard-add":
             self._handle_add()
         elif event.button.id == "wizard-done":
             self.dismiss(self._routines if self._routines else None)
+        elif event.button.id == "informar-nome-rotina":
+            # The label describes exactly what this button does: it takes
+            # the cursor to the name field. "Adicionar rotina" would promise
+            # the routine ready, but _handle_add requires the name filled
+            # in first (otherwise it is a silent no-op) — so the real step
+            # of a single Enter is reaching the field, not adding.
+            self.query_one("#wizard-routine-name", Input).focus()
 
     def _handle_add(self) -> None:
         name = self.query_one("#wizard-routine-name", Input).value.strip()
@@ -525,7 +492,10 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
             if r["type"] == "FUNCTION" and r.get("return_type"):
                 sig += f" RETURN {r['return_type']}"
             lines.append(sig)
-        self.query_one("#wizard-list", Static).update("\n".join(lines))
+        self.query_one("#wizard-empty", EmptyState).display = False
+        wizard_list = self.query_one("#wizard-list", Static)
+        wizard_list.display = True
+        wizard_list.update("\n".join(lines))
 
         # Clear inputs for next routine
         self.query_one("#wizard-routine-name", Input).value = ""
@@ -555,6 +525,9 @@ class PackageEditorScreen(Vertical):
     PackageEditorScreen {
         height: 1fr;
     }
+    PackageEditorScreen #pe-editor-panel {
+        margin: 1 2 0 2;
+    }
     PackageEditorScreen #pe-info-bar {
         height: auto;
         padding: 0 1;
@@ -573,12 +546,27 @@ class PackageEditorScreen(Vertical):
         height: 1fr;
         margin: 0 1;
     }
+    /* Re-derivado depois da moldura, e continua 8 — por outra conta.
+       Antes `#pe-error-panel` era o proprio Static: `max-height: 8` com
+       `padding: 0 1` valia 8 LINHAS DE TEXTO. Emoldurado, a caixa gasta 4
+       linhas de cromo (2 de borda + 1 de titulo + 1 da regua do titulo) e o
+       corpo gastaria mais 2 de padding vertical — 8 viraria 2 linhas de
+       texto, e com dois erros de compilacao aparecia so o cabecalho e o
+       primeiro. Manter as 8 linhas de texto pediria `max-height: 14`, e ai
+       `#pe-editor-area` cai de 4 para 1 linha num terminal de 24 (medido):
+       o painel de erro comeria o editor. A saida foi tirar o padding
+       VERTICAL deste corpo — lista densa de diagnostico nao pede respiro —
+       que devolve 4 linhas de texto (cabecalho + 3 erros) sem tomar nada do
+       editor. O resto nao some: `Panel` desconta o cromo do teto, o corpo
+       cabe exato e rola. Medidas em `test_vertical_overflow.py`. A
+       densidade em si mora no componente (`Panel(dense=True)`), nao aqui. */
     PackageEditorScreen #pe-error-panel {
         height: auto;
         max-height: 8;
-        padding: 0 1;
-        background: $surface;
-        overflow-y: auto;
+        margin: 0 2 1 2;
+    }
+    PackageEditorScreen #pe-error-text {
+        height: auto;
     }
     PackageEditorScreen #pe-empty {
         height: 1fr;
@@ -604,12 +592,23 @@ class PackageEditorScreen(Vertical):
         self._db = None
 
     def compose(self) -> ComposeResult:
-        yield Static("", id="pe-info-bar")
-        with Horizontal(id="pe-tab-bar"):
-            yield Button("Spec", variant="primary", id="pe-tab-spec")
-            yield Button("Body", variant="default", id="pe-tab-body")
-        yield TextArea("", language="sql", id="pe-editor-area")
-        yield Static("", id="pe-error-panel")
+        with Panel("📦  PACKAGE", id="pe-editor-panel"):
+            yield Static("", id="pe-info-bar")
+            with Horizontal(id="pe-tab-bar"):
+                yield Button("Spec", variant="primary", id="pe-tab-spec")
+                yield Button("Body", variant="default", id="pe-tab-body")
+            yield TextArea("", language="sql", id="pe-editor-area")
+        # The id `#pe-error-panel` moved from the Static to the frame,
+        # because it is the frame that the display points switch on and
+        # off; the text lives in `#pe-error-text`.
+        with Panel("⚠  COMPILACAO", id="pe-error-panel", dense=True):
+            yield Static("", id="pe-error-text")
+        # LOOSE on purpose, outside any panel — the exception to §4
+        # ("nothing stays loose on the background") is written out in full
+        # in `ProgressIndicator`'s docstring. Summary: the two of them paint
+        # the state of the SCREEN while it has no content, not a section of
+        # it; and framing the indicator would tie it to the visibility of
+        # whichever panel hosted it.
         yield ProgressIndicator()
         yield Static(
             "[dim]Carregando editor de packages...[/dim]",
@@ -618,9 +617,7 @@ class PackageEditorScreen(Vertical):
 
     def on_mount(self) -> None:
         # Hide editor widgets until package is loaded
-        self.query_one("#pe-info-bar").display = False
-        self.query_one("#pe-tab-bar").display = False
-        self.query_one("#pe-editor-area").display = False
+        self.query_one("#pe-editor-panel").display = False
         self.query_one("#pe-error-panel").display = False
 
         # Start the modal flow
@@ -686,9 +683,7 @@ class PackageEditorScreen(Vertical):
 
         # Show editor widgets, hide empty
         self.query_one("#pe-empty").display = False
-        self.query_one("#pe-info-bar").display = True
-        self.query_one("#pe-tab-bar").display = True
-        self.query_one("#pe-editor-area").display = True
+        self.query_one("#pe-editor-panel").display = True
         self.query_one("#pe-error-panel").display = False
 
         # Load spec content into TextArea
@@ -864,25 +859,26 @@ class PackageEditorScreen(Vertical):
     ) -> None:
         """Handle compilation result on the main thread."""
         self.query_one(ProgressIndicator).stop()
-        error_panel = self.query_one("#pe-error-panel", Static)
+        error_panel = self.query_one("#pe-error-panel", Panel)
+        error_texto = self.query_one("#pe-error-text", Static)
 
         if errors:
             # Show compilation errors
             lines = [
-                f"[bold red]  {len(errors)} erro(s) de compilacao ({target.upper()})[/]"
+                f"[bold $ds-op-failure]  {len(errors)} erro(s) de compilacao ({target.upper()})[/]"
             ]
             for err in errors:
                 lines.append(
                     f"  Linha {err['line']}, Col {err['col']}: {err['message']}"
                 )
-            error_panel.update("\n".join(lines))
+            error_texto.update("\n".join(lines))
             error_panel.display = True
         elif not success:
-            error_panel.update(f"[bold red]Erro: {error_msg}[/]")
+            error_texto.update(f"[bold $ds-op-failure]Erro: {error_msg}[/]")
             error_panel.display = True
         else:
-            error_panel.update(
-                f"[bold green]  {target.capitalize()} compilado com sucesso![/]"
+            error_texto.update(
+                f"[bold]  {target.capitalize()} compilado com sucesso![/]"
             )
             error_panel.display = True
             self.notify(

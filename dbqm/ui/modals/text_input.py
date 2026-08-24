@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Static
+
+from dbqm.ui.widgets.dialog import Dialog
 
 
 class TextInputModal(ModalScreen[str | None]):
@@ -17,21 +19,6 @@ class TextInputModal(ModalScreen[str | None]):
     DEFAULT_CSS = """
     TextInputModal {
         align: center middle;
-    }
-
-    TextInputModal #dialog {
-        width: 60;
-        max-height: 80%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-
-    TextInputModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
 
     TextInputModal #message {
@@ -68,8 +55,7 @@ class TextInputModal(ModalScreen[str | None]):
         self._default = default
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static(self._title_text, id="title")
+        with Dialog(self._title_text, id="dialog"):
             if self._message:
                 yield Static(self._message, id="message")
             yield Input(value=self._default, id="text-input")

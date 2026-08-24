@@ -9,6 +9,8 @@ from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Static
 
+from dbqm.ui.widgets.dialog import Dialog
+
 
 class ExportDirSetupModal(ModalScreen[bool]):
     """Configure where exported files are written.
@@ -26,20 +28,6 @@ class ExportDirSetupModal(ModalScreen[bool]):
     DEFAULT_CSS = """
     ExportDirSetupModal {
         align: center middle;
-    }
-    ExportDirSetupModal #dialog {
-        width: 70;
-        height: auto;
-        max-height: 90%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    ExportDirSetupModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     ExportDirSetupModal #description {
         width: 100%;
@@ -90,8 +78,7 @@ class ExportDirSetupModal(ModalScreen[bool]):
         self._initial_path = initial_path
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static("Configurar local de exportacao", id="title")
+        with Dialog("Configurar local de exportacao", id="dialog"):
             yield Static(
                 "Escolha onde os arquivos exportados sao salvos. "
                 "Por padrao, eles ficam no diretorio onde voce executa o dbqm.",

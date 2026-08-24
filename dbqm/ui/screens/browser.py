@@ -14,6 +14,9 @@ from textual.widgets.option_list import Option
 from dbqm.ui.utils import NavSelect
 from textual import work
 
+from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.skeleton import Skeleton
+from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.sql_viewer import SqlViewer
@@ -29,13 +32,6 @@ TYPE_OPTIONS = [
     ("Packages", "PACKAGE"),
     ("Rotinas", "ROUTINE"),
 ]
-
-TYPE_EMOJI = {
-    "TABLE": "🗃",
-    "VIEW": "👁",
-    "PACKAGE": "📦",
-    "ROUTINE": "⚙",
-}
 
 
 class BrowserScreen(Vertical):
@@ -77,6 +73,13 @@ class BrowserScreen(Vertical):
         height: 1fr;
         margin-top: 1;
     }
+    BrowserScreen #obj-list-empty {
+        height: 1fr;
+    }
+    BrowserScreen #obj-list-skeleton {
+        display: none;
+        margin-top: 1;
+    }
     BrowserScreen #obj-columns {
         height: 1fr;
     }
@@ -89,11 +92,12 @@ class BrowserScreen(Vertical):
     }
     BrowserScreen #obj-preview-buttons {
         height: auto;
-        align: center middle;
         margin-top: 1;
+        /* Ancorado a esquerda, sob o codigo-fonte do objeto que estes
+           dois botoes operam (secao 7 da gramatica). */
     }
     BrowserScreen #obj-preview-buttons Button {
-        margin: 0 1;
+        margin: 0 1 0 0;
     }
     """
 
@@ -124,6 +128,19 @@ class BrowserScreen(Vertical):
                     TYPE_OPTIONS, value="TABLE", allow_blank=False, id="obj-type"
                 )
                 yield Input(placeholder="Filtrar objetos...", id="obj-filter")
+                yield EmptyState(
+                    what="Objetos",
+                    why="Escolha uma conexao para listar tabelas, views e rotinas",
+                    action_label="Escolher conexao",
+                    action_id="escolher-conexao",
+                    id="obj-list-empty",
+                )
+                # The shape of the list that is coming, not a spinner: it
+                # reserves the right space while the connection fetches the
+                # objects. One column only: `#obj-list` is an OptionList,
+                # one string per line (`_populate_list`), not a two-column
+                # table.
+                yield Skeleton(rows=10, columns=1, id="obj-list-skeleton")
                 yield OptionList(id="obj-list")
 
             with Panel("📋  COLUNAS", id="obj-columns-panel"):
@@ -131,7 +148,10 @@ class BrowserScreen(Vertical):
 
             with Panel("🔍  DADOS", accent=True, id="obj-preview-panel"):
                 yield ResultTable(id="obj-preview")
-                yield SqlViewer("", id="obj-source")
+                # PACKAGE/ROUTINE source: content to consume, not an
+                # editing form — do not use the same look as a disabled
+                # field (see `-read-only` in dbqm/ui/theme.py).
+                yield SqlViewer("", id="obj-source", classes="-read-only")
                 with Horizontal(id="obj-preview-buttons"):
                     yield Button("Extrair DDL", id="obj-ddl")
                     yield Button("Carregar mais", id="obj-more")
@@ -141,7 +161,21 @@ class BrowserScreen(Vertical):
         columns.cursor_type = "row"
         self._show_table_view()
         self._load_connections()
+        self._update_obj_list_visibility()
         self.call_after_refresh(self._set_initial_focus)
+
+    def _update_obj_list_visibility(self, *, loading: bool = False) -> None:
+        """Switch the OBJETOS panel between its three states: pick a
+        connection (empty state), the object list, or — while
+        `_reload_objects` runs — the skeleton with the shape of the list
+        that is coming."""
+        empty = self.query_one("#obj-list-empty", EmptyState)
+        option_list = self.query_one("#obj-list", OptionList)
+        skeleton = self.query_one("#obj-list-skeleton", Skeleton)
+        has_conn = self._current_conn is not None
+        skeleton.display = loading
+        empty.display = not has_conn and not loading
+        option_list.display = has_conn and not loading
 
     def _set_initial_focus(self) -> None:
         try:
@@ -184,11 +218,15 @@ class BrowserScreen(Vertical):
             self._close_db()
             self._current_conn = conn
             if conn is not None:
+                self._update_obj_list_visibility(loading=True)
                 self._reload_objects()
+            else:
+                self._update_obj_list_visibility()
         elif sel_id == "obj-type":
             value = event.value
             self._obj_type = "" if value is Select.BLANK else str(value)
             if self._current_conn is not None and self._obj_type:
+                self._update_obj_list_visibility(loading=True)
                 self._reload_objects()
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -225,6 +263,7 @@ class BrowserScreen(Vertical):
 
     def _on_objects_loaded(self, objects: list[str]) -> None:
         self._objects = objects
+        self._update_obj_list_visibility()
         self._populate_list()
         if not objects:
             self.notify("Nenhum objeto encontrado.", severity="warning")
@@ -241,13 +280,20 @@ class BrowserScreen(Vertical):
         else:
             objects = self._objects
 
-        emoji = TYPE_EMOJI.get(self._obj_type, "")
-        prefix = f"{emoji}  " if emoji else ""
-
+        # Identity only, no disambiguation: the type `Select` above is
+        # `allow_blank=False` (always a valid TYPE_OPTIONS selected), so
+        # every row visible here is always of the SAME type — writing the
+        # type out in full on each item would repeat what the filter has
+        # already fixed, taking up one line per object without really
+        # disambiguating anything. And with no context either:
+        # `list_objects` does not return owner, row count or any other
+        # per-object metadata (only the name) — inventing a third field
+        # here would be the mechanical mapping this component exists to
+        # avoid.
         option_list = self.query_one("#obj-list", OptionList)
         option_list.clear_options()
         for obj in objects[:500]:
-            option_list.add_option(Option(f"{prefix}{obj}", id=obj))
+            option_list.add_option(Option(hierarchical_item(obj), id=obj))
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
@@ -453,6 +499,10 @@ class BrowserScreen(Vertical):
         self.query_one("#obj-more", Button).display = False
 
     def _on_error(self, error: str) -> None:
+        # Shared handler for object-list/structure/preview/DDL errors: only
+        # the first of those leaves the skeleton up, but resetting here is
+        # a harmless no-op for the other three (idempotent on `has_conn`).
+        self._update_obj_list_visibility()
         self.notify(f"Erro: {error}", severity="error", timeout=8)
 
     # ------------------------------------------------------------------
@@ -465,6 +515,8 @@ class BrowserScreen(Vertical):
             self._handle_extract_ddl()
         elif btn_id == "obj-more":
             self._handle_load_more()
+        elif btn_id == "escolher-conexao":
+            self.query_one("#obj-conn", Select).focus()
 
     def _handle_extract_ddl(self) -> None:
         if not self._selected_object or self._current_conn is None:

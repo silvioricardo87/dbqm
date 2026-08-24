@@ -8,6 +8,9 @@ from textual.binding import Binding
 from textual.widgets import Button, DataTable, Input, Static, TextArea
 
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.dialog import Dialog
+from dbqm.ui.widgets.empty_state import EmptyState
+from dbqm.ui.widgets.panel import Panel
 
 
 # ---------------------------------------------------------------------------
@@ -20,19 +23,6 @@ class TemplateEditModal(ModalScreen[dict | None]):
     DEFAULT_CSS = """
     TemplateEditModal {
         align: center middle;
-    }
-    TemplateEditModal #dialog {
-        width: 90;
-        height: 85%;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-    TemplateEditModal #title {
-        text-style: bold;
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
     }
     TemplateEditModal Input {
         width: 100%;
@@ -77,8 +67,7 @@ class TemplateEditModal(ModalScreen[dict | None]):
         self._name_readonly = name_readonly
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Static(self._title_text, id="title")
+        with Dialog(self._title_text, width="screen", id="dialog"):
             yield Input(
                 value=self._name_value,
                 placeholder="Nome do template",
@@ -146,10 +135,11 @@ class TemplateManageScreen(Vertical):
     TemplateManageScreen {
         height: 1fr;
     }
+    TemplateManageScreen #tm-panel {
+        margin: 1 2;
+    }
     TemplateManageScreen #tm-empty {
         height: 1fr;
-        content-align: center middle;
-        text-align: center;
     }
     TemplateManageScreen DataTable {
         height: 1fr;
@@ -157,18 +147,25 @@ class TemplateManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            "[dim]Nenhum template configurado[/]",
-            id="tm-empty",
-            markup=True,
-        )
-        yield DataTable(id="tm-table")
+        with Panel("📄  TEMPLATES", id="tm-panel"):
+            yield EmptyState(
+                what="Templates",
+                why="Templates guardam consultas com parametros para reusar depois",
+                action_label="Criar template",
+                action_id="criar-template",
+                id="tm-empty",
+            )
+            yield DataTable(id="tm-table")
 
     def on_mount(self) -> None:
         self._setup_table()
         self._load_templates()
         self._set_actions()
         self.call_after_refresh(self._set_initial_focus)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "criar-template":
+            self._handle_new()
 
     def _set_initial_focus(self) -> None:
         table = self.query_one("#tm-table", DataTable)
@@ -190,7 +187,7 @@ class TemplateManageScreen(Vertical):
 
         templates = load_templates()
         table = self.query_one("#tm-table", DataTable)
-        empty_msg = self.query_one("#tm-empty", Static)
+        empty_msg = self.query_one("#tm-empty", EmptyState)
 
         table.clear()
 

@@ -11,6 +11,7 @@ from textual import work
 
 from dbqm.ui.utils import sanitize_id, escape_markup
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
+from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.progress import ProgressIndicator
 
 
@@ -45,8 +46,8 @@ class ExecRoutineScreen(Vertical):
         height: 1fr;
     }
     ExecRoutineScreen #er-select-phase {
-        height: 1fr;
-        padding: 1 2;
+        height: auto;
+        margin: 1 2;
     }
     ExecRoutineScreen #er-select-phase Select {
         width: 60;
@@ -124,8 +125,14 @@ class ExecRoutineScreen(Vertical):
         self._param_inputs: dict[str, Input] = {}
 
     def compose(self) -> ComposeResult:
+        # One Panel per phase. Phase 3 was deliberately not subdivided into
+        # three sibling panels (detail / parameters / result): its children
+        # are sized in `1fr` inside a single container, and splitting them
+        # up would change the height of each one and would also put a
+        # focusable `VerticalScroll` inside a panel body that scrolls too —
+        # nested scrolling, which traps the keyboard.
         # Phase 1: Connection + type selection
-        with Vertical(id="er-select-phase"):
+        with Panel("🔌  CONEXAO E TIPO", id="er-select-phase"):
             yield Label("Selecione a conexao:")
             yield Select([], prompt="Conexao", id="er-conn-select")
             yield Label("Tipo de objeto:", id="er-type-label")
@@ -133,13 +140,13 @@ class ExecRoutineScreen(Vertical):
                 pass  # buttons added dynamically
         yield ProgressIndicator()
         # Phase 2: Object list
-        with Vertical(id="er-list-phase"):
+        with Panel("📂  OBJETOS", id="er-list-phase"):
             with Horizontal(id="er-filter-bar"):
                 yield Input(placeholder="Filtrar...", id="er-filter-input")
                 yield Button("Buscar", id="er-filter-btn", variant="primary")
             yield DataTable(id="er-obj-table")
         # Phase 3: Detail + params + execution
-        with Vertical(id="er-detail-phase"):
+        with Panel("▶  ROTINA", id="er-detail-phase"):
             yield Static("", id="er-detail-info")
             yield DataTable(id="er-routines-table")
             with VerticalScroll(id="er-param-area"):
@@ -478,7 +485,7 @@ class ExecRoutineScreen(Vertical):
         result_area.remove_children()
 
         if result.success:
-            lines = [f"[green bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]
+            lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]
             if result.return_value is not None:
                 lines.append(f"\n[bold]Retorno:[/] {result.return_value}")
             if result.output_lines:
@@ -489,8 +496,8 @@ class ExecRoutineScreen(Vertical):
                 lines.append("\n[dim]Sem retorno ou output DBMS_OUTPUT[/]")
         else:
             lines = [
-                f"[red bold]Erro na execucao[/] ({result.elapsed:.2f}s)",
-                f"\n[red]{escape_markup(result.error)}[/]",
+                f"[bold $ds-op-failure]Erro na execucao[/] ({result.elapsed:.2f}s)",
+                f"\n[$ds-op-failure]{escape_markup(result.error)}[/]",
             ]
 
         result_area.mount(Static("\n".join(lines), markup=True))

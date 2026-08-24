@@ -40,6 +40,7 @@ exports/
 
 # Planos e documentos de IA (apenas configs/agents ficam)
 docs/plans/
+docs/superpowers/
 PRD.md
 
 # Logs

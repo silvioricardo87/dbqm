@@ -7,6 +7,26 @@ from typing import Any
 
 from dbqm.core.group_engine import GroupResult
 from dbqm.core.exporter import _build_filepath
+from dbqm.design.tokens import LIGHT_TOKENS, DARK_TOKENS
+
+
+def css_variables(tokens: dict[str, str]) -> str:
+    """Emite os design tokens como custom properties, para o <style> do relatorio."""
+    linhas = "\n".join(f"  --{chave}: {valor};" for chave, valor in sorted(tokens.items()))
+    return f":root {{\n{linhas}\n}}"
+
+
+def _light_theme_block(tokens: dict[str, str]) -> str:
+    """Sobrescreve os tokens dentro de uma media query, para o SO/navegador do leitor.
+
+    O relatorio e um arquivo HTML autonomo — nao ha tema ativo da TUI para
+    herdar — entao ele responde a preferencia de cor do sistema em vez de
+    ficar preso a uma variante fixa. A base (:root, tema escuro) ja carrega a
+    paleta completa; aqui so a variante clara sobrescreve, entao nenhum token
+    fica com definicao unica dentro da media query.
+    """
+    linhas = "\n".join(f"    --{chave}: {valor};" for chave, valor in sorted(tokens.items()))
+    return f"@media (prefers-color-scheme: light) {{\n  :root {{\n{linhas}\n  }}\n}}"
 
 
 def export_group_html(group_result: GroupResult, params: dict | None = None) -> str:
@@ -24,7 +44,7 @@ def _status_class(status: str) -> str:
 
 
 def _status_label(status: str) -> str:
-    return {"OK": "OK", "OK*": "OK*", "DIFF": "DIFF", "ABSENT": "AUSENTE"}.get(status, status)
+    return {"OK": "OK", "OK*": "OK*", "DIFF": "DIFERE", "ABSENT": "AUSENTE"}.get(status, status)
 
 
 def _build_html(group_result: GroupResult, query_names: list[str], params: dict | None) -> str:
@@ -77,34 +97,46 @@ def _build_html(group_result: GroupResult, query_names: list[str], params: dict 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Relatorio - {h(group_result.group_name)}</title>
 <style>
+{css_variables(DARK_TOKENS)}
+{_light_theme_block(LIGHT_TOKENS)}
+    /* tests/design/test_contraste.py so calcula os pares declarados em
+       VALID_OVER, entre tokens crus. Qualquer cor montada aqui em tempo de
+       renderizacao (color-mix(), rgba() etc.) fica invisivel para aquele
+       teste — foi assim que um preenchimento de badge sem contraste passou
+       despercebido. Por isso: nenhuma cor composta em CSS pode carregar
+       texto; texto so usa var(--token) puro, e estado em superficie e
+       borda/marcador, nunca preenchimento. */
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 24px; }}
-    .header {{ background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
-    .header h1 {{ color: #00d4ff; font-size: 1.4em; }}
-    .header .meta {{ color: #888; font-size: 0.85em; margin-top: 8px; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--ds-background); color: var(--ds-text); padding: 24px; }}
+    .header {{ background: var(--ds-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
+    .header h1 {{ color: var(--ds-identity); font-size: 1.4em; }}
+    .header .meta {{ color: var(--ds-text-muted); font-size: 0.85em; margin-top: 8px; }}
     .badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 0.85em; }}
-    .badge.ok {{ background: #0d4d2e; color: #4caf50; }}
-    .badge.diff {{ background: #4d2d0d; color: #ff9800; }}
+    /* Estado em superficie e borda/marcador, nunca preenchimento: um preenchimento
+       misturado a partir do proprio texto sempre compromete um dos dois. */
+    .badge.ok {{ background: var(--ds-panel); color: var(--ds-verdict-match); border: 1px solid var(--ds-verdict-match); }}
+    .badge.diff {{ background: var(--ds-panel); color: var(--ds-verdict-diff); border: 1px solid var(--ds-verdict-diff); }}
     .params {{ margin: 12px 0; border-collapse: collapse; }}
-    .params td {{ padding: 4px 16px 4px 0; color: #aaa; font-size: 0.9em; }}
-    h3 {{ color: #00d4ff; margin: 24px 0 8px; }}
+    .params td {{ padding: 4px 16px 4px 0; color: var(--ds-text-muted); font-size: 0.9em; }}
+    h3 {{ color: var(--ds-identity); margin: 24px 0 8px; }}
     .filter-bar {{ margin-bottom: 8px; }}
-    .filter-btn {{ background: #16213e; color: #888; border: 1px solid #333; padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; font-size: 0.8em; }}
-    .filter-btn.active {{ background: #0a3d62; color: #00d4ff; border-color: #00d4ff; }}
+    .filter-btn {{ background: var(--ds-panel); color: var(--ds-text-muted); border: 1px solid var(--ds-border); padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; font-size: 0.8em; }}
+    .filter-btn.active {{ background: var(--ds-surface-raised); color: var(--ds-identity); border-color: var(--ds-identity); }}
     table.data {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.9em; }}
-    table.data th {{ background: #16213e; color: #00d4ff; padding: 8px 12px; text-align: left; border-bottom: 2px solid #333; }}
-    table.data td {{ padding: 6px 12px; border-bottom: 1px solid #222; }}
-    table.data tr:hover {{ background: #16213e; }}
-    .key {{ color: #fff; font-weight: 600; }}
-    .ok {{ color: #4caf50; font-weight: 600; }}
-    .diff {{ color: #ff9800; font-weight: 600; }}
-    .absent {{ color: #f44336; font-weight: 600; }}
-    .diff-row td {{ background: rgba(255,152,0,0.05); }}
-    .absent-row td {{ background: rgba(244,67,54,0.05); }}
-    .summary {{ color: #888; font-size: 0.85em; margin-bottom: 16px; padding: 8px 0; border-top: 1px solid #333; }}
+    table.data th {{ background: var(--ds-panel); color: var(--ds-identity); padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--ds-border); }}
+    table.data td {{ padding: 6px 12px; border-bottom: 1px solid var(--ds-border); }}
+    table.data tr:hover {{ background: var(--ds-surface-raised); }}
+    .key {{ color: var(--ds-text-strong); font-weight: 600; }}
+    .ok {{ color: var(--ds-verdict-match); font-weight: 600; }}
+    .diff {{ color: var(--ds-verdict-diff); font-weight: 600; }}
+    .absent {{ color: var(--ds-verdict-absent); font-weight: 600; }}
+    /* Realce de linha e marcador na borda, nao preenchimento (mesmo motivo do badge). */
+    .diff-row .key {{ border-left: 3px solid var(--ds-verdict-diff); }}
+    .absent-row .key {{ border-left: 3px solid var(--ds-verdict-absent); }}
+    .summary {{ color: var(--ds-text-muted); font-size: 0.85em; margin-bottom: 16px; padding: 8px 0; border-top: 1px solid var(--ds-border); }}
     .hidden {{ display: none; }}
-    input.search {{ background: #16213e; border: 1px solid #333; color: #e0e0e0; padding: 6px 12px; border-radius: 4px; margin-bottom: 12px; width: 300px; }}
-    input.search::placeholder {{ color: #555; }}
+    input.search {{ background: var(--ds-panel); border: 1px solid var(--ds-border); color: var(--ds-text); padding: 6px 12px; border-radius: 4px; margin-bottom: 12px; width: 300px; }}
+    input.search::placeholder {{ color: var(--ds-text-disabled); }}
 </style>
 </head>
 <body>

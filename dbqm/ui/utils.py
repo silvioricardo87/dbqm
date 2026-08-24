@@ -55,3 +55,32 @@ def sanitize_id(text: str) -> str:
 def escape_markup(text: str) -> str:
     """Escape Rich markup characters in user text."""
     return text.replace("[", "\\[").replace("]", "\\]")
+
+
+def common_folder_prefix(folders: list[str]) -> str:
+    """Maior prefixo de segmentos (separados por "/") compartilhado por
+    TODAS as pastas dadas, incluindo a barra final — "" se houver menos de
+    duas pastas ou se nenhum segmento inicial for comum a todas.
+
+    Usado para decidir se o rotulo de uma pasta num Select pode elidir o
+    prefixo (ex.: "Mapfre Sustentacao/Faturamento" -> "Faturamento"): o
+    calculo e feito a cada chamada, contra as pastas reais, nao contra um
+    literal fixado no codigo. Isso importa porque a redundancia so existe
+    enquanto UMA familia de pastas domina a lista inteira — no dia em que
+    uma segunda familia (outro prefixo) aparecer ao lado da primeira, o
+    prefixo comum a TODAS encolhe (tipicamente pra "") sozinho, e a lista
+    volta a mostrar o caminho inteiro sem precisar de uma mudanca de
+    codigo. Fixar o literal "Mapfre Sustentacao/" faria o oposto: ganharia
+    largura hoje e esconderia informacao no dia em que deixasse de ser
+    verdade.
+    """
+    if len(folders) < 2:
+        return ""
+    segmentos = [p.split("/") for p in folders]
+    comuns: list[str] = []
+    for grupo in zip(*segmentos):
+        if len(set(grupo)) == 1:
+            comuns.append(grupo[0])
+        else:
+            break
+    return "/".join(comuns) + "/" if comuns else ""

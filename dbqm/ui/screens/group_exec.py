@@ -12,6 +12,7 @@ from textual.widgets.selection_list import Selection
 from textual import work
 
 from dbqm.ui.utils import escape_markup
+from dbqm.ui.widgets.skeleton import Skeleton
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.group_result import GroupResultWidget
 from dbqm.ui.widgets.progress import ProgressIndicator
@@ -61,6 +62,9 @@ class GroupExecScreen(Vertical):
     GroupExecScreen #group-sql {
         height: 1fr;
     }
+    GroupExecScreen #ge-results-skeleton {
+        display: none;
+    }
     """
 
     def __init__(
@@ -93,6 +97,18 @@ class GroupExecScreen(Vertical):
                 with Panel("✏️  SQL DO GRUPO", id="ge-editor-panel"):
                     yield TextArea("", language="sql", id="group-sql")
                 with Panel("📊  COMPARACAO DE RESULTADOS", id="ge-results-panel"):
+                    # The shape of the comparison to come, not a spinner: it
+                    # reserves the right amount of space while the
+                    # connections execute.
+                    # 9 is the median of the maintainer's 68 saved queries
+                    # (min 1, max 36), surveyed in phase 1 of this plan — not
+                    # reproducible from the config/queries.json of this
+                    # repository, which is another, smaller set. It is the
+                    # best guess available (much better than the arbitrary
+                    # 4), not a truth of the domain: a skeleton with the
+                    # wrong shape causes the very layout jump it exists to
+                    # prevent.
+                    yield Skeleton(rows=8, columns=9, id="ge-results-skeleton")
                     yield GroupResultWidget(id="group-results")
         yield ProgressIndicator()
 
@@ -229,6 +245,11 @@ class GroupExecScreen(Vertical):
         self.query_one(ProgressIndicator).start(
             f"Executando em {len(checked)} conexao(oes)..."
         )
+        # Shape of the comparison that is coming, in place of whatever the
+        # panel showed before (empty on first run, a stale comparison on a
+        # re-run) — avoids a jump when the real table lands.
+        self.query_one("#group-results", GroupResultWidget).display = False
+        self.query_one("#ge-results-skeleton", Skeleton).display = True
         self._run(sql, checked)
 
     @work(thread=True)
@@ -326,9 +347,13 @@ class GroupExecScreen(Vertical):
 
     def _on_error(self, message: str) -> None:
         self.query_one(ProgressIndicator).stop()
+        self.query_one("#ge-results-skeleton", Skeleton).display = False
+        self.query_one("#group-results", GroupResultWidget).display = True
         self.notify(message, severity="error", timeout=8)
 
     def _show_result(self, group_result) -> None:
         self.query_one(ProgressIndicator).stop()
+        self.query_one("#ge-results-skeleton", Skeleton).display = False
         grw = self.query_one("#group-results", GroupResultWidget)
+        grw.display = True
         grw.load_result(group_result)
