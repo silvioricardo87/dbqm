@@ -186,20 +186,29 @@ Conventional Commits: `<type>(<scope>): <description>`
 This is not a style preference — it is the line between *what the program is
 made of* and *what the user reads*.
 
-**English** — everything that is code:
+**English** — everything that is code, and everything written *about* it:
 - identifiers: modules, classes, functions, constants, fixtures, test names
 - design token names and the `$var` references to them
 - comments and docstrings
-- commit messages
+- assertion messages in tests
+- **commit messages** (subject and body), **pull request titles and bodies**,
+  issue titles and bodies, code-review comments, and release notes
+- `README.md`, `CHANGELOG.md`, `AGENTS.md` and anything else under `docs/`
 
 **Portuguese, without accents** — everything the user sees:
 - widget labels, panel titles, button text, tab names
 - notifications, error and confirmation messages
 - CLI output text
 
-Assertion messages in tests are the one deliberate grey area: they are read by
-whoever the test failed on, not by the user. Write them in English, like the
-rest of the test.
+The test's *assertion messages* follow the code, not the UI: they are read by
+whoever the test failed on, never by a user of the program.
+
+**The conversation is exempt.** Talking to the maintainer in Portuguese is
+normal and expected — the rule governs what gets written down in the
+repository, not how the work is discussed. When a commit message or a comment
+needs to quote something the maintainer said, quote it verbatim in Portuguese:
+translating a quotation falsifies the record. Everything around the quotation
+is still English.
 
 **Why it is written down.** It was never written down before, and it held
 anyway — until it didn't. A design-system series added ~370 Portuguese comments,
