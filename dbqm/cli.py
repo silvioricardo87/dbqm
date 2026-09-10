@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -57,6 +58,50 @@ def _parse_params(param_list: list[str] | None) -> dict:
         key, value = p.split("=", 1)
         params[key.strip()] = value.strip()
     return params
+
+
+def resolve_password(
+    args: argparse.Namespace, env_var: str, prompt: str, *, required: bool
+) -> str | None:
+    """The password for this command, from the first source that has one.
+
+    Order: `--password-stdin`, `--password` (only where the command has it),
+    the environment variable. If none of the three hit and the value is
+    `required`, prompt — but only on a TTY, because `getpass` on a pipe blocks
+    forever, which is exactly how an agent hangs. An optional password with no
+    source returns None and never prompts.
+    """
+    from_stdin = getattr(args, "password_stdin", False)
+    direct = getattr(args, "password", None)
+
+    if from_stdin and direct:
+        console.print(
+            "[ds.op.failure]Use --password-stdin ou --password, nao os dois."
+            "[/ds.op.failure]"
+        )
+        sys.exit(2)
+
+    if from_stdin:
+        # Only the line terminator comes off: a password may end in a space.
+        return sys.stdin.readline().rstrip("\r\n")
+    if direct:
+        return direct
+
+    from_env = os.environ.get(env_var)
+    if from_env:
+        return from_env
+
+    if not required:
+        return None
+
+    if sys.stdin.isatty():
+        return getpass.getpass(prompt)
+
+    console.print(
+        f"[ds.op.failure]Senha nao informada. Use --password-stdin ou "
+        f"defina {env_var}.[/ds.op.failure]"
+    )
+    sys.exit(2)
 
 
 def _materialize(value: Any) -> str:
@@ -506,7 +551,9 @@ def cmd_ddl(args: argparse.Namespace) -> None:
 
 def cmd_export_config(args: argparse.Namespace) -> None:
     """Export configurations to a .dbqm bundle."""
-    password = args.password or getpass.getpass("Senha para o bundle: ")
+    password = resolve_password(
+        args, "DBQM_BUNDLE_PASSWORD", "Senha para o bundle: ", required=True
+    )
     path = export_configs(
         password,
         include_connections=not args.no_connections,
@@ -518,7 +565,9 @@ def cmd_export_config(args: argparse.Namespace) -> None:
 
 def cmd_import_config(args: argparse.Namespace) -> None:
     """Import configurations from a .dbqm bundle."""
-    password = args.password or getpass.getpass("Senha do bundle: ")
+    password = resolve_password(
+        args, "DBQM_BUNDLE_PASSWORD", "Senha do bundle: ", required=True
+    )
     try:
         summary = import_configs(args.file, password)
     except Exception as e:
@@ -657,7 +706,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- export-config ---
     p_exp = subparsers.add_parser("export-config", help="Exportar configuracoes para bundle .dbqm")
-    p_exp.add_argument("--password", help="Senha (ou sera solicitada interativamente)")
+    p_exp.add_argument("--password",
+                       help="Senha (desaconselhado: fica no historico do shell "
+                            "e na tabela de processos; prefira --password-stdin)")
+    p_exp.add_argument("--password-stdin", action="store_true", dest="password_stdin",
+                       help="Ler a senha de uma linha na entrada padrao")
     p_exp.add_argument("--no-connections", action="store_true", help="Excluir conexoes")
     p_exp.add_argument("--no-queries", action="store_true", help="Excluir consultas")
     p_exp.add_argument("--no-groups", action="store_true", help="Excluir grupos")
@@ -665,7 +718,11 @@ def build_parser() -> argparse.ArgumentParser:
     # --- import-config ---
     p_imp = subparsers.add_parser("import-config", help="Importar configuracoes de bundle .dbqm")
     p_imp.add_argument("file", help="Caminho do arquivo .dbqm")
-    p_imp.add_argument("--password", help="Senha (ou sera solicitada interativamente)")
+    p_imp.add_argument("--password",
+                       help="Senha (desaconselhado: fica no historico do shell "
+                            "e na tabela de processos; prefira --password-stdin)")
+    p_imp.add_argument("--password-stdin", action="store_true", dest="password_stdin",
+                       help="Ler a senha de uma linha na entrada padrao")
 
     # --- history ---
     p_hist = subparsers.add_parser("history", help="Ver historico de execucoes")

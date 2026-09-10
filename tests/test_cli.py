@@ -642,6 +642,7 @@ class TestCmdExportConfig:
 
     def test_export_prompts_password(self):
         with patch("dbqm.cli.export_configs", return_value="/tmp/cfg.dbqm"), \
+             patch("sys.stdin.isatty", return_value=True), \
              patch("dbqm.cli.getpass.getpass", return_value="prompted_pw") as mock_gp:
             run_cli(["export-config"])
             mock_gp.assert_called_once()
@@ -888,3 +889,119 @@ class TestMainEntryPoint:
              patch("dbqm.ui.app.DBQMApp.run") as mock_run:
             dbqm_main()
             mock_run.assert_called_once()
+
+
+class TestResolvePassword:
+    """Non-interactive password sources — an agent has no TTY."""
+
+    def _args(self, **kwargs):
+        from argparse import Namespace
+        base = {"password_stdin": False, "password": None}
+        base.update(kwargs)
+        return Namespace(**base)
+
+    def test_stdin_wins(self, monkeypatch):
+        import io
+        from dbqm.cli import resolve_password
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("from-stdin\n"))
+        monkeypatch.setenv("DBQM_PASSWORD", "from-env")
+        args = self._args(password_stdin=True)
+        assert resolve_password(args, "DBQM_PASSWORD", "p: ", required=True) == "from-stdin"
+
+    def test_stdin_keeps_inner_spaces_and_drops_only_the_newline(self, monkeypatch):
+        import io
+        from dbqm.cli import resolve_password
+
+        monkeypatch.setattr("sys.stdin", io.StringIO(" a b \r\n"))
+        args = self._args(password_stdin=True)
+        assert resolve_password(args, "DBQM_PASSWORD", "p: ", required=True) == " a b "
+
+    def test_flag_beats_env(self, monkeypatch):
+        from dbqm.cli import resolve_password
+
+        monkeypatch.setenv("DBQM_PASSWORD", "from-env")
+        args = self._args(password="from-flag")
+        assert resolve_password(args, "DBQM_PASSWORD", "p: ", required=True) == "from-flag"
+
+    def test_env_is_used_when_nothing_else_is_given(self, monkeypatch):
+        from dbqm.cli import resolve_password
+
+        monkeypatch.setenv("DBQM_PASSWORD", "from-env")
+        assert resolve_password(self._args(), "DBQM_PASSWORD", "p: ", required=True) == "from-env"
+
+    def test_stdin_and_flag_together_is_an_error(self, monkeypatch):
+        from dbqm.cli import resolve_password
+
+        args = self._args(password_stdin=True, password="x")
+        with pytest.raises(SystemExit) as exc:
+            resolve_password(args, "DBQM_PASSWORD", "p: ", required=True)
+        assert exc.value.code == 2
+
+    def test_required_without_a_source_and_without_a_tty_exits_2(self, monkeypatch):
+        from dbqm.cli import resolve_password
+
+        monkeypatch.delenv("DBQM_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        with pytest.raises(SystemExit) as exc:
+            resolve_password(self._args(), "DBQM_PASSWORD", "p: ", required=True)
+        assert exc.value.code == 2
+
+    def test_required_prompts_on_a_tty(self, monkeypatch):
+        from dbqm.cli import resolve_password
+
+        monkeypatch.delenv("DBQM_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("getpass.getpass", lambda prompt="": "typed")
+        assert resolve_password(self._args(), "DBQM_PASSWORD", "p: ", required=True) == "typed"
+
+    def test_optional_without_a_source_returns_none_and_never_prompts(self, monkeypatch):
+        from dbqm.cli import resolve_password
+
+        monkeypatch.delenv("DBQM_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        def _explode(prompt=""):
+            raise AssertionError("an optional password must not prompt")
+
+        monkeypatch.setattr("getpass.getpass", _explode)
+        assert resolve_password(self._args(), "DBQM_PASSWORD", "p: ", required=False) is None
+
+
+class TestConfigBundlePassword:
+    def test_export_config_reads_the_bundle_password_from_stdin(self, monkeypatch, tmp_config_dir):
+        import io
+        from dbqm.cli import cmd_export_config
+        from argparse import Namespace
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("bundle-pw\n"))
+        captured = {}
+
+        def _fake_export(password, **kwargs):
+            captured["password"] = password
+            return "C:/tmp/bundle.dbqm"
+
+        monkeypatch.setattr("dbqm.cli.export_configs", _fake_export)
+        cmd_export_config(Namespace(
+            password=None, password_stdin=True,
+            no_connections=False, no_queries=False, no_groups=False,
+        ))
+        assert captured["password"] == "bundle-pw"
+
+    def test_export_config_uses_the_bundle_env_var(self, monkeypatch, tmp_config_dir):
+        from dbqm.cli import cmd_export_config
+        from argparse import Namespace
+
+        monkeypatch.setenv("DBQM_BUNDLE_PASSWORD", "env-pw")
+        captured = {}
+
+        def _fake_export(password, **kwargs):
+            captured["password"] = password
+            return "C:/tmp/bundle.dbqm"
+
+        monkeypatch.setattr("dbqm.cli.export_configs", _fake_export)
+        cmd_export_config(Namespace(
+            password=None, password_stdin=False,
+            no_connections=False, no_queries=False, no_groups=False,
+        ))
+        assert captured["password"] == "env-pw"
