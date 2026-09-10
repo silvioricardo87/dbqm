@@ -1005,3 +1005,29 @@ class TestConfigBundlePassword:
             no_connections=False, no_queries=False, no_groups=False,
         ))
         assert captured["password"] == "env-pw"
+
+    def test_export_config_without_a_tty_and_without_a_source_aborts_before_writing(self, monkeypatch, tmp_config_dir):
+        from dbqm.cli import run_cli
+
+        monkeypatch.delenv("DBQM_BUNDLE_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        spy = MagicMock()
+        monkeypatch.setattr("dbqm.cli.export_configs", spy)
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["export-config"])
+        assert exc.value.code == 2
+        spy.assert_not_called()
+
+    def test_import_config_without_a_tty_and_without_a_source_aborts_before_reading(self, monkeypatch, tmp_config_dir):
+        from dbqm.cli import run_cli
+
+        monkeypatch.delenv("DBQM_BUNDLE_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        spy = MagicMock()
+        monkeypatch.setattr("dbqm.cli.import_configs", spy)
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["import-config", "file.dbqm"])
+        assert exc.value.code == 2
+        spy.assert_not_called()
