@@ -22,7 +22,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
 - **Data export** — Export results to CSV, JSON, TXT, PNG, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
-- **Connections from the CLI** — `dbqm connection add|update|rm|show|list` creates and edits connections without the TUI, for scripts, CI and AI agents. `--password-stdin` and the `DBQM_PASSWORD` environment variable keep secrets off the command line and out of shell history; `--test` refuses to save a connection that does not answer. `update` changes only the flags you pass, and `show` never prints the password. The rules are shared with the TUI (`core/connection_builder.py`), so both front ends validate and default identically.
+- **Connections from the CLI** — `dbqm connection add|update|rm|show|list` creates and edits connections without the TUI, for scripts, CI and AI agents. `--password-stdin` and the `DBQM_PASSWORD` environment variable keep secrets off the command line and out of shell history; `--test` refuses to save a connection that does not answer. `update` changes only the flags you pass — including the password: it is changed only via `--password-stdin` or `--no-password` on that command, never by an ambient `DBQM_PASSWORD` left over from another command. `show` never prints the password. The rules are shared with the TUI (`core/connection_builder.py`), so both front ends validate and default identically.
 - **Connection descriptions** — Attach free-form notes to each connection (purpose, schema, contacts); a one-line preview is shown alongside type and destination in the connections list
 - **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
 - **Favorites & folders** — Organize queries in folders, star favorites for quick access
@@ -148,8 +148,11 @@ echo "s3cret" | dbqm connection add prod --type oracle --mode direct \
     --host db.example.com --port 1521 --service ORCL --user admin \
     --password-stdin --test
 
-# Change one field; everything else stays as it was
+# Change one field; everything else stays as it was, INCLUDING the password —
+# `update` never reads DBQM_PASSWORD, only --password-stdin/--no-password
+# change it, and only on this command line
 dbqm connection update prod --host db2.example.com
+echo "n0v4-s3cret" | dbqm connection update prod --password-stdin
 
 # Inspect and list (the password is redacted)
 dbqm connection show prod -f json
@@ -333,7 +336,7 @@ dbqm/
 │       └── settings.py            # App settings (theme, audit)
 ├── config/                        # JSON configs (gitignored)
 ├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (1027 tests)
+└── tests/                         # Test suite (1036 tests)
     ├── core/                      # Core logic tests
     ├── models/                    # Model tests
     ├── design/                    # Design-system guards (color tokens, contrast, layout grammar)

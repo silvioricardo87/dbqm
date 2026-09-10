@@ -33,6 +33,28 @@ Connections can now be created and edited from the CLI, without opening the TUI.
   module the CLI now shares with it — both front ends validate and default
   identically instead of each carrying its own copy of the rules.
 
+### Fixed
+
+- **`connection update` no longer reads `DBQM_PASSWORD`** — only
+  `--password-stdin` or `--no-password`, given on that command line, change
+  the stored password; an ambient environment variable left over from another
+  command could otherwise silently replace it.
+- **An empty `--password-stdin` read is now always an error** (exit 2, with a
+  message pointing at `--no-password`) instead of creating a passwordless
+  connection on `add` or silently clearing the stored password on `update`.
+- **User-supplied values are escaped before reaching Rich markup**, so a
+  connection name, query/group name or bad `--type` value containing `[` or
+  `]` can no longer crash the command with a `MarkupError` or vanish from the
+  error message it was meant to appear in.
+- **A bare `dbqm connection` now prints the command group's help** and exits
+  2, instead of a one-line usage reminder.
+- **`connection rm` cancellation now respects `-f json`**, emitting
+  `{"name": ..., "removed": false}` instead of the plain-text `Cancelado.`,
+  which broke JSON consumers.
+- **`connection add` validates before asking for a password**, so a bad
+  `--type` or missing required field is reported before a terminal user is
+  prompted to type a secret.
+
 ## [1.21.0] — 2026-08-23
 
 Structure is now decided once for the whole TUI instead of per screen.

@@ -1159,6 +1159,45 @@ class TestConnectionAdd:
             self._run(["connection"], monkeypatch)
         assert exc.value.code == 2
 
+    def test_bare_connection_command_prints_the_group_help(self, tmp_config_dir,
+                                                            monkeypatch, capsys):
+        """A bare `dbqm connection` must print the group's own help (Minor 4),
+        not a one-line usage reminder."""
+        with pytest.raises(SystemExit) as exc:
+            self._run(["connection"], monkeypatch)
+        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
+        assert "Criar uma conexao" in out, \
+            "expected each subcommand's own help text, e.g. add's, to be listed"
+
+    def test_empty_password_stdin_exits_2_and_saves_nothing(self, tmp_config_dir, monkeypatch):
+        """A closed/empty --password-stdin pipe must be an error, not a
+        passwordless connection (Important 2)."""
+        from dbqm.models.connection import load_connections
+
+        with pytest.raises(SystemExit) as exc:
+            self._run([
+                "connection", "add", "p", "--type", "mysql", "--password-stdin",
+            ], monkeypatch, stdin_text="")
+        assert exc.value.code == 2
+        assert load_connections() == [], \
+            "an empty stdin read must not create a passwordless connection"
+
+    def test_invalid_type_does_not_prompt_for_a_password(self, tmp_config_dir, monkeypatch):
+        """Validation must run before the password is resolved (Minor 6): a
+        terminal user must learn about a bad --type before being asked to
+        type a secret that turns out not to matter."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        def _explode(prompt=""):
+            raise AssertionError("must not prompt for a password before validation")
+
+        monkeypatch.setattr("getpass.getpass", _explode)
+        with pytest.raises(SystemExit) as exc:
+            self._run(["connection", "add", "x", "--type", "bogus"], monkeypatch)
+        assert exc.value.code == 2
+
 
 class TestConnectionUpdate:
     def _seed(self, monkeypatch):
@@ -1222,6 +1261,41 @@ class TestConnectionUpdate:
         self._seed(monkeypatch)
         run_cli(["connection", "update", "alvo", "--no-password"])
         assert find_connection("alvo").password == ""
+
+    def test_update_ignores_the_dbqm_password_env_var(self, tmp_config_dir, monkeypatch):
+        """An ambient DBQM_PASSWORD must not silently replace the stored
+        password on `update` (Important 1) — only --password-stdin or
+        --no-password, said on this command line, may change it."""
+        from dbqm.cli import run_cli
+        from dbqm.core.crypto import decrypt
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setenv("DBQM_PASSWORD", "leftover-from-an-earlier-add")
+        run_cli(["connection", "update", "alvo", "--description", "owner: infra"])
+
+        conn = find_connection("alvo")
+        assert decrypt(conn.password) == "pw", \
+            "an ambient DBQM_PASSWORD must not overwrite the stored password on update"
+        assert conn.description == "owner: infra"
+
+    def test_empty_password_stdin_exits_2_and_keeps_the_stored_password(
+        self, tmp_config_dir, monkeypatch
+    ):
+        """A closed/empty --password-stdin pipe must error, not silently
+        clear the stored password (Important 2)."""
+        import io
+        from dbqm.cli import run_cli
+        from dbqm.core.crypto import decrypt
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setattr("sys.stdin", io.StringIO(""))
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "update", "alvo", "--password-stdin"])
+        assert exc.value.code == 2
+        assert decrypt(find_connection("alvo").password) == "pw", \
+            "an empty stdin read must not silently clear the stored password"
 
     def test_switching_to_tns_clears_the_direct_fields(self, tmp_config_dir, monkeypatch):
         from dbqm.cli import run_cli
@@ -1318,6 +1392,20 @@ class TestConnectionRemoveAndList:
             run_cli(["connection", "rm", "inexistente", "--yes"])
         assert exc.value.code == 2
 
+    def test_rm_cancel_under_json_format_prints_json(self, tmp_config_dir, monkeypatch, capsys):
+        """Cancelling under -f json must still emit valid JSON on stdout
+        (Minor 5), since this path exists for scripted/agent use."""
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+        capsys.readouterr()
+        run_cli(["connection", "rm", "alvo", "-f", "json"])
+        assert json.loads(capsys.readouterr().out) == {"name": "alvo", "removed": False}
+        assert find_connection("alvo") is not None
+
     def test_rm_json_format_reports_the_outcome(self, tmp_config_dir, monkeypatch, capsys):
         from dbqm.cli import run_cli
 
@@ -1375,3 +1463,37 @@ class TestConnectionShow:
         with pytest.raises(SystemExit) as exc:
             run_cli(["connection", "show", "inexistente"])
         assert exc.value.code == 2
+
+
+class TestConnectionMarkupSafety:
+    """User-supplied values must never be interpreted as Rich markup
+    (Minor 3) — a bad value must exit 2 cleanly and stay visible in the
+    error message, not crash with a MarkupError or get erased."""
+
+    def test_invalid_type_with_markup_characters_exits_cleanly(self, tmp_config_dir,
+                                                                monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "add", "x", "--type", "[/x]", "--no-password"])
+        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "[/x]" in out, "the offending value must still be shown, not swallowed by markup"
+
+    def test_show_unknown_name_with_markup_characters_exits_cleanly(self, tmp_config_dir,
+                                                                     monkeypatch):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "show", "[/x]"])
+        assert exc.value.code == 2
+
+    def test_connection_name_with_markup_characters_round_trips(self, tmp_config_dir,
+                                                                 monkeypatch, capsys):
+        """add -> outcome message -> table show -> table list, none of which
+        may raise a rich.errors.MarkupError for a name like `[/x]`."""
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "[/x]", "--type", "mysql", "--no-password"])
+        run_cli(["connection", "show", "[/x]"])
+        run_cli(["connection", "list"])
