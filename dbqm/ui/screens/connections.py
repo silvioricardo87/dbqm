@@ -9,6 +9,7 @@ from textual.widgets import Button, Input, OptionList, Select, Static, TextArea
 from textual.widgets.option_list import Option
 from textual import work
 
+from dbqm.core.connection_builder import DEFAULT_HOSTS, DEFAULT_PORTS
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.hierarchical_list import hierarchical_item, wrap_width
@@ -33,18 +34,6 @@ ORACLE_MODE_OPTIONS = [
     ("Conexao direta (host/port/service)", "direct"),
     ("TNS (tnsnames.ora)", "tns"),
 ]
-
-DEFAULT_PORTS = {
-    "oracle": "1521",
-    "sqlserver": "1433",
-    "postgresql": "5432",
-    "mysql": "3306",
-}
-
-DEFAULT_HOSTS = {
-    "postgresql": "localhost",
-    "mysql": "localhost",
-}
 
 # Width of #conn-list-panel (CSS below). A module constant, the single
 # source both for the CSS and for the wrap-width derivation just ahead —
@@ -530,7 +519,7 @@ class ConnectionsScreen(Vertical):
         if not host_input.value:
             host_input.value = DEFAULT_HOSTS.get(db_type, "")
         if not port_input.value:
-            port_input.value = DEFAULT_PORTS.get(db_type, "")
+            port_input.value = str(DEFAULT_PORTS.get(db_type, ""))
 
     def _apply_field_visibility(self, db_type: str, mode: str) -> None:
         is_oracle = db_type == "oracle"
@@ -598,109 +587,55 @@ class ConnectionsScreen(Vertical):
     def _val(self, field_id: str) -> str:
         return self.query_one(field_id, Input).value.strip()
 
-    def _int_val(self, field_id: str, default: int) -> int:
-        val = self._val(field_id)
-        try:
-            return int(val)
-        except (ValueError, TypeError):
-            return default
+    def _collect_form_values(self) -> dict:
+        """Read the form into a plain dict. No rules here — they live in
+        `core/connection_builder.py`, which the CLI calls too.
 
-    def _collect_form_values(self) -> dict | None:
-        """Collect all form field values into a dict, validating required ones."""
-        name = self.query_one("#conn-form-name", Input).value.strip()
-        if not name:
-            self.notify("Nome obrigatorio.", severity="error")
-            return None
-
+        Every field is read regardless of the selected engine; `build` clears
+        the ones that do not apply. Doing the engine branching here as well
+        would be the same rule written twice, in two front ends.
+        """
         type_select = self.query_one("#conn-form-type", Select)
-        if type_select.value == Select.NULL:
-            self.notify("Selecione o tipo de banco.", severity="error")
-            return None
-        db_type = str(type_select.value)
+        db_type = str(type_select.value) if isinstance(type_select.value, str) else ""
+        mode_select = self.query_one("#conn-form-mode", Select)
+        mode = str(mode_select.value) if isinstance(mode_select.value, str) else ""
 
-        result: dict = {"name": name, "db_type": db_type}
+        values: dict = {
+            "name": self._val("#conn-form-name"),
+            "db_type": db_type,
+            "mode": mode,
+            "host": self._val("#conn-form-host"),
+            "port": self._val("#conn-form-port"),
+            "service_name": self._val("#conn-form-service"),
+            "database": self._val("#conn-form-database"),
+            "tns_path": self._val("#conn-form-tns-path"),
+            "tns_name": self._val("#conn-form-tns-name"),
+            "user": self._val("#conn-form-user"),
+            "description": self.query_one("#conn-form-desc", TextArea).text.strip(),
+        }
 
-        if db_type == "oracle":
-            mode_select = self.query_one("#conn-form-mode", Select)
-            mode = str(mode_select.value) if mode_select.value != Select.NULL else "direct"
-            result["mode"] = mode
-
-            if mode == "tns":
-                result["tns_path"] = self._val("#conn-form-tns-path")
-                result["tns_name"] = self._val("#conn-form-tns-name")
-            else:
-                result["host"] = self._val("#conn-form-host")
-                result["port"] = self._int_val("#conn-form-port", 1521)
-                result["service_name"] = self._val("#conn-form-service")
-        else:
-            result["host"] = self._val("#conn-form-host")
-            result["port"] = self._int_val("#conn-form-port", int(DEFAULT_PORTS.get(db_type, "0")))
-            result["database"] = self._val("#conn-form-database")
-
-        result["user"] = self._val("#conn-form-user")
-        result["password"] = self._val("#conn-form-pass")
-
-        desc_widget = self.query_one("#conn-form-desc", TextArea)
-        result["description"] = desc_widget.text.strip()
-
-        return result
+        # Omitted, not blank: an absent key means "keep the stored password".
+        # Not stripped either — a password may end in a space.
+        password = self.query_one("#conn-form-pass", Input).value
+        if password:
+            values["password"] = password
+        return values
 
     def _handle_save(self) -> None:
+        from dbqm.core.connection_builder import upsert, validate
+
         values = self._collect_form_values()
-        if values is None:
+        errors = validate(values)
+        if errors:
+            self.notify(errors[0], severity="error")
             return
 
-        from dbqm.core.crypto import encrypt
-        from dbqm.models.connection import Connection, load_connections, save_connections
-
-        connections = load_connections()
-        name = values["name"]
-        existing = next((c for c in connections if c.name == name), None)
-
-        password = values.get("password", "")
-        if password:
-            password = encrypt(password)
-        elif existing is not None:
-            password = existing.password
-        else:
-            password = ""
-
-        if existing is not None:
-            existing.db_type = values["db_type"]
-            existing.user = values.get("user", "")
-            existing.password = password
-            existing.mode = values.get("mode")
-            existing.host = values.get("host")
-            existing.port = values.get("port")
-            existing.service_name = values.get("service_name")
-            existing.database = values.get("database")
-            existing.tns_path = values.get("tns_path")
-            existing.tns_name = values.get("tns_name")
-            existing.description = values.get("description", "")
-            message = f'Conexao "{name}" atualizada!'
-        else:
-            conn = Connection(
-                name=name,
-                db_type=values["db_type"],
-                user=values.get("user", ""),
-                password=password,
-                mode=values.get("mode"),
-                host=values.get("host"),
-                port=values.get("port"),
-                service_name=values.get("service_name"),
-                database=values.get("database"),
-                tns_path=values.get("tns_path"),
-                tns_name=values.get("tns_name"),
-                description=values.get("description", ""),
-            )
-            connections.append(conn)
-            message = f'Conexao "{name}" criada!'
-
-        save_connections(connections)
+        conn, created = upsert(values)
         self._load_connections()
         self._update_status_bar()
-        self._select_in_list(name)
-        self.notify(message)
+        self._select_in_list(conn.name)
+        acao = "criada" if created else "atualizada"
+        self.notify(f'Conexao "{conn.name}" {acao}!')
 
     # ------------------------------------------------------------------
     # Rename

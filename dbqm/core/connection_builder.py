@@ -14,7 +14,7 @@ business.
 from __future__ import annotations
 
 from dbqm.core.crypto import encrypt
-from dbqm.models.connection import Connection
+from dbqm.models.connection import Connection, load_connections, save_connections
 
 DB_TYPES: tuple[str, ...] = ("oracle", "sqlserver", "postgresql", "mysql")
 ORACLE_MODES: tuple[str, ...] = ("direct", "tns")
@@ -144,3 +144,25 @@ def build(values: dict, existing: Connection | None = None) -> Connection:
         # ever starts being used.
         conn.windows_auth = existing.windows_auth
     return conn
+
+
+def upsert(values: dict) -> tuple[Connection, bool]:
+    """Save `values`, creating or replacing by name. Returns (connection, created).
+
+    This is what the TUI's Salvar button means. The CLI does NOT use it: there,
+    `add` on an existing name and `update` on a missing one have to be errors,
+    so the command checks first and calls `build` itself.
+    """
+    connections = load_connections()
+    name = _text(values, "name")
+    index = next(
+        (i for i, c in enumerate(connections) if c.name == name), None
+    )
+    existing = connections[index] if index is not None else None
+    conn = build(values, existing)
+    if index is None:
+        connections.append(conn)
+    else:
+        connections[index] = conn
+    save_connections(connections)
+    return conn, index is None

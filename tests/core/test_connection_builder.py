@@ -185,3 +185,36 @@ class TestBuildIdentity:
         conn = build({"name": "  p  ", "db_type": "mysql", "description": "  nota  "})
         assert conn.name == "p"
         assert conn.description == "nota"
+
+
+from dbqm.core.connection_builder import upsert
+from dbqm.models.connection import find_connection, load_connections, save_connections
+
+
+class TestUpsert:
+    def test_creates_when_the_name_is_new(self, tmp_config_dir):
+        conn, created = upsert({"name": "nova", "db_type": "mysql", "host": "h"})
+        assert created is True
+        assert find_connection("nova").host == "h"
+
+    def test_updates_in_place_when_the_name_exists(self, tmp_config_dir):
+        upsert({"name": "nova", "db_type": "mysql", "host": "h",
+                "password": "pw"})
+        conn, created = upsert({"name": "nova", "db_type": "mysql",
+                                "host": "outro"})
+        assert created is False
+        assert find_connection("nova").host == "outro"
+        assert len(load_connections()) == 1, "an update must not append a copy"
+
+    def test_an_update_keeps_the_stored_password(self, tmp_config_dir):
+        from dbqm.core.crypto import decrypt
+
+        upsert({"name": "nova", "db_type": "mysql", "password": "pw"})
+        upsert({"name": "nova", "db_type": "mysql", "host": "outro"})
+        assert decrypt(find_connection("nova").password) == "pw"
+
+    def test_the_position_in_the_list_is_preserved(self, tmp_config_dir):
+        upsert({"name": "a", "db_type": "mysql"})
+        upsert({"name": "b", "db_type": "mysql"})
+        upsert({"name": "a", "db_type": "mysql", "host": "novo"})
+        assert [c.name for c in load_connections()] == ["a", "b"]
