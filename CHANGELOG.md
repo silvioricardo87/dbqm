@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [1.22.0] — 2026-09-10
+
+Connections can now be created and edited from the CLI, without opening the TUI.
+
+### Added
+
+- **`dbqm connection` command group** — `add`, `update`, `rm`, `show` and `list`
+  manage connections non-interactively, for scripts, CI and AI agents. `add`
+  refuses a duplicate name; `update` changes only the flags you pass and leaves
+  the rest as they were; `rm` requires `--yes` when there is no terminal to
+  confirm against; `show` never prints the password.
+- **Non-interactive passwords** — `--password-stdin` and the `DBQM_PASSWORD`
+  environment variable read a connection password without it ever appearing in
+  argv or shell history. `export-config` and `import-config` gained the same
+  `--password-stdin` and a `DBQM_BUNDLE_PASSWORD` environment variable, so
+  neither blocks waiting on a prompt when run without a terminal.
+- **`--test`** on `connection add`/`update` tries the connection before saving
+  it and refuses to save one that does not answer.
+
+### Changed
+
+- **Connection validation, per-engine defaults and encryption** moved out of
+  the TUI's connections screen into `core/connection_builder.py`, a UI-agnostic
+  module the CLI now shares with it — both front ends validate and default
+  identically instead of each carrying its own copy of the rules.
+
+### Fixed
+
+- **`connection update` no longer reads `DBQM_PASSWORD`** — only
+  `--password-stdin` or `--no-password`, given on that command line, change
+  the stored password; an ambient environment variable left over from another
+  command could otherwise silently replace it.
+- **An empty `--password-stdin` read is now always an error** (exit 2, with a
+  message pointing at `--no-password`) instead of creating a passwordless
+  connection on `add` or silently clearing the stored password on `update`.
+- **User-supplied values are escaped before reaching Rich markup**, so a
+  connection name, query/group name or bad `--type` value containing `[` or
+  `]` can no longer crash the command with a `MarkupError` or vanish from the
+  error message it was meant to appear in.
+- **A bare `dbqm connection` now prints the command group's help** and exits
+  2, instead of a one-line usage reminder.
+- **`connection rm` cancellation now respects `-f json`**, emitting
+  `{"name": ..., "removed": false}` instead of the plain-text `Cancelado.`,
+  which broke JSON consumers.
+- **`connection add` validates before asking for a password**, so a bad
+  `--type` or missing required field is reported before a terminal user is
+  prompted to type a secret.
+
 ## [1.21.0] — 2026-08-23
 
 Structure is now decided once for the whole TUI instead of per screen.

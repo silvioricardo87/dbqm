@@ -4,12 +4,14 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import os
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 from rich.theme import Theme as _RichTheme
 
@@ -52,11 +54,110 @@ def _parse_params(param_list: list[str] | None) -> dict:
     params = {}
     for p in param_list:
         if "=" not in p:
-            console.print(f"[ds.op.failure]Parametro invalido (use chave=valor): {p}[/ds.op.failure]")
+            console.print(f"[ds.op.failure]Parametro invalido (use chave=valor): {escape(p)}[/ds.op.failure]")
             sys.exit(1)
         key, value = p.split("=", 1)
         params[key.strip()] = value.strip()
     return params
+
+
+def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
+    """The connection fields, shared by `connection add` and `connection update`.
+
+    Nothing here is `required` and `--type` carries no `choices`: a missing or
+    invalid value is reported by `connection_builder.validate`, so the user
+    meets one error vocabulary instead of argparse's next to dbqm's.
+    """
+    parser.add_argument("--type", dest="db_type",
+                        help="Tipo de banco: oracle, sqlserver, postgresql ou mysql")
+    parser.add_argument("--mode", help="Modo Oracle: direct ou tns (padrao: direct)")
+    parser.add_argument("--host", help="Host do servidor")
+    parser.add_argument("--port", help="Porta (padrao: a do tipo de banco)")
+    parser.add_argument("--service", dest="service_name",
+                        help="Service name (Oracle, modo direct)")
+    parser.add_argument("--database", help="Nome do banco (SQL Server/PostgreSQL/MySQL)")
+    parser.add_argument("--tns-path", dest="tns_path",
+                        help="Caminho do tnsnames.ora (Oracle, modo tns)")
+    parser.add_argument("--tns-name", dest="tns_name",
+                        help="Entrada do tnsnames.ora (Oracle, modo tns)")
+    parser.add_argument("--user", help="Usuario do banco")
+    parser.add_argument("--description", help="Anotacao livre sobre a conexao")
+    senha = parser.add_mutually_exclusive_group()
+    senha.add_argument("--password-stdin", action="store_true", dest="password_stdin",
+                       help="Ler a senha de uma linha na entrada padrao")
+    senha.add_argument("--no-password", action="store_true", dest="no_password",
+                       help="Gravar sem senha (ou, em update, apagar a guardada)")
+    parser.add_argument("--test", action="store_true", dest="test_before_save",
+                        help="Testar a conexao antes de gravar; se falhar, nao grava")
+    parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
+
+
+def resolve_password(
+    args: argparse.Namespace, env_var: str, prompt: str, *, required: bool,
+    use_env: bool = True,
+) -> str | None:
+    """The password for this command, from the first source that has one.
+
+    Order: `--password-stdin`, `--password` (only where the command has it),
+    then `env_var` — unless `use_env` is False, in which case the environment
+    is never consulted. `connection update` passes `use_env=False`: its whole
+    contract is that a flag not given on THIS command line changes nothing,
+    and an ambient `DBQM_PASSWORD` exported for an unrelated `add` is not
+    something the user said on this command; `--password-stdin` or
+    `--no-password` remain the only ways to change a stored password.
+    `add`, `export-config` and `import-config` keep reading the environment
+    (`use_env` defaults to True).
+
+    If none of the sources hit and the value is `required`, prompt — but only
+    on a TTY, because `getpass` on a pipe blocks forever, which is exactly how
+    an agent hangs. An optional password with no source returns None and
+    never prompts.
+
+    An empty read from `--password-stdin` is always an error, regardless of
+    `required`: a closed/empty pipe is far more often a broken script than an
+    intended empty password, and silently falling through would mean `update`
+    clears a stored password without `--no-password` ever being said.
+    """
+    from_stdin = getattr(args, "password_stdin", False)
+    direct = getattr(args, "password", None)
+
+    if from_stdin and direct:
+        console.print(
+            "[ds.op.failure]Use --password-stdin ou --password, nao os dois."
+            "[/ds.op.failure]"
+        )
+        sys.exit(2)
+
+    if from_stdin:
+        # Only the line terminator comes off: a password may end in a space.
+        value = sys.stdin.readline().rstrip("\r\n")
+        if not value:
+            console.print(
+                "[ds.op.failure]Senha vazia na entrada padrao. Use "
+                "--no-password para gravar sem senha.[/ds.op.failure]"
+            )
+            sys.exit(2)
+        return value
+    if direct:
+        return direct
+
+    if use_env:
+        from_env = os.environ.get(env_var)
+        if from_env:
+            return from_env
+
+    if not required:
+        return None
+
+    if sys.stdin.isatty():
+        return getpass.getpass(prompt)
+
+    console.print(
+        f"[ds.op.failure]Senha nao informada. Use --password-stdin ou "
+        f"defina {env_var}.[/ds.op.failure]"
+    )
+    sys.exit(2)
 
 
 def _materialize(value: Any) -> str:
@@ -124,13 +225,13 @@ def cmd_run(args: argparse.Namespace) -> None:
     """Execute a saved query."""
     query = find_query(args.query)
     if not query:
-        console.print(f"[ds.op.failure]Consulta '{args.query}' nao encontrada.[/ds.op.failure]")
+        console.print(f"[ds.op.failure]Consulta '{escape(args.query)}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     conn_name = args.connection or query.connection
     conn = find_connection(conn_name)
     if not conn:
-        console.print(f"[ds.op.failure]Conexao '{conn_name}' nao encontrada.[/ds.op.failure]")
+        console.print(f"[ds.op.failure]Conexao '{escape(conn_name)}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     param_values = _parse_params(args.param)
@@ -203,7 +304,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     """Execute a group comparison."""
     group = find_group(args.group)
     if not group:
-        console.print(f"[ds.op.failure]Grupo '{args.group}' nao encontrado.[/ds.op.failure]")
+        console.print(f"[ds.op.failure]Grupo '{escape(args.group)}' nao encontrado.[/ds.op.failure]")
         sys.exit(1)
 
     param_values = _parse_params(args.param)
@@ -219,11 +320,11 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     for qname in group.queries:
         query = find_query(qname)
         if not query:
-            console.print(f"[ds.op.failure]Consulta '{qname}' do grupo nao encontrada.[/ds.op.failure]")
+            console.print(f"[ds.op.failure]Consulta '{escape(qname)}' do grupo nao encontrada.[/ds.op.failure]")
             sys.exit(1)
         conn = find_connection(query.connection)
         if not conn:
-            console.print(f"[ds.op.failure]Conexao '{query.connection}' nao encontrada.[/ds.op.failure]")
+            console.print(f"[ds.op.failure]Conexao '{escape(query.connection)}' nao encontrada.[/ds.op.failure]")
             sys.exit(1)
 
         result = execute_query(query, conn, param_values)
@@ -288,7 +389,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     """Execute ad-hoc SQL."""
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[ds.op.failure]Conexao '{args.connection}' nao encontrada.[/ds.op.failure]")
+        console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     sql = args.sql
@@ -387,19 +488,19 @@ def cmd_test(args: argparse.Namespace) -> None:
         for conn in connections:
             ok, msg = test_connection(conn)
             icon = "OK" if ok else "[ds.op.failure]FAIL[/ds.op.failure]"
-            console.print(f"  {icon}  [ds.identity]{conn.name}[/]: {msg.splitlines()[0]}")
+            console.print(f"  {icon}  [ds.identity]{escape(conn.name)}[/]: {escape(msg.splitlines()[0])}")
         return
 
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[ds.op.failure]Conexao '{args.connection}' nao encontrada.[/ds.op.failure]")
+        console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     ok, msg = test_connection(conn)
     if ok:
-        console.print(msg)
+        console.print(escape(msg))
     else:
-        console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
+        console.print(f"[ds.op.failure]{escape(msg)}[/ds.op.failure]")
         sys.exit(1)
 
 
@@ -421,7 +522,7 @@ def cmd_list(args: argparse.Namespace) -> None:
         table.add_column("Tipo")
         table.add_column("Destino")
         for c in items:
-            table.add_row(f"[ds.identity]{c.name}[/]", c.db_type, c.display_target())
+            table.add_row(f"[ds.identity]{escape(c.name)}[/]", c.db_type, escape(c.display_target()))
         console.print(table)
 
     elif resource == "queries":
@@ -480,17 +581,17 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     """Extract DDL for a database object."""
     conn = find_connection(args.connection)
     if not conn:
-        console.print(f"[ds.op.failure]Conexao '{args.connection}' nao encontrada.[/ds.op.failure]")
+        console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     def on_progress(current, total, obj_type, obj_name):
-        console.print(f"  [{current}/{total}] {obj_type}: {obj_name}", style="dim")
+        console.print(f"  [{current}/{total}] {escape(obj_type)}: {escape(obj_name)}", style="dim")
 
     result = extract_ddl(conn, args.object, on_progress=on_progress)
 
     if result.errors:
         for err in result.errors:
-            console.print(f"[ds.op.failure]{err}[/ds.op.failure]")
+            console.print(f"[ds.op.failure]{escape(err)}[/ds.op.failure]")
         if not result.objects:
             sys.exit(1)
 
@@ -506,7 +607,9 @@ def cmd_ddl(args: argparse.Namespace) -> None:
 
 def cmd_export_config(args: argparse.Namespace) -> None:
     """Export configurations to a .dbqm bundle."""
-    password = args.password or getpass.getpass("Senha para o bundle: ")
+    password = resolve_password(
+        args, "DBQM_BUNDLE_PASSWORD", "Senha para o bundle: ", required=True
+    )
     path = export_configs(
         password,
         include_connections=not args.no_connections,
@@ -518,11 +621,13 @@ def cmd_export_config(args: argparse.Namespace) -> None:
 
 def cmd_import_config(args: argparse.Namespace) -> None:
     """Import configurations from a .dbqm bundle."""
-    password = args.password or getpass.getpass("Senha do bundle: ")
+    password = resolve_password(
+        args, "DBQM_BUNDLE_PASSWORD", "Senha do bundle: ", required=True
+    )
     try:
         summary = import_configs(args.file, password)
     except Exception as e:
-        console.print(f"[ds.op.failure]Erro ao importar: {e}[/ds.op.failure]")
+        console.print(f"[ds.op.failure]Erro ao importar: {escape(str(e))}[/ds.op.failure]")
         sys.exit(1)
 
     console.print(f"Importado: {summary['connections']} conexoes, "
@@ -571,9 +676,243 @@ def cmd_history(args: argparse.Namespace) -> None:
     console.print(table)
 
 
+_CONNECTION_OUTCOME_TEXT = {
+    "created": "criada",
+    "updated": "atualizada",
+    "removed": "removida",
+}
+
+
+def _print_connection_outcome(output_format: str, name: str, outcome: str) -> None:
+    if output_format == "json":
+        print(json.dumps({"name": name, outcome: True}, ensure_ascii=False))
+        return
+    console.print(f'Conexao "{escape(name)}" {_CONNECTION_OUTCOME_TEXT[outcome]}.')
+
+
+def _connection_values(args: argparse.Namespace, password: str | None) -> dict:
+    """Only the flags actually given. A flag left out must not overwrite.
+
+    `None` means "not mentioned on this command line" — dropped here so that
+    `build` sees an absent key, which for the password is what means "keep the
+    stored one".
+    """
+    values = {
+        "name": args.name,
+        "db_type": args.db_type,
+        "mode": args.mode,
+        "host": args.host,
+        "port": args.port,
+        "service_name": args.service_name,
+        "database": args.database,
+        "tns_path": args.tns_path,
+        "tns_name": args.tns_name,
+        "user": args.user,
+        "description": args.description,
+        "password": password,
+    }
+    return {key: value for key, value in values.items() if value is not None}
+
+
+def _exit_with_errors(errors: list[str]) -> None:
+    for error in errors:
+        console.print(f"[ds.op.failure]{escape(error)}[/ds.op.failure]")
+    sys.exit(2)
+
+
+def _connection_add(args: argparse.Namespace) -> None:
+    from dbqm.core.connection_builder import build, validate
+    from dbqm.models.connection import find_connection, load_connections, save_connections
+
+    if find_connection(args.name) is not None:
+        console.print(f'[ds.op.failure]Conexao "{escape(args.name)}" ja existe.[/ds.op.failure]')
+        sys.exit(2)
+
+    # Validate everything but the password first: a terminal user should
+    # learn about a bad --type before being asked to type a secret that
+    # turns out not to matter.
+    values = _connection_values(args, None)
+    errors = validate(values)
+    if errors:
+        _exit_with_errors(errors)
+
+    if args.no_password:
+        password = ""
+    else:
+        password = resolve_password(
+            args, "DBQM_PASSWORD", "Senha da conexao: ", required=True
+        )
+    values["password"] = password
+
+    conn = build(values)
+
+    if args.test_before_save:
+        ok, msg = test_connection(conn)
+        if not ok:
+            console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
+            console.print("[dim]Conexao nao gravada.[/dim]")
+            sys.exit(3)
+
+    connections = load_connections()
+    connections.append(conn)
+    save_connections(connections)
+    _print_connection_outcome(args.format, conn.name, "created")
+
+
+def _connection_update(args: argparse.Namespace) -> None:
+    from dbqm.core.connection_builder import build, validate
+    from dbqm.models.connection import find_connection, load_connections, save_connections
+
+    existing = find_connection(args.name)
+    if existing is None:
+        console.print(
+            f'[ds.op.failure]Conexao "{escape(args.name)}" nao encontrada.[/ds.op.failure]'
+        )
+        sys.exit(2)
+
+    if args.no_password:
+        password = ""  # an explicit empty value clears the stored password
+    else:
+        # use_env=False: an ambient DBQM_PASSWORD is not something the user
+        # said on THIS command line, and update's contract is that what you
+        # did not pass does not change. --password-stdin or --no-password
+        # are the only ways to change the stored password here.
+        password = resolve_password(
+            args, "DBQM_PASSWORD", "Senha da conexao: ", required=False,
+            use_env=False,
+        )
+
+    # Start from what is stored and lay the given flags on top: on a command
+    # line, what was not said was not changed. `created_at` and the stored
+    # password are dropped from the base because `build` reads them from
+    # `existing` — re-encrypting the ciphertext would double-wrap it.
+    merged = existing.to_dict()
+    merged.pop("password", None)
+    merged.pop("created_at", None)
+    merged.update(_connection_values(args, password))
+
+    errors = validate(merged)
+    if errors:
+        _exit_with_errors(errors)
+
+    conn = build(merged, existing)
+
+    if args.test_before_save:
+        ok, msg = test_connection(conn)
+        if not ok:
+            console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
+            console.print("[dim]Conexao nao alterada.[/dim]")
+            sys.exit(3)
+
+    connections = load_connections()
+    index = next(i for i, c in enumerate(connections) if c.name == conn.name)
+    connections[index] = conn
+    save_connections(connections)
+    _print_connection_outcome(args.format, conn.name, "updated")
+
+
+def _connection_show(args: argparse.Namespace) -> None:
+    from dbqm.models.connection import find_connection
+
+    conn = find_connection(args.name)
+    if conn is None:
+        console.print(
+            f'[ds.op.failure]Conexao "{escape(args.name)}" nao encontrada.[/ds.op.failure]'
+        )
+        sys.exit(2)
+
+    data = conn.to_dict()
+    # Never the ciphertext: the Fernet key lives next to the config, so
+    # printing it puts a decryptable password into whatever captured stdout.
+    data["password"] = "***" if conn.password else ""
+
+    if args.format == "json":
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        return
+
+    table = Table(title=f"Conexao: {escape(conn.name)}")
+    table.add_column("Campo")
+    table.add_column("Valor")
+    for key, value in data.items():
+        table.add_row(key, escape(str(value)))
+    console.print(table)
+
+
+def _connection_rm(args: argparse.Namespace) -> None:
+    from dbqm.models.connection import delete_connection, find_connection
+
+    if find_connection(args.name) is None:
+        console.print(
+            f'[ds.op.failure]Conexao "{escape(args.name)}" nao encontrada.[/ds.op.failure]'
+        )
+        sys.exit(2)
+
+    if not args.yes:
+        # Refuse rather than prompt when there is no terminal: a script that
+        # hangs on an unanswerable question is worse than one that fails.
+        if not sys.stdin.isatty():
+            console.print(
+                "[ds.op.failure]Use --yes para remover sem confirmacao."
+                "[/ds.op.failure]"
+            )
+            sys.exit(2)
+        resposta = input(f'Remover a conexao "{args.name}"? [s/N] ').strip().lower()
+        if resposta not in ("s", "sim"):
+            if args.format == "json":
+                print(json.dumps({"name": args.name, "removed": False}, ensure_ascii=False))
+            else:
+                console.print("Cancelado.")
+            return
+
+    delete_connection(args.name)
+    _print_connection_outcome(args.format, args.name, "removed")
+
+
+def _connection_list(args: argparse.Namespace) -> None:
+    """The same listing as `dbqm list connections`.
+
+    Three lines of delegation so that `dbqm connection --help` shows a whole
+    CRUD; without it, whoever reads that help cannot find the listing verb.
+    """
+    cmd_list(argparse.Namespace(resource="connections", format=args.format))
+
+
+_CONNECTION_SUBCOMMANDS = {
+    "add": _connection_add,
+    "update": _connection_update,
+    "rm": _connection_rm,
+    "show": _connection_show,
+    "list": _connection_list,
+}
+
+
+def cmd_connection(args: argparse.Namespace) -> None:
+    """Manage saved connections."""
+    handler = _CONNECTION_SUBCOMMANDS.get(getattr(args, "subcommand", None))
+    if handler is None:
+        # A bare `dbqm connection` prints the group's own help (add/update/
+        # rm/show/list, with their flags) rather than a one-line reminder.
+        if _connection_parser is not None:
+            _connection_parser.print_help()
+        else:
+            console.print(
+                "[ds.op.failure]Use: dbqm connection add|update|rm|show|list"
+                "[/ds.op.failure]"
+            )
+        sys.exit(2)
+    handler(args)
+
+
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
+
+# Set by `build_parser` so `cmd_connection` can print the group's own help
+# (add/update/rm/show/list) on a bare `dbqm connection` instead of a one-line
+# reminder. Simplest way to reach a subparser created deep inside the
+# function without threading it through `COMMAND_MAP`/`args`.
+_connection_parser: argparse.ArgumentParser | None = None
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -657,7 +996,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- export-config ---
     p_exp = subparsers.add_parser("export-config", help="Exportar configuracoes para bundle .dbqm")
-    p_exp.add_argument("--password", help="Senha (ou sera solicitada interativamente)")
+    p_exp.add_argument("--password",
+                       help="Senha (desaconselhado: fica no historico do shell "
+                            "e na tabela de processos; prefira --password-stdin)")
+    p_exp.add_argument("--password-stdin", action="store_true", dest="password_stdin",
+                       help="Ler a senha de uma linha na entrada padrao")
     p_exp.add_argument("--no-connections", action="store_true", help="Excluir conexoes")
     p_exp.add_argument("--no-queries", action="store_true", help="Excluir consultas")
     p_exp.add_argument("--no-groups", action="store_true", help="Excluir grupos")
@@ -665,7 +1008,11 @@ def build_parser() -> argparse.ArgumentParser:
     # --- import-config ---
     p_imp = subparsers.add_parser("import-config", help="Importar configuracoes de bundle .dbqm")
     p_imp.add_argument("file", help="Caminho do arquivo .dbqm")
-    p_imp.add_argument("--password", help="Senha (ou sera solicitada interativamente)")
+    p_imp.add_argument("--password",
+                       help="Senha (desaconselhado: fica no historico do shell "
+                            "e na tabela de processos; prefira --password-stdin)")
+    p_imp.add_argument("--password-stdin", action="store_true", dest="password_stdin",
+                       help="Ler a senha de uma linha na entrada padrao")
 
     # --- history ---
     p_hist = subparsers.add_parser("history", help="Ver historico de execucoes")
@@ -673,6 +1020,39 @@ def build_parser() -> argparse.ArgumentParser:
     p_hist.add_argument("-f", "--format", choices=["table", "json"], default="table",
                         help="Formato de saida")
     p_hist.add_argument("--clear", action="store_true", help="Limpar historico")
+
+    # --- connection ---
+    global _connection_parser
+    p_conn = subparsers.add_parser(
+        "connection",
+        help="Gerenciar conexoes (criar, alterar, remover, ver, listar)",
+    )
+    _connection_parser = p_conn
+    conn_sub = p_conn.add_subparsers(dest="subcommand")
+
+    p_conn_add = conn_sub.add_parser("add", help="Criar uma conexao")
+    p_conn_add.add_argument("name", help="Nome da conexao")
+    _add_connection_fields(p_conn_add)
+
+    p_conn_update = conn_sub.add_parser("update", help="Alterar uma conexao existente")
+    p_conn_update.add_argument("name", help="Nome da conexao")
+    _add_connection_fields(p_conn_update)
+
+    p_conn_show = conn_sub.add_parser("show", help="Ver uma conexao (senha omitida)")
+    p_conn_show.add_argument("name", help="Nome da conexao")
+    p_conn_show.add_argument("-f", "--format", choices=["table", "json"],
+                             default="table", help="Formato de saida")
+
+    p_conn_rm = conn_sub.add_parser("rm", help="Remover uma conexao")
+    p_conn_rm.add_argument("name", help="Nome da conexao")
+    p_conn_rm.add_argument("--yes", action="store_true",
+                           help="Remover sem confirmacao (obrigatorio fora do terminal)")
+    p_conn_rm.add_argument("-f", "--format", choices=["table", "json"],
+                           default="table", help="Formato de saida")
+
+    p_conn_list = conn_sub.add_parser("list", help="Listar conexoes")
+    p_conn_list.add_argument("-f", "--format", choices=["table", "json"],
+                             default="table", help="Formato de saida")
 
     return parser
 
@@ -687,6 +1067,7 @@ COMMAND_MAP = {
     "export-config": cmd_export_config,
     "import-config": cmd_import_config,
     "history": cmd_history,
+    "connection": cmd_connection,
 }
 
 

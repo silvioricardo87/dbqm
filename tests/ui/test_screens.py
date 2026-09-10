@@ -557,6 +557,95 @@ async def test_connections_empty_state_action_focuses_new_form(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_connections_save_creates_an_oracle_direct_connection(tmp_config_dir):
+    """Characterisation: what Salvar writes for a new Oracle direct connection.
+
+    Written before the rules move to core/connection_builder.py, so that the
+    refactor has something to hold it in place. Asserts the persisted model,
+    not the widgets.
+    """
+    from dbqm.core.crypto import decrypt
+    from dbqm.models.connection import find_connection
+    from textual.widgets import TextArea
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "nova"
+        screen.query_one("#conn-form-type", Select).value = "oracle"
+        screen.query_one("#conn-form-mode", Select).value = "direct"
+        await pilot.pause()
+        screen.query_one("#conn-form-host", Input).value = "db.example.com"
+        screen.query_one("#conn-form-port", Input).value = "1600"
+        screen.query_one("#conn-form-service", Input).value = "ORCL"
+        screen.query_one("#conn-form-user", Input).value = "admin"
+        screen.query_one("#conn-form-pass", Input).value = "s3cret"
+        screen.query_one("#conn-form-desc", TextArea).text = "base de teste"
+        screen._handle_save()
+        await pilot.pause()
+
+    conn = find_connection("nova")
+    assert conn is not None
+    assert conn.db_type == "oracle"
+    assert conn.mode == "direct"
+    assert conn.host == "db.example.com"
+    assert conn.port == 1600
+    assert conn.service_name == "ORCL"
+    assert conn.user == "admin"
+    assert conn.description == "base de teste"
+    assert decrypt(conn.password) == "s3cret", "password must be stored encrypted"
+    assert conn.tns_path is None and conn.tns_name is None, (
+        "direct mode must not persist TNS fields"
+    )
+
+
+@pytest.mark.asyncio
+async def test_connections_save_blank_password_keeps_the_stored_one(tmp_config_dir):
+    """Characterisation: editing a connection without retyping the password."""
+    from dbqm.core.crypto import decrypt
+    from dbqm.models.connection import find_connection
+
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "dev_oracle"
+        screen.query_one("#conn-form-type", Select).value = "oracle"
+        screen.query_one("#conn-form-mode", Select).value = "direct"
+        await pilot.pause()
+        screen.query_one("#conn-form-host", Input).value = "outro.example.com"
+        screen.query_one("#conn-form-user", Input).value = "admin"
+        screen.query_one("#conn-form-pass", Input).value = ""
+        screen._handle_save()
+        await pilot.pause()
+
+    conn = find_connection("dev_oracle")
+    assert conn is not None
+    assert conn.host == "outro.example.com", "the edited field must be saved"
+    assert decrypt(conn.password) == "s3cret", (
+        "a blank password field must keep the stored password"
+    )
+
+
+@pytest.mark.asyncio
+async def test_connections_save_without_a_name_saves_nothing(tmp_config_dir):
+    """Characterisation: the name is the one hard requirement."""
+    from dbqm.models.connection import load_connections
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "   "
+        screen.query_one("#conn-form-type", Select).value = "mysql"
+        await pilot.pause()
+        screen._handle_save()
+        await pilot.pause()
+
+    assert load_connections() == []
+
+
+@pytest.mark.asyncio
 async def test_connections_screen_with_data(tmp_config_dir):
     """With connections configured, should list them in the OptionList."""
     _seed_connections(tmp_config_dir / "config")
