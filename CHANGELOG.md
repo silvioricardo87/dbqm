@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [1.22.0] — 2026-09-10
+
+Connections can now be created and edited from the CLI, without opening the TUI.
+
+### Added
+
+- **`dbqm connection` command group** — `add`, `update`, `rm`, `show` and `list`
+  manage connections non-interactively, for scripts, CI and AI agents. `add`
+  refuses a duplicate name; `update` changes only the flags you pass and leaves
+  the rest as they were; `rm` requires `--yes` when there is no terminal to
+  confirm against; `show` never prints the password.
+- **Non-interactive passwords** — `--password-stdin` and the `DBQM_PASSWORD`
+  environment variable read a connection password without it ever appearing in
+  argv or shell history. `export-config` and `import-config` gained the same
+  `--password-stdin` and a `DBQM_BUNDLE_PASSWORD` environment variable, so
+  neither blocks waiting on a prompt when run without a terminal.
+- **`--test`** on `connection add`/`update` tries the connection before saving
+  it and refuses to save one that does not answer.
+
+### Changed
+
+- **Connection validation, per-engine defaults and encryption** moved out of
+  the TUI's connections screen into `core/connection_builder.py`, a UI-agnostic
+  module the CLI now shares with it — both front ends validate and default
+  identically instead of each carrying its own copy of the rules.
+
 ## [1.21.0] — 2026-08-23
 
 Structure is now decided once for the whole TUI instead of per screen.
