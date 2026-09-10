@@ -731,6 +731,53 @@ def _connection_add(args: argparse.Namespace) -> None:
     _print_connection_outcome(args.format, conn.name, "created")
 
 
+def _connection_update(args: argparse.Namespace) -> None:
+    from dbqm.core.connection_builder import build, validate
+    from dbqm.models.connection import find_connection, load_connections, save_connections
+
+    existing = find_connection(args.name)
+    if existing is None:
+        console.print(
+            f'[ds.op.failure]Conexao "{args.name}" nao encontrada.[/ds.op.failure]'
+        )
+        sys.exit(2)
+
+    if args.no_password:
+        password = ""  # an explicit empty value clears the stored password
+    else:
+        password = resolve_password(
+            args, "DBQM_PASSWORD", "Senha da conexao: ", required=False
+        )
+
+    # Start from what is stored and lay the given flags on top: on a command
+    # line, what was not said was not changed. `created_at` and the stored
+    # password are dropped from the base because `build` reads them from
+    # `existing` — re-encrypting the ciphertext would double-wrap it.
+    merged = existing.to_dict()
+    merged.pop("password", None)
+    merged.pop("created_at", None)
+    merged.update(_connection_values(args, password))
+
+    errors = validate(merged)
+    if errors:
+        _exit_with_errors(errors)
+
+    conn = build(merged, existing)
+
+    if args.test_before_save:
+        ok, msg = test_connection(conn)
+        if not ok:
+            console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
+            console.print("[dim]Conexao nao alterada.[/dim]")
+            sys.exit(3)
+
+    connections = load_connections()
+    index = next(i for i, c in enumerate(connections) if c.name == conn.name)
+    connections[index] = conn
+    save_connections(connections)
+    _print_connection_outcome(args.format, conn.name, "updated")
+
+
 def _connection_show(args: argparse.Namespace) -> None:
     from dbqm.models.connection import find_connection
 
@@ -760,6 +807,7 @@ def _connection_show(args: argparse.Namespace) -> None:
 
 _CONNECTION_SUBCOMMANDS = {
     "add": _connection_add,
+    "update": _connection_update,
     "show": _connection_show,
 }
 
@@ -897,6 +945,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_conn_add = conn_sub.add_parser("add", help="Criar uma conexao")
     p_conn_add.add_argument("name", help="Nome da conexao")
     _add_connection_fields(p_conn_add)
+
+    p_conn_update = conn_sub.add_parser("update", help="Alterar uma conexao existente")
+    p_conn_update.add_argument("name", help="Nome da conexao")
+    _add_connection_fields(p_conn_update)
 
     p_conn_show = conn_sub.add_parser("show", help="Ver uma conexao (senha omitida)")
     p_conn_show.add_argument("name", help="Nome da conexao")

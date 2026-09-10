@@ -1158,3 +1158,108 @@ class TestConnectionAdd:
         with pytest.raises(SystemExit) as exc:
             self._run(["connection"], monkeypatch)
         assert exc.value.code == 2
+
+
+class TestConnectionUpdate:
+    def _seed(self, monkeypatch):
+        import io
+        from dbqm.cli import run_cli
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("pw\n"))
+        run_cli([
+            "connection", "add", "alvo", "--type", "oracle", "--mode", "direct",
+            "--host", "velho.example.com", "--port", "1521",
+            "--service", "VELHO", "--user", "admin", "--password-stdin",
+            "--description", "nota original",
+        ])
+
+    def test_only_the_given_flag_changes(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        run_cli(["connection", "update", "alvo", "--host", "novo.example.com"])
+
+        conn = find_connection("alvo")
+        assert conn.host == "novo.example.com"
+        assert conn.service_name == "VELHO", "an unmentioned field must not change"
+        assert conn.user == "admin"
+        assert conn.description == "nota original"
+
+    def test_the_stored_password_survives(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.core.crypto import decrypt
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        run_cli(["connection", "update", "alvo", "--host", "novo.example.com"])
+        assert decrypt(find_connection("alvo").password) == "pw"
+
+    def test_created_at_survives(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        before = find_connection("alvo").created_at
+        run_cli(["connection", "update", "alvo", "--host", "novo.example.com"])
+        assert find_connection("alvo").created_at == before
+
+    def test_a_new_password_replaces_the_stored_one(self, tmp_config_dir, monkeypatch):
+        import io
+        from dbqm.cli import run_cli
+        from dbqm.core.crypto import decrypt
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setattr("sys.stdin", io.StringIO("nova-pw\n"))
+        run_cli(["connection", "update", "alvo", "--password-stdin"])
+        assert decrypt(find_connection("alvo").password) == "nova-pw"
+
+    def test_no_password_clears_the_stored_one(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        run_cli(["connection", "update", "alvo", "--no-password"])
+        assert find_connection("alvo").password == ""
+
+    def test_switching_to_tns_clears_the_direct_fields(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        run_cli([
+            "connection", "update", "alvo", "--mode", "tns",
+            "--tns-path", "C:/tns", "--tns-name", "ORCL",
+        ])
+        conn = find_connection("alvo")
+        assert conn.tns_name == "ORCL"
+        assert conn.host is None and conn.service_name is None
+
+    def test_unknown_name_exits_2(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "update", "inexistente", "--host", "h"])
+        assert exc.value.code == 2
+
+    def test_failing_test_flag_exits_3_and_keeps_the_stored_version(
+        self, tmp_config_dir, monkeypatch
+    ):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setattr("dbqm.cli.test_connection", lambda conn: (False, "falhou"))
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "update", "alvo", "--host", "novo", "--test"])
+        assert exc.value.code == 3
+        assert find_connection("alvo").host == "velho.example.com"
+
+    def test_json_format_reports_the_outcome(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        self._seed(monkeypatch)
+        capsys.readouterr()
+        run_cli(["connection", "update", "alvo", "--host", "h", "-f", "json"])
+        assert json.loads(capsys.readouterr().out) == {"name": "alvo", "updated": True}
