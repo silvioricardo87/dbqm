@@ -629,6 +629,67 @@ async def test_connections_save_blank_password_keeps_the_stored_one(tmp_config_d
 
 
 @pytest.mark.asyncio
+async def test_connections_save_whitespace_password_keeps_the_stored_one(tmp_config_dir):
+    """A field holding only spaces is blank to the person typing it.
+
+    Before the rules moved to `core/connection_builder.py`, the screen stripped
+    this field, so whitespace became "" and meant "keep the stored password".
+    The move made the field unstripped — right for a password that legitimately
+    ends in a space, wrong for one that is nothing BUT spaces, which then got
+    encrypted and saved over a real credential.
+    """
+    from dbqm.core.crypto import decrypt
+    from dbqm.models.connection import find_connection
+
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "dev_oracle"
+        screen.query_one("#conn-form-type", Select).value = "oracle"
+        screen.query_one("#conn-form-mode", Select).value = "direct"
+        await pilot.pause()
+        screen.query_one("#conn-form-user", Input).value = "admin"
+        screen.query_one("#conn-form-pass", Input).value = "   "
+        screen._handle_save()
+        await pilot.pause()
+
+    conn = find_connection("dev_oracle")
+    assert decrypt(conn.password) == "s3cret", (
+        "a whitespace-only password field must keep the stored password, "
+        "not overwrite it with whitespace"
+    )
+
+
+@pytest.mark.asyncio
+async def test_connections_save_keeps_spaces_inside_a_real_password(tmp_config_dir):
+    """The counterpart: a password with real content keeps its spaces verbatim.
+
+    Guards the fix above from being written as a plain `.strip()` on the value,
+    which would silently corrupt any password that begins or ends with a space.
+    """
+    from dbqm.core.crypto import decrypt
+    from dbqm.models.connection import find_connection
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "com_espaco"
+        screen.query_one("#conn-form-type", Select).value = "mysql"
+        await pilot.pause()
+        screen.query_one("#conn-form-user", Input).value = "root"
+        screen.query_one("#conn-form-pass", Input).value = " pw "
+        screen._handle_save()
+        await pilot.pause()
+
+    conn = find_connection("com_espaco")
+    assert decrypt(conn.password) == " pw ", (
+        "surrounding spaces in a real password must survive"
+    )
+
+
+@pytest.mark.asyncio
 async def test_connections_save_without_a_name_saves_nothing(tmp_config_dir):
     """Characterisation: the name is the one hard requirement."""
     from dbqm.models.connection import load_connections

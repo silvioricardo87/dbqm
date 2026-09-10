@@ -615,9 +615,13 @@ class ConnectionsScreen(Vertical):
         }
 
         # Omitted, not blank: an absent key means "keep the stored password".
-        # Not stripped either — a password may end in a space.
+        # The PRESENCE test strips, the VALUE does not — those are two
+        # different questions. A field holding only spaces is blank to the
+        # person who typed it and must not overwrite a stored credential; a
+        # password that merely ends in a space is a real password and must
+        # survive verbatim.
         password = self.query_one("#conn-form-pass", Input).value
-        if password:
+        if password.strip():
             values["password"] = password
         return values
 
