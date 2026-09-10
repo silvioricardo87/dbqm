@@ -805,10 +805,48 @@ def _connection_show(args: argparse.Namespace) -> None:
     console.print(table)
 
 
+def _connection_rm(args: argparse.Namespace) -> None:
+    from dbqm.models.connection import delete_connection, find_connection
+
+    if find_connection(args.name) is None:
+        console.print(
+            f'[ds.op.failure]Conexao "{args.name}" nao encontrada.[/ds.op.failure]'
+        )
+        sys.exit(2)
+
+    if not args.yes:
+        # Refuse rather than prompt when there is no terminal: a script that
+        # hangs on an unanswerable question is worse than one that fails.
+        if not sys.stdin.isatty():
+            console.print(
+                "[ds.op.failure]Use --yes para remover sem confirmacao."
+                "[/ds.op.failure]"
+            )
+            sys.exit(2)
+        resposta = input(f'Remover a conexao "{args.name}"? [s/N] ').strip().lower()
+        if resposta not in ("s", "sim"):
+            console.print("Cancelado.")
+            return
+
+    delete_connection(args.name)
+    _print_connection_outcome(args.format, args.name, "removed")
+
+
+def _connection_list(args: argparse.Namespace) -> None:
+    """The same listing as `dbqm list connections`.
+
+    Three lines of delegation so that `dbqm connection --help` shows a whole
+    CRUD; without it, whoever reads that help cannot find the listing verb.
+    """
+    cmd_list(argparse.Namespace(resource="connections", format=args.format))
+
+
 _CONNECTION_SUBCOMMANDS = {
     "add": _connection_add,
     "update": _connection_update,
+    "rm": _connection_rm,
     "show": _connection_show,
+    "list": _connection_list,
 }
 
 
@@ -953,6 +991,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_conn_show = conn_sub.add_parser("show", help="Ver uma conexao (senha omitida)")
     p_conn_show.add_argument("name", help="Nome da conexao")
     p_conn_show.add_argument("-f", "--format", choices=["table", "json"],
+                             default="table", help="Formato de saida")
+
+    p_conn_rm = conn_sub.add_parser("rm", help="Remover uma conexao")
+    p_conn_rm.add_argument("name", help="Nome da conexao")
+    p_conn_rm.add_argument("--yes", action="store_true",
+                           help="Remover sem confirmacao (obrigatorio fora do terminal)")
+    p_conn_rm.add_argument("-f", "--format", choices=["table", "json"],
+                           default="table", help="Formato de saida")
+
+    p_conn_list = conn_sub.add_parser("list", help="Listar conexoes")
+    p_conn_list.add_argument("-f", "--format", choices=["table", "json"],
                              default="table", help="Formato de saida")
 
     return parser

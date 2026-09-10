@@ -1263,3 +1263,115 @@ class TestConnectionUpdate:
         capsys.readouterr()
         run_cli(["connection", "update", "alvo", "--host", "h", "-f", "json"])
         assert json.loads(capsys.readouterr().out) == {"name": "alvo", "updated": True}
+
+
+class TestConnectionRemoveAndList:
+    def _seed(self, monkeypatch, name="alvo"):
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", name, "--type", "mysql", "--host", "h",
+                 "--no-password"])
+
+    def test_rm_with_yes_removes(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        run_cli(["connection", "rm", "alvo", "--yes"])
+        assert find_connection("alvo") is None
+
+    def test_rm_without_yes_and_without_a_tty_exits_2(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "rm", "alvo"])
+        assert exc.value.code == 2
+        assert find_connection("alvo") is not None, "a refusal must not remove"
+
+    def test_rm_on_a_tty_asks_and_honours_a_no(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+        run_cli(["connection", "rm", "alvo"])
+        assert find_connection("alvo") is not None
+
+    def test_rm_on_a_tty_honours_a_yes(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "s")
+        run_cli(["connection", "rm", "alvo"])
+        assert find_connection("alvo") is None
+
+    def test_rm_unknown_name_exits_2(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "rm", "inexistente", "--yes"])
+        assert exc.value.code == 2
+
+    def test_rm_json_format_reports_the_outcome(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        self._seed(monkeypatch)
+        capsys.readouterr()
+        run_cli(["connection", "rm", "alvo", "--yes", "-f", "json"])
+        assert json.loads(capsys.readouterr().out) == {"name": "alvo", "removed": True}
+
+    def test_list_matches_list_connections(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        self._seed(monkeypatch, "a")
+        self._seed(monkeypatch, "b")
+
+        capsys.readouterr()
+        run_cli(["connection", "list", "-f", "json"])
+        via_group = json.loads(capsys.readouterr().out)
+
+        run_cli(["list", "connections", "-f", "json"])
+        via_list = json.loads(capsys.readouterr().out)
+
+        assert via_group == via_list
+        assert [item["name"] for item in via_group] == ["a", "b"]
+
+
+class TestConnectionShow:
+    def test_show_redacts_the_password(self, tmp_config_dir, monkeypatch, capsys):
+        import io
+        from dbqm.cli import run_cli
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("s3cret\n"))
+        run_cli(["connection", "add", "alvo", "--type", "mysql", "--host", "h",
+                 "--user", "u", "--password-stdin"])
+
+        capsys.readouterr()
+        run_cli(["connection", "show", "alvo", "-f", "json"])
+        data = json.loads(capsys.readouterr().out)
+
+        assert data["password"] == "***"
+        assert "s3cret" not in json.dumps(data)
+        assert data["host"] == "h"
+
+    def test_show_reports_an_empty_password_as_empty(self, tmp_config_dir,
+                                                     monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "sem", "--type", "mysql", "--no-password"])
+        capsys.readouterr()
+        run_cli(["connection", "show", "sem", "-f", "json"])
+        assert json.loads(capsys.readouterr().out)["password"] == ""
+
+    def test_show_unknown_name_exits_2(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "show", "inexistente"])
+        assert exc.value.code == 2
