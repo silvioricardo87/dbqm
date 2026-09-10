@@ -87,7 +87,7 @@ class TestBuildParser:
 
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "sql", "test", "list", "ddl",
-                    "export-config", "import-config", "history"}
+                    "export-config", "import-config", "history", "connection"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -1031,3 +1031,130 @@ class TestConfigBundlePassword:
             run_cli(["import-config", "file.dbqm"])
         assert exc.value.code == 2
         spy.assert_not_called()
+
+
+class TestConnectionAdd:
+    def _run(self, argv, monkeypatch, stdin_text=None):
+        import io
+        from dbqm.cli import run_cli
+
+        if stdin_text is not None:
+            monkeypatch.setattr("sys.stdin", io.StringIO(stdin_text))
+        return run_cli(argv)
+
+    def test_creates_a_mysql_connection(self, tmp_config_dir, monkeypatch):
+        from dbqm.core.crypto import decrypt
+        from dbqm.models.connection import find_connection
+
+        self._run([
+            "connection", "add", "local", "--type", "mysql",
+            "--host", "127.0.0.1", "--user", "root", "--password-stdin",
+        ], monkeypatch, stdin_text="pw\n")
+
+        conn = find_connection("local")
+        assert conn is not None
+        assert conn.db_type == "mysql"
+        assert conn.host == "127.0.0.1"
+        assert conn.port == 3306, "the engine default port must be applied"
+        assert decrypt(conn.password) == "pw"
+
+    def test_creates_an_oracle_tns_connection(self, tmp_config_dir, monkeypatch):
+        from dbqm.models.connection import find_connection
+
+        self._run([
+            "connection", "add", "tnsconn", "--type", "oracle", "--mode", "tns",
+            "--tns-path", "C:/tns", "--tns-name", "ORCL",
+            "--user", "sys", "--password-stdin",
+        ], monkeypatch, stdin_text="pw\n")
+
+        conn = find_connection("tnsconn")
+        assert conn.tns_name == "ORCL"
+        assert conn.host is None, "TNS mode must not persist a host"
+
+    def test_no_password_creates_without_one(self, tmp_config_dir, monkeypatch):
+        from dbqm.models.connection import find_connection
+
+        self._run([
+            "connection", "add", "sem", "--type", "mysql", "--no-password",
+        ], monkeypatch)
+        assert find_connection("sem").password == ""
+
+    def test_password_from_the_environment(self, tmp_config_dir, monkeypatch):
+        from dbqm.core.crypto import decrypt
+        from dbqm.models.connection import find_connection
+
+        monkeypatch.setenv("DBQM_PASSWORD", "env-pw")
+        self._run(["connection", "add", "env", "--type", "mysql"], monkeypatch)
+        assert decrypt(find_connection("env").password) == "env-pw"
+
+    def test_duplicate_name_exits_2_and_changes_nothing(self, tmp_config_dir, monkeypatch):
+        from dbqm.models.connection import find_connection
+
+        self._run([
+            "connection", "add", "dup", "--type", "mysql", "--host", "a",
+            "--no-password",
+        ], monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            self._run([
+                "connection", "add", "dup", "--type", "oracle", "--no-password",
+            ], monkeypatch)
+        assert exc.value.code == 2
+        assert find_connection("dup").db_type == "mysql"
+
+    def test_invalid_db_type_exits_2_with_the_dbqm_message(self, tmp_config_dir,
+                                                           monkeypatch, capsys):
+        with pytest.raises(SystemExit) as exc:
+            self._run([
+                "connection", "add", "x", "--type", "sqlite", "--no-password",
+            ], monkeypatch)
+        assert exc.value.code == 2
+        assert "Tipo de banco invalido" in capsys.readouterr().out
+
+    def test_missing_db_type_exits_2(self, tmp_config_dir, monkeypatch):
+        with pytest.raises(SystemExit) as exc:
+            self._run(["connection", "add", "x", "--no-password"], monkeypatch)
+        assert exc.value.code == 2
+
+    def test_no_password_source_without_a_tty_exits_2(self, tmp_config_dir, monkeypatch):
+        from dbqm.models.connection import load_connections
+
+        monkeypatch.delenv("DBQM_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        with pytest.raises(SystemExit) as exc:
+            self._run(["connection", "add", "x", "--type", "mysql"], monkeypatch)
+        assert exc.value.code == 2
+        assert load_connections() == []
+
+    def test_failing_test_flag_exits_3_and_saves_nothing(self, tmp_config_dir, monkeypatch):
+        from dbqm.models.connection import load_connections
+
+        monkeypatch.setattr("dbqm.cli.test_connection",
+                            lambda conn: (False, "ORA-12154: TNS nao resolvido"))
+        with pytest.raises(SystemExit) as exc:
+            self._run([
+                "connection", "add", "x", "--type", "mysql", "--no-password",
+                "--test",
+            ], monkeypatch)
+        assert exc.value.code == 3
+        assert load_connections() == [], "a connection that fails --test must not be saved"
+
+    def test_passing_test_flag_saves(self, tmp_config_dir, monkeypatch):
+        from dbqm.models.connection import find_connection
+
+        monkeypatch.setattr("dbqm.cli.test_connection", lambda conn: (True, "OK"))
+        self._run([
+            "connection", "add", "x", "--type", "mysql", "--no-password", "--test",
+        ], monkeypatch)
+        assert find_connection("x") is not None
+
+    def test_json_format_reports_the_outcome(self, tmp_config_dir, monkeypatch, capsys):
+        self._run([
+            "connection", "add", "j", "--type", "mysql", "--no-password",
+            "-f", "json",
+        ], monkeypatch)
+        assert json.loads(capsys.readouterr().out) == {"name": "j", "created": True}
+
+    def test_bare_connection_command_exits_2(self, tmp_config_dir, monkeypatch):
+        with pytest.raises(SystemExit) as exc:
+            self._run(["connection"], monkeypatch)
+        assert exc.value.code == 2

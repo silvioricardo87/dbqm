@@ -60,6 +60,38 @@ def _parse_params(param_list: list[str] | None) -> dict:
     return params
 
 
+def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
+    """The connection fields, shared by `connection add` and `connection update`.
+
+    Nothing here is `required` and `--type` carries no `choices`: a missing or
+    invalid value is reported by `connection_builder.validate`, so the user
+    meets one error vocabulary instead of argparse's next to dbqm's.
+    """
+    parser.add_argument("--type", dest="db_type",
+                        help="Tipo de banco: oracle, sqlserver, postgresql ou mysql")
+    parser.add_argument("--mode", help="Modo Oracle: direct ou tns (padrao: direct)")
+    parser.add_argument("--host", help="Host do servidor")
+    parser.add_argument("--port", help="Porta (padrao: a do tipo de banco)")
+    parser.add_argument("--service", dest="service_name",
+                        help="Service name (Oracle, modo direct)")
+    parser.add_argument("--database", help="Nome do banco (SQL Server/PostgreSQL/MySQL)")
+    parser.add_argument("--tns-path", dest="tns_path",
+                        help="Caminho do tnsnames.ora (Oracle, modo tns)")
+    parser.add_argument("--tns-name", dest="tns_name",
+                        help="Entrada do tnsnames.ora (Oracle, modo tns)")
+    parser.add_argument("--user", help="Usuario do banco")
+    parser.add_argument("--description", help="Anotacao livre sobre a conexao")
+    senha = parser.add_mutually_exclusive_group()
+    senha.add_argument("--password-stdin", action="store_true", dest="password_stdin",
+                       help="Ler a senha de uma linha na entrada padrao")
+    senha.add_argument("--no-password", action="store_true", dest="no_password",
+                       help="Gravar sem senha (ou, em update, apagar a guardada)")
+    parser.add_argument("--test", action="store_true", dest="test_before_save",
+                        help="Testar a conexao antes de gravar; se falhar, nao grava")
+    parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
+
+
 def resolve_password(
     args: argparse.Namespace, env_var: str, prompt: str, *, required: bool
 ) -> str | None:
@@ -620,6 +652,130 @@ def cmd_history(args: argparse.Namespace) -> None:
     console.print(table)
 
 
+_CONNECTION_OUTCOME_TEXT = {
+    "created": "criada",
+    "updated": "atualizada",
+    "removed": "removida",
+}
+
+
+def _print_connection_outcome(output_format: str, name: str, outcome: str) -> None:
+    if output_format == "json":
+        print(json.dumps({"name": name, outcome: True}, ensure_ascii=False))
+        return
+    console.print(f'Conexao "{name}" {_CONNECTION_OUTCOME_TEXT[outcome]}.')
+
+
+def _connection_values(args: argparse.Namespace, password: str | None) -> dict:
+    """Only the flags actually given. A flag left out must not overwrite.
+
+    `None` means "not mentioned on this command line" — dropped here so that
+    `build` sees an absent key, which for the password is what means "keep the
+    stored one".
+    """
+    values = {
+        "name": args.name,
+        "db_type": args.db_type,
+        "mode": args.mode,
+        "host": args.host,
+        "port": args.port,
+        "service_name": args.service_name,
+        "database": args.database,
+        "tns_path": args.tns_path,
+        "tns_name": args.tns_name,
+        "user": args.user,
+        "description": args.description,
+        "password": password,
+    }
+    return {key: value for key, value in values.items() if value is not None}
+
+
+def _exit_with_errors(errors: list[str]) -> None:
+    for error in errors:
+        console.print(f"[ds.op.failure]{error}[/ds.op.failure]")
+    sys.exit(2)
+
+
+def _connection_add(args: argparse.Namespace) -> None:
+    from dbqm.core.connection_builder import build, validate
+    from dbqm.models.connection import find_connection, load_connections, save_connections
+
+    if find_connection(args.name) is not None:
+        console.print(f'[ds.op.failure]Conexao "{args.name}" ja existe.[/ds.op.failure]')
+        sys.exit(2)
+
+    if args.no_password:
+        password = ""
+    else:
+        password = resolve_password(
+            args, "DBQM_PASSWORD", "Senha da conexao: ", required=True
+        )
+
+    values = _connection_values(args, password)
+    errors = validate(values)
+    if errors:
+        _exit_with_errors(errors)
+
+    conn = build(values)
+
+    if args.test_before_save:
+        ok, msg = test_connection(conn)
+        if not ok:
+            console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
+            console.print("[dim]Conexao nao gravada.[/dim]")
+            sys.exit(3)
+
+    connections = load_connections()
+    connections.append(conn)
+    save_connections(connections)
+    _print_connection_outcome(args.format, conn.name, "created")
+
+
+def _connection_show(args: argparse.Namespace) -> None:
+    from dbqm.models.connection import find_connection
+
+    conn = find_connection(args.name)
+    if conn is None:
+        console.print(
+            f'[ds.op.failure]Conexao "{args.name}" nao encontrada.[/ds.op.failure]'
+        )
+        sys.exit(2)
+
+    data = conn.to_dict()
+    # Never the ciphertext: the Fernet key lives next to the config, so
+    # printing it puts a decryptable password into whatever captured stdout.
+    data["password"] = "***" if conn.password else ""
+
+    if args.format == "json":
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        return
+
+    table = Table(title=f"Conexao: {conn.name}")
+    table.add_column("Campo")
+    table.add_column("Valor")
+    for key, value in data.items():
+        table.add_row(key, str(value))
+    console.print(table)
+
+
+_CONNECTION_SUBCOMMANDS = {
+    "add": _connection_add,
+    "show": _connection_show,
+}
+
+
+def cmd_connection(args: argparse.Namespace) -> None:
+    """Manage saved connections."""
+    handler = _CONNECTION_SUBCOMMANDS.get(getattr(args, "subcommand", None))
+    if handler is None:
+        console.print(
+            "[ds.op.failure]Use: dbqm connection add|update|rm|show|list"
+            "[/ds.op.failure]"
+        )
+        sys.exit(2)
+    handler(args)
+
+
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
@@ -731,6 +887,22 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Formato de saida")
     p_hist.add_argument("--clear", action="store_true", help="Limpar historico")
 
+    # --- connection ---
+    p_conn = subparsers.add_parser(
+        "connection",
+        help="Gerenciar conexoes (criar, alterar, remover, ver, listar)",
+    )
+    conn_sub = p_conn.add_subparsers(dest="subcommand")
+
+    p_conn_add = conn_sub.add_parser("add", help="Criar uma conexao")
+    p_conn_add.add_argument("name", help="Nome da conexao")
+    _add_connection_fields(p_conn_add)
+
+    p_conn_show = conn_sub.add_parser("show", help="Ver uma conexao (senha omitida)")
+    p_conn_show.add_argument("name", help="Nome da conexao")
+    p_conn_show.add_argument("-f", "--format", choices=["table", "json"],
+                             default="table", help="Formato de saida")
+
     return parser
 
 
@@ -744,6 +916,7 @@ COMMAND_MAP = {
     "export-config": cmd_export_config,
     "import-config": cmd_import_config,
     "history": cmd_history,
+    "connection": cmd_connection,
 }
 
 
