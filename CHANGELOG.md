@@ -54,6 +54,12 @@ Connections can now be created and edited from the CLI, without opening the TUI.
 - **`connection add` validates before asking for a password**, so a bad
   `--type` or missing required field is reported before a terminal user is
   prompted to type a secret.
+- **A whitespace-only password field in the TUI keeps the stored password**
+  again, instead of overwriting it with whitespace. Moving the rules into
+  `core/connection_builder.py` also stopped the screen stripping that field —
+  correct for a password that legitimately ends in a space, wrong for one that
+  is nothing but spaces. The presence test now strips; the value still does
+  not.
 
 ## [1.21.0] — 2026-08-23
 
