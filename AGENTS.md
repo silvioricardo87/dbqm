@@ -26,6 +26,19 @@ every project fact those guides need — lives only under that heading. Never ed
 a guide's body: a `diff` against the source up to that heading is the drift
 check, and a guide edited in place is a guide nobody can trust.
 
+The drift check, concretely — run it before trusting a guide, and after any
+update from the source:
+
+```bash
+# per file: the body must be identical to the source up to the marker
+diff <(sed '/^## Deviations in this project/,$d' docs/agents/COMMITS.md)      <(sed '/^## Deviations in this project/,$d' ../agents-defaults/COMMITS.md)
+```
+
+`.gitattributes` normalizes the repository to LF (`* text=auto eol=lf`) for this
+reason: without it, `core.autocrlf=true` on Windows stores CRLF, every line of
+the diff differs on line endings alone, and the check reports drift that does not
+exist.
+
 **Read the deviations sections.** dbqm predates these guides: there is no linter,
 no type checker and no lockfile, the layout is flat rather than `src/`, the CLI is
 argparse rather than typer, and the Python floor is 3.10 because users install
