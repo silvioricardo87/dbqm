@@ -442,7 +442,23 @@ def cmd_sql(args: argparse.Namespace) -> None:
         if not result.success:
             console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
             sys.exit(1)
-        console.print(f"Bloco PL/SQL executado ({result.elapsed:.2f}s)")
+        from dbqm.core.query_engine import block_label
+
+        console.print(
+            f"{block_label(result.db_type)} executado ({result.elapsed:.2f}s)"
+        )
+        if result.rows:
+            _print_query_result(
+                QueryResult(
+                    query_name="adhoc",
+                    connection_name=conn.name,
+                    columns=result.columns,
+                    rows=result.rows,
+                    row_count=result.row_count,
+                    elapsed=result.elapsed,
+                ),
+                args.format,
+            )
         for line in result.output_lines:
             console.print(line, markup=False, highlight=False)
         return

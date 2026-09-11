@@ -103,13 +103,22 @@ def classify_sql(sql: str) -> str:
     return "UNKNOWN"
 
 
-def _normalize_plsql(sql: str) -> str:
-    """Normalize PL/SQL ad-hoc input.
+def _normalize_plsql(sql: str, db_type: str = "oracle") -> str:
+    """Normalize PL/SQL ad-hoc input. **Oracle only.**
 
     - Strips the SQL*Plus block terminator (`/` on its own line).
     - Expands `EXEC`/`EXECUTE`/`CALL <body>` to `BEGIN <body>; END;`.
     - Leaves DECLARE/BEGIN blocks untouched (driver accepts them as-is).
+
+    Both rules are Oracle dialect: `/` is a SQL*Plus terminator, and
+    `BEGIN … END;` is PL/SQL. Applied to any other engine they corrupt the
+    statement — `EXEC dbo.PROC @p='1'` reached SQL Server as
+    `BEGIN dbo.PROC @p='1'; END;`, which is why the driver answered
+    `Incorrect syntax near 'dbo'`. Anything not Oracle is passed through
+    untouched: T-SQL already understands `EXEC`.
     """
+    if db_type != "oracle":
+        return sql.strip()
     s = sql.strip()
     s = re.sub(r"\s*\n\s*/\s*$", "", s)
     # Detect the verb on the comment-stripped text so a leading `-- note`
@@ -207,6 +216,10 @@ class AdhocResult:
     """Result of an ad-hoc SQL execution (SELECT or DML)."""
     sql_type: str
     connection_name: str
+    # The engine that ran it. A renderer needs this to label the outcome
+    # honestly: "Bloco PL/SQL executado" on a SQL Server connection is a lie
+    # that cost a reader real confusion.
+    db_type: str = ""
     columns: list[str] = field(default_factory=list)
     rows: list[list[Any]] = field(default_factory=list)
     row_count: int = 0
@@ -216,6 +229,55 @@ class AdhocResult:
     error: str = ""
     committed: bool = False
     output_lines: list[str] = field(default_factory=list)
+
+
+def block_label(db_type: str) -> str:
+    """What to call an anonymous block, in the dialect that ran it.
+
+    "Bloco PL/SQL executado" on a SQL Server connection names the wrong
+    language. Both front ends render the outcome, so both ask here.
+    """
+    return "Bloco T-SQL" if db_type == "sqlserver" else "Bloco PL/SQL"
+
+
+def _collect_result_sets(cursor) -> tuple[list[str], list[list[Any]], list[str]]:
+    """Walk every result set a batch produced; return the last one, and notes.
+
+    `AdhocResult` carries one grid, while a T-SQL batch can return several —
+    a procedure's own rows, then the diagnostic `SELECT @err, @msg` that the
+    debug idiom puts last. The last non-empty set is the one returned, because
+    that idiom puts the answer there.
+
+    The other sets are not dropped in silence, which was the defect being
+    fixed: each one is named in the returned notes with its shape, so the
+    output says what it is not showing.
+    """
+    sets: list[tuple[list[str], list[list[Any]]]] = []
+    while True:
+        if cursor.description:
+            cols = [
+                desc[0].lower() if desc[0] else f"col_{i}"
+                for i, desc in enumerate(cursor.description)
+            ]
+            sets.append((cols, [list(r) for r in cursor.fetchmany(MAX_ROWS)]))
+        if not cursor.nextset():
+            break
+
+    if not sets:
+        return [], [], []
+
+    columns, rows = sets[-1]
+    if len(sets) == 1:
+        return columns, rows, []
+
+    notas = [
+        f"{len(sets)} conjuntos de resultado retornados; exibindo o ultimo.",
+    ]
+    for i, (cols, linhas) in enumerate(sets[:-1], start=1):
+        notas.append(
+            f"  conjunto {i}: {len(linhas)} linha(s), colunas: {', '.join(cols)}"
+        )
+    return columns, rows, notas
 
 
 def _read_dbms_output(cursor) -> list[str]:
@@ -257,12 +319,13 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     if sql_type in ("SELECT", "INSERT", "UPDATE", "DELETE", "EXPLAIN"):
         sql = sql.rstrip(";")
     elif sql_type == "PLSQL":
-        sql = _normalize_plsql(sql)
+        sql = _normalize_plsql(sql, conn.db_type)
 
     if sql_type == "UNKNOWN":
         return AdhocResult(
             sql_type=sql_type,
             connection_name=conn.name,
+            db_type=conn.db_type,
             success=False,
             error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL (CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
         )
@@ -300,6 +363,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                db_type=conn.db_type,
                 columns=columns,
                 rows=rows,
                 row_count=len(rows),
@@ -315,6 +379,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                db_type=conn.db_type,
                 elapsed=elapsed,
                 committed=True,
                 error=compilation_errors,
@@ -322,12 +387,25 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             )
         elif sql_type == "PLSQL":
             output_lines = _read_dbms_output(cursor) if capture_dbms_output else []
+            columns: list[str] = []
+            rows: list[list[Any]] = []
+            if conn.db_type != "oracle":
+                # A T-SQL batch returns result sets; an Oracle block never does
+                # (it speaks through DBMS_OUTPUT or a REF CURSOR). Reading them
+                # is the whole difference between debugging a procedure here and
+                # having to open a second tool.
+                columns, rows, set_notes = _collect_result_sets(cursor)
+                output_lines = output_lines + set_notes
             cursor.close()
             db.close()
             db = None
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                db_type=conn.db_type,
+                columns=columns,
+                rows=rows,
+                row_count=len(rows),
                 elapsed=elapsed,
                 committed=True,
                 success=True,
@@ -343,6 +421,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
+                    db_type=conn.db_type,
                     columns=columns,
                     rows=rows,
                     row_count=len(rows),
@@ -356,6 +435,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                db_type=conn.db_type,
                 elapsed=elapsed,
                 committed=True,
                 success=True,
@@ -369,6 +449,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
+                    db_type=conn.db_type,
                     rows_affected=rows_affected,
                     elapsed=elapsed,
                     committed=True,
@@ -381,6 +462,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
+                    db_type=conn.db_type,
                     rows_affected=rows_affected,
                     elapsed=elapsed,
                     output_lines=output_lines,
@@ -390,6 +472,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
         return AdhocResult(
             sql_type=sql_type,
             connection_name=conn.name,
+            db_type=conn.db_type,
             success=False,
             error=str(e).split('\n')[0][:500],
         )
@@ -421,6 +504,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
         return AdhocResult(
             sql_type="EXPLAIN",
             connection_name=conn.name,
+            db_type=conn.db_type,
             success=False,
             error="Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
         )
@@ -448,6 +532,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
             return AdhocResult(
                 sql_type="EXPLAIN",
                 connection_name=conn.name,
+                db_type=conn.db_type,
                 columns=["plan"],
                 rows=rows,
                 row_count=len(rows),
@@ -457,6 +542,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
             return AdhocResult(
                 sql_type="EXPLAIN",
                 connection_name=conn.name,
+                db_type=conn.db_type,
                 success=False,
                 error=str(e).split("\n")[0][:500],
             )
@@ -473,6 +559,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
     return AdhocResult(
         sql_type="EXPLAIN",
         connection_name=conn.name,
+        db_type=conn.db_type,
         success=False,
         error=f"--explain ainda nao e suportado para {conn.db_type}.",
     )

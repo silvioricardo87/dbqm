@@ -865,3 +865,93 @@ class TestExecuteExplain:
         result = execute_explain("SELECT 1", conn, {})
         assert not result.success
         assert "sqlserver" in result.error
+
+
+class TestSqlServerAdhoc:
+    """B10 — a T-SQL batch must not be rewritten, and must not lose its rows.
+
+    No SQL Server is reachable from the suite, so these drive the seam that was
+    wrong: the normalization decision and the result-set walk.
+    """
+
+    def test_exec_is_not_rewritten_for_sqlserver(self):
+        from dbqm.core.query_engine import _normalize_plsql
+
+        sql = "EXEC dbo.ASDP_Consulta_Broker_CNPJ @P_BROKER_ID = '12345'"
+        assert _normalize_plsql(sql, "sqlserver") == sql, (
+            "T-SQL already understands EXEC; wrapping it in BEGIN/END is what "
+            "produced \"Incorrect syntax near 'dbo'\""
+        )
+
+    def test_exec_is_still_expanded_for_oracle(self):
+        from dbqm.core.query_engine import _normalize_plsql
+
+        out = _normalize_plsql("EXEC minha_proc(1)", "oracle")
+        assert out == "BEGIN minha_proc(1); END;"
+
+    def test_sqlplus_terminator_is_not_stripped_for_sqlserver(self):
+        from dbqm.core.query_engine import _normalize_plsql
+
+        sql = "DECLARE @x INT\n/"
+        assert _normalize_plsql(sql, "sqlserver") == sql
+
+    def test_block_label_follows_the_dialect(self):
+        from dbqm.core.query_engine import block_label
+
+        assert block_label("sqlserver") == "Bloco T-SQL"
+        assert block_label("oracle") == "Bloco PL/SQL"
+        assert block_label("postgresql") == "Bloco PL/SQL"
+
+
+class _FakeCursor:
+    """A cursor over a scripted list of result sets, like pymssql's."""
+
+    def __init__(self, conjuntos):
+        self._conjuntos = list(conjuntos)
+        self._i = 0
+
+    @property
+    def description(self):
+        cols, _ = self._conjuntos[self._i]
+        return [(c,) for c in cols] if cols else None
+
+    def fetchmany(self, n):
+        return list(self._conjuntos[self._i][1])
+
+    def nextset(self):
+        if self._i + 1 < len(self._conjuntos):
+            self._i += 1
+            return True
+        return False
+
+
+class TestCollectResultSets:
+    def test_single_set_is_returned_as_is(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        cur = _FakeCursor([(["v"], [[1]])])
+        columns, rows, notas = _collect_result_sets(cur)
+        assert columns == ["v"]
+        assert rows == [[1]]
+        assert notas == []
+
+    def test_last_set_wins_and_the_others_are_named(self):
+        """The debug idiom puts the diagnostic SELECT last."""
+        from dbqm.core.query_engine import _collect_result_sets
+
+        cur = _FakeCursor([
+            (["id", "nome"], [[1, "a"], [2, "b"]]),
+            (["erro", "mensagem"], [[547, "conflito de FK"]]),
+        ])
+        columns, rows, notas = _collect_result_sets(cur)
+        assert columns == ["erro", "mensagem"]
+        assert rows == [[547, "conflito de FK"]]
+        assert notas, "the dropped set must be reported, not silently lost"
+        assert "2 conjuntos" in notas[0]
+        assert "id, nome" in notas[1]
+
+    def test_a_batch_with_no_result_set_stays_empty(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        cur = _FakeCursor([([], [])])
+        assert _collect_result_sets(cur) == ([], [], [])
