@@ -20,7 +20,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Shared components** — `Dialog` (floating-layer chrome), `EmptyState` (mandatory what/why/first-action for empty lists), `Veredito`/`StatusOperacao` (match/diff/absent + op-result markup), and `Esqueleto` (loading skeleton + distinct disabled/read-only states) are the single implementation for their respective jobs across the TUI; zero literal colors remain outside the token layer, and all four are locked against a second hand-rolled copy reappearing — `Dialog`, `EmptyState` and `Esqueleto` by the component-inventory guards in `tests/design/test_inventory.py`, `Veredito` by its own guard in `tests/ui/test_widgets.py`
 - **Layout grammar** — Structure is decided once for the whole TUI, not per screen: `Panel` is the only section frame (a screen taller than the terminal scrolls instead of truncating in silence); navigation follows cardinality (tabs → `Select` with counts → `OptionList` → `DataTable`, with `ListView` out of the vocabulary); a list item is a 2–3 line hierarchy (identity / disambiguation / context) instead of a concatenated string; a result table pins its key column, stripes its rows and scrolls sideways rather than truncating; and actions are anchored to the panel they operate, with destructive ones set apart. Six repo-wide guards in `tests/design/test_layout_inventory.py` enforce it — each one verified by breaking the rule it protects, and each one documenting in code what it cannot see
 - **Toggle mapping** — Switch between mapped (DE-PARA) and original values in query and group results
-- **Data export** — Export results to CSV, JSON, TXT, PNG, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
+- **Data export** — Export results to CSV, JSON, TXT, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
 - **Connections from the CLI** — `dbqm connection add|update|rm|show|list` creates and edits connections without the TUI, for scripts, CI and AI agents. `--password-stdin` and the `DBQM_PASSWORD` environment variable keep secrets off the command line and out of shell history; `--test` refuses to save a connection that does not answer. `update` changes only the flags you pass — including the password: it is changed only via `--password-stdin` or `--no-password` on that command, never by an ambient `DBQM_PASSWORD` left over from another command. `show` never prints the password. The rules are shared with the TUI (`core/connection_builder.py`), so both front ends validate and default identically.
 - **Connection descriptions** — Attach free-form notes to each connection (purpose, schema, contacts); a one-line preview is shown alongside type and destination in the connections list
@@ -45,7 +45,15 @@ Release history is in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Installation
 
-### From source (pip install)
+```bash
+pip install dbqm
+```
+
+That installs the `dbqm` command globally, with the Oracle, PostgreSQL, MySQL
+and SQL Server drivers (see [Windows on ARM](#windows-on-arm-win-arm64) for the
+one platform where some of them are skipped).
+
+### From source
 
 ```bash
 git clone https://github.com/silvioricardo87/dbqm.git
@@ -53,7 +61,7 @@ cd dbqm
 pip install .
 ```
 
-This installs the `dbqm` command globally. For development:
+For development, with the test dependencies:
 
 ```bash
 pip install -e ".[dev]"
@@ -114,11 +122,11 @@ On first launch, the app creates its data directory (`~/.dbqm`), prompts you to 
 # Show version
 dbqm --version
 
-# Execute a saved query
-dbqm run <query-name> --param1 value1
+# Execute a saved query (parameters are -p CHAVE=VALOR, repeat for each one)
+dbqm run <query-name> -p data_inicio=2026-01-01 -p situacao=PAGO
 
-# Execute a query group
-dbqm run-group <group-name> --param1 value1
+# Execute a query group (parameters are shared by every query in it)
+dbqm run-group <group-name> -p data_inicio=2026-01-01
 
 # Execute ad-hoc SQL (SELECT/CTE, DML with --commit, DDL, PL/SQL anonymous blocks with DBMS_OUTPUT)
 dbqm sql "SELECT * FROM table" <connection>
@@ -251,98 +259,6 @@ Groups run the same logical query across multiple databases and compare results:
 - Export as HTML report with interactive filters
 - **Report templates**: attach a template to a group, configure field sources (auto from query results or manual input), and render formatted reports after execution
 
-## Project Structure
-
-```
-dbqm/
-├── pyproject.toml                 # Package metadata & dependencies
-├── dbqm/
-│   ├── _version.py                # Package version
-│   ├── main.py                    # Entry point (TUI + CLI dispatch)
-│   ├── __main__.py                # python -m dbqm support
-│   ├── cli.py                     # Non-interactive CLI
-│   ├── design/
-│   │   └── tokens.py               # Design tokens — one source consumed by TUI, CLI and HTML report
-│   ├── ui/
-│   │   ├── app.py                 # Main Textual App (layout, routing, keybindings)
-│   │   ├── theme.py               # Plano Dark/Light theme definitions (built on dbqm/design/tokens.py)
-│   │   ├── utils.py               # sanitize_id, escape_markup utilities
-│   │   ├── screens/               # Screen widgets (one per feature)
-│   │   │   ├── query_exec.py      # Execute saved query
-│   │   │   ├── query_manage.py    # Query CRUD, DE-PARA, SQL viewer
-│   │   │   ├── group_exec.py      # Execute group comparison
-│   │   │   ├── group_manage.py    # Group CRUD
-│   │   │   ├── template_manage.py # Template CRUD
-│   │   │   ├── adhoc.py           # Ad-hoc SQL execution
-│   │   │   ├── ferramentas.py     # Ferramentas tab (DDL, rotinas, editor de package)
-│   │   │   ├── group_run.py       # Group execution runner (shared by tab and CLI)
-│   │   │   ├── exec_routine.py     # Execute packages, procedures, functions
-│   │   │   ├── browser.py         # Object browser (tables, views, packages)
-│   │   │   ├── history.py         # Execution history
-│   │   │   ├── connections.py     # Connection management
-│   │   │   ├── package_editor.py   # Oracle package editor (spec/body, compile)
-│   │   │   ├── settings.py        # Theme, audit toggle, export/import
-│   │   │   ├── config_port.py     # Config export/import (used by settings)
-│   │   │   └── oracle_clients.py  # Download/extract/remove Oracle Instant Clients
-│   │   ├── widgets/               # Reusable UI components
-│   │   │   ├── templates_sidebar.py  # Collapsible templates sidebar with keyboard nav
-│   │   │   ├── breadcrumb.py      # Navigation breadcrumb
-│   │   │   ├── result_table.py    # DataTable with pinned key column, zebra, pagination + record mode
-│   │   │   ├── query_list.py      # Query OptionList with search/filter
-│   │   │   ├── group_result.py    # Flat/pivoted comparison display
-│   │   │   ├── sql_viewer.py      # Syntax-highlighted SQL display
-│   │   │   ├── action_bar.py      # Contextual keyboard shortcuts bar
-│   │   │   ├── status_bar.py      # Connection status + counters
-│   │   │   ├── progress.py        # Loading indicator
-│   │   │   ├── panel.py           # Bordered panel consuming $painel/$borda tokens — the only section frame
-│   │   │   ├── lista_hierarquica.py  # item_hierarquico — 2-3 line list item (identity/disambiguation/context)
-│   │   │   ├── dialog.py          # Dialog chrome for floating layers (replaces 29 hand-copied frames)
-│   │   │   ├── empty_state.py     # EmptyState — mandatory "what/why/first action" for empty lists
-│   │   │   ├── veredito.py        # Veredito/StatusOperacao markup (match/diff/absent, op result color)
-│   │   │   └── esqueleto.py       # Loading skeleton + distinct disabled/read-only states
-│   │   └── modals/                # Dialog screens
-│   │       ├── param_input.py     # Query parameter input
-│   │       ├── confirm.py         # Yes/No confirmation
-│   │       ├── text_input.py      # Single text input
-│   │       ├── export_picker.py   # Export format selector
-│   │       ├── export_dir_setup.py     # Default export directory
-│   │       ├── oracle_client_dir.py    # Oracle Instant Client directory
-│   │       ├── column_maps.py     # DE-PARA value mapping
-│   │       ├── error.py           # Error display modal
-│   │       └── help.py            # Keyboard shortcuts overlay
-│   ├── core/                      # Business logic (database-agnostic)
-│   │   ├── paths.py               # Centralized path resolution (~/.dbqm)
-│   │   ├── connection_builder.py  # Connection validation, per-engine defaults, encryption (TUI + CLI)
-│   │   ├── db_manager.py          # Connection handling
-│   │   ├── query_engine.py        # SQL execution + parameter binding
-│   │   ├── group_engine.py        # Multi-database comparison
-│   │   ├── exporter.py            # Export (CSV, JSON, TXT, PNG)
-│   │   ├── html_report.py         # HTML comparison reports
-│   │   ├── ddl_extractor.py       # Oracle DDL (DBMS_METADATA)
-│   │   ├── ddl_pg.py              # PostgreSQL DDL
-│   │   ├── ddl_mysql.py           # MySQL DDL
-│   │   ├── object_browser.py      # Database object introspection
-│   │   ├── table_browser.py       # Table data browsing
-│   │   ├── package_editor.py       # Oracle package compile + errors
-│   │   ├── crypto.py              # Password encryption
-│   │   ├── config_portability.py  # Config import/export
-│   │   ├── history.py             # Execution history
-│   │   ├── oracle_client_installer.py  # Detect host + download/extract Oracle Instant Client
-│   │   └── audit.py               # Audit logging
-│   └── models/                    # Data models (JSON persistence)
-│       ├── connection.py          # Connection config
-│       ├── query.py               # Query definition
-│       ├── group.py               # Query group config
-│       └── settings.py            # App settings (theme, audit)
-├── config/                        # JSON configs (gitignored)
-├── exports/                       # Generated output files (gitignored)
-└── tests/                         # Test suite (1038 tests)
-    ├── core/                      # Core logic tests
-    ├── models/                    # Model tests
-    ├── design/                    # Design-system guards (color tokens, contrast, layout grammar)
-    └── ui/                        # TUI widget/screen/modal tests
-```
-
 ## Key Dependencies
 
 | Library | Purpose |
@@ -355,7 +271,6 @@ dbqm/
 | `PyMySQL` | MySQL database driver |
 | `cryptography` | Fernet encryption for credentials |
 | `sqlparse` | SQL analysis and classification |
-| `Pillow` | PNG screenshot export |
 
 ## Security
 
