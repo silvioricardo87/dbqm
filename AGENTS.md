@@ -37,7 +37,7 @@ Opt-in extras: `oracle`, `postgres`, `sqlserver`, and `dev` (pytest + pytest-asy
 dbqm/
 ├── main.py            # App bootstrap (console-script target: dbqm.main:main)
 ├── __main__.py        # `python -m dbqm` — routes to CLI or TUI
-├── cli.py             # Non-interactive CLI (sql, run, group, list, history, ...)
+├── cli.py             # Non-interactive CLI (sql, run, run-group, connection, list, ...)
 ├── _version.py        # __version__ (SemVer; read by pyproject.toml)
 ├── design/            # Design tokens (colors, contrast floors); imports nothing from dbqm
 │   └── tokens.py       # TOKENS_CLARO / TOKENS_ESCURO / TEMAS, one source for TUI + CLI + HTML report
@@ -54,6 +54,8 @@ dbqm/
 │   ├── html_report.py         # HTML report generation
 │   ├── history.py / audit.py  # Execution history and audit log
 │   ├── crypto.py              # Fernet password encryption
+│   ├── connection_builder.py  # Connection rules: validation, per-engine defaults,
+│   │                          #   encryption, create-vs-update. Shared by TUI + CLI
 │   ├── config_portability.py  # Import/export of config bundles
 │   ├── oracle_client_installer.py  # Oracle Instant Client bootstrap
 │   └── paths.py               # CONFIG_DIR / SETTINGS_FILE resolution (honors DBQM_HOME)
@@ -93,7 +95,8 @@ skip a step, never commit with failing tests, always publish after push:
 2. **Create/update tests** for the changed functionality
 3. **Run all tests** (`python -m pytest tests/ -x -q`)
 4. **Bump version** in `dbqm/_version.py` (SemVer — see below)
-5. **Update README.md** if features/structure/test-count changed
+5. **Update README.md** if features or documented commands changed (it is also
+   the PyPI long_description, so it is the package's public page)
 6. **Commit** (Conventional Commits — see below)
 7. **Push** to remote
 8. **Publish to PyPI** (see below)
@@ -172,10 +175,31 @@ Conventional Commits: `<type>(<scope>): <description>`
   outcome. Timestamp is captured in the UI and injected so the exporter stays pure.
 
 ### CLI (`cli.py`)
-- Non-interactive commands: `sql`, `run`, `group`, `list`, `history`, etc.
+- Non-interactive commands: `sql`, `run`, `run-group`, `test`, `list`, `ddl`,
+  `history`, `export-config`, `import-config`, and the `connection` group.
 - `-f/--format`: `table | json | csv | raw` (`raw` prints values without
   decoration — for extracting CLOB/LONG sources cleanly).
 - Example: `python -m dbqm sql "<sql-or-file>" "<connection name>" -f raw`.
+- **`connection add|update|rm|show|list`** is the only CRUD reachable outside
+  the TUI. It calls `core/connection_builder.py`, never `upsert` — `add` on an
+  existing name and `update` on a missing one must be errors, so the command
+  checks existence itself and calls `build` + `save_connections`.
+  `update` is **partial**: a flag not passed changes nothing.
+- **Passwords never come from `argv`.** `resolve_password(args, env_var, prompt,
+  *, required, use_env=True)` resolves them from `--password-stdin`, then
+  `--password` (only where the command already had it), then the environment
+  variable. `getpass` runs **only** when `sys.stdin.isatty()` — on a pipe it
+  blocks forever, which is exactly how an agent hangs. Two rules exist because
+  each one was a silent credential loss: `connection update` passes
+  `use_env=False` (an ambient `DBQM_PASSWORD` is not something the user said on
+  *that* command line), and an **empty read** from `--password-stdin` is always
+  an error regardless of `required` (a closed pipe would otherwise create a
+  passwordless connection, or clear a stored password).
+- **User values are escaped before reaching Rich markup** (`rich.markup.escape`).
+  A connection name or `--type` value containing `[` used to raise `MarkupError`
+  or vanish from the very message meant to show it.
+- Exit codes for `connection`: `0` ok, `2` usage / not found / validation,
+  `3` `--test` failed. The project-wide code table is still unbuilt (backlog `X1`).
 
 ### UI conventions
 - Interactive UI labels **intentionally omit accents** (e.g. `Historico`,
@@ -305,6 +329,23 @@ to each guard before concluding "the guard is green, so the rule holds".
 > visible on purpose — a debt entry that quietly disappears teaches the next
 > reader nothing about why it was there.
 
+- **`Connection.windows_auth` is dead code.** Declared at
+  `models/connection.py:26` and never read or written anywhere in `dbqm/`. The
+  TUI form has no widget for it and the CLI has no flag, so SQL Server Windows
+  authentication is unreachable despite the field advertising it. Either
+  implement it (form field, CLI flag, and the call in
+  `get_sqlserver_connection`) or delete the field.
+- **The TUI cannot clear a password.** A blank field means "keep the stored
+  one" — there is no equivalent of the CLI's `--no-password`. Long-standing, not
+  a regression: the screen has behaved this way since before the rules moved to
+  `core/connection_builder.py`. A whitespace-only field is also treated as
+  blank, deliberately (the presence test strips; the value does not).
+- **PNG export is unreachable.** `ExportPickerModal` accepts `include_png` and
+  renders a PNG button, but **no caller passes `include_png=True`**, and
+  `Pillow` is not in `pyproject.toml` at all. The README claimed both the format
+  and the dependency; both claims are now removed. Either wire it up with the
+  dependency or delete the parameter and the button.
+
 - ~~On startup (Coleta tab) the ActionBar paints **Conexoes'** actions.~~ **Does not
   reproduce.** Re-measured 9/9 (3 sizes x 3 repeats, config with one connection;
   same result with and without the tab-focus fix): on Coleta the bar is **empty**.
@@ -393,8 +434,24 @@ to each guard before concluding "the guard is green, so the rule holds".
 
 ## README
 
-Always keep `README.md` in sync when features are added/removed: Features list,
-Keyboard Navigation table, Sidebar table, Project Structure tree, and test count.
+`readme = "README.md"` in `pyproject.toml`, so **the README IS the package's
+PyPI page**. Every claim in it is public and is read by people deciding whether
+to install dbqm — an out-of-date flag or a dependency that does not exist costs
+more there than in a repo file.
+
+Keep in sync when features are added or removed: the Features list, the
+Keyboard Navigation table, the Dashboard tabs table, and the CLI-mode examples.
+**Verify CLI examples against the parser, not against memory** — a `--param1
+value1` that never existed survived there for months, and a `Pillow`
+dependency was listed that is not in `pyproject.toml` at all.
+
+There is deliberately **no Project Structure tree**: it was a second copy of
+the Architecture section of this file, drifting independently, in the one
+document where an internal file layout serves no reader. Architecture lives
+here; the README describes what the program does.
+
+The test count lives in this file (Testing section), not in the README — one
+place to update instead of two.
 
 ## PyPI Publishing
 
