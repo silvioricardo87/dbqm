@@ -143,6 +143,21 @@ class TestFindOracleClientDir:
             (tmp_path / n).mkdir()
         return tmp_path
 
+    @pytest.fixture(autouse=True)
+    def _sem_config_do_usuario(self, tmp_path, monkeypatch):
+        """Cut these tests off from the developer's real ~/.dbqm/settings.json.
+
+        `_find_oracle_client_dir` resolves through `_configured_client_dir`,
+        which calls `load_settings()`. Without this, a machine that actually
+        sets `oracle_client_dir` resolves to THAT path and all three tests
+        below fail — a suite that passes or fails depending on whose laptop it
+        runs on. Reproduced: with the setting populated, the finder returned
+        the configured directory instead of either seeded fixture directory.
+        """
+        monkeypatch.setattr(
+            "dbqm.models.settings.SETTINGS_FILE", tmp_path / "settings-vazio.json"
+        )
+
     def test_macos_arm_prefers_arm64_dir(self, tmp_path, monkeypatch):
         base = self._make_dirs(tmp_path, ["instantclient_19_x64", "instantclient_23_arm64"])
         monkeypatch.setattr("dbqm.core.db_manager.CLIENTS_DIR", base)
