@@ -12,7 +12,7 @@ this one names, never in two places. `CLAUDE.md` is a pointer stub.
 | File | Read it when | Contains |
 |---|---|---|
 | **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** | **before any change under `dbqm/`** | Layout, layering, key patterns, the layout grammar and its six guards, and the measured known debt |
-| **[`docs/ROADMAP.md`](docs/ROADMAP.md)** | choosing what to work on | Bugs (always first), pending items, and the feature backlog in priority order |
+| **[`docs/ROADMAP.md`](docs/ROADMAP.md)** | choosing what to work on | **The single backlog.** Bugs first, then pending items, toolchain adoption and features — ordered by importance, grouped by theme. There is no other list; add here or nowhere. |
 | [`docs/agents/AGENT-WORKFLOW.md`](docs/agents/AGENT-WORKFLOW.md) | starting a task | Planning, context management, edit safety, self-correction |
 | [`docs/agents/TASK-COMPLETION.md`](docs/agents/TASK-COMPLETION.md) | finishing a change | The mandatory build → lint → test → docs → version → commit → merge cycle |
 | [`docs/agents/BACKEND-PYTHON.md`](docs/agents/BACKEND-PYTHON.md) | writing Python here | House Python standards, plus the TUI/CLI/Windows-first sections that apply |
@@ -146,7 +146,7 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
 ## Git Policy
 
 - **NEVER commit AI plans, PRDs, or AI-generated planning docs.**
-- `docs/plans/` (incl. `docs/plans/BACKLOG.md`), `PRD.md`, and `.claude/` are in
+- `docs/plans/`, `docs/superpowers/`, `PRD.md`, and `.claude/` are in
   `.gitignore`. `docs/plans/` is the sanctioned **local** planning area.
 - Agent-facing files that **do** belong in the repo: `AGENTS.md`, `CLAUDE.md`,
   `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, the five guides under `docs/agents/`,
