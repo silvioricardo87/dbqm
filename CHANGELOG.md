@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
-## [Unreleased]
+## [1.22.1] — 2026-09-10
 
 ### Added
 
