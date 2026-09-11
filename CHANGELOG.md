@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [Unreleased]
+
+### Added
+
+- **`PYPI.md`** — a short, audience-specific page for PyPI, now the package's
+  `long_description`. `README.md` stays the repository's page on GitHub. Every
+  link in `PYPI.md` is an absolute GitHub URL, because PyPI does not resolve
+  relative links.
+- **`docs/ARCHITECTURE.md`** and **`docs/ROADMAP.md`** — the architecture
+  reference and the prioritised backlog, split out of `AGENTS.md`, which had
+  grown to three documents in one. The roadmap puts bugs in a tier above every
+  feature.
+- **`docs/agents/`** — the shared house guides (agent workflow, task completion,
+  Python standards, versioning, commits), copied byte-identical to their source
+  up to a `## Deviations in this project` heading, so `diff` remains a working
+  drift check.
+- **`.gitattributes`** normalising the repository to LF, without which that drift
+  check reports differences on line endings alone.
+
+### Fixed
+
+- **A whitespace-only password field in the TUI keeps the stored password**
+  instead of overwriting it with whitespace.
+- **README corrections** that were public on PyPI: `pip install dbqm` was
+  documented nowhere, `dbqm run --param1 value1` is not a flag that has ever
+  existed (it is `-p CHAVE=VALOR`), and `Pillow` was listed as a dependency that
+  is in no dependency list and imported nowhere. The `Author` metadata read
+  "Ricardo" and is now "Silvio Chagas".
+
 ## [1.22.0] — 2026-09-10
 
 Connections can now be created and edited from the CLI, without opening the TUI.
