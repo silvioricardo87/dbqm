@@ -1062,3 +1062,31 @@ async def test_group_description_never_falls_into_the_identity_column(
             "a descricao coube numa linha so; sem transbordo nao ha o que "
             "provar: %r" % linhas
         )
+
+
+@pytest.mark.asyncio
+async def test_app_starts_when_settings_name_a_theme_it_does_not_know(tmp_config_dir):
+    """B5 — an unreadable settings value must never stop the app booting.
+
+    This is the class of failure that made a 1.17.x rollback fail: that version
+    met `plano-escuro` in settings.json, did not know the name, and raised
+    `InvalidThemeError` before the first screen. The name a *future* version
+    writes cannot be predicted, so the only durable defence is the one asserted
+    here — an unknown theme falls back instead of raising.
+
+    `get_theme` has a unit test for the fallback; this one proves the app
+    survives end to end, which is what actually broke.
+    """
+    import json
+
+    from dbqm.core.paths import SETTINGS_FILE
+
+    SETTINGS_FILE.write_text(
+        json.dumps({"theme": "um-tema-de-uma-versao-futura"}), encoding="utf-8"
+    )
+
+    app = DBQMApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.theme == "plano-escuro"
+        assert app.query_one("#main-tabs", TabbedContent) is not None
