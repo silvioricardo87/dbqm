@@ -156,27 +156,48 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
 - Other gitignored entries: `config/`, `.dbqm_key`, `tns/`, `*.ora`, `clients/`,
   `exports/`, plus standard Python ignores.
 
-## README
+## README and PYPI.md
 
-`readme = "README.md"` in `pyproject.toml`, so **the README IS the package's
-PyPI page**. Every claim in it is public and is read by people deciding whether
-to install dbqm — an out-of-date flag or a dependency that does not exist costs
-more there than in a repo file.
+Two audience-specific files. Keeping them separate is deliberate; keeping them
+*consistent* is the maintenance cost.
 
-Keep in sync when features are added or removed: the Features list, the
-Keyboard Navigation table, the Dashboard tabs table, and the CLI-mode examples.
-**Verify CLI examples against the parser, not against memory** — a `--param1
-value1` that never existed survived there for months, and a `Pillow`
-dependency was listed that is not in `pyproject.toml` at all.
+| File | Audience | Referenced by |
+|---|---|---|
+| `README.md` | Someone browsing the repository | GitHub |
+| `PYPI.md` | Someone deciding whether to `pip install` | `readme = {file = "PYPI.md", ...}` in `pyproject.toml` — it is the **PyPI long_description** |
 
-There is deliberately **no Project Structure tree**: it was a second copy of the
-architecture documentation, drifting independently, in the one document where an
-internal file layout serves no reader. Architecture lives in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); the README describes what the
-program does for the person installing it.
+**`PYPI.md` is the package's public page.** It is short on purpose: what dbqm is,
+how to install it, a handful of working commands, what it does, security, links.
+It carries no internal detail — no architecture, no design-system notes, no test
+counts.
 
-The test count lives in this file (Testing section), not in the README — one
-place to update instead of two.
+- **Every link in `PYPI.md` must be an absolute `https://github.com/...` URL.**
+  PyPI does not resolve relative links; `](./CHANGELOG.md)` renders as a dead
+  link on the package page.
+- setuptools ships `PYPI.md` in the sdist automatically — no `MANIFEST.in` entry
+  is needed. Verified by reading the built artifacts, not assumed.
+
+**Verify CLI examples against the parser, not against memory.** This applies to
+both files and it is not hypothetical: a `dbqm run --param1 value1` that never
+existed survived in the README for months, and `Pillow` was listed as a
+dependency that is in no dependency list and imported nowhere.
+
+Keep `README.md` in sync when features are added or removed: the Features list,
+the Keyboard Navigation table, the Dashboard tabs table, and the CLI-mode
+examples. Update `PYPI.md` only when the answer to "what is this and why would I
+install it" changes — most feature work should not touch it.
+
+There is deliberately **no Project Structure tree** in either: it was a second
+copy of the architecture documentation, drifting independently, in the one place
+where an internal file layout serves no reader. Architecture lives in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+The test count lives in this file (Testing section), in neither of them — one
+place to update instead of three.
+
+**A doc change only reaches PyPI on a new release.** Correcting `PYPI.md` and
+merging to `main` changes nothing on the package page; it updates when a `v*`
+tag ships the next version.
 
 ## PyPI Publishing
 
