@@ -13,11 +13,14 @@ wrong for a user. An item with no failure scenario is not ready to be worked on.
 
 ## Tier 0 — Bugs
 
-**Always above any feature.** Four of these are dead code that can simply be
-deleted; two make a screen or a rollback actually fail for a user.
+**Always above any feature.** B10 is the only one that produces a *wrong result*
+on a real workflow rather than a missing or dead one, which is why it leads.
+After it: three are dead code that can simply be deleted, two make a screen or a
+rollback fail outright, and the rest are guards and tests that lie.
 
 | # | Bug | Where | What goes wrong |
 |---|---|---|---|
+| **B10** | **SQL Server ad-hoc execution is broken in two ways**, both silent | `core/query_engine.py` — `_normalize_plsql` (called at ~`:259` without checking `conn.db_type`), and the `PLSQL` branch of `execute_adhoc` | **(a)** `EXEC`/`EXECUTE`/`CALL` is rewritten into Oracle syntax for *every* engine: `EXEC dbo.PROC @p='1'` is sent to SQL Server as `BEGIN dbo.PROC @p='1'; END;`, which is why the driver answers `Incorrect syntax near 'dbo'`. The README scopes the shortcut to Oracle, so the defect is that it mangles the statement instead of passing it through or refusing clearly. **(b)** The `PLSQL` branch never reads `cursor.description` and never calls `cursor.nextset()`, so a T-SQL batch ending in `SELECT @n, @m` runs and prints only `Bloco PL/SQL executado` — the result set is silently dropped. Correct for Oracle (a block returns no rows); wrong for SQL Server. **(c)** Cosmetic: that message says "PL/SQL" on a T-SQL connection (`cli.py:445`, `ui/screens/adhoc.py:37`). Reported from ticket IM05325534, where it forced debugging a T-SQL procedure through a hand-written `get_connection()` script. |
 | **B1** | `Breadcrumb` is entirely dead — zero instances anywhere, yet `package_editor` still queries it, so **every call raises into a bare `except Exception: pass`** | `ui/widgets/breadcrumb.py`; `ui/screens/package_editor.py:702-710`; exported from `ui/widgets/__init__.py:3,15-16` | A silent exception on a normal path, and a widget in the public surface that nothing can use. Verified: `Breadcrumb()` appears 0 times in `dbqm/`. |
 | **B2** | `Connection.windows_auth` is declared and **never read or written** anywhere in `dbqm/` | `models/connection.py:26` | SQL Server Windows authentication looks supported and is unreachable: no form field, no CLI flag, and `get_sqlserver_connection` never consults it. Either implement it end to end or delete the field. |
 | **B3** | PNG export is unreachable and its dependency does not exist | `ui/modals/export_picker.py` (8 references to `include_png`) | `ExportPickerModal` renders a PNG button when `include_png=True`, and **no caller ever passes it**. `Pillow` is in no dependency list and imported nowhere. The README claimed both the format and the dependency until 1.22.0. |
@@ -30,11 +33,25 @@ deleted; two make a screen or a rollback actually fail for a user.
 
 ---
 
-## Tier 1 — Pending from the 1.22.0 release
+## Field reports — already resolved
+
+Recorded so nobody reopens them. These came from
+`analise-tickets/_plugin/melhorias-dbqm`, where a sustainment analyst files what
+forced them into a second tool (SQL Developer, Toad, sqlplus) mid-ticket.
+
+| Report | Status |
+|---|---|
+| 001 — anonymous PL/SQL blocks, `DBMS_OUTPUT` capture, faithful trailing `;` in DDL, `--format raw`, UTF-8 Oracle errors on Windows | **Shipped.** All five are current features. |
+| 002 — CTE (`WITH … SELECT`) and `EXPLAIN PLAN` support in the `sql` parser | **Shipped.** `--explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` in one step. |
+| 003 — `PACKAGE BODY` of 8423 lines rejected with `Maximum number of tokens exceeded (10000)` | **Fixed, verified.** `classify_sql` now decides DDL by the leading keyword *before* touching `sqlparse`, so a named-object `CREATE` never reaches the tokenizer. Measured against a synthetic 12 002-line body: classified `DDL` in 2 ms, no error. The report predates the fix; it can be archived. |
+| 004 — `EXEC` broken on SQL Server, T-SQL batches swallow their result sets | **Open — this is B10 above.** |
+
+---
+
+## Tier 1 — Pending (1.22.0 leftovers)
 
 | # | Item | Why now |
 |---|---|---|
-| **P1** | **Publish 1.22.1 with the corrected README** | 1.22.0 shipped with the old README, so the PyPI page currently advertises a `Pillow` dependency that does not exist, a `dbqm run --param1 value1` flag that never existed, and no `pip install dbqm`. The page only updates on a new release. |
 | **P2** | The TUI has **no way to clear a password** | A blank field means "keep the stored one"; the CLI has `--no-password` and the screen has no equivalent. Long-standing, not a regression. Needs a UI decision — and the layout grammar constrains it (a button is an action, never a menu). |
 | **P3** | Node 20 deprecation in the release workflow | `actions/checkout@v4` and `actions/setup-python@v5` are being forced onto Node 24. It works today and will stop. |
 | **P4** | The empty-stdin error names `--no-password` on `export-config`/`import-config`, which have no such flag | Cosmetic; the message is still actionable where the case arises. |
@@ -92,9 +109,18 @@ missing is the CLI surface over it.
 
 ## Suggested next slice
 
-**B1 through B4, plus P1, in one 1.22.1.** B1 and B3 are deletions, B2 is a
-delete-or-implement decision, and B4 is a CSS constraint — all small, and P1 is
-the release that finally puts the corrected README on PyPI.
+**B10 first, on its own.** It is the only bug that makes dbqm give a wrong
+answer on a workflow someone actually runs, and it costs a sustainment analyst a
+second tool mid-ticket. Both halves are small and db_type-aware: do not
+normalize `EXEC`/`EXECUTE`/`CALL` unless the connection is Oracle, and walk
+`cursor.nextset()` in the non-Oracle branch. It needs a SQL Server connection to
+verify, which no other item here does — so it is worth doing while that is at
+hand.
+
+**Then B1-B4 together.** B1 and B3 are deletions, B2 is a delete-or-implement
+decision, and B4 is a CSS constraint — all small, all TUI-side.
+
+P1 shipped in 1.22.1.
 
 Then **X1**, because **C2** is worth much less without it: schema discovery that
 answers with a Rich table is schema discovery an agent cannot parse.
