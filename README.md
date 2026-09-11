@@ -38,6 +38,15 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 
 Release history is in [CHANGELOG.md](./CHANGELOG.md).
 
+## Contributing
+
+- [CHANGELOG.md](./CHANGELOG.md) — release history
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — layout, layering, key patterns,
+  the TUI layout grammar and its guards, and the recorded known debt
+- [docs/ROADMAP.md](./docs/ROADMAP.md) — known bugs first, then what is planned
+- [AGENTS.md](./AGENTS.md) — the development workflow, conventions and standards,
+  followed by humans and AI agents alike
+
 ## Requirements
 
 - Python 3.10+
