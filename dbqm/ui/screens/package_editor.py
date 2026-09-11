@@ -699,16 +699,6 @@ class PackageEditorScreen(Vertical):
         # Open DB connection in background
         self._open_db_connection(conn_name)
 
-        # Update breadcrumb
-        try:
-            from dbqm.ui.widgets.breadcrumb import Breadcrumb
-
-            self.app.query_one(Breadcrumb).set_path(
-                ["Ferramentas", "Packages", f"{pkg_name} ({conn_name})"]
-            )
-        except Exception:
-            pass
-
         # Focus the editor
         self.call_after_refresh(lambda: editor.focus())
 
