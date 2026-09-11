@@ -304,12 +304,15 @@ to each guard before concluding "the guard is green, so the rule holds".
   first launch after upgrading from 1.17.x — that one was the `github-dark` ->
   `plano-escuro` **rename** announcing itself as a user's choice. Each also
   rewrote `settings.json` (measured: 1 write with a fresh config, 2 with audit on).
-- The two Oracle Instant Client tests in `tests/core/test_db_manager.py` read the
-  **live user config** instead of `tmp_config_dir` — any user who actually sets
-  `oracle_client_dir` breaks them on their own machine.
-- `Breadcrumb` (`dbqm/ui/widgets/breadcrumb.py`) is **fully dead**: zero live
-  instances, `package_editor.py:701-708` still queries it and every call raises
-  into a bare `except`, and it is still exported from `widgets/__init__.py:3,15-16`.
+- ~~The two Oracle Instant Client tests read the **live user config**.~~
+  **Fixed.** An autouse fixture points `dbqm.models.settings.SETTINGS_FILE` at an
+  empty temp file for that class. Reproduced first: with `oracle_client_dir`
+  populated, `_find_oracle_client_dir` returned the configured path instead of
+  either seeded fixture directory. Verified after: the file passes both with the
+  setting empty and with it populated via `DBQM_HOME`.
+- ~~`Breadcrumb` is **fully dead** and every call raises into a bare `except`.~~
+  **Fixed.** The widget, its export and the `package_editor` call site are all
+  deleted.
 - The connection checklist in `group_exec` is the one flat list label left.
   `SelectionList` paints **only the first line** of a prompt (measured), so
   applying `item_hierarquico` there would delete the target instead of
@@ -330,36 +333,45 @@ to each guard before concluding "the guard is green, so the rule holds".
   of `tabela_com_chave_fixa` by design. The spec's line about giving `history`
   a pinned key and zebra was never implemented; zebra there would blend the
   `marcar_veredito` cells at runtime, invisible to the contrast guard.
-- **`history` starves vertically, and that outweighs the line above.** At 80x24,
-  `#hist-detail-panel { min-height: 8 }` (`history.py:35-38`) eats half the screen
-  and leaves the table a **4-line** viewport: with 30 entries, **2 are visible**. A
-  pinned key and zebra stripes do not fix a list that does not fit.
-- **Downgrading the theme still breaks**, but now only after a user action. Rolling
-  back to 1.17.x with `theme: plano-escuro` in `settings.json` raises
-  `InvalidThemeError: Theme 'plano-escuro' has not been registered`. Data and the
-  Fernet key stay readable; recovery is hand-editing one key. Until the false theme
-  toast was fixed, 1.21's first launch rewrote that key by itself and the rollback
-  broke with nobody having touched anything; now the file only changes when someone
-  actually picks a theme.
-- **Guard 6 (`test_button_does_not_navigate`) has an `elif`-chain hole.** `_ids_do_ramo`
-  (`tests/design/test_layout_inventory.py:764-776`) gathers the literal ids from
-  every enclosing `if` test and takes `sorted(ids)[0]`. In an `if/elif` chain the
-  `elif` is an `If` nested in the previous one's `orelse`, so walking up the parents
-  also picks up the sibling branch's id: a navigating branch whose id sorts AFTER an
-  exempt id inherits the exemption and passes in silence. Break-tested: an `elif
-  "zzz-..."` beside the exempt `"executar-consulta"` in `history.py` escapes;
-  renamed to `"aaa-..."`, the same branch fails. Today's handlers are flat, so
-  nothing escapes now. Also recorded in the guard's own "Limites conhecidos" block,
-  which is where the next reader looks.
+- ~~**`history` starves vertically.**~~ **Fixed.** The list panel now takes `2fr`
+  against the detail's `1fr` (min 4, max 9). Measured inside the real DBQMApp:
+  the table viewport went from **3 rows to 5** at 80x24, and from a 9-row detail
+  to 19 table rows at 120x40. A bare harness reported a nine-row viewport for
+  the broken layout, which is why it survived — `tests/ui/test_screens.py`
+  now measures in the real app.
+- **Downgrading the theme breaks 1.17.x, and cannot be fixed from here.** That
+  version met `plano-escuro`, did not know the name and raised
+  `InvalidThemeError` before the first screen. Recovery is hand-editing one key;
+  data and the Fernet key stay readable. What *was* fixed is the class of
+  failure going forward: `get_theme` falls back to the default for any unknown
+  name, and `test_app_starts_when_settings_name_a_theme_it_does_not_know` proves
+  the app boots end to end rather than only unit-testing the fallback.
+- ~~**Guard 6 has an `elif`-chain hole.**~~ **Fixed.** `_branch_ids` now skips the
+  test of any `If` whose `orelse` it climbed out of — that test governs the branch
+  above, not this one — which closes the chain without losing genuinely nested
+  handlers. Break-tested both ways: the `elif "zzz-fuga"` beside the exempt
+  `"executar-consulta"` in `history.py` escaped before and fails now.
 - **Guard 6 accepts the string literal `"action_switch_tab"` as proof of
   navigation.** That is the form the four real CTAs use
   (`getattr(self.app, "action_switch_tab", None)`), but it means gutting the call
   while keeping the `getattr` leaves the guard green with a silent CTA — it proves
   the NAME is written there, not that navigation happens.
 - **The tab strip breaks decision 2 of the grammar** ("~7 fixed, fit the width"):
-  there are **eight**. Measured at 80 columns on launch, the strip ends at
-  `⚙️  Confi` — label cut mid-word, Consultas and Ferramentas invisible — and it
-  scrolls with **no overflow indicator**, which breaks decision 1 as well.
+  there are **eight**. Measured at 80 columns in the real `DBQMApp`, the strip
+  ends at `⚙️  Confi` — cut mid-word, Consultas and Ferramentas invisible — and
+  it scrolls with **no overflow indicator**, which breaks decision 1 too.
+
+  **Do not "fix" this by shortening the labels.** That was tried and reverted:
+  dropping the emoji and shortening two names was the only one of four measured
+  variants that fit, and the maintainer rejected it — the emoji are identity,
+  not decoration, and trading them for columns is a bad deal. Measured, for
+  whoever picks this up: emoji plus separator cost ~32 of the 80 columns, and
+  keeping them does not fit even with `Objetos`→`Objs` and `Multi-Exec`→`Multi`.
+
+  The two options that remain are **seven tabs instead of eight** (what the
+  grammar actually asks) or **labels that collapse to the emoji alone when the
+  strip would overflow**, keeping the active tab's name. Both are product
+  decisions, not layout bugfixes.
 - **Two vocabularies for the action row.** `adhoc` uses auto-width buttons anchored
   left; `connections` uses full-width buttons with centred labels — byte for byte
   the "full-width buttons pretending to be a menu" that §7 criticises. It escapes
