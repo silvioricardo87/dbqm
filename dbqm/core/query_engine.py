@@ -13,6 +13,9 @@ from dbqm.models.connection import Connection
 from dbqm.models.query import Query, QueryParam
 
 MAX_ROWS = 10_000
+# A batch returning more grids than this is a driver misbehaving, not a
+# query: read that many and stop, rather than looping on its say-so.
+MAX_RESULT_SETS = 50
 
 
 @dataclass
@@ -251,16 +254,31 @@ def _collect_result_sets(cursor) -> tuple[list[str], list[list[Any]], list[str]]
     The other sets are not dropped in silence, which was the defect being
     fixed: each one is named in the returned notes with its shape, so the
     output says what it is not showing.
+
+    Bounded on purpose. A `while True` steered by a third-party return value
+    is a hang waiting to happen: written that way, this loop spun forever
+    against a `MagicMock` cursor — whose `nextset()` is truthy — and froze the
+    test suite rather than failing it. A driver that behaves the same way now
+    stops at `MAX_RESULT_SETS` instead of taking the process with it.
     """
     sets: list[tuple[list[str], list[list[Any]]]] = []
-    while True:
+    for _ in range(MAX_RESULT_SETS):
         if cursor.description:
             cols = [
                 desc[0].lower() if desc[0] else f"col_{i}"
                 for i, desc in enumerate(cursor.description)
             ]
             sets.append((cols, [list(r) for r in cursor.fetchmany(MAX_ROWS)]))
-        if not cursor.nextset():
+        # `nextset` is optional in DB-API: a driver may not define it, and some
+        # raise instead of returning False past the last set. Either way there
+        # is nothing more to read.
+        avancar = getattr(cursor, "nextset", None)
+        if not callable(avancar):
+            break
+        try:
+            if not avancar():
+                break
+        except Exception:
             break
 
     if not sets:

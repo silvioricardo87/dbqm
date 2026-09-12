@@ -568,6 +568,13 @@ class TestPlsqlDbmsOutput:
             mock_cursor.var.side_effect = (
                 lambda typ, *a, **k: status_var if typ is int else line_var
             )
+            # A block that returns no rows is what a real driver reports as
+            # `description is None` and `nextset() -> False`. Left as bare
+            # MagicMock attributes both are truthy, which is not a cursor any
+            # driver ships — and on the non-Oracle path it made the result-set
+            # walk invent fifty grids out of the mock.
+            mock_cursor.description = None
+            mock_cursor.nextset.return_value = False
             mock_db.cursor.return_value = mock_cursor
             mock_get.return_value = mock_db
             result = execute_adhoc(sql, conn, {})
@@ -955,3 +962,53 @@ class TestCollectResultSets:
 
         cur = _FakeCursor([([], [])])
         assert _collect_result_sets(cur) == ([], [], [])
+
+
+class TestCollectResultSetsTerminates:
+    """The walk must end even when the cursor never says stop.
+
+    Written after this loop, as a `while True`, hung the whole suite: a
+    `MagicMock` cursor's `nextset()` is truthy forever, and the existing tests
+    mock cursors that way. A test run that freezes is worse than one that
+    fails — it reports nothing at all.
+    """
+
+    def test_a_cursor_that_never_stops_is_bounded(self):
+        from unittest.mock import MagicMock
+
+        from dbqm.core.query_engine import MAX_RESULT_SETS, _collect_result_sets
+
+        cur = MagicMock()
+        cur.description = [("v",)]
+        cur.fetchmany.return_value = [[1]]
+        columns, rows, notas = _collect_result_sets(cur)
+
+        assert columns == ["v"]
+        assert cur.nextset.call_count == MAX_RESULT_SETS
+
+    def test_a_cursor_without_nextset_yields_its_single_set(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        class SemNextset:
+            description = [("v",)]
+
+            def fetchmany(self, n):
+                return [[7]]
+
+        columns, rows, notas = _collect_result_sets(SemNextset())
+        assert (columns, rows, notas) == (["v"], [[7]], [])
+
+    def test_a_driver_that_raises_past_the_last_set_stops_cleanly(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        class Explode:
+            description = [("v",)]
+
+            def fetchmany(self, n):
+                return [[7]]
+
+            def nextset(self):
+                raise RuntimeError("no more results")
+
+        columns, rows, notas = _collect_result_sets(Explode())
+        assert rows == [[7]]
