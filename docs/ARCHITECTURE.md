@@ -356,22 +356,26 @@ to each guard before concluding "the guard is green, so the rule holds".
   (`getattr(self.app, "action_switch_tab", None)`), but it means gutting the call
   while keeping the `getattr` leaves the guard green with a silent CTA — it proves
   the NAME is written there, not that navigation happens.
-- **The tab strip breaks decision 2 of the grammar** ("~7 fixed, fit the width"):
-  there are **eight**. Measured at 80 columns in the real `DBQMApp`, the strip
-  ends at `⚙️  Confi` — cut mid-word, Consultas and Ferramentas invisible — and
-  it scrolls with **no overflow indicator**, which breaks decision 1 too.
+- ~~**The tab strip breaks decision 2 of the grammar.**~~ **Closed as not
+  applicable — the premise was rejected.** The complaint measured the strip at
+  80 columns and found it cut at `⚙️  Confi`, hiding Consultas and Ferramentas.
+  The maintainer's ruling: *"deixa como está mesmo, não pretendo trabalhar com
+  80 colunas, as resoluções atuais são bem maiores, nem faz sentido se
+  preocupar com 80 colunas."* At the widths actually used, all eight labels
+  render whole — verified at 120 and 140 columns.
 
-  **Do not "fix" this by shortening the labels.** That was tried and reverted:
-  dropping the emoji and shortening two names was the only one of four measured
-  variants that fit, and the maintainer rejected it — the emoji are identity,
-  not decoration, and trading them for columns is a bad deal. Measured, for
-  whoever picks this up: emoji plus separator cost ~32 of the 80 columns, and
-  keeping them does not fit even with `Objetos`→`Objs` and `Multi-Exec`→`Multi`.
+  Two attempts are recorded so they are not repeated. Dropping the emoji and
+  shortening two names was the only one of four measured variants that fit at
+  80 columns, and it was rejected: the emoji are identity, not decoration.
+  Collapsing inactive labels to the emoji alone was prototyped and shown; it
+  works, but it trades seven tab names for icons and still leaves eight tabs
+  where the grammar asks for about seven.
 
-  The two options that remain are **seven tabs instead of eight** (what the
-  grammar actually asks) or **labels that collapse to the emoji alone when the
-  strip would overflow**, keeping the active tab's name. Both are product
-  decisions, not layout bugfixes.
+  **What this decision reaches beyond one bug:** several guards and debt entries
+  in this file are calibrated to 80x24 as the reference size. If 80 columns is
+  not a target, that calibration is worth revisiting deliberately rather than
+  drifting — it is the baseline `tests/design/test_vertical_overflow.py` and the
+  history measurement both assume.
 - **Two vocabularies for the action row.** `adhoc` uses auto-width buttons anchored
   left; `connections` uses full-width buttons with centred labels — byte for byte
   the "full-width buttons pretending to be a menu" that §7 criticises. It escapes

@@ -19,23 +19,22 @@ recorded below rather than dropped.
 
 ## Tier 0 — Bugs
 
-**One open.** Nine of the ten were fixed in one pass and are recorded under
-[Verified resolved](#verified-resolved) with what was measured.
+**Empty.** Nine of the ten were fixed and shipped in 1.22.2; the tenth was
+closed as not applicable. Each is recorded under
+[Verified resolved](#verified-resolved) with what was measured. Bugs return here
+the moment one is found — this tier stays above every feature.
 
-| # | Bug | Where | What goes wrong |
-|---|---|---|---|
-| **B8** | The tab strip breaks decision 2 of the grammar — eight tabs where it says about seven, cut mid-word with no overflow indicator | `ui/app.py` | At 80 columns the strip ends at `⚙️  Confi`: **Consultas and Ferramentas are invisible** and nothing says more tabs exist. **Shortening the labels is not the fix** — dropping the emoji was the only one of four measured variants that fit, and it was rejected: the emoji are identity, not decoration. Measured for the next attempt: emoji plus separator cost ~32 of the 80 columns, and keeping them does not fit even with `Objetos`→`Objs` and `Multi-Exec`→`Multi`. What remains is **seven tabs** (what the grammar asks) or **labels that collapse to the emoji alone when the strip would overflow**, keeping the active tab's name. Both are product decisions. |
+**B8 was closed by a ruling, not a fix.** The complaint was that the tab strip
+is cut at 80 columns. The maintainer's decision: *"deixa como está mesmo, não
+pretendo trabalhar com 80 colunas, as resoluções atuais são bem maiores, nem faz
+sentido se preocupar com 80 colunas."* At the widths actually used, all eight
+labels render whole. Two attempts were built and rejected before that call —
+dropping the emoji (the only one of four variants that fit) and collapsing
+inactive labels to the emoji alone (prototyped and shown). Both are recorded in
+`docs/ARCHITECTURE.md` so neither is retried by accident.
 
-The two that were not simply deletions are worth carrying forward:
-
-- **B10** was validated against real servers, not only at the seam: `EXEC
-  sp_helptext` — the exact command the field report showed failing — now returns
-  its rows on `NETCONSULT PREPROD`, and a T-SQL batch prints its result set under
-  the label `Bloco T-SQL`. Oracle was re-checked in the same pass and still
-  expands `EXEC` into `BEGIN … END;` with DBMS_OUTPUT captured.
-- **B4** and **B8** were both measured inside the real `DBQMApp`. A bare test
-  harness reports a nine-row history viewport for the layout that actually gives
-  three, which is how that bug survived a design-system phase built to catch it.
+That ruling reaches further than one bug: the design guards and several debt
+entries use 80x24 as their reference size. Worth revisiting deliberately.
 
 ---
 
@@ -68,10 +67,9 @@ forced them into a second tool (SQL Developer, Toad, sqlplus) mid-ticket.
 | **B6** | Autouse fixture points `SETTINGS_FILE` at an empty temp file for that class. | Reproduced first: with `oracle_client_dir` set, the finder returned the user's path. Now passes both with it empty and populated. |
 | **B9** | `_branch_ids` skips the test of any `If` whose `orelse` it climbed out of. | Break-tested both ways: `elif "zzz-fuga"` beside an exempt id escaped before, fails now. |
 
-**B8 is not in this table — it is still open, above.** The label-shortening
-attempt was reverted at the maintainer's call; the measurements it produced are
-recorded with the bug so the next attempt starts informed rather than repeating
-it.
+**B8 is not in this table** because it was not fixed: it was closed as not
+applicable once the 80-column premise was rejected. The two attempts and their
+measurements live in `docs/ARCHITECTURE.md`.
 
 ### The TUI visual backlog — all of it
 
@@ -160,15 +158,14 @@ agent does once it can see, **safety** (X3) is what makes that defensible, and
 
 ## Suggested next slice
 
-**B8 needs a decision before it needs code:** seven tabs, or labels that collapse
-to the emoji alone when the strip would overflow. Everything measurable about it
-is already recorded; what is missing is the product call.
+Tier 0 is empty. The next item is **X1** — one machine-readable output contract
+— because **C2** (schema discovery) is worth much less without it: an agent
+cannot parse a Rich table. X1 also settles the exit-code table that the
+`connection` group currently implements alone.
 
-After that, **X1** — one machine-readable output contract — because **C2**
-(schema discovery) is worth much less without it: an agent cannot parse a Rich
-table. X1 also settles the exit-code table that the `connection` group currently
-implements alone.
+**P3** (the release workflow is on deprecated Node 20) is small and independent.
 
-**P3** (the release workflow is on deprecated Node 20) is small and unblocks a
-**1.23.0**, which is what puts the nine fixes in front of users — a fix merged to
-`main` reaches nobody until a `v*` tag ships it.
+One thing to decide when convenient, from the B8 ruling: the design guards and
+parts of the recorded debt are calibrated to **80x24**. If that is not a target
+width, the reference size is worth changing on purpose rather than leaving the
+guards measuring something nobody runs.
