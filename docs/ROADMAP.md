@@ -89,13 +89,15 @@ carried forward as noise.
 
 ---
 
-## Tier 1 — Pending (1.22.0 leftovers)
+## Tier 1 — Pending
 
-| # | Item | Why now |
+**Empty.** All three closed.
+
+| # | Item | How |
 |---|---|---|
-| **P2** | The TUI has **no way to clear a password** | A blank field means "keep the stored one"; the CLI has `--no-password` and the screen has no equivalent. Long-standing, not a regression. Needs a UI decision — and the layout grammar constrains it (a button is an action, never a menu). |
-| **P3** | Node 20 deprecation in the release workflow | `actions/checkout@v4` and `actions/setup-python@v5` are being forced onto Node 24. It works today and will stop. |
-| **P4** | The empty-stdin error names `--no-password` on `export-config`/`import-config`, which have no such flag | Cosmetic; the message is still actionable where the case arises. |
+| **P2** | The TUI could not clear a password | Solved without a new widget, because the premise was wrong: loading a connection already decrypts its password **into the field**, so the box shows what is stored and an empty box means the user emptied it. Treating that as "keep" contradicted the screen they were looking at. Two guards: the field is authoritative only while it is showing *that* connection — typing an existing name into a blank form shows nothing about what is stored — and a password that will not decrypt survives a save, because a blank box there is the screen failing, not the user deciding. |
+| **P3** | Release workflow on deprecated Node 20 | `actions/checkout@v4` → `@v7` and `actions/setup-python@v5` → `@v7`. Verified rather than assumed: queried each action's `action.yml` per major and confirmed checkout is node24 from v5 and setup-python from v6. The only recent breaking change in either (`allow-unsafe-pr-checkout`) affects PR checkouts; this workflow checks out a tag. |
+| **P4** | Empty-stdin hint named a flag the bundle commands lack | The hint is now derived from the parser — `getattr(args, "no_password", None)` — so it appears where the flag exists and nowhere else. A hand-kept list of which command has which flag would be a second truth waiting to drift. |
 
 ---
 
@@ -158,12 +160,14 @@ agent does once it can see, **safety** (X3) is what makes that defensible, and
 
 ## Suggested next slice
 
-Tier 0 is empty. The next item is **X1** — one machine-readable output contract
-— because **C2** (schema discovery) is worth much less without it: an agent
-cannot parse a Rich table. X1 also settles the exit-code table that the
+Tiers 0 and 1 are empty. The next item is **X1** — one machine-readable output
+contract — because **C2** (schema discovery) is worth much less without it: an
+agent cannot parse a Rich table. X1 also settles the exit-code table that the
 `connection` group currently implements alone.
 
-**P3** (the release workflow is on deprecated Node 20) is small and independent.
+**C11** (HTML report from the CLI) is the only remaining item of effort S with
+real value: `core/html_report.py` exists and `-e/--export` simply does not offer
+`html`.
 
 One thing to decide when convenient, from the B8 ruling: the design guards and
 parts of the recorded debt are calibrated to **80x24**. If that is not a target
