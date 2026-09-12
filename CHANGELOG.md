@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [1.23.0] — 2026-09-12
+
+### Added
+
+- **A password can now be cleared from the TUI.** Until now a blank field meant
+  "keep the stored one", so the screen could change a password but never remove
+  one — the CLI had `--no-password` and the form had no equivalent. No new
+  widget was needed: loading a connection already decrypts its password into
+  the field, so the box shows what is stored and emptying it means emptying it.
+  Two cases keep their old meaning, because there the box is not showing that
+  connection: typing an existing name into a blank form, and a stored password
+  that will not decrypt. Neither is wiped by a save.
+
+### Fixed
+
+- **The release workflow no longer runs on Node 20.** `actions/checkout` and
+  `actions/setup-python` are on `@v7`; both were being forced onto Node 24 with
+  a deprecation warning.
+- **The empty-stdin error no longer names a flag the command lacks.** It pointed
+  every caller at `--no-password`, which `export-config` and `import-config` do
+  not have. The hint is derived from the parser now.
+
 ## [1.22.2] — 2026-09-11
 
 Nine of the ten open bugs, closed in one pass. No new commands; no behaviour
