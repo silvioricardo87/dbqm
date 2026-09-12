@@ -133,9 +133,19 @@ def resolve_password(
         # Only the line terminator comes off: a password may end in a space.
         value = sys.stdin.readline().rstrip("\r\n")
         if not value:
+            # Point at `--no-password` only where it exists. The flag is on
+            # the `connection` parsers and not on the config-bundle ones, and
+            # the parser itself is the source of that fact — a hand-kept list
+            # of which command has which flag is a second truth waiting to
+            # drift.
+            dica = (
+                " Use --no-password para gravar sem senha."
+                if getattr(args, "no_password", None) is not None
+                else ""
+            )
             console.print(
-                "[ds.op.failure]Senha vazia na entrada padrao. Use "
-                "--no-password para gravar sem senha.[/ds.op.failure]"
+                f"[ds.op.failure]Senha vazia na entrada padrao.{dica}"
+                "[/ds.op.failure]"
             )
             sys.exit(2)
         return value

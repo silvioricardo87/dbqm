@@ -1497,3 +1497,53 @@ class TestConnectionMarkupSafety:
         run_cli(["connection", "add", "[/x]", "--type", "mysql", "--no-password"])
         run_cli(["connection", "show", "[/x]"])
         run_cli(["connection", "list"])
+
+
+class TestEmptyStdinHint:
+    """P4 — the hint must name a flag the command actually has."""
+
+    def _args(self, **kw):
+        from argparse import Namespace
+
+        base = {"password_stdin": True, "password": None}
+        base.update(kw)
+        return Namespace(**base)
+
+    def test_connection_commands_are_pointed_at_no_password(self, monkeypatch, capsys):
+        import io
+
+        from dbqm.cli import resolve_password
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("\n"))
+        with pytest.raises(SystemExit):
+            resolve_password(
+                self._args(no_password=False), "DBQM_PASSWORD", "p: ", required=True
+            )
+        assert "--no-password" in capsys.readouterr().out
+
+    def test_bundle_commands_are_not_pointed_at_a_flag_they_lack(
+        self, monkeypatch, capsys
+    ):
+        """export-config and import-config have no --no-password."""
+        import io
+
+        from dbqm.cli import resolve_password
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("\n"))
+        with pytest.raises(SystemExit):
+            resolve_password(
+                self._args(), "DBQM_BUNDLE_PASSWORD", "p: ", required=True
+            )
+        saida = capsys.readouterr().out
+        assert "Senha vazia" in saida
+        assert "--no-password" not in saida
+
+    def test_the_real_parsers_agree_with_that_split(self):
+        """Derived from the parser, not from a list kept by hand."""
+        from dbqm.cli import build_parser
+
+        parser = build_parser()
+        args_conn = parser.parse_args(["connection", "add", "x", "--no-password"])
+        assert getattr(args_conn, "no_password", None) is not None
+        args_bundle = parser.parse_args(["export-config"])
+        assert getattr(args_bundle, "no_password", None) is None

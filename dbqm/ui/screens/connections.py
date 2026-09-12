@@ -184,6 +184,7 @@ class ConnectionsScreen(Vertical):
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
         self._loaded_name: str | None = None
+        self._senha_ilegivel = False
         self._remove_name: str | None = None
         self._rename_old_name: str | None = None
 
@@ -455,11 +456,15 @@ class ConnectionsScreen(Vertical):
         self.query_one("#conn-form-user", Input).value = conn.user or ""
 
         password = ""
+        # A stored password that will not decrypt must not be destroyed by the
+        # next save. The field shows blank either way, so without this flag an
+        # unreadable credential and a deliberately cleared one look identical.
+        self._senha_ilegivel = False
         if conn.password:
             try:
                 password = decrypt(conn.password)
             except Exception:
-                password = ""
+                self._senha_ilegivel = True
         self.query_one("#conn-form-pass", Input).value = password
 
         self.query_one("#conn-form-desc", TextArea).text = conn.description or ""
@@ -467,6 +472,7 @@ class ConnectionsScreen(Vertical):
     def _clear_form(self) -> None:
         """Reset the form to a blank state, ready for a new connection."""
         self._loaded_name = None
+        self._senha_ilegivel = False
 
         name_input = self.query_one("#conn-form-name", Input)
         name_input.value = ""
@@ -614,15 +620,31 @@ class ConnectionsScreen(Vertical):
             "description": self.query_one("#conn-form-desc", TextArea).text.strip(),
         }
 
-        # Omitted, not blank: an absent key means "keep the stored password".
-        # The PRESENCE test strips, the VALUE does not — those are two
-        # different questions. A field holding only spaces is blank to the
-        # person who typed it and must not overwrite a stored credential; a
-        # password that merely ends in a space is a real password and must
-        # survive verbatim.
+        # What the field shows is what gets saved — including empty.
+        #
+        # Loading a connection decrypts its password INTO this field, so the
+        # box already tells the truth about what is stored. Treating a blank
+        # box as "keep the stored one" contradicted the screen the user was
+        # looking at, and left the TUI with no way to clear a password at all
+        # while the CLI had `--no-password`.
+        #
+        # The one case where blank does NOT mean "clear": the stored password
+        # could not be decrypted, so the blank box is the screen failing to
+        # show it rather than the user emptying it. Then the key is omitted and
+        # `build` keeps what is stored.
         password = self.query_one("#conn-form-pass", Input).value
+        # The field is authoritative only when it is actually showing this
+        # connection: loading one decrypts its password into the box, so an
+        # empty box then means the user emptied it. Typing the name of an
+        # existing connection into a blank form shows nothing about what is
+        # stored, and a blank box there must not wipe it.
+        campo_e_autoridade = (
+            not self._senha_ilegivel and self._loaded_name == values["name"]
+        )
         if password.strip():
             values["password"] = password
+        elif campo_e_autoridade:
+            values["password"] = ""
         return values
 
     def _handle_save(self) -> None:
