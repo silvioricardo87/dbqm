@@ -39,6 +39,7 @@ exports/
 .worktrees/
 
 # Planos e documentos de IA (apenas configs/agents ficam)
+ops/
 docs/plans/
 docs/superpowers/
 PRD.md
