@@ -240,17 +240,10 @@ async def test_export_picker_has_csv_json_txt():
         assert "fmt-csv" in ids
         assert "fmt-json" in ids
         assert "fmt-txt" in ids
-        assert "fmt-png" not in ids
-
-
-@pytest.mark.asyncio
-async def test_export_picker_includes_png_when_enabled():
-    modal = ExportPickerModal(include_png=True)
-    app = ModalTestApp(modal)
-    async with app.run_test() as pilot:
-        buttons = app.screen.query(Button)
-        ids = {b.id for b in buttons}
-        assert "fmt-png" in ids
+        assert "fmt-png" not in ids, (
+            "PNG export died with the old Rich UI layer: no writer exists and "
+            "Pillow is not a dependency. The button must not come back alone."
+        )
 
 
 @pytest.mark.asyncio

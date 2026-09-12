@@ -14,7 +14,7 @@ from dbqm.ui.widgets.dialog import Dialog
 class ExportPickerModal(ModalScreen[str | None]):
     """Format selection dialog for exports.
 
-    Dismisses with a format string ("csv", "json", "txt", "png")
+    Dismisses with a format string ("csv", "json", "txt")
     on selection, or None on cancel/ESC.
     """
 
@@ -37,17 +37,11 @@ class ExportPickerModal(ModalScreen[str | None]):
         Binding("escape", "cancel", "Cancelar", show=False),
     ]
 
-    def __init__(self, include_png: bool = False) -> None:
-        super().__init__()
-        self._include_png = include_png
-
     def compose(self) -> ComposeResult:
         with Dialog("Exportar como", width="sm", id="dialog"):
             yield Button("CSV", variant="primary", id="fmt-csv")
             yield Button("JSON", variant="primary", id="fmt-json")
             yield Button("TXT", variant="primary", id="fmt-txt")
-            if self._include_png:
-                yield Button("PNG", variant="primary", id="fmt-png")
             yield Button("Cancelar", variant="default", id="cancel")
 
     def on_mount(self) -> None:
@@ -68,7 +62,6 @@ class ExportPickerModal(ModalScreen[str | None]):
 
 def request_export(
     app,
-    include_png: bool = False,
     callback: Callable[[str | None], None] | None = None,
 ) -> None:
     """Public entry point for the export flow.
@@ -85,7 +78,7 @@ def request_export(
     from dbqm.ui.modals.export_dir_setup import ExportDirSetupModal
 
     def _show_picker() -> None:
-        app.push_screen(ExportPickerModal(include_png=include_png), callback=callback)
+        app.push_screen(ExportPickerModal(), callback=callback)
 
     settings = load_settings()
     if settings.export_dir_prompted:

@@ -9,7 +9,6 @@ class TestConnection:
         assert d["name"] == "ora"
         assert d["db_type"] == "oracle"
         assert d["mode"] == "tns"
-        assert d["windows_auth"] is False  # bool default kept (not None)
 
     def test_to_dict_excludes_none(self):
         c = Connection(name="t", db_type="sqlserver", user="u", password="p", host="h")
@@ -20,6 +19,20 @@ class TestConnection:
     def test_from_dict_ignores_unknown_fields(self):
         c = Connection.from_dict({"name": "t", "db_type": "oracle", "user": "u", "password": "p", "unknown_field": "x"})
         assert c.name == "t"
+
+    def test_from_dict_accepts_a_config_written_before_windows_auth_was_removed(self):
+        """An older ~/.dbqm/connections.json still carries `windows_auth`.
+
+        The field was dead — never read, never written, and unreachable because
+        pymssql has no trusted-connection parameter — so it was deleted. A user
+        downgrading their config must not be an upgrade error.
+        """
+        c = Connection.from_dict({
+            "name": "legado", "db_type": "sqlserver", "user": "u",
+            "password": "p", "host": "h", "windows_auth": True,
+        })
+        assert c.name == "legado"
+        assert not hasattr(c, "windows_auth")
 
     def test_from_dict_round_trip(self):
         c = Connection(name="t", db_type="sqlserver", user="u", password="p", host="h", port=1433, database="db")

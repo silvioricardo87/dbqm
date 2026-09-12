@@ -23,7 +23,6 @@ class Connection:
     service_name: Optional[str] = None
     # SQL Server
     database: Optional[str] = None
-    windows_auth: bool = False
     # Free-form notes about this connection (purpose, schema, contacts, etc.)
     description: str = ""
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))

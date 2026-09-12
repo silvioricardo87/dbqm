@@ -568,6 +568,13 @@ class TestPlsqlDbmsOutput:
             mock_cursor.var.side_effect = (
                 lambda typ, *a, **k: status_var if typ is int else line_var
             )
+            # A block that returns no rows is what a real driver reports as
+            # `description is None` and `nextset() -> False`. Left as bare
+            # MagicMock attributes both are truthy, which is not a cursor any
+            # driver ships — and on the non-Oracle path it made the result-set
+            # walk invent fifty grids out of the mock.
+            mock_cursor.description = None
+            mock_cursor.nextset.return_value = False
             mock_db.cursor.return_value = mock_cursor
             mock_get.return_value = mock_db
             result = execute_adhoc(sql, conn, {})
@@ -865,3 +872,143 @@ class TestExecuteExplain:
         result = execute_explain("SELECT 1", conn, {})
         assert not result.success
         assert "sqlserver" in result.error
+
+
+class TestSqlServerAdhoc:
+    """B10 — a T-SQL batch must not be rewritten, and must not lose its rows.
+
+    No SQL Server is reachable from the suite, so these drive the seam that was
+    wrong: the normalization decision and the result-set walk.
+    """
+
+    def test_exec_is_not_rewritten_for_sqlserver(self):
+        from dbqm.core.query_engine import _normalize_plsql
+
+        sql = "EXEC dbo.ASDP_Consulta_Broker_CNPJ @P_BROKER_ID = '12345'"
+        assert _normalize_plsql(sql, "sqlserver") == sql, (
+            "T-SQL already understands EXEC; wrapping it in BEGIN/END is what "
+            "produced \"Incorrect syntax near 'dbo'\""
+        )
+
+    def test_exec_is_still_expanded_for_oracle(self):
+        from dbqm.core.query_engine import _normalize_plsql
+
+        out = _normalize_plsql("EXEC minha_proc(1)", "oracle")
+        assert out == "BEGIN minha_proc(1); END;"
+
+    def test_sqlplus_terminator_is_not_stripped_for_sqlserver(self):
+        from dbqm.core.query_engine import _normalize_plsql
+
+        sql = "DECLARE @x INT\n/"
+        assert _normalize_plsql(sql, "sqlserver") == sql
+
+    def test_block_label_follows_the_dialect(self):
+        from dbqm.core.query_engine import block_label
+
+        assert block_label("sqlserver") == "Bloco T-SQL"
+        assert block_label("oracle") == "Bloco PL/SQL"
+        assert block_label("postgresql") == "Bloco PL/SQL"
+
+
+class _FakeCursor:
+    """A cursor over a scripted list of result sets, like pymssql's."""
+
+    def __init__(self, conjuntos):
+        self._conjuntos = list(conjuntos)
+        self._i = 0
+
+    @property
+    def description(self):
+        cols, _ = self._conjuntos[self._i]
+        return [(c,) for c in cols] if cols else None
+
+    def fetchmany(self, n):
+        return list(self._conjuntos[self._i][1])
+
+    def nextset(self):
+        if self._i + 1 < len(self._conjuntos):
+            self._i += 1
+            return True
+        return False
+
+
+class TestCollectResultSets:
+    def test_single_set_is_returned_as_is(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        cur = _FakeCursor([(["v"], [[1]])])
+        columns, rows, notas = _collect_result_sets(cur)
+        assert columns == ["v"]
+        assert rows == [[1]]
+        assert notas == []
+
+    def test_last_set_wins_and_the_others_are_named(self):
+        """The debug idiom puts the diagnostic SELECT last."""
+        from dbqm.core.query_engine import _collect_result_sets
+
+        cur = _FakeCursor([
+            (["id", "nome"], [[1, "a"], [2, "b"]]),
+            (["erro", "mensagem"], [[547, "conflito de FK"]]),
+        ])
+        columns, rows, notas = _collect_result_sets(cur)
+        assert columns == ["erro", "mensagem"]
+        assert rows == [[547, "conflito de FK"]]
+        assert notas, "the dropped set must be reported, not silently lost"
+        assert "2 conjuntos" in notas[0]
+        assert "id, nome" in notas[1]
+
+    def test_a_batch_with_no_result_set_stays_empty(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        cur = _FakeCursor([([], [])])
+        assert _collect_result_sets(cur) == ([], [], [])
+
+
+class TestCollectResultSetsTerminates:
+    """The walk must end even when the cursor never says stop.
+
+    Written after this loop, as a `while True`, hung the whole suite: a
+    `MagicMock` cursor's `nextset()` is truthy forever, and the existing tests
+    mock cursors that way. A test run that freezes is worse than one that
+    fails — it reports nothing at all.
+    """
+
+    def test_a_cursor_that_never_stops_is_bounded(self):
+        from unittest.mock import MagicMock
+
+        from dbqm.core.query_engine import MAX_RESULT_SETS, _collect_result_sets
+
+        cur = MagicMock()
+        cur.description = [("v",)]
+        cur.fetchmany.return_value = [[1]]
+        columns, rows, notas = _collect_result_sets(cur)
+
+        assert columns == ["v"]
+        assert cur.nextset.call_count == MAX_RESULT_SETS
+
+    def test_a_cursor_without_nextset_yields_its_single_set(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        class SemNextset:
+            description = [("v",)]
+
+            def fetchmany(self, n):
+                return [[7]]
+
+        columns, rows, notas = _collect_result_sets(SemNextset())
+        assert (columns, rows, notas) == (["v"], [[7]], [])
+
+    def test_a_driver_that_raises_past_the_last_set_stops_cleanly(self):
+        from dbqm.core.query_engine import _collect_result_sets
+
+        class Explode:
+            description = [("v",)]
+
+            def fetchmany(self, n):
+                return [[7]]
+
+            def nextset(self):
+                raise RuntimeError("no more results")
+
+        columns, rows, notas = _collect_result_sets(Explode())
+        assert rows == [[7]]

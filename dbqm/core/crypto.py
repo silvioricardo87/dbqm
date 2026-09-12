@@ -5,7 +5,7 @@ import base64
 import os
 from pathlib import Path
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 
@@ -31,8 +31,28 @@ def encrypt(text: str) -> str:
 
 
 def decrypt(token: str) -> str:
+    """Plaintext for a stored token. An empty token means "no password".
+
+    `Connection.password` is `""` for a connection deliberately saved without
+    one (`--no-password`, or a blank field on a new connection). Fernet raises
+    `InvalidToken` on `""`, and `str(InvalidToken())` is the empty string — so
+    the user met `Erro ao conectar:` with nothing after the colon, an error
+    carrying no information at all.
+
+    A non-empty token that will not decrypt is a different failure: the key
+    file no longer matches the stored password. That one says so.
+    """
+    if not token:
+        return ""
     f = Fernet(_get_or_create_key())
-    return f.decrypt(token.encode()).decode()
+    try:
+        return f.decrypt(token.encode()).decode()
+    except InvalidToken as e:
+        raise ValueError(
+            "Senha guardada nao pode ser lida: a chave em .dbqm_key nao "
+            "corresponde a esta senha. Regrave-a com "
+            "'dbqm connection update <nome> --password-stdin'."
+        ) from e
 
 
 def _derive_key_from_password(password: str, salt: bytes) -> bytes:

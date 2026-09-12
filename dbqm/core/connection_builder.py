@@ -139,10 +139,6 @@ def build(values: dict, existing: Connection | None = None) -> Connection:
     )
     if existing is not None:
         conn.created_at = existing.created_at
-        # Carried, not set: the field is dead code today (see B1 in the
-        # backlog), and dropping it here would be a silent data loss if it
-        # ever starts being used.
-        conn.windows_auth = existing.windows_auth
     return conn
 
 

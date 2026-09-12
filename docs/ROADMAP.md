@@ -19,43 +19,29 @@ recorded below rather than dropped.
 
 ## Tier 0 — Bugs
 
-**Always above any feature.** Four themes, in this order: a wrong answer beats a
-missing one, a broken screen beats dead code, and a guard that lies beats
-cosmetics — because a green guard actively misleads the next person.
-
-### Theme: execution correctness — *gives a wrong answer*
+**One open.** Nine of the ten were fixed in one pass and are recorded under
+[Verified resolved](#verified-resolved) with what was measured.
 
 | # | Bug | Where | What goes wrong |
 |---|---|---|---|
-| **B10** | **SQL Server ad-hoc execution is broken in two ways**, both silent | `core/query_engine.py` — `_normalize_plsql` (called at ~`:259` without checking `conn.db_type`), and the `PLSQL` branch of `execute_adhoc` | **(a)** `EXEC`/`EXECUTE`/`CALL` is rewritten into Oracle syntax for *every* engine: `EXEC dbo.PROC @p='1'` is sent to SQL Server as `BEGIN dbo.PROC @p='1'; END;`, which is why the driver answers `Incorrect syntax near 'dbo'`. The README scopes the shortcut to Oracle, so the defect is that it mangles the statement instead of passing it through or refusing clearly. **(b)** The `PLSQL` branch never reads `cursor.description` and never calls `cursor.nextset()`, so a T-SQL batch ending in `SELECT @n, @m` runs and prints only `Bloco PL/SQL executado` — the result set is silently dropped. Correct for Oracle (a block returns no rows); wrong for SQL Server. **(c)** Cosmetic: that message says "PL/SQL" on a T-SQL connection (`cli.py:445`, `ui/screens/adhoc.py:37`). Reported from ticket IM05325534, where it forced debugging a T-SQL procedure through a hand-written `get_connection()` script. |
-| **B7** | `decrypt("")` on a passwordless connection produces `Erro ao conectar:` with an **empty message** | `core/db_manager.py:349` | `InvalidToken`'s `str()` is empty, so the user gets an error with no information. Pre-existing, but `--no-password` made it easy to reach. |
+| **B8** | The tab strip breaks decision 2 of the grammar — eight tabs where it says about seven, cut mid-word with no overflow indicator | `ui/app.py` | At 80 columns the strip ends at `⚙️  Confi`: **Consultas and Ferramentas are invisible** and nothing says more tabs exist. **Shortening the labels is not the fix** — dropping the emoji was the only one of four measured variants that fit, and it was rejected: the emoji are identity, not decoration. Measured for the next attempt: emoji plus separator cost ~32 of the 80 columns, and keeping them does not fit even with `Objetos`→`Objs` and `Multi-Exec`→`Multi`. What remains is **seven tabs** (what the grammar asks) or **labels that collapse to the emoji alone when the strip would overflow**, keeping the active tab's name. Both are product decisions. |
 
-### Theme: TUI usability — *a screen or a rollback fails outright*
+The two that were not simply deletions are worth carrying forward:
 
-| # | Bug | Where | What goes wrong |
-|---|---|---|---|
-| **B4** | `history` starves vertically: at 80x24, `min-height: 8` on the detail panel leaves the table a 4-line viewport | `ui/screens/history.py:37` | **With 30 entries, 2 are visible.** The history screen is effectively unusable at the default terminal size — which is the size most people run. |
-| **B5** | Downgrading breaks the app | `models/settings.py` + `ui/theme.py` | Rolling back to 1.17.x with `theme: plano-escuro` in `settings.json` raises `InvalidThemeError: Theme 'plano-escuro' has not been registered`. Data and the Fernet key stay readable; recovery is hand-editing one key. |
-
-### Theme: dead code — *advertises something that cannot happen*
-
-| # | Bug | Where | What goes wrong |
-|---|---|---|---|
-| **B1** | `Breadcrumb` is entirely dead — zero instances anywhere, yet `package_editor` still queries it, so **every call raises into a bare `except Exception: pass`** | `ui/widgets/breadcrumb.py`; `ui/screens/package_editor.py:702-710`; exported from `ui/widgets/__init__.py:3,15-16` | A silent exception on a normal path, and a widget in the public surface that nothing can use. Verified: `Breadcrumb()` appears 0 times in `dbqm/`. |
-| **B2** | `Connection.windows_auth` is declared and **never read or written** anywhere in `dbqm/` | `models/connection.py:26` | SQL Server Windows authentication looks supported and is unreachable: no form field, no CLI flag, and `get_sqlserver_connection` never consults it. Either implement it end to end or delete the field. |
-| **B3** | PNG export is unreachable and its dependency does not exist | `ui/modals/export_picker.py` (8 references to `include_png`) | `ExportPickerModal` renders a PNG button when `include_png=True`, and **no caller ever passes it**. `Pillow` is in no dependency list and imported nowhere. The README claimed both the format and the dependency until 1.22.0. |
-
-### Theme: tests and guards that lie — *green while the rule is broken*
-
-| # | Bug | Where | What goes wrong |
-|---|---|---|---|
-| **B6** | Two Oracle Instant Client tests read the **live user config** instead of `tmp_config_dir` | `tests/core/test_db_manager.py` | The suite fails on the machine of anyone who actually set `oracle_client_dir` — a test that depends on the developer's own environment. |
-| **B8** | The tab strip breaks the layout grammar it is measured against | `ui/app.py` | Eight tabs where the grammar says ~7 must fit the width. At 80 columns the strip ends mid-word (`⚙️  Confi`), Consultas and Ferramentas are invisible, and it scrolls with **no overflow indicator**. |
-| **B9** | Layout guard 6 has an `elif`-chain hole | `tests/design/test_layout_inventory.py:764-776` | `_ids_do_ramo` walks up parent `If` nodes and picks `sorted(ids)[0]`, so in an `if/elif` chain a navigating branch inherits a sibling's exemption when its id sorts later — it passes in silence. Break-tested: `zzz-` escapes, `aaa-` fails. |
+- **B10** was validated against real servers, not only at the seam: `EXEC
+  sp_helptext` — the exact command the field report showed failing — now returns
+  its rows on `NETCONSULT PREPROD`, and a T-SQL batch prints its result set under
+  the label `Bloco T-SQL`. Oracle was re-checked in the same pass and still
+  expands `EXEC` into `BEGIN … END;` with DBMS_OUTPUT captured.
+- **B4** and **B8** were both measured inside the real `DBQMApp`. A bare test
+  harness reports a nine-row history viewport for the layout that actually gives
+  three, which is how that bug survived a design-system phase built to catch it.
 
 ---
 
-## Field reports — already resolved
+## Verified resolved
+
+### Field reports from sustainment
 
 Recorded so nobody reopens them. These came from
 `analise-tickets/_plugin/melhorias-dbqm`, where a sustainment analyst files what
@@ -67,6 +53,25 @@ forced them into a second tool (SQL Developer, Toad, sqlplus) mid-ticket.
 | 002 — CTE (`WITH … SELECT`) and `EXPLAIN PLAN` support in the `sql` parser | **Shipped.** `--explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` in one step. |
 | 003 — `PACKAGE BODY` of 8423 lines rejected with `Maximum number of tokens exceeded (10000)` | **Fixed, verified.** `classify_sql` now decides DDL by the leading keyword *before* touching `sqlparse`, so a named-object `CREATE` never reaches the tokenizer. Measured against a synthetic 12 002-line body: classified `DDL` in 2 ms, no error. The report predates the fix; it can be archived. |
 | 004 — `EXEC` broken on SQL Server, T-SQL batches swallow their result sets | **Open — this is B10 above.** |
+
+### Tier 0 — the nine bugs fixed, and what was measured
+
+| # | Fix | Evidence |
+|---|---|---|
+| **B10** | `_normalize_plsql` takes `db_type` and returns non-Oracle input untouched; the `PLSQL` branch walks `cursor.nextset()` for non-Oracle and returns the last result set, naming the others rather than dropping them; `AdhocResult` carries `db_type` so both front ends label the dialect. | `EXEC sp_helptext` returns rows on a real SQL Server; a T-SQL batch prints its `SELECT` under `Bloco T-SQL`; Oracle `EXEC` still expands and captures DBMS_OUTPUT. 7 unit tests on the seam. |
+| **B7** | `decrypt("")` returns `""` — a connection saved without a password is not a failure. A non-empty token that will not decrypt now raises a message naming `.dbqm_key` and the command to fix it. | The old path produced `Erro ao conectar:` and nothing else, because `str(InvalidToken())` is empty. |
+| **B4** | List panel `2fr` against the detail's `1fr` (min 4, max 9). | Real `DBQMApp` at 80x24: table viewport **3 → 5 rows**; at 120x40, 19 rows against a 9-row detail. |
+| **B5** | Not fixable here — it is 1.17.x's behaviour. The class of failure is closed going forward and now proven end to end. | The app boots with an unknown theme in `settings.json` and falls back to `plano-escuro`. |
+| **B1** | Widget, export and call site deleted. | `Breadcrumb()` appeared 0 times; the only reference raised into a bare `except` on every package open. |
+| **B2** | Field deleted. | `pymssql.connect` has no trusted-connection parameter, so honouring it would mean swapping the driver for pyodbc. A test proves an older `connections.json` carrying `windows_auth` still loads. |
+| **B3** | `include_png`, the button and the obsolete test deleted; the "no PNG" assertion kept, with its reason. | All three call sites passed `include_png=False` explicitly; the feature died with the Rich UI layer removed in `bfafdf1`, and no PNG writer exists. |
+| **B6** | Autouse fixture points `SETTINGS_FILE` at an empty temp file for that class. | Reproduced first: with `oracle_client_dir` set, the finder returned the user's path. Now passes both with it empty and populated. |
+| **B9** | `_branch_ids` skips the test of any `If` whose `orelse` it climbed out of. | Break-tested both ways: `elif "zzz-fuga"` beside an exempt id escaped before, fails now. |
+
+**B8 is not in this table — it is still open, above.** The label-shortening
+attempt was reverted at the maintainer's call; the measurements it produced are
+recorded with the bug so the next attempt starts informed rather than repeating
+it.
 
 ### The TUI visual backlog — all of it
 
@@ -155,18 +160,15 @@ agent does once it can see, **safety** (X3) is what makes that defensible, and
 
 ## Suggested next slice
 
-**B10 first, on its own.** It is the only bug that makes dbqm give a wrong
-answer on a workflow someone actually runs, and it costs a sustainment analyst a
-second tool mid-ticket. Both halves are small and db_type-aware: do not
-normalize `EXEC`/`EXECUTE`/`CALL` unless the connection is Oracle, and walk
-`cursor.nextset()` in the non-Oracle branch. It needs a SQL Server connection to
-verify, which no other item here does — so it is worth doing while that is at
-hand.
+**B8 needs a decision before it needs code:** seven tabs, or labels that collapse
+to the emoji alone when the strip would overflow. Everything measurable about it
+is already recorded; what is missing is the product call.
 
-**Then B1-B4 together.** B1 and B3 are deletions, B2 is a delete-or-implement
-decision, and B4 is a CSS constraint — all small, all TUI-side.
+After that, **X1** — one machine-readable output contract — because **C2**
+(schema discovery) is worth much less without it: an agent cannot parse a Rich
+table. X1 also settles the exit-code table that the `connection` group currently
+implements alone.
 
-P1 shipped in 1.22.1.
-
-Then **X1**, because **C2** is worth much less without it: schema discovery that
-answers with a Rich table is schema discovery an agent cannot parse.
+**P3** (the release workflow is on deprecated Node 20) is small and unblocks a
+**1.23.0**, which is what puts the nine fixes in front of users — a fix merged to
+`main` reaches nobody until a `v*` tag ships it.

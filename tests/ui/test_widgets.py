@@ -148,7 +148,11 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
     raiz_screens = Path(__file__).resolve().parents[2] / "dbqm" / "ui" / "screens"
     sites = {
         "adhoc.py": [
-            'return f"[bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"',
+            # The label is picked by dialect now — a T-SQL batch is not PL/SQL
+            # — so what is pinned is the markup, which is what this guard is
+            # about, not the wording.
+            'return f"[bold]{block_label(result.db_type)} executado[/]'
+            ' ({result.elapsed:.2f}s)"',
             'f"[bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"',
         ],
         "exec_routine.py": [

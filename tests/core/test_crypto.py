@@ -54,6 +54,27 @@ class TestMasterKeyCrypto:
         assert token != "hello world"
         assert decrypt(token) == "hello world"
 
+    def test_decrypt_of_empty_token_means_no_password(self, tmp_path, monkeypatch):
+        """A connection saved with --no-password stores "" — not a failure.
+
+        Fernet raises InvalidToken on "", whose str() is empty, which reached
+        the user as "Erro ao conectar:" followed by nothing.
+        """
+        monkeypatch.setattr("dbqm.core.crypto.KEY_FILE", tmp_path / ".dbqm_key")
+        assert decrypt("") == ""
+
+    def test_decrypt_of_a_corrupt_token_says_what_is_wrong(self, tmp_path, monkeypatch):
+        """The other half: an error the user can act on."""
+        import pytest
+
+        monkeypatch.setattr("dbqm.core.crypto.KEY_FILE", tmp_path / ".dbqm_key")
+        with pytest.raises(ValueError) as exc:
+            decrypt("nao-e-um-token-fernet")
+        mensagem = str(exc.value)
+        assert mensagem, "the error must not be empty, which was the whole bug"
+        assert ".dbqm_key" in mensagem
+        assert "--password-stdin" in mensagem
+
     def test_key_created_on_first_use(self, tmp_path, monkeypatch):
         key_file = tmp_path / ".dbqm_key"
         monkeypatch.setattr("dbqm.core.crypto.KEY_FILE", key_file)

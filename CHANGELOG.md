@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [1.22.2] — 2026-09-11
+
+Nine of the ten open bugs, closed in one pass. No new commands; no behaviour
+change to any command that already worked.
+
+### Fixed
+
+- **SQL Server ad-hoc execution, broken two ways and silent about both.**
+  `EXEC`/`EXECUTE`/`CALL` was rewritten into Oracle PL/SQL for every engine, so
+  `EXEC dbo.PROC @p='1'` reached SQL Server as `BEGIN dbo.PROC @p='1'; END;` —
+  the reason the driver answered `Incorrect syntax near 'dbo'`. And a T-SQL
+  batch's result sets were never read, so a batch ending in `SELECT @n, @m`
+  printed only `Bloco PL/SQL executado` and dropped the answer. Both are now
+  engine-aware, and the outcome is labelled in the dialect that ran it.
+  Verified against a real SQL Server, with Oracle re-checked in the same pass.
+- **A connection saved without a password no longer fails with an empty
+  message.** `decrypt("")` returns `""`; `str(InvalidToken())` is the empty
+  string, which reached the user as `Erro ao conectar:` and nothing else. A
+  stored password that will not decrypt now names `.dbqm_key` and the command
+  that repairs it.
+- **The history list gets the room the detail panel was taking.** At 80x24 the
+  table had a three-row viewport — 2 of 30 entries visible. Measured in the
+  real app: now five rows there, and 19 against a 9-row detail at 120x40.
+- **The result-set walk is bounded**, so a driver that never reports the end
+  cannot hang the process.
+
+### Removed
+
+- **`Breadcrumb`** — zero instances anywhere, while `package_editor` queried it
+  on every package open and every call raised into a bare `except`.
+- **PNG export** — unreachable by construction: every call site disabled it,
+  no writer survived the removal of the Rich UI layer, and `Pillow` is in no
+  dependency list.
+- **`Connection.windows_auth`** — never read or written, and unreachable
+  anyway: `pymssql` takes no trusted-connection parameter. An older
+  `connections.json` carrying the key still loads.
+
+### Internal
+
+- Two Oracle Instant Client tests read the developer's real `~/.dbqm` and
+  failed on any machine that set `oracle_client_dir`; they are isolated now.
+- The navigating-button layout guard had an `if/elif` hole that let a branch
+  inherit a sibling's exemption in silence. Closed, and break-tested both ways.
+- The app is proven to boot when `settings.json` names a theme it does not
+  know — the failure class that made a 1.17.x rollback fail.
+
 ## [1.22.1] — 2026-09-10
 
 ### Added

@@ -33,8 +33,11 @@ def _format_plsql_message(result: AdhocResult) -> str:
     """Build the Rich markup shown after a PL/SQL block executes.
 
     Only the success header — DBMS_OUTPUT lines render in the dedicated panel.
+    The label follows the connection's dialect: a T-SQL batch is not PL/SQL.
     """
-    return f"[bold]Bloco PL/SQL executado[/] ({result.elapsed:.2f}s)"
+    from dbqm.core.query_engine import block_label
+
+    return f"[bold]{block_label(result.db_type)} executado[/] ({result.elapsed:.2f}s)"
 
 
 class AdhocScreen(Vertical):
@@ -910,7 +913,7 @@ class AdhocScreen(Vertical):
     def _handle_export(self) -> None:
         from dbqm.ui.modals.export_picker import request_export
 
-        request_export(self.app, include_png=False, callback=self._on_export_format_selected)
+        request_export(self.app, callback=self._on_export_format_selected)
 
     def _on_export_format_selected(self, fmt: str | None) -> None:
         if fmt is None or self._current_result is None:

@@ -32,9 +32,24 @@ class HistoryScreen(Vertical):
     HistoryScreen #hist-table {
         height: 1fr;
     }
+    /* The list is the subject; the detail is a companion to whatever row is
+       highlighted. An even 1fr/1fr split with `min-height: 8` on the detail
+       inverted that: measured inside the real DBQMApp at 80x24 — the size most
+       people run — the tab strip, status bar and action bar leave about eleven
+       rows for the two panels, the detail claimed eight of them, and the table
+       was left a THREE-row viewport showing 2 of 30 entries.
+
+       A bare test harness hands the screen the full 24 rows and reports a
+       nine-row viewport, which is why this looked fine for so long. Measure in
+       the real app. */
+    HistoryScreen #hist-list-panel {
+        height: 2fr;
+        min-height: 7;
+    }
     HistoryScreen #hist-detail-panel {
         height: 1fr;
-        min-height: 8;
+        min-height: 4;
+        max-height: 9;
     }
     HistoryScreen #hist-detail {
         height: 1fr;

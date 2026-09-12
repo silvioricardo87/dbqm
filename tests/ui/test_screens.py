@@ -5871,3 +5871,48 @@ async def test_oracle_clients_use_button_persists_selected_client(tmp_config_dir
         await pilot.pause()
 
     assert load_settings().oracle_client_dir == str(client)
+
+
+@pytest.mark.asyncio
+async def test_history_table_is_usable_at_the_default_terminal_size(tmp_config_dir):
+    """B4 — the list is the subject; the detail must not crowd it out.
+
+    Measured inside the REAL DBQMApp, not a bare harness: the tab strip, status
+    bar and action bar leave about eleven rows for the two panels at 80x24. An
+    even split with `min-height: 8` on the detail left the table a three-row
+    viewport — 2 of 30 entries visible.
+
+    A bare host app hands the screen all 24 rows and reports nine, which is why
+    this passed unnoticed. Mount the real app, at the real size.
+    """
+    from textual.widgets import DataTable
+
+    from dbqm.core.history import record_query_execution
+    from dbqm.ui.app import DBQMApp
+
+    for i in range(30):
+        record_query_execution(f"consulta_{i:02d}", "conexao", {}, 10, 0.5, True, "")
+
+    app = DBQMApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        app.action_switch_tab("tab-historico")
+        await pilot.pause()
+        await pilot.pause()
+
+        tabela = app.query_one("#hist-table", DataTable)
+        assert tabela.row_count == 30
+        viewport = tabela.scrollable_content_region.height
+        assert viewport >= 5, (
+            f"the history table got a {viewport}-row viewport at 80x24; the "
+            "detail panel is crowding out the list it exists to annotate"
+        )
+        # Panel against panel — the table's viewport excludes its own border
+        # and header row, so comparing it to a panel region measures two
+        # different things.
+        lista = app.query_one("#hist-list-panel").region.height
+        detalhe = app.query_one("#hist-detail-panel").region.height
+        assert lista > detalhe, (
+            f"list panel {lista} rows vs detail panel {detalhe}: the companion "
+            "must not be taller than the list it annotates"
+        )

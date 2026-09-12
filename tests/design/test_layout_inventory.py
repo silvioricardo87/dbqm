@@ -766,18 +766,17 @@ NAVIGATION_EXEMPT = {
 #     cost that `FRAMES` and `ITEM_BUILDERS` already pay;
 #   - `_branch_ids` climbs through the `if`s that SURROUND the call and
 #     collects every string literal it finds in each one's test; then
-#     `botoes_que_navegam` keeps `sorted(ids)[0]`. In an `if/elif` chain,
-#     the `elif` is an `If` NESTED in the previous one's `orelse`, so
-#     climbing through the parents also picks up the test of the branch
-#     above and the ids get mixed: a branch that navigates whose id sorts
-#     AFTER an exempt id of the same file inherits the exemption and
-#     passes silently. Verified by breakage: an `elif "zzz-..."` next to
-#     the exempt `"executar-consulta"` in `history.py` escapes; changed to
-#     `"aaa-..."`, the same branch fails. Today's handlers are shallow —
-#     one `if` per branch, no chain with an exempt one inside —, so
-#     nothing escapes NOW. The protection ends where the chain begins, and
-#     the fix would be to look only at the nearest `if`, which in turn
-#     loses the handlers that really do nest;
+#     `botoes_que_navegam` keeps `sorted(ids)[0]`. The `if/elif` hole this
+#     block used to describe is CLOSED: an `elif` is an `If` nested in the
+#     previous one's `orelse`, and the climb now skips the test of any `If`
+#     whose `orelse` it came out of, because that test governs the branch
+#     ABOVE this one. Before the fix, a navigating branch whose id sorted
+#     AFTER an exempt id in the same file inherited that exemption and passed
+#     in silence. Verified by breakage both ways: an `elif "zzz-fuga"` beside
+#     the exempt `"executar-consulta"` in `history.py` escaped before and
+#     FAILS now. What the climb still cannot see is a branch whose id is not
+#     a literal — that is reported with an empty id, which matches no
+#     exemption and therefore fails, the safe side;
 #   - the verb is also accepted as a literal STRING, because that is the
 #     shape the four real CTAs use (`getattr(self.app, "action_switch_tab", None)`).
 #     The price: the guard proves that the NAME is written there, not that
@@ -800,14 +799,28 @@ def _e_handler_de_botao(no: ast.AST) -> bool:
 
 
 def _branch_ids(no: ast.AST, parents: dict[ast.AST, ast.AST], root: ast.AST) -> set[str]:
-    """The button ids compared in the `if` that surrounds *no*."""
+    """The button ids compared in the `if` that surrounds *no*.
+
+    An `elif` is an `If` nested in the previous one's `orelse`, so climbing
+    every ancestor used to collect the SIBLING branch's test too. The ids then
+    mixed, and `sorted(ids)[0]` could return an exempt neighbour's id — a
+    navigating branch inherited an exemption it was never granted and passed in
+    silence.
+
+    The test of an `If` whose `orelse` we climbed out of governs the branch
+    ABOVE this one, never this one. Skipping it closes the chain hole without
+    losing the genuinely nested handlers that a nearest-`if`-only rule would
+    have dropped.
+    """
     ids: set[str] = set()
+    filho: ast.AST = no
     atual = parents.get(no)
     while atual is not None and atual is not root:
-        if isinstance(atual, ast.If):
+        if isinstance(atual, ast.If) and not any(filho is s for s in atual.orelse):
             for teste in ast.walk(atual.test):
                 if isinstance(teste, ast.Constant) and isinstance(teste.value, str):
                     ids.add(teste.value)
+        filho = atual
         atual = parents.get(atual)
     return ids
 
