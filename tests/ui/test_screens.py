@@ -5916,3 +5916,98 @@ async def test_history_table_is_usable_at_the_default_terminal_size(tmp_config_d
             f"list panel {lista} rows vs detail panel {detalhe}: the companion "
             "must not be taller than the list it annotates"
         )
+
+
+@pytest.mark.asyncio
+async def test_connections_clearing_the_loaded_password_clears_it(tmp_config_dir):
+    """P2 — the TUI can finally clear a password, like the CLI's --no-password.
+
+    Loading a connection decrypts its password into the field, so the box shows
+    what is stored. Emptying it therefore means "no password" — treating that
+    as "keep" contradicted the screen the user was looking at, and left the TUI
+    with no way to clear one at all.
+    """
+    from dbqm.models.connection import find_connection
+
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+        assert screen.query_one("#conn-form-pass", Input).value == "s3cret", (
+            "precondition: loading shows the stored password"
+        )
+
+        screen.query_one("#conn-form-pass", Input).value = ""
+        screen._handle_save()
+        await pilot.pause()
+
+    assert find_connection("dev_oracle").password == ""
+
+
+@pytest.mark.asyncio
+async def test_connections_typing_an_existing_name_does_not_wipe_its_password(
+    tmp_config_dir,
+):
+    """The box is only authoritative when it is showing that connection.
+
+    Typing the name of an existing connection into a blank form shows nothing
+    about what is stored, so the blank box there must not destroy it.
+    """
+    from dbqm.core.crypto import decrypt
+    from dbqm.models.connection import find_connection
+
+    _seed_connections(tmp_config_dir / "config")
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "dev_oracle"
+        screen.query_one("#conn-form-type", Select).value = "oracle"
+        screen.query_one("#conn-form-mode", Select).value = "direct"
+        await pilot.pause()
+        screen.query_one("#conn-form-user", Input).value = "admin"
+        screen._handle_save()
+        await pilot.pause()
+
+    assert decrypt(find_connection("dev_oracle").password) == "s3cret"
+
+
+@pytest.mark.asyncio
+async def test_connections_an_unreadable_password_is_not_destroyed_by_a_save(
+    tmp_config_dir,
+):
+    """A blank box can also mean the screen failed to show the password.
+
+    When the stored token will not decrypt — a key file that no longer matches
+    — the field is blank for a reason that has nothing to do with intent.
+    Saving must leave the stored value alone rather than finish it off.
+    """
+    import json
+
+    from dbqm.models.connection import find_connection
+
+    cfg = tmp_config_dir / "config"
+    cfg.mkdir(exist_ok=True)
+    (cfg / "connections.json").write_text(
+        json.dumps({"connections": [{
+            "name": "quebrada", "db_type": "mysql", "user": "u",
+            "password": "nao-e-um-token-fernet", "host": "h",
+        }]}),
+        encoding="utf-8",
+    )
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("quebrada")
+        await pilot.pause()
+        assert screen.query_one("#conn-form-pass", Input).value == ""
+        screen._handle_save()
+        await pilot.pause()
+
+    assert find_connection("quebrada").password == "nao-e-um-token-fernet", (
+        "an unreadable password must survive a save, not be silently replaced"
+    )
