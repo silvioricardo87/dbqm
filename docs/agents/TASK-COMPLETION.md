@@ -153,6 +153,7 @@ For an exception commit:
 ## See Also
 
 - `AGENT-WORKFLOW.md` — Operating discipline for the work that precedes this cycle (planning, context, edit safety). Hands off to this document once the change is complete.
+- `AUTONOMOUS-EXECUTION.md` — The unsupervised execution mode: every slice it runs closes through this cycle, and its "Definition of Done" requires Step 7 plus the promotion of its own control files.
 - `VERSIONING.md` — Rules for choosing the bump level at Step 5.
 - `COMMITS.md` — Rules for writing the message at Step 6.
 - Stack documentation of the consuming project — Concrete build, lint, test, and version-bump commands.

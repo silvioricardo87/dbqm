@@ -30,7 +30,10 @@ whatever equivalents your harness provides.
   before writing code.
 - Never attempt a multi-file refactor in a single pass. Break it into phases of
   at most **five files**. Complete a phase, verify it, get approval, then
-  continue. Verification here defers to `TASK-COMPLETION.md`.
+  continue. Verification here defers to `TASK-COMPLETION.md`. In autonomous
+  execution (`AUTONOMOUS-EXECUTION.md`), where the plan was approved up front,
+  the phase checkpoint is a report, not a stop — the agent continues unless an
+  escalation rule applies.
 
 ## Execution & Progress
 
@@ -140,6 +143,9 @@ test structure) live in that stack's document. This section defines the
 
 ## See Also
 
+- `AUTONOMOUS-EXECUTION.md` — The mode entered once a plan is approved: slices
+  it, runs each slice under this discipline, keeps state in `ops/`, and defines
+  when to stop and ask.
 - `TASK-COMPLETION.md` — The end-of-change cycle (build → lint → test → docs →
   version → commit → merge) that begins once the work governed here is done.
 - `COMMITS.md` — Message rules, referenced when a phase or cleanup is committed.

@@ -15,11 +15,12 @@ this one names, never in two places. `CLAUDE.md` is a pointer stub.
 | **[`docs/ROADMAP.md`](docs/ROADMAP.md)** | choosing what to work on | **The single backlog.** Bugs first, then pending items, toolchain adoption and features — ordered by importance, grouped by theme. There is no other list; add here or nowhere. |
 | [`docs/agents/AGENT-WORKFLOW.md`](docs/agents/AGENT-WORKFLOW.md) | starting a task | Planning, context management, edit safety, self-correction |
 | [`docs/agents/TASK-COMPLETION.md`](docs/agents/TASK-COMPLETION.md) | finishing a change | The mandatory build → lint → test → docs → version → commit → merge cycle |
+| [`docs/agents/AUTONOMOUS-EXECUTION.md`](docs/agents/AUTONOMOUS-EXECUTION.md) | told to execute an approved plan without supervision | How a plan is sliced, the roles, the `ops/` state files, the anti-loop limits, and when to stop and ask |
 | [`docs/agents/BACKEND-PYTHON.md`](docs/agents/BACKEND-PYTHON.md) | writing Python here | House Python standards, plus the TUI/CLI/Windows-first sections that apply |
 | [`docs/agents/VERSIONING.md`](docs/agents/VERSIONING.md) | bumping a version | Which level to bump, and the release flow |
 | [`docs/agents/COMMITS.md`](docs/agents/COMMITS.md) | writing a commit | Message format, description style, language cascade |
 
-**The five files under `docs/agents/` are copies** of shared guides from
+**The six files under `docs/agents/` are copies** of shared guides from
 `agents-defaults`, kept **byte-identical to their source up to a final
 `## Deviations in this project` heading**. Everything dbqm does differently — and
 every project fact those guides need — lives only under that heading. Never edit
@@ -30,8 +31,12 @@ The drift check, concretely — run it before trusting a guide, and after any
 update from the source:
 
 ```bash
-# per file: the body must be identical to the source up to the marker
-diff <(sed '/^## Deviations in this project/,$d' docs/agents/COMMITS.md)      <(sed '/^## Deviations in this project/,$d' ../agents-defaults/COMMITS.md)
+# per file: the body must be identical to the source up to the marker.
+# -B ignores blank lines: our copies keep one before the marker, the source
+# does not, and without it every file reports a one-line phantom drift.
+f=COMMITS.md   # or any of the six
+diff -B <(sed '/^## Deviations in this project/,$d' "docs/agents/$f") \
+        <(sed '/^## Deviations in this project/,$d' "../agents-defaults/$f")
 ```
 
 `.gitattributes` normalizes the repository to LF (`* text=auto eol=lf`) for this
@@ -146,7 +151,8 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
 ## Git Policy
 
 - **NEVER commit AI plans, PRDs, or AI-generated planning docs.**
-- `docs/plans/`, `docs/superpowers/`, `PRD.md`, and `.claude/` are in
+- `ops/` (the autonomous mode's state files), `docs/plans/`,
+  `docs/superpowers/`, `PRD.md`, and `.claude/` are in
   `.gitignore`. `docs/plans/` is the sanctioned **local** planning area.
 - Agent-facing files that **do** belong in the repo: `AGENTS.md`, `CLAUDE.md`,
   `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, the five guides under `docs/agents/`,
