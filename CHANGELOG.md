@@ -9,9 +9,9 @@ Releases before 1.18.0 predate this file; their history is in the git log.
 
 ## [2.3.0] — 2026-09-13
 
-Three defects in the published error contract, all found and fixed in the
-same slice because they share the same paths. Two exit codes move for a
-script that branches on them — both are the documented table finally being
+Defects in the published error contract, found and fixed in the same slice
+because they share the same paths. **Three exit codes move** for a script
+that branches on them — all of them the documented table finally being
 honoured, not a new behaviour.
 
 ### Fixed
@@ -43,6 +43,21 @@ honoured, not a new behaviour.
 - **`dbqm ddl -f json --stdout` no longer writes the extraction to disk.**
   The payload keeps its `"path"` key and reports `null` instead of a
   directory, since `--stdout` now means what it says in both formats.
+
+- **`dbqm ddl` now answers like every other command.** Two problems, both
+  found by reviewing the whole branch rather than any one change. A missing
+  object exited `4` (`sql_error`) where `describe` and `rows` both say
+  `not_found` (`2`) — the same disagreement fixed above, one command over.
+  And `core/ddl_extractor.py` opens its own connection outside any `try`
+  while `cmd_ddl` had no handler, so **an unreachable database escaped as an
+  unhandled exception and exited `1`** — "a bug in dbqm" — for a database
+  that was merely down. It now exits `3`, like the rest.
+
+- **`--explain`'s own two refusals are `usage` (`2`), not `sql_error` (`4`).**
+  Passing `EXPLAIN PLAN FOR` to `--explain`, and asking for `--explain` on an
+  engine that has none, both fail before any statement is sent. The second is
+  a capability the engine lacks, which the schema commands already answer
+  with `usage`.
 
 ## [2.2.0] — 2026-09-13
 
