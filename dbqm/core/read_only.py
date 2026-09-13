@@ -56,7 +56,10 @@ def statement_count(sql: str) -> int:
     and neither is one inside a string literal -- `sqlparse` handles both,
     which is why the count is not a `str.count(";")`.
     """
-    return len([s for s in sqlparse.parse(sql) if s.token_first() is not None])
+    return len([
+        s for s in sqlparse.parse(sql)
+        if s.token_first() is not None  # type: ignore[no-untyped-call]  # sqlparse ships py.typed, but Statement.token_first() itself is unannotated upstream
+    ])
 
 
 def _explains_a_query(sql: str) -> bool:
