@@ -2503,9 +2503,11 @@ class TestCmdRows:
         assert saiu.value.code == 2
         mock_open.assert_not_called()
 
-    def test_a_rejected_table_name_is_sql_error(self, capsys):
-        """`browse_table` validates the identifier and raises; that is the
-        statement failing, not the connection."""
+    def test_a_rejected_table_name_is_usage_not_sql_error(self, capsys):
+        """`browse_table` validates the identifier and raises `ValueError`;
+        that is bad input, not a statement the driver rejected. See
+        `TestRowsOnAMissingTable` for the fuller case, including that the
+        existence check must not run on this path."""
         from unittest.mock import patch
 
         import pytest
@@ -2520,7 +2522,7 @@ class TestCmdRows:
                 run_cli(["rows", "PEDIDOS; DROP TABLE X", "conexao", "-f", "json"])
 
         assert capsys.readouterr().out == ""
-        assert saiu.value.code == 4
+        assert saiu.value.code == 2
 
     def test_table_format_says_there_is_more_beyond_the_page(self, capsys):
         """`QueryResult` has no `total_count`, so the renderer cannot report
@@ -2826,3 +2828,120 @@ class TestConnectionFailedIsReachable:
 
         for mensagem in _USAGE_SQL_MESSAGES:
             assert _sql_error_code(mensagem, "statement") == "usage"
+
+
+class TestRowsOnAMissingTable:
+    """`describe` and `rows` disagreed about the same missing name: 2 versus
+    4. Each is defensible alone -- `describe` reads metadata and finds
+    nothing, `rows` runs SELECT COUNT(*) and the driver rejects it -- but an
+    agent branches on `error.code`, and the pair is not."""
+
+    def test_a_missing_table_is_not_found(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError('relation "nada" does not exist')), \
+             patch("dbqm.cli.deps.list_objects", return_value=["OUTRA"]):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "NADA", "conexao", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == ""
+        assert saiu.value.code == 2
+        assert json.loads(capturado.err)["error"]["code"] == "not_found"
+
+    def test_a_real_failure_on_a_table_that_exists_stays_sql_error(self, capsys):
+        """The check must not swallow genuine SQL failures."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError("ORA-01013: user requested cancel")), \
+             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS"]):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "PEDIDOS", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
+
+    def test_a_rejected_identifier_is_usage_not_not_found(self, capsys):
+        """`_validate_identifier` raises ValueError for a name it refuses to
+        put in a statement. That is bad input, not a missing table, and it
+        must not send the existence check looking."""
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=ValueError("Identificador invalido")), \
+             patch("dbqm.cli.deps.list_objects") as mock_list:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "X; DROP", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 2
+        assert json.loads(capsys.readouterr().err)["error"]["code"] == "usage"
+        mock_list.assert_not_called(), "no point asking whether a bad name exists"
+
+    def test_the_existence_check_costs_nothing_on_success(self):
+        """It runs only on the error path."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        ok_result = BrowseResult(
+            table="T", connection_name="c", columns=["A"], rows=[[1]],
+            row_count=1, total_count=1, elapsed=0.0, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=ok_result), \
+             patch("dbqm.cli.deps.list_objects") as mock_list:
+            run_cli(["rows", "T", "conexao", "-f", "json"])
+
+        mock_list.assert_not_called()
+
+    def test_a_view_that_fails_is_not_reported_as_missing(self, capsys):
+        """`list_objects(db, db_type, "TABLE")` will not find a view -- a
+        genuine failure against a name that is a valid view must not be
+        misreported as `not_found` just because it is absent from the TABLE
+        list. The check must also ask about `"VIEW"` before concluding the
+        object is absent."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        def fake_list_objects(db, db_type, obj_type):
+            if obj_type == "VIEW":
+                return ["V_PEDIDOS"]
+            return []
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError("driver rejected the count")), \
+             patch("dbqm.cli.deps.list_objects",
+                   side_effect=fake_list_objects) as mock_list:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "V_PEDIDOS", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
+        assert {c.args[2] for c in mock_list.call_args_list} == {"TABLE", "VIEW"}

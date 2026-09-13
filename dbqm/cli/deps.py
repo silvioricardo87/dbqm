@@ -46,6 +46,7 @@ from dbqm.core.history import (
     record_query_execution,
 )
 from dbqm.core.object_browser import (
+    ObjectNotFound,
     UnsupportedEngine,
     get_table_structure,
     get_view_definition,
@@ -65,6 +66,7 @@ from dbqm.models.group import find_group, load_groups
 from dbqm.models.query import find_query, load_queries
 
 __all__ = [
+    "ObjectNotFound",
     "QueryResult",
     "ReadOnlyViolation",
     "UnsupportedEngine",
