@@ -161,11 +161,12 @@ class TestCmdRun:
              patch("dbqm.cli.deps.execute_query", return_value=result) as mock_exec, \
              patch("dbqm.cli.deps.record_query_execution"), \
              patch("dbqm.cli.deps.log_execution"), \
-             patch("dbqm.cli.render._print_query_result"):
+             patch("dbqm.cli.render._print_query_result") as mock_print:
             run_cli(["run", "test_query"])
             # Should have used default value
             call_params = mock_exec.call_args[0][2]
             assert call_params["id"] == "42"
+            mock_print.assert_called_once()
 
     def test_run_explicit_params_override_defaults(self):
         query = _make_query(params=[QueryParam(name="id", description="", default="42")])
@@ -177,10 +178,11 @@ class TestCmdRun:
              patch("dbqm.cli.deps.execute_query", return_value=result) as mock_exec, \
              patch("dbqm.cli.deps.record_query_execution"), \
              patch("dbqm.cli.deps.log_execution"), \
-             patch("dbqm.cli.render._print_query_result"):
+             patch("dbqm.cli.render._print_query_result") as mock_print:
             run_cli(["run", "test_query", "-p", "id=99"])
             call_params = mock_exec.call_args[0][2]
             assert call_params["id"] == "99"
+            mock_print.assert_called_once()
 
     def test_run_with_connection_override(self):
         query = _make_query()
@@ -192,9 +194,10 @@ class TestCmdRun:
              patch("dbqm.cli.deps.execute_query", return_value=result), \
              patch("dbqm.cli.deps.record_query_execution"), \
              patch("dbqm.cli.deps.log_execution"), \
-             patch("dbqm.cli.render._print_query_result"):
+             patch("dbqm.cli.render._print_query_result") as mock_print:
             run_cli(["run", "test_query", "-c", "other_conn"])
             mock_find_conn.assert_called_with("other_conn")
+            mock_print.assert_called_once()
 
     def test_run_failed_query_exits(self):
         query = _make_query()

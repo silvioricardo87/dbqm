@@ -9,9 +9,9 @@ from pathlib import Path
 
 from rich.markup import escape
 
-from dbqm.cli import deps
+from dbqm.cli import deps, render
 from dbqm.cli.params import _parse_params
-from dbqm.cli.render import _colored_comparison_lines, _print_query_result, console
+from dbqm.cli.render import console
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -71,7 +71,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         console.print(f"Exportado: {path}")
         return
 
-    _print_query_result(result, args.format)
+    render._print_query_result(result, args.format)
 
 
 def cmd_run_group(args: argparse.Namespace) -> None:
@@ -155,7 +155,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     else:
         status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
         console.print(f"Grupo: {group_result.group_name} — {status}")
-        for line in _colored_comparison_lines(group_result.comparisons):
+        for line in render._colored_comparison_lines(group_result.comparisons):
             console.print(f"  {line}")
 
 
@@ -222,7 +222,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             f"{block_label(result.db_type)} executado ({result.elapsed:.2f}s)"
         )
         if result.rows:
-            _print_query_result(
+            render._print_query_result(
                 deps.QueryResult(
                     query_name="adhoc",
                     connection_name=conn.name,
@@ -263,6 +263,6 @@ def cmd_sql(args: argparse.Namespace) -> None:
             console.print(f"Exportado: {path}")
             return
 
-        _print_query_result(qr, args.format)
+        render._print_query_result(qr, args.format)
     else:
         console.print(f"{result.rows_affected} registros afetados")
