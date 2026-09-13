@@ -1124,22 +1124,28 @@ class TestCmdMulti:
             corpo = json.loads(capsys.readouterr().err)
             assert corpo["error"]["code"] == "usage"
 
-    def test_flat_with_html_is_refused_before_any_connection_opens(self, tmp_config_dir):
+    def test_flat_with_html_is_refused_before_any_connection_opens(self, tmp_config_dir, capsys):
         """exit 2, and execute_across never called."""
         with patch("dbqm.cli.deps.find_connection") as mock_find, \
              patch("dbqm.cli.deps.execute_across") as mock_exec:
             with pytest.raises(SystemExit) as exc:
-                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "--flat", "-e", "html"])
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2",
+                         "--flat", "-e", "html", "-f", "json"])
             assert exc.value.code == 2
             mock_find.assert_not_called()
             mock_exec.assert_not_called()
+        # Without the token this is indistinguishable from argparse
+        # rejecting an argument, which also exits 2.
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert "--flat" in corpo["error"]["message"]
 
     @pytest.mark.parametrize("sql", [
         "DELETE FROM t",
         "DROP TABLE t",
         "BEGIN NULL; END;",
     ])
-    def test_non_query_sql_is_refused_before_any_connection_opens(self, tmp_config_dir, sql):
+    def test_non_query_sql_is_refused_before_any_connection_opens(self, tmp_config_dir, capsys, sql):
         """A comparison has no result set to compare when the statement
         never returns one. `multi` has no `--commit` gate the way `cmd_sql`
         does -- there is no sense in which comparing DML/DDL/PL/SQL output
@@ -1152,6 +1158,9 @@ class TestCmdMulti:
             assert exc.value.code == 2
             mock_find.assert_not_called()
             mock_exec.assert_not_called()
+        # Exit 2 is also argparse's own code for a bad argument, so the code
+        # alone cannot tell this refusal from one we never wrote.
+        assert json.loads(capsys.readouterr().err)["error"]["code"] == "usage"
 
     def test_duplicate_connection_is_a_usage_error(self, tmp_config_dir, capsys):
         """`-c prod -c prod` passes the `len(names) >= 2` check but collapses

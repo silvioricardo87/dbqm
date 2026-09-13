@@ -108,9 +108,11 @@ envelope, errors as structured JSON on stderr, and a stable documented
 exit-code table. **Discovery** (`C2`, `C3`) shipped in 2.1.0 — an agent can
 now see a database's shape without hand-written catalogue SQL. The read-only
 guard (`X3`) shipped in 2.2.0 — a connection can refuse anything but a query.
-Themes, in the order they unlock each other now: **execution** (C4, C8) is
-what an agent does once it can see, and **curation** (C5-C7) is how findings
-survive the session.
+Comparison across connections (`C8`) shipped in 2.5.0 — `dbqm multi` runs one
+ad-hoc SQL against several databases and reports whether they agree. Themes,
+in the order they unlock each other now: **execution** (`C4`) is what an agent
+does once it can see, and **curation** (C5-C7) is how findings survive the
+session.
 
 **2.1.0 and 2.2.0 are deliberately internal versions.** Both exist in
 `CHANGELOG.md` and in the code — discovery and the read-only guard are real,
