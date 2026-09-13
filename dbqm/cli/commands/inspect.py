@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import NoReturn
 
 from rich.markup import escape
 from rich.table import Table
@@ -136,6 +137,33 @@ def cmd_list(args: argparse.Namespace) -> None:
         sys.exit(int(exit_for("usage")))
 
 
+#: What `ddl_extractor` writes into `result.errors` when the object is simply
+#: not there. Matched by text because dbqm wrote it itself -- the same trick
+#: `_USAGE_SQL_MESSAGES` uses in `commands/query.py`, and guarded by a test
+#: that fails if `ddl_extractor` rewords it.
+_DDL_NOT_FOUND = " nao encontrado."
+
+
+def _ddl_error_code(errors: list[str]) -> str:
+    """`not_found` when the object is absent, `sql_error` otherwise.
+
+    `describe` and `rows` both answer `not_found` for a name that is not
+    there; `ddl` said `sql_error`, which is the same disagreement B2 fixed
+    one command over.
+    """
+    if all(e.endswith(_DDL_NOT_FOUND) for e in errors):
+        return "not_found"
+    return "sql_error"
+
+
+def _fail_ddl(args: argparse.Namespace, code: str, message: str) -> NoReturn:
+    """One branch point for `-f json`, like `query._fail_or_print`."""
+    if args.format == "json":
+        fail("ddl", code, message)
+    console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
+    sys.exit(int(exit_for(code)))
+
+
 def cmd_ddl(args: argparse.Namespace) -> None:
     """Extract DDL for a database object.
 
@@ -162,11 +190,19 @@ def cmd_ddl(args: argparse.Namespace) -> None:
         else:
             console.print(f"  [{current}/{total}] {escape(obj_type)}: {escape(obj_name)}", style="dim")
 
-    result = deps.extract_ddl(conn, args.object, on_progress=on_progress)
+    # `extract_ddl` opens its own handle and records every statement failure
+    # into `result.errors`, so anything that escapes it is a failure to open --
+    # the same call-site reasoning `query_engine` uses for `error_kind`.
+    # Without this the exception reached `main.py` and became exit 1, "a bug in
+    # dbqm", for a database that was merely unreachable.
+    try:
+        result = deps.extract_ddl(conn, args.object, on_progress=on_progress)
+    except Exception as e:
+        _fail_ddl(args, "connection_failed", str(e))
 
     if args.format == "json":
         if result.errors and not result.objects:
-            fail("ddl", "sql_error", "; ".join(result.errors))
+            fail("ddl", _ddl_error_code(result.errors), "; ".join(result.errors))
         if args.stdout:
             path = None
         else:

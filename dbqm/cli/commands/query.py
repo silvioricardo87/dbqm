@@ -25,7 +25,15 @@ _USAGE_SQL_MESSAGES = (
     "Apenas comandos SELECT sao permitidos.",
     "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL "
     "(CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+    "Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
 )
+
+#: `--explain` on an engine that has none. A capability the engine does not
+#: have, which `schema.py` already answers with `usage` for the same class of
+#: condition -- reporting it as `sql_error` would say a statement was
+#: rejected when none was ever sent. Matched by prefix because the message
+#: names the engine.
+_UNSUPPORTED_EXPLAIN_PREFIX = "--explain ainda nao e suportado para "
 
 
 def _sql_error_code(message: str | None, error_kind: str = "") -> str:
@@ -38,7 +46,11 @@ def _sql_error_code(message: str | None, error_kind: str = "") -> str:
     """
     if error_kind == "connection":
         return "connection_failed"
-    return "usage" if message in _USAGE_SQL_MESSAGES else "sql_error"
+    if message in _USAGE_SQL_MESSAGES:
+        return "usage"
+    if message and message.startswith(_UNSUPPORTED_EXPLAIN_PREFIX):
+        return "usage"
+    return "sql_error"
 
 
 def _fail_or_print(

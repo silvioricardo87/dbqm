@@ -2845,10 +2845,18 @@ class TestConnectionFailedIsReachable:
     def test_the_bad_input_messages_still_map_to_usage(self, capsys):
         """`_sql_error_code`'s existing job must survive: two messages `core/`
         returns are usage errors, not statement failures."""
-        from dbqm.cli.commands.query import _USAGE_SQL_MESSAGES, _sql_error_code
+        from dbqm.cli.commands.query import _sql_error_code
 
-        for mensagem in _USAGE_SQL_MESSAGES:
-            assert _sql_error_code(mensagem, "statement") == "usage"
+        # The literals, not the constant. Feeding `_USAGE_SQL_MESSAGES` back
+        # into the function that reads it passes for any content, including
+        # content `core/` no longer produces. `tests/cli/test_usage_sql_messages.py`
+        # is what keeps these strings and `core/`'s in step.
+        assert _sql_error_code("Apenas comandos SELECT sao permitidos.",
+                               "statement") == "usage"
+        assert _sql_error_code("--explain ainda nao e suportado para mysql.",
+                               "statement") == "usage"
+        assert _sql_error_code("ORA-00942: tabela inexistente",
+                               "statement") == "sql_error"
 
 
 class TestRowsOnAMissingTable:
@@ -2917,7 +2925,8 @@ class TestRowsOnAMissingTable:
 
         assert saiu.value.code == 2
         assert json.loads(capsys.readouterr().err)["error"]["code"] == "usage"
-        mock_list.assert_not_called(), "no point asking whether a bad name exists"
+        # No point asking whether a name the code already refused exists.
+        mock_list.assert_not_called()
 
     def test_a_failing_existence_check_does_not_replace_the_real_error(self, capsys):
         """The diagnosis must never become the diagnosis.
@@ -2995,6 +3004,67 @@ class TestRowsOnAMissingTable:
 
         assert saiu.value.code == 4
         assert {c.args[2] for c in mock_list.call_args_list} == {"TABLE", "VIEW"}
+
+
+class TestDdlAgreesWithTheRest:
+    """`ddl` was the pair that still disagreed. A missing object answered
+    `sql_error` where `describe` and `rows` both say `not_found`, and an
+    unreachable database escaped as an unhandled exception -- exit 1, "a bug
+    in dbqm", for a database that was merely down."""
+
+    def _extracao(self, errors):
+        from dbqm.core.ddl_extractor import ExtractionResult
+
+        r = ExtractionResult(object_name="OBJ", object_type="TABLE",
+                             owner="", connection_name="conexao")
+        r.errors = errors
+        return r
+
+    def test_an_unreachable_database_exits_three(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
+                   side_effect=RuntimeError("ORA-12541: TNS sem listener")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == ""
+        assert saiu.value.code == 3, "not 1: the database was down, not dbqm"
+        assert json.loads(capturado.err)["error"]["code"] == "connection_failed"
+
+    def test_a_missing_object_is_not_found(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
+                   return_value=self._extracao(["Objeto 'OBJ' nao encontrado."])):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 2, "the same answer describe and rows give"
+        assert json.loads(capsys.readouterr().err)["error"]["code"] == "not_found"
+
+    def test_a_real_extraction_failure_stays_sql_error(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
+                   return_value=self._extracao(["Erro ao extrair TABLE: ORA-01013"])):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
 
 
 class TestDdlStdout:
