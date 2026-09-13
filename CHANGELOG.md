@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.3.2] — 2026-09-13
+
+A PATCH. Nothing a user of the published package can observe changed — this
+release finishes Tier 2 of the roadmap: strict typing joins the lockfile,
+lint gate and strict pytest config from 2.3.1, all four now running in CI.
+
+### Internal
+
+- **mypy `strict = true` joins the gate**, with a per-module exemption list
+  that only shrinks — 36 modules today, out of 91, each entry carrying the
+  finding count it owes. A new module is strict from its first line; nothing
+  fixes the count except typing the module and deleting its entry.
+  `tests/design/test_typing_policy.py` enforces the direction: the exemption
+  list may not grow, every entry must name a module that still exists, and
+  the tracked count must match reality.
+- **`.github/workflows/checks.yml`** runs `uv run mypy` in the Lint step,
+  after `ruff`. It runs through the locked environment, not `uvx` — mypy
+  needs the project's own dependencies to resolve types.
+- **The roadmap's earlier figure of 464 findings at `--strict` was wrong.**
+  It was measured with `uvx mypy --ignore-missing-imports`, and `uvx` runs
+  mypy in an isolated environment without the project's dependencies. mypy
+  could not import Textual, `--ignore-missing-imports` turned every Textual
+  base class into `Any`, and every class deriving from one produced a
+  phantom "cannot subclass" finding. Seven of dbqm's eight dependencies
+  actually ship `py.typed`. Measured correctly, through `uv run mypy
+  --strict`, the real figure was 396 findings across 58 modules. The three
+  slices that built this ratchet brought that down to 361 findings in 36
+  modules before this release, and the tool that reports on an environment
+  it was never run inside was the thing that was wrong, not the code.
+
 ## [2.3.1] — 2026-09-13
 
 A PATCH. Nothing a user of the published package can observe changed — this

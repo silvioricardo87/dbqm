@@ -33,7 +33,13 @@ jobs:
         # project selected -- B, RET and PIE all grow. An unpinned gate turns
         # a green main red with no change to the repository. Bump it on
         # purpose, with the findings it brings, never by surprise.
-        run: uvx ruff@0.16.7 check .
+        #
+        # mypy runs from the locked environment (not `uvx`), so it sees the
+        # project's actual dependencies instead of resolving its own. It adds
+        # about five seconds to this step.
+        run: |
+          uvx ruff@0.16.7 check .
+          uv run mypy
 
       - name: Test
         run: uv run pytest -q
