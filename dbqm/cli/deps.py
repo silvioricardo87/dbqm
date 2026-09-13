@@ -42,6 +42,7 @@ from dbqm.core.group_engine import (
     NoComparableColumns,
     build_adhoc_group_result,
     build_group_result,
+    derive_comparison_columns,
     execute_across,
 )
 from dbqm.core.html_report import export_group_html, export_query_html
@@ -83,6 +84,7 @@ __all__ = [
     "check_read_only",
     "classify_sql",
     "clear_history",
+    "derive_comparison_columns",
     "execute_across",
     "execute_adhoc",
     "execute_explain",

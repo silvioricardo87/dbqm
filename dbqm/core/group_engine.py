@@ -1,6 +1,7 @@
 """Group execution and comparison engine."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
@@ -83,7 +84,7 @@ class ResultLike(Protocol):
 
 
 def derive_comparison_columns(
-    results: dict[str, ResultLike],
+    results: Mapping[str, ResultLike],
 ) -> tuple[str, list[str]]:
     """Derive the join key and compare columns from the columns common to
     every result.
@@ -111,7 +112,7 @@ def derive_comparison_columns(
 
 
 def build_adhoc_group_result(
-    results: dict[str, ResultLike],
+    results: Mapping[str, ResultLike],
     join_key: str = "",
     compare_columns: list[str] | None = None,
 ) -> GroupResult:

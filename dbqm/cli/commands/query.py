@@ -6,7 +6,7 @@ import sys
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, NoReturn, cast
+from typing import NoReturn
 
 from rich.markup import escape
 
@@ -16,7 +16,6 @@ from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
 from dbqm.core.group_engine import GroupResult
-from dbqm.core.query_engine import AdhocResult
 from dbqm.models.connection import Connection
 
 # `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
@@ -304,20 +303,21 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         sys.exit(int(exit_for("divergent")))
 
 
-def _derive_join_key(results: dict[str, AdhocResult]) -> str:
-    """The join key `build_adhoc_group_result` would derive on its own, for
-    reporting purposes.
+def _multi_failure_code(codes: list[str]) -> str:
+    """The one exit token for a set of failing connections.
 
-    Mirrors `derive_comparison_columns`'s rule -- the first column common to
-    every result, in the first result's own column order -- so the value
-    shown to the caller always agrees with the one `build_adhoc_group_result`
-    actually used. Both are pure functions of the same `results`, so
-    computing it twice never disagrees; it just needs computing once more
-    here because `GroupResult` does not carry the key it was built with.
+    Order-independent on purpose: `-c a -c b` and `-c b -c a` over the same
+    failures must exit the same way, so this looks at the whole set rather
+    than the first entry. `connection_failed` outranks everything else --
+    the database never answered, which is the more urgent fact to report --
+    and `usage` outranks `sql_error` so a statement that never reached any
+    driver is not reported as one the driver rejected.
     """
-    first = next(iter(results.values()))
-    common = [c for c in first.columns if all(c in r.columns for r in results.values())]
-    return common[0] if common else ""
+    if "connection_failed" in codes:
+        return "connection_failed"
+    if "usage" in codes:
+        return "usage"
+    return "sql_error"
 
 
 def cmd_multi(args: argparse.Namespace) -> None:
@@ -357,23 +357,47 @@ def cmd_multi(args: argparse.Namespace) -> None:
 
     results = deps.execute_across(sql, resolved, param_values)
 
-    for name, result in results.items():
-        if not result.success:
-            code = "connection_failed" if result.error_kind == "connection" else "sql_error"
-            _fail_or_print(args, "multi", code, f"Falha na conexao '{name}': {result.error}")
+    failing = [(name, result) for name, result in results.items() if not result.success]
+    if failing:
+        # Named per connection with what actually happened -- a statement
+        # error is the database answering, not the connection failing, and
+        # `_sql_error_code` is what tells them apart (it also catches the
+        # messages `core/` returns for a statement never sent to any driver,
+        # which the earlier connection/sql_error dichotomy mislabelled as
+        # `sql_error`). The aggregate exit code does not depend on which
+        # failing connection happens to come first -- see
+        # `_multi_failure_code` -- and every failing connection is named,
+        # not just one.
+        codes = [_sql_error_code(result.error, result.error_kind) for _, result in failing]
+        parts = []
+        for (name, result), code in zip(failing, codes, strict=True):
+            if code == "connection_failed":
+                parts.append(f"Falha na conexao '{name}': {result.error}")
+            elif code == "usage":
+                parts.append(f"Erro de uso em '{name}': {result.error}")
+            else:
+                parts.append(f"Erro na consulta em '{name}': {result.error}")
+        _fail_or_print(args, "multi", _multi_failure_code(codes), "; ".join(parts))
 
     try:
-        # `build_adhoc_group_result` takes `dict[str, ResultLike]` (a
-        # Protocol) and dict value types are invariant to mypy, so a plain
-        # `dict[str, AdhocResult]` needs the cast even though `AdhocResult`
-        # satisfies the Protocol structurally at runtime.
-        group_result = deps.build_adhoc_group_result(
-            cast(dict[str, Any], results), join_key=args.key or "",
-        )
+        join_key, compare_columns = deps.derive_comparison_columns(results)
     except deps.NoComparableColumns as e:
         _fail_or_print(args, "multi", "validation", str(e))
 
-    join_key = args.key or _derive_join_key(results)
+    if args.key:
+        # Re-deriving instead of trusting `build_adhoc_group_result`'s own
+        # `join_key`-given branch to leave `compare_columns` alone: that
+        # branch defaults `compare_columns` to `[]` when none is passed,
+        # which silently compares nothing -- `--key` would report
+        # CONSISTENTE over data it never looked at. Removing the requested
+        # key from the derived common-column list keeps every other common
+        # column in the comparison instead.
+        compare_columns = [c for c in [join_key, *compare_columns] if c != args.key]
+        join_key = args.key
+
+    group_result = deps.build_adhoc_group_result(
+        results, join_key=join_key, compare_columns=compare_columns,
+    )
 
     if args.export:
         fmt = args.export
