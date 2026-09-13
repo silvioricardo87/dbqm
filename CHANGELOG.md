@@ -117,7 +117,24 @@ all move to the same shape):**
 | — | `error` | new (always `""` here) |
 | — | `output_lines` | new as a `data` field — was already riding separately as the envelope's top-level `warnings`, which is unchanged; it now also appears inside `data` |
 
-`sql --explain` is unchanged (`{"connection", "elapsed", "plan"}`).
+`sql --explain` keeps its `{"elapsed", "plan"}` payload, and its `connection`
+key is renamed to `connection_name` along with everything else — it was the one
+key left contradicting the rest of the contract.
+
+**5. `--export` with `-f json`, on `run`, `run-group` and `sql`:**
+
+Exporting used to print `Exportado: <path>` as prose **on stdout**, even under
+`-f json`. It now emits an envelope, and `data` describes the export rather
+than the result:
+
+| Before | After |
+|---|---|
+| `Exportado: /path/to/file.csv` (plain text on stdout, exit 0) | `{"ok":true,"command":"run","data":{"exported":"/path/to/file.csv","format":"csv"}}` |
+
+So with `--export` the `data` shape is `{"exported", "format"}` — **not** the
+result shape in the tables above. The rows are in the exported file, which is
+the point of the flag. `run-group --export` still exits `5` when the
+comparison diverged; before this release it returned early and exited `0`.
 
 **4. `run-group` (`-f json`): shape unchanged** —
 `{"group", "all_match", "comparisons": [{"column", "total_keys", "equal_count",

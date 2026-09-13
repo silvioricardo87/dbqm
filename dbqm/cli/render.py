@@ -1,7 +1,6 @@
 """Rendering helpers shared by the CLI commands: theme, console, output formatting."""
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 from rich.console import Console
@@ -42,10 +41,6 @@ def _materialize(value: Any) -> str:
 def _print_query_result(result: Any, output_format: str = "table") -> None:
     """Print query result in the specified format."""
     from dbqm.core.query_engine import QueryResult
-    if not result.success:
-        console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
-        sys.exit(1)
-
     if output_format == "csv":
         import csv
         import io

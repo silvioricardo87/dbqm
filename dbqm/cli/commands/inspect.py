@@ -165,8 +165,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
             fail("ddl", "sql_error", "; ".join(result.errors))
         dir_path, _ = deps.save_extraction(result)
         data = {
-            "objects": [{"name": o.name, "obj_type": o.obj_type, "ddl": o.ddl}
-                        for o in result.objects],
+            "objects": [o.to_dict() for o in result.objects],
             "path": str(dir_path),
         }
         ok("ddl", data, warnings=result.errors or None)

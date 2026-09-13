@@ -98,7 +98,7 @@ def _exit_with_errors(args: argparse.Namespace, command: str, errors: list[str])
         fail(command, "validation", "; ".join(errors))
     for error in errors:
         console.print(f"[ds.op.failure]{escape(error)}[/ds.op.failure]")
-    sys.exit(2)
+    sys.exit(int(exit_for("validation")))
 
 
 def _connection_add(args: argparse.Namespace) -> None:
@@ -225,7 +225,10 @@ def _connection_rm(args: argparse.Namespace) -> None:
         if not sys.stdin.isatty():
             _fail_or_print(args, "connection.rm", "usage",
                             "Use --yes para remover sem confirmacao.")
-        resposta = input(f'Remover a conexao "{args.name}"? [s/N] ').strip().lower()
+        # The prompt goes to stderr: `input(prompt)` writes it to stdout,
+        # which would put prose on the stream the envelope owns.
+        print(f'Remover a conexao "{args.name}"? [s/N] ', end="", file=sys.stderr, flush=True)
+        resposta = input().strip().lower()
         if resposta not in ("s", "sim"):
             if args.format == "json":
                 ok("connection.rm", {"name": args.name, "removed": False})
@@ -276,5 +279,5 @@ def cmd_connection(args: argparse.Namespace) -> None:
                 "[ds.op.failure]Use: dbqm connection add|update|rm|show|list"
                 "[/ds.op.failure]"
             )
-        sys.exit(2)
+        sys.exit(int(exit_for("validation")))
     handler(args)

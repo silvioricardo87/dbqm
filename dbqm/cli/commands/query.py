@@ -265,7 +265,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
                             result.error or "Erro ao gerar plano de execucao.")
         if args.format == "json":
             plano = [row[0] if row else "" for row in result.rows]
-            ok("sql", {"connection": conn.name, "elapsed": round(result.elapsed, 3), "plan": plano})
+            ok("sql", {"connection_name": conn.name, "elapsed": round(result.elapsed, 3), "plan": plano})
             return
         for row in result.rows:
             print(row[0] if row else "")

@@ -1046,11 +1046,16 @@ class TestPrintQueryResult:
         # Should not raise
         _print_query_result(result, "table")
 
-    def test_failed_result_exits(self):
+    def test_a_failed_result_is_not_the_renderers_decision(self):
+        """The renderer renders; the caller decides the exit. It used to exit 1
+        itself, which contradicts the published table where 1 means dbqm has a
+        bug. Every caller now checks `success` first and exits through
+        `_fail_or_print` with a mapped code -- see
+        `test_run_failed_query_table_format_exits_via_fail_or_print`."""
         from dbqm.cli import _print_query_result
         result = _make_query_result(success=False)
-        with pytest.raises(SystemExit):
-            _print_query_result(result, "table")
+
+        _print_query_result(result, "table")
 
     def test_raw_format_single_column_no_decoration(self, capsys):
         """`--format raw` with one column prints bare values, one per row."""
