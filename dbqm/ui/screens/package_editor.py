@@ -589,6 +589,7 @@ class PackageEditorScreen(Vertical):
         self._active_tab: str = "spec"
         self._pkg_name: str = ""
         self._conn_name: str = ""
+        self._conn = None
         self._db = None
 
     def compose(self) -> ComposeResult:
@@ -736,16 +737,17 @@ class PackageEditorScreen(Vertical):
             conn = find_connection(conn_name)
             if conn:
                 db = get_connection(conn)
-                self.app.call_from_thread(self._store_db, db)
+                self.app.call_from_thread(self._store_db, db, conn)
         except Exception as e:
             self.app.call_from_thread(
                 self._show_db_error,
                 f"Erro ao conectar: {e}",
             )
 
-    def _store_db(self, db) -> None:
+    def _store_db(self, db, conn=None) -> None:
         """Store the database connection (main thread)."""
         self._db = db
+        self._conn = conn
 
     def _show_db_error(self, msg: str) -> None:
         """Show database connection error."""
@@ -830,13 +832,16 @@ class PackageEditorScreen(Vertical):
     def _run_compile(self, sql: str, obj_type: str, target: str) -> None:
         """Run compilation in a background thread."""
         from dbqm.core.package_editor import compile_package, fetch_compilation_errors
+        from dbqm.core.read_only import ReadOnlyViolation
 
         try:
-            success, error_msg = compile_package(self._db, sql)
+            success, error_msg = compile_package(self._db, sql, conn=self._conn)
             errors = fetch_compilation_errors(self._db, self._pkg_name, obj_type)
             self.app.call_from_thread(
                 self._on_compile_result, target, success, error_msg, errors
             )
+        except ReadOnlyViolation as e:
+            self.app.call_from_thread(self._on_read_only_violation, str(e))
         except Exception as e:
             self.app.call_from_thread(self._on_compile_error, str(e))
 
@@ -879,6 +884,12 @@ class PackageEditorScreen(Vertical):
         """Handle compilation exception."""
         self.query_one(ProgressIndicator).stop()
         self.notify(f"Erro na compilacao: {msg}", severity="error", timeout=8)
+
+    def _on_read_only_violation(self, msg: str) -> None:
+        # A refusal, not a crash: stop the spinner and leave the editor as
+        # it was, so the user can still export the .sql or switch tabs.
+        self.query_one(ProgressIndicator).stop()
+        self.notify(msg, severity="warning", timeout=8)
 
     # ------------------------------------------------------------------
     # Save

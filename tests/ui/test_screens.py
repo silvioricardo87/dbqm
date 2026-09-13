@@ -956,6 +956,52 @@ async def test_connections_new_clears_form(tmp_config_dir):
 
 
 @pytest.mark.asyncio
+async def test_connection_form_collects_read_only(tmp_config_dir):
+    """The rule lives in `core/connection_builder`; the form only has to
+    report what the user ticked."""
+    from textual.widgets import Checkbox
+
+    from dbqm.ui.widgets.action_bar import ActionSelected
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.on_action_selected(ActionSelected("conn_new"))
+        await pilot.pause()
+
+        screen.query_one("#conn-form-read-only", Checkbox).value = True
+        await pilot.pause()
+
+        assert screen._collect_form_values()["read_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_connection_form_shows_a_saved_read_only_connection_as_ticked(
+    tmp_config_dir,
+):
+    """Loading a protected connection must show the protection, or the user
+    unticks something they cannot see."""
+    from textual.widgets import Checkbox
+
+    from dbqm.models.connection import Connection
+    from dbqm.ui.widgets.action_bar import ActionSelected
+
+    conexao = Connection(name="protegida", db_type="mysql", user="u",
+                         password="", host="h", read_only=True)
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.on_action_selected(ActionSelected("conn_new"))
+        await pilot.pause()
+
+        screen._load_into_form(conexao)
+        await pilot.pause()
+
+        assert screen.query_one("#conn-form-read-only", Checkbox).value is True
+
+
+@pytest.mark.asyncio
 async def test_connections_save_creates_new_connection(tmp_config_dir):
     """Filling the form and pressing Salvar creates a new connection."""
     from dbqm.models.connection import load_connections
@@ -5053,6 +5099,44 @@ async def test_exec_routine_back_to_select_focuses_connection(tmp_config_dir):
         assert handled is True
         assert screen.query_one("#er-select-phase").display is True
         assert app.focused is app.query_one("#er-conn-select", Select)
+
+
+@pytest.mark.asyncio
+async def test_exec_routine_refuses_on_read_only_connection(tmp_config_dir):
+    """The guard Task 2 put inside `execute_routine` is dormant until the
+    screen actually passes `conn=`. This is the wiring test: a read-only
+    connection must produce the refusal notification and the routine must
+    never reach the database (the cursor is never opened)."""
+    from unittest.mock import MagicMock
+
+    from dbqm.core.object_browser import RoutineInfo
+    from dbqm.models.connection import Connection
+    from dbqm.ui.screens.exec_routine import ExecRoutineScreen
+
+    class _App(ThemedTestApp):
+        def compose(self):
+            yield ExecRoutineScreen()
+
+    conexao = Connection(
+        name="ro", db_type="oracle", user="u", password="",
+        host="h", port=1521, service_name="XE", read_only=True,
+    )
+    routine = RoutineInfo(name="proc1", routine_type="PROCEDURE")
+
+    app = _App()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ExecRoutineScreen)
+        screen._current_conn = conexao
+        screen._db = MagicMock()
+
+        await screen._run_routine("PKG", routine, {}).wait()
+        await pilot.pause()
+
+        assert screen._db.cursor.call_count == 0
+        messages = [str(n.message) for n in app._notifications]
+        assert any(
+            "ro" in m and "somente leitura" in m.lower() for m in messages
+        )
 
 
 @pytest.mark.asyncio

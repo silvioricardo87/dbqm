@@ -5,7 +5,7 @@ import textwrap
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Input, OptionList, Select, Static, TextArea
+from textual.widgets import Button, Checkbox, Input, OptionList, Select, Static, TextArea
 from textual.widgets.option_list import Option
 from textual import work
 
@@ -253,6 +253,11 @@ class ConnectionsScreen(Vertical):
                     yield Static("Descricao (opcional):", classes="field-label")
                     yield TextArea(id="conn-form-desc")
 
+                    # Applies to every engine, so it lives beside the
+                    # description rather than inside any engine-specific
+                    # field group.
+                    yield Checkbox("Somente leitura", id="conn-form-read-only")
+
                 with Horizontal(id="conn-form-buttons"):
                     yield Button("Testar", variant="warning", id="conn-btn-test")
                     yield Button("Salvar", variant="primary", id="conn-btn-save")
@@ -468,6 +473,7 @@ class ConnectionsScreen(Vertical):
         self.query_one("#conn-form-pass", Input).value = password
 
         self.query_one("#conn-form-desc", TextArea).text = conn.description or ""
+        self.query_one("#conn-form-read-only", Checkbox).value = conn.read_only
 
     def _clear_form(self) -> None:
         """Reset the form to a blank state, ready for a new connection."""
@@ -494,6 +500,7 @@ class ConnectionsScreen(Vertical):
             self.query_one(field_id, Input).value = ""
 
         self.query_one("#conn-form-desc", TextArea).text = ""
+        self.query_one("#conn-form-read-only", Checkbox).value = False
         self._apply_field_visibility("", "")
 
     def _current_db_type(self) -> str:
@@ -618,6 +625,7 @@ class ConnectionsScreen(Vertical):
             "tns_name": self._val("#conn-form-tns-name"),
             "user": self._val("#conn-form-user"),
             "description": self.query_one("#conn-form-desc", TextArea).text.strip(),
+            "read_only": self.query_one("#conn-form-read-only", Checkbox).value,
         }
 
         # What the field shows is what gets saved — including empty.
