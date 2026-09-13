@@ -87,7 +87,8 @@ class TestBuildParser:
 
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "sql", "test", "list", "ddl",
-                    "export-config", "import-config", "history", "connection"}
+                    "export-config", "import-config", "history", "connection",
+                    "objects"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -2154,3 +2155,88 @@ class TestEveryCommandSpeaksTheEnvelope:
         assert corpo["command"] == "run-group"
         assert corpo["data"]["all_match"] is False
         assert corpo["data"]["comparisons"][0]["column"] == "status"
+
+
+class TestCmdObjects:
+    """The first command over `open_connection`; the other two copy its shape."""
+
+    def test_json_wraps_the_names_in_an_envelope(self, capsys):
+        import json
+        from unittest.mock import MagicMock, patch
+
+        from dbqm.cli import run_cli
+
+        conn = _make_connection()
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS", "CLIENTES"]):
+            run_cli(["objects", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "objects"
+        assert corpo["data"]["objects"] == ["PEDIDOS", "CLIENTES"]
+        assert corpo["data"]["obj_type"] == "TABLE", "the default type"
+
+    def test_an_unknown_connection_leaves_stdout_empty(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=None):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "nao_existe", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == "", "the rule the whole contract exists for"
+        assert saiu.value.code == 2
+
+    def test_a_connect_failure_is_exit_three(self, capsys):
+        """`connection_failed` is finally distinguishable here: `run` and `sql`
+        cannot tell a refused connection from a rejected statement."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection",
+                   side_effect=RuntimeError("ORA-12541: TNS:no listener")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "conexao", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 3
+
+    def test_a_package_on_sqlserver_is_usage_not_a_traceback(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import UnsupportedEngine
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_objects",
+                   side_effect=UnsupportedEngine("Packages e rotinas so existem no Oracle.")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "conexao", "--type", "PACKAGE", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 2
+
+    def test_table_format_prints_the_names(self, capsys):
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS"]):
+            run_cli(["objects", "conexao"])
+
+        assert "PEDIDOS" in capsys.readouterr().out

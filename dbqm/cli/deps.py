@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from dbqm.core.audit import log_execution
 from dbqm.core.config_portability import export_configs, import_configs
-from dbqm.core.db_manager import test_connection
+from dbqm.core.db_manager import open_connection, test_connection
 from dbqm.core.ddl_extractor import extract_ddl, save_extraction
 from dbqm.core.exporter import (
     export_group_csv,
@@ -45,6 +45,12 @@ from dbqm.core.history import (
     record_group_execution,
     record_query_execution,
 )
+from dbqm.core.object_browser import (
+    UnsupportedEngine,
+    get_table_structure,
+    get_view_definition,
+    list_objects,
+)
 from dbqm.core.query_engine import (
     QueryResult,
     classify_sql,
@@ -52,12 +58,15 @@ from dbqm.core.query_engine import (
     execute_explain,
     execute_query,
 )
+from dbqm.core.table_browser import browse_table
 from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
 from dbqm.models.query import find_query, load_queries
 
 __all__ = [
     "QueryResult",
+    "UnsupportedEngine",
+    "browse_table",
     "build_group_result",
     "classify_sql",
     "clear_history",
@@ -78,12 +87,16 @@ __all__ = [
     "find_connection",
     "find_group",
     "find_query",
+    "get_table_structure",
+    "get_view_definition",
     "import_configs",
+    "list_objects",
     "load_connections",
     "load_groups",
     "load_history",
     "load_queries",
     "log_execution",
+    "open_connection",
     "record_group_execution",
     "record_query_execution",
     "save_extraction",

@@ -4,10 +4,12 @@ from __future__ import annotations
 import argparse
 
 from dbqm.cli.commands import connection as _connection_commands
+from dbqm.cli.commands import schema as _schema_commands
 from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_run, cmd_run_group, cmd_sql
+from dbqm.cli.commands.schema import cmd_objects
 from dbqm.cli.params import _add_connection_fields, _parse_params, resolve_password
 from dbqm.cli.render import _print_query_result, console, rich_theme
 
@@ -100,6 +102,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_ddl.add_argument("-f", "--format", choices=["table", "json"], default="table",
                        help="Formato de saida")
 
+    # --- objects ---
+    p_objects = subparsers.add_parser("objects", help="Listar objetos do banco")
+    p_objects.add_argument("connection", help="Nome da conexao")
+    p_objects.add_argument("--type", choices=_schema_commands.OBJECT_TYPES,
+                           default="TABLE", help="Tipo de objeto")
+    p_objects.add_argument("-f", "--format", choices=["table", "json"],
+                           default="table", help="Formato de saida")
+
     # --- export-config ---
     p_exp = subparsers.add_parser("export-config", help="Exportar configuracoes para bundle .dbqm")
     p_exp.add_argument("--password",
@@ -179,6 +189,7 @@ COMMAND_MAP = {
     "import-config": cmd_import_config,
     "history": cmd_history,
     "connection": cmd_connection,
+    "objects": cmd_objects,
 }
 
 
