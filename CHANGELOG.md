@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.3.1] — 2026-09-13
+
+A PATCH. Nothing a user of the published package can observe changed — this
+release is repository furniture: a reproducible dev environment, a lint gate,
+a stricter test configuration, and CI to run both.
+
+### Internal
+
+- **A lockfile.** `uv.lock` and `.python-version`, so a contributor's
+  environment is reproducible. `pyproject.toml` is untouched and
+  `requires-python = ">=3.10"` is unchanged — that floor is for what a user
+  may install, not for contributors.
+- **A lint gate.** `ruff check .` now passes over fifteen rule families,
+  chosen by measuring which ones the code already passed or nearly passed.
+  40 findings fixed (26 in the package, 14 in the tests) — dead code, stale
+  idioms, and constructs wider than their authors meant. No behaviour change.
+- **A strict test configuration.** `filterwarnings = error`,
+  `--strict-markers`, `--strict-config`, `xfail_strict`.
+- **CI.** `.github/workflows/checks.yml` runs the lint gate and the test
+  suite on pull requests and on pushes to `main`.
+- One test in `tests/test_cli_tema.py` depended on whether `NO_COLOR` was set
+  in the environment — it passed on some machines and failed on others. Not a
+  bug in dbqm; it would have failed on the Linux runner CI now uses, so it is
+  pinned to build its `Console` with `no_color=False`.
+
 ## [2.3.0] — 2026-09-13
 
 Defects in the published error contract, found and fixed in the same slice

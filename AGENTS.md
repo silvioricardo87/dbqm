@@ -107,7 +107,7 @@ The concrete commands, in dbqm's terms:
 | Step | Command | Note |
 |---|---|---|
 | 1 Build | `python -m build` | `build` is not a declared dependency — `pip install build` on a fresh machine. |
-| 2 Lint | *(none)* | **No linter exists.** Documented no-op; adopting ruff is a ROADMAP item. |
+| 2 Lint | `uvx ruff check .` | Fifteen rule families, chosen by measuring which the code already passed or nearly passed. mypy is not part of this gate yet — a ROADMAP item. |
 | 3 Test | `python -m pytest tests/ -x -q` | ~3m10s. Needs `pytest-asyncio` from the `dev` extra, or 327 async tests fail for an unrelated reason. Scope to the change; full run before a release. |
 | 4 Docs | see [README](#readme), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` | The README is the PyPI page. |
 | 5 Version | edit `dbqm/_version.py` | Manual, which `VERSIONING.md` forbids; the tag guard is the compensating control. |

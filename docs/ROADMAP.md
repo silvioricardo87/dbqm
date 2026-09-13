@@ -48,13 +48,17 @@ From the deviations section of [`docs/agents/BACKEND-PYTHON.md`](agents/BACKEND-
 **The order is fixed** — that file explains why a type checker before a lockfile
 turns the ratchet into a negotiation.
 
-| Order | Step | Effect |
-|---|---|---|
-| 1 | uv + `uv.lock` + `.python-version`, delete the empty `requirements.txt` | Every later gate runs on a reproducible environment |
-| 2 | ruff, starting with the rules the code already passes, widening one family at a time | Fills the empty Lint step of the task-completion cycle |
-| 3 | mypy `strict` with a per-module ratchet for legacy modules | New code is typed from its first line |
-| 4 | pytest strict config (`--strict-markers`, `filterwarnings = error`, `xfail_strict`) | Surfaces warnings the suite currently swallows |
-| 5 | CI running steps 1-3 on every push | Until it does, the gates are manual and therefore optional |
+Steps 1, 2, 4 and 5 shipped in 2.3.1 — see `CHANGELOG.md`. Step 3 (mypy) is the
+only one left, and deliberately its own slice: it does not land alongside the
+others because it is the one gate the code does not already nearly pass.
+
+| Order | Step | Effect | Status |
+|---|---|---|---|
+| 1 | uv + `uv.lock` + `.python-version`, delete the empty `requirements.txt` | Every later gate runs on a reproducible environment | Done — 2.3.1 |
+| 2 | ruff, starting with the rules the code already passes, widening one family at a time | Fills the empty Lint step of the task-completion cycle | Done — 2.3.1, fifteen rule families |
+| 3 | mypy `strict` with a per-module ratchet for legacy modules | New code is typed from its first line | **Pending.** Measured at `fe3b906`: **464 findings at `--strict`, 76 at default**. The gap between those two numbers is why a per-module ratchet, not a flag flip, is the only viable path in. |
+| 4 | pytest strict config (`--strict-markers`, `filterwarnings = error`, `xfail_strict`) | Surfaces warnings the suite currently swallows | Done — 2.3.1 |
+| 5 | CI running steps 1-3 on every push | Until it does, the gates are manual and therefore optional | Done for steps 1, 2 and 4 — 2.3.1. Will run step 3 too once it lands. |
 
 ---
 
