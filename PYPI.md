@@ -62,6 +62,12 @@ dbqm run-group conciliacao-diaria -p data=2026-01-01
 # Get an execution plan in one step (no EXPLAIN PLAN FOR boilerplate).
 dbqm sql "SELECT * FROM pedidos WHERE cliente_id = :id" prod --explain -p id=42
 
+# See a database's shape: what exists, one object's columns/keys/indexes,
+# and a table's rows, paged.
+dbqm objects prod --type TABLE
+dbqm describe pedidos prod
+dbqm rows pedidos prod --limit 20
+
 # Extract DDL, browse connections, review history.
 dbqm ddl PKG_FATURAMENTO prod
 dbqm connection list -f json

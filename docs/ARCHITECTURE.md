@@ -32,7 +32,9 @@ dbqm/
 ├── design/            # Design tokens (colors, contrast floors); imports nothing from dbqm
 │   └── tokens.py       # TOKENS_CLARO / TOKENS_ESCURO / TEMAS, one source for TUI + CLI + HTML report
 ├── core/              # Business logic (no UI imports)
-│   ├── db_manager.py          # Connection dispatcher for all 4 DBs; NLS_LANG=.AL32UTF8; Oracle thick mode
+│   ├── db_manager.py          # Connection dispatcher for all 4 DBs; NLS_LANG=.AL32UTF8; Oracle thick mode;
+│   │                          #   open_connection() is the driver-handle lifetime the CLI's
+│   │                          #   objects/describe/rows commands hold open across calls
 │   ├── query_engine.py        # SQL classification (classify_sql), execution (execute_adhoc/query/explain)
 │   ├── group_engine.py        # Multi-connection comparison runs
 │   ├── object_browser.py      # Metadata browsing (tables/views/routines) per DB
@@ -125,10 +127,12 @@ consumers, none of them importing each other.
 
 ### CLI (`cli/`)
 - Non-interactive commands: `sql`, `run`, `run-group`, `test`, `list`, `ddl`,
-  `history`, `export-config`, `import-config`, and the `connection` group.
+  `history`, `export-config`, `import-config`, `objects`, `describe`, `rows`,
+  and the `connection` group.
 - `-f/--format`: `table | json | csv | raw` (`raw` prints values without
-  decoration — for extracting CLOB/LONG sources cleanly). `test`, `ddl`,
-  `export-config` and `import-config` offer `table | json`.
+  decoration — for extracting CLOB/LONG sources cleanly). `rows` offers all
+  four; `test`, `ddl`, `export-config`, `import-config`, `objects` and
+  `describe` offer `table | json`.
 - **Under `-f json`, stdout carries one envelope and nothing else** — no error,
   no progress line, no warning. `envelope.ok()` writes
   `{"ok":true,"command":...,"data":...}` to stdout; `envelope.fail()` writes

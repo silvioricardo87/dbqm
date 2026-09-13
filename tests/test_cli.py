@@ -87,7 +87,8 @@ class TestBuildParser:
 
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "sql", "test", "list", "ddl",
-                    "export-config", "import-config", "history", "connection"}
+                    "export-config", "import-config", "history", "connection",
+                    "objects", "describe", "rows"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -2154,3 +2155,419 @@ class TestEveryCommandSpeaksTheEnvelope:
         assert corpo["command"] == "run-group"
         assert corpo["data"]["all_match"] is False
         assert corpo["data"]["comparisons"][0]["column"] == "status"
+
+
+class TestCmdObjects:
+    """The first command over `open_connection`; the other two copy its shape."""
+
+    def test_json_wraps_the_names_in_an_envelope(self, capsys):
+        import json
+        from unittest.mock import MagicMock, patch
+
+        from dbqm.cli import run_cli
+
+        conn = _make_connection()
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS", "CLIENTES"]):
+            run_cli(["objects", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "objects"
+        assert corpo["data"]["objects"] == ["PEDIDOS", "CLIENTES"]
+        assert corpo["data"]["obj_type"] == "TABLE", "the default type"
+
+    def test_an_unknown_connection_leaves_stdout_empty(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=None):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "nao_existe", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == "", "the rule the whole contract exists for"
+        assert saiu.value.code == 2
+
+    def test_a_connect_failure_is_exit_three(self, capsys):
+        """`connection_failed` is finally distinguishable here: `run` and `sql`
+        cannot tell a refused connection from a rejected statement."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection",
+                   side_effect=RuntimeError("ORA-12541: TNS:no listener")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "conexao", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 3
+
+    def test_a_package_on_sqlserver_is_usage_not_a_traceback(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import UnsupportedEngine
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_objects",
+                   side_effect=UnsupportedEngine("Packages e rotinas so existem no Oracle.")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "conexao", "--type", "PACKAGE", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 2
+
+    def test_a_rejected_statement_is_sql_error_not_connection_failed(self, capsys):
+        """The distinction `errors.py` exists to preserve, and the one `run`
+        and `sql` cannot make. A connection that opened and then rejected what
+        we asked is exit 4; a connection that never opened is exit 3. Reported
+        as exit 3, a caller retries forever against a query the engine will
+        never accept."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.list_objects",
+                   side_effect=RuntimeError("Invalid object name 'sys.objects'")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "conexao", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 4
+
+    def test_table_format_prints_the_names(self, capsys):
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS"]):
+            run_cli(["objects", "conexao"])
+
+        assert "PEDIDOS" in capsys.readouterr().out
+
+
+class TestCmdDescribe:
+    def test_json_carries_columns_indexes_and_no_row_count(self, capsys):
+        """The shape decision: everything the one call returns, and a describe
+        never counts rows."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import (
+            ColumnInfo,
+            IndexInfo,
+            TableStructure,
+            ViewInfo,
+        )
+
+        estrutura = TableStructure(
+            table="PEDIDOS",
+            columns=[
+                ColumnInfo("ID", "NUMBER", 22, 10, 0, False, is_pk=True),
+                ColumnInfo("CLIENTE_ID", "NUMBER", 22, 10, 0, False,
+                           fk_ref="CLIENTES.ID"),
+            ],
+            indexes=[IndexInfo("PK_PEDIDOS", ["ID"], True)],
+        )
+        # A plain table: get_view_definition finds nothing, exactly like the
+        # real function against a real table (verified in tests/core and
+        # against a live database in Step 6). Left unmocked, a bare MagicMock
+        # `db` makes `get_view_definition` return a truthy garbage value
+        # instead of "", which would hide a wrong `or` in the not-found check.
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_table_structure", return_value=estrutura), \
+             patch("dbqm.cli.deps.get_view_definition",
+                   return_value=ViewInfo(name="PEDIDOS", owner="")):
+            run_cli(["describe", "PEDIDOS", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "describe"
+        assert corpo["data"]["columns"][0]["is_pk"] is True
+        assert corpo["data"]["columns"][1]["fk_ref"] == "CLIENTES.ID"
+        assert len(corpo["data"]["indexes"]) == 1
+        assert "row_count" not in corpo["data"], "a describe never scans"
+        assert "sql_definition" not in corpo["data"], "a table has none"
+
+    def test_an_object_with_no_columns_is_not_found(self, capsys):
+        """An empty structure means the name matched nothing."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import TableStructure, ViewInfo
+
+        # A real empty ViewInfo, not a MagicMock: every attribute of a bare
+        # mock is truthy, which would make the "is it a view" check pass and
+        # hide the very conjunction this test is here to pin.
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_table_structure",
+                   return_value=TableStructure(table="NAO_EXISTE")), \
+             patch("dbqm.cli.deps.get_view_definition",
+                   return_value=ViewInfo(name="NAO_EXISTE", owner="", sql_definition="")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["describe", "NAO_EXISTE", "conexao", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 2
+
+    def test_a_view_also_carries_its_sql(self, capsys):
+        """A view has columns like a table and a definition a table has not."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import ColumnInfo, TableStructure, ViewInfo
+
+        estrutura = TableStructure(
+            table="V_PEDIDOS",
+            columns=[ColumnInfo("ID", "NUMBER", 22, 10, 0, False)],
+        )
+        view = ViewInfo(name="V_PEDIDOS", owner="APP",
+                        sql_definition="SELECT id FROM pedidos")
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_table_structure", return_value=estrutura), \
+             patch("dbqm.cli.deps.get_view_definition", return_value=view):
+            run_cli(["describe", "V_PEDIDOS", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"]["sql_definition"] == "SELECT id FROM pedidos"
+
+    def test_a_view_whose_source_is_unreadable_is_still_a_view(self, capsys):
+        """Measured on SQL Server: without the VIEW DEFINITION grant both
+        information_schema.views and sys.sql_modules return NULL rather than
+        an error, so a real view arrives with its owner set and an empty
+        definition. Labelling on the definition alone calls it a TABLE."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import ColumnInfo, TableStructure, ViewInfo
+
+        estrutura = TableStructure(
+            table="VW_ALGO",
+            columns=[ColumnInfo("ID", "int", 4, 10, 0, False)],
+        )
+        sem_fonte = ViewInfo(name="VW_ALGO", owner="dbo", sql_definition="")
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_table_structure", return_value=estrutura),              patch("dbqm.cli.deps.get_view_definition", return_value=sem_fonte):
+            run_cli(["describe", "VW_ALGO", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"]["object_type"] == "VIEW"
+        assert "sql_definition" not in corpo["data"], "nothing to report is not an empty string"
+
+    def test_a_plain_table_says_so(self, capsys):
+        """The other half of the same decision: no owner, no definition."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import ColumnInfo, TableStructure, ViewInfo
+
+        estrutura = TableStructure(
+            table="PEDIDOS",
+            columns=[ColumnInfo("ID", "int", 4, 10, 0, False)],
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_table_structure", return_value=estrutura),              patch("dbqm.cli.deps.get_view_definition",
+                   return_value=ViewInfo(name="PEDIDOS", owner="", sql_definition="")):
+            run_cli(["describe", "PEDIDOS", "conexao", "-f", "json"])
+
+        assert json.loads(capsys.readouterr().out)["data"]["object_type"] == "TABLE"
+
+    def test_table_format_shows_the_same_facts_as_json(self, capsys):
+        """The two formats must not disagree. Same call, same content."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import (
+            ColumnInfo,
+            IndexInfo,
+            TableStructure,
+            ViewInfo,
+        )
+
+        estrutura = TableStructure(
+            table="PEDIDOS",
+            columns=[ColumnInfo("CLIENTE_ID", "NUMBER", 22, 10, 0, False,
+                                fk_ref="CLIENTES.ID")],
+            indexes=[IndexInfo("IX_PED_CLI", ["CLIENTE_ID"], False)],
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_table_structure", return_value=estrutura), \
+             patch("dbqm.cli.deps.get_view_definition",
+                   return_value=ViewInfo(name="PEDIDOS", owner="")):
+            run_cli(["describe", "PEDIDOS", "conexao"])
+
+        saida = capsys.readouterr().out
+        assert "CLIENTE_ID" in saida
+        assert "CLIENTES.ID" in saida, "the FK reference reaches the human too"
+        assert "IX_PED_CLI" in saida, "and so do the indexes"
+        assert "TABLE" in saida
+        assert "VIEW" not in saida, "a table with no definition is not a view"
+
+
+class TestCmdRows:
+    def test_json_carries_rows_as_parallel_arrays(self, capsys):
+        """Same rule 2.0.0 settled for `run`/`sql`: arrays, not objects keyed
+        by column, because a repeated column name drops a value."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="PEDIDOS", connection_name="conexao",
+            columns=["ID", "VALOR"], rows=[[1, "10.50"], [2, "20.00"]],
+            row_count=2, total_count=1284, elapsed=0.12, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "PEDIDOS", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "rows"
+        assert corpo["data"]["rows"] == [[1, "10.50"], [2, "20.00"]]
+        assert corpo["data"]["total_count"] == 1284
+
+    def test_limit_and_offset_reach_the_core_call(self):
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        vazio = BrowseResult(table="T", connection_name="c", columns=[], rows=[],
+                             row_count=0, total_count=0, elapsed=0.0,
+                             limit=10, offset=50)
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=vazio) as mock_browse:
+            run_cli(["rows", "PEDIDOS", "conexao", "--limit", "10",
+                     "--offset", "50", "-f", "json"])
+
+        assert mock_browse.call_args.kwargs["limit"] == 10
+        assert mock_browse.call_args.kwargs["offset"] == 50
+
+    def test_a_negative_limit_is_usage_not_a_database_call(self, capsys):
+        """Validation happens before the connection opens: a bad flag should
+        not cost a round trip."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection") as mock_open:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "PEDIDOS", "conexao", "--limit", "-5", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 2
+        mock_open.assert_not_called()
+
+    def test_a_rejected_table_name_is_sql_error(self, capsys):
+        """`browse_table` validates the identifier and raises; that is the
+        statement failing, not the connection."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=ValueError("Identificador invalido")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "PEDIDOS; DROP TABLE X", "conexao", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 4
+
+    def test_table_format_says_there_is_more_beyond_the_page(self, capsys):
+        """`QueryResult` has no `total_count`, so the renderer cannot report
+        it: without this line a human sees 3 rows of six hundred and nothing
+        to suggest a second page exists. The JSON payload has always carried
+        the number; this is the same fact for the reader."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="PEDIDOS", connection_name="conexao",
+            columns=["ID"], rows=[[1], [2], [3]],
+            row_count=3, total_count=636, elapsed=0.1, limit=3, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "PEDIDOS", "conexao", "--limit", "3"])
+
+        saida = capsys.readouterr().out
+        assert "636" in saida, "the total must reach the human, not only the JSON"
+        assert "--offset 3" in saida, "and it must say how to get the next page"
+
+    def test_the_last_page_says_nothing_extra(self, capsys):
+        """The counterpart: when the page is the whole table, a line about
+        more rows would be a lie."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="PEQUENA", connection_name="conexao",
+            columns=["ID"], rows=[[1], [2]],
+            row_count=2, total_count=2, elapsed=0.1, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "PEQUENA", "conexao"])
+
+        assert "--offset" not in capsys.readouterr().out
+
+    def test_raw_format_prints_values_with_no_decoration(self, capsys):
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="T", connection_name="c", columns=["TEXTO"],
+            rows=[["linha um"], ["linha dois"]],
+            row_count=2, total_count=2, elapsed=0.0, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "T", "conexao", "-f", "raw"])
+
+        saida = capsys.readouterr().out
+        # Exact equality, not a substring check: Rich renders `table` format
+        # with unicode box-drawing characters here (no ASCII "|"), so a
+        # "|" not in saida" check cannot tell raw apart from table -- it
+        # would pass even if `args.format` were hardcoded to "table" below.
+        assert saida == "linha um\nlinha dois\n"

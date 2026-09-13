@@ -153,6 +153,15 @@ dbqm list connections|queries|groups
 # Extract DDL
 dbqm ddl <object> <connection>
 
+# List objects by type (TABLE, VIEW, PACKAGE, ROUTINE)
+dbqm objects <connection> --type TABLE
+
+# Describe one object: columns, keys and indexes (no row count — see below)
+dbqm describe <object> <connection>
+
+# Browse a table, paged
+dbqm rows <table> <connection> --limit 20 --offset 0
+
 # Export/Import configs
 dbqm export-config
 dbqm import-config <file.dbqm>
@@ -181,11 +190,12 @@ dbqm connection rm prod --yes
 
 ### Output format and exit codes
 
-Every command accepts `-f/--format`. `run`, `run-group` and `sql` offer
-`table|json|csv|raw`; every other command — `test`, `list`, `ddl`, `history`,
-`export-config`, `import-config`, and the `connection` group — offers
-`table|json`. `raw` prints plain values with no headers/decoration, handy for
-piping the body of a view, package, or procedure to another tool.
+Every command accepts `-f/--format`. `run`, `run-group`, `sql` and `rows`
+offer `table|json|csv|raw`; every other command — `test`, `list`, `ddl`,
+`history`, `export-config`, `import-config`, `objects`, `describe`, and the
+`connection` group — offers `table|json`. `raw` prints plain values with no
+headers/decoration, handy for piping the body of a view, package, or
+procedure to another tool.
 `--export csv|json|txt` writes the result to a file regardless of `-f`.
 
 `-f json` wraps every command in one envelope: a success prints
@@ -223,6 +233,77 @@ for the full migration notes if you scripted against the pre-2.0 shapes.
 `export-config` and `import-config` accept `--password-stdin` and the
 `DBQM_BUNDLE_PASSWORD` environment variable too, so neither blocks without a
 terminal.
+
+### Schema discovery
+
+`objects`, `describe` and `rows` let a script — or an AI agent — see a
+database's shape without hand-written catalogue SQL.
+
+```bash
+dbqm objects prod --type TABLE
+```
+
+```json
+{"ok": true, "command": "objects", "data": {"connection_name": "prod", "obj_type": "TABLE", "objects": ["ACESSO_EXTERNO_LOG", "ACESSO_EXTERNO_USUARIO", "..."]}}
+```
+
+(the `objects` array lists every name; truncated above for brevity.)
+
+```bash
+dbqm describe ACESSO_EXTERNO_USUARIO prod
+```
+
+```
+ACESSO_EXTERNO_USUARIO (TABLE)
++--------------------------------------+
+| Coluna      | Tipo    | Nulo | Chave |
+|-------------+---------+------+-------|
+| CD_SUSEP    | varchar | NAO  | PK    |
+| CD_CORRETOR | numeric | NAO  | PK    |
+| CD_IP       | varchar | NAO  | PK    |
+| CD_OPCAO    | numeric | SIM  |       |
++--------------------------------------+
+
+INDICES
+  PK_ACESSO_EXTERNO_USUARIO  UNIQUE (CD_CORRETOR, CD_SUSEP, CD_IP)
+```
+
+`-f json` carries the same content — columns (each with `data_type`,
+`nullable`, `is_pk`, `fk_ref`) and `indexes`, plus `object_type` (`"TABLE"` or
+`"VIEW"`) and, for a view, `sql_definition`. **Neither format shows a row
+count** — a `COUNT(*)` is a full scan, and a describe is meant to be instant
+(`psql \d` shows none either):
+
+```json
+{"ok": true, "command": "describe", "data": {"table": "ACESSO_EXTERNO_USUARIO", "columns": [{"name": "CD_SUSEP", "data_type": "varchar", "nullable": false, "is_pk": true, "fk_ref": ""}], "indexes": [{"name": "PK_ACESSO_EXTERNO_USUARIO", "columns": ["CD_CORRETOR", "CD_SUSEP", "CD_IP"], "is_unique": true}], "connection_name": "prod", "object_type": "TABLE"}}
+```
+
+```bash
+dbqm rows ACESSO_EXTERNO_USUARIO prod --limit 3
+```
+
+```
++---------------------------------------------------------+
+| cd_susep       | cd_corretor | cd_ip         | cd_opcao |
+|----------------+-------------+---------------+----------|
+| 00000100370631 | 1026        | 104.41.10.105 |          |
+| 00000100617482 | 4031        | 104.41.10.105 |          |
+| 00000100617482 | 4031        | 162.144.82.47 |          |
++---------------------------------------------------------+
+3 registros em 0.61s
+Mostrando 3 de 1607 linhas. Use --offset 3 para as proximas.
+```
+
+`rows` are parallel arrays, matching `run`/`sql` since 2.0.0; `-f json` also
+carries `total_count`, `limit` and `offset` so a script can page without
+parsing the table footer:
+
+```json
+{"ok": true, "command": "rows", "data": {"table": "ACESSO_EXTERNO_USUARIO", "connection_name": "prod", "columns": ["cd_susep", "cd_corretor", "cd_ip", "cd_opcao"], "rows": [["00000100370631", "1026", "104.41.10.105", null], ["00000100617482", "4031", "104.41.10.105", null], ["00000100617482", "4031", "162.144.82.47", null]], "row_count": 3, "total_count": 1607, "limit": 3, "offset": 0}}
+```
+
+There is deliberately no `--where` on `rows`: `dbqm sql` already takes a
+predicate.
 
 ### Export destination
 

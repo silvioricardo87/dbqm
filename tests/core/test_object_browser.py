@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock
 from dbqm.core.object_browser import (
     _is_numeric_type, _parse_params, _parse_spec_routines,
-    RoutineInfo, RoutineParam, get_standalone_routine_info,
+    RoutineInfo, RoutineParam, UnsupportedEngine, get_standalone_routine_info,
     list_objects,
 )
 
@@ -130,14 +130,61 @@ class TestListObjectsProcedureFunction:
         assert result == ["FN_CALC"]
         assert mock_cursor.execute.call_args[0][1]["t"] == "FUNCTION"
 
-    def test_sqlserver_no_packages(self):
+    @pytest.mark.parametrize("db_type", ["sqlserver", "postgresql", "mysql"])
+    def test_package_refuses_every_engine_but_oracle(self, db_type):
+        """An empty list would read as "there are none here"; packages are
+        a concept that does not exist off Oracle at all, so the caller must
+        get the same refusal `list_package_routines`/`get_package_source`
+        already give for the same question."""
+        mock_db = MagicMock()
+        with pytest.raises(UnsupportedEngine, match=db_type):
+            list_objects(mock_db, db_type, "PACKAGE")
+        # No cursor should have opened: the refusal happens before any query.
+        mock_db.cursor.assert_not_called()
+
+    def test_an_unrecognized_type_still_returns_empty(self):
+        """The guard is keyed on PACKAGE alone. A type dbqm does not know is
+        not a lie of omission the way PACKAGE was — it is an unknown key, and
+        an empty list is the honest answer."""
+        mock_db = MagicMock()
+        mock_db.cursor.return_value.fetchall.return_value = []
+
+        assert list_objects(mock_db, "sqlserver", "SEQUENCE") == []
+        assert list_objects(mock_db, "oracle", "SEQUENCE") == []
+        # The `else: return []` guards are what make that true. Without them
+        # control reaches the trailing `return [row[0] for row in
+        # cursor.fetchall()]` with no statement ever executed -- which a
+        # MagicMock answers with `[]` just the same, hiding the bug that a
+        # real driver would raise on. Asserting nothing was executed is what
+        # tells the two apart.
+        mock_db.cursor.return_value.execute.assert_not_called()
+
+    def test_package_still_works_on_oracle(self):
         mock_db = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = []
+        mock_cursor.fetchall.return_value = [("PKG_ORDERS",)]
         mock_db.cursor.return_value = mock_cursor
 
-        result = list_objects(mock_db, "sqlserver", "PACKAGE")
-        assert result == []
+        result = list_objects(mock_db, "oracle", "PACKAGE")
+        assert result == ["PKG_ORDERS"]
+
+    def test_sqlserver_routine_reaches_the_cursor(self):
+        """Falsified: with the `ROUTINE` branch removed from the `sqlserver`
+        block, this test fails with
+        `assert [] == ['MY_PROC', 'FN_CALC']` — `list_objects` falls through
+        to the trailing `else: return []` instead of querying
+        `information_schema.routines`. Restoring the branch makes it pass
+        again, which is what proves this test can tell right code from
+        wrong."""
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [("MY_PROC",), ("FN_CALC",)]
+        mock_db.cursor.return_value = mock_cursor
+
+        result = list_objects(mock_db, "sqlserver", "ROUTINE")
+        assert result == ["MY_PROC", "FN_CALC"]
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "information_schema.routines" in sql
 
     def test_oracle_routine_returns_procedures_and_functions(self):
         mock_db = MagicMock()
@@ -210,3 +257,236 @@ class TestGetStandaloneRoutineInfo:
 
         info = get_standalone_routine_info(mock_db, "MY_PROC")
         assert info.params[0].direction == "IN OUT"
+
+
+class TestUnsupportedEngine:
+    """Packages and routine introspection are Oracle-only in fact: these four
+    functions take a db_type and never branch on it, going straight to
+    all_source with Oracle bind syntax. The guard turns a driver traceback
+    into a message a user can act on."""
+
+    def test_list_package_routines_refuses_sqlserver(self):
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, list_package_routines
+
+        db = MagicMock()
+        with pytest.raises(UnsupportedEngine, match="Oracle"):
+            list_package_routines(db, "sqlserver", "MEU_PACOTE")
+        db.cursor.assert_not_called()
+
+    def test_get_package_source_refuses_postgresql(self):
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, get_package_source
+
+        db = MagicMock()
+        with pytest.raises(UnsupportedEngine, match="Oracle"):
+            get_package_source(db, "postgresql", "MEU_PACOTE")
+        db.cursor.assert_not_called()
+
+    def test_get_package_source_respects_its_default_source_type(self):
+        """The signature is (db, db_type, package, source_type="PACKAGE");
+        the guard must fire whether or not the fourth argument is given."""
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, get_package_source
+
+        with pytest.raises(UnsupportedEngine):
+            get_package_source(MagicMock(), "mysql", "PKG", "BODY")
+
+    def test_the_message_names_the_engine_that_was_asked(self):
+        """A message saying only "Oracle only" leaves the user guessing what
+        dbqm thought the connection was."""
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, list_package_routines
+
+        with pytest.raises(UnsupportedEngine, match="sqlserver"):
+            list_package_routines(MagicMock(), "sqlserver", "X")
+
+    def test_oracle_is_not_refused(self):
+        """The guard must not become a wall. Oracle reaches the cursor."""
+        from unittest.mock import MagicMock
+
+        from dbqm.core.object_browser import list_package_routines
+
+        db = MagicMock()
+        db.cursor.return_value.fetchall.return_value = []
+        list_package_routines(db, "oracle", "MEU_PACOTE")
+        db.cursor.assert_called()
+
+
+def _db_com_colunas(linhas):
+    """A db whose cursor returns `linhas` for the columns query.
+
+    Row shape, per `get_table_structure`:
+    (name, data_type, data_length, data_precision, data_scale, nullable_raw)
+    """
+    from unittest.mock import MagicMock
+
+    db = MagicMock()
+    db.cursor.return_value.fetchall.return_value = list(linhas)
+    return db
+
+
+class TestGetTableStructure:
+    """`describe` rests on this and it had no tests."""
+
+    def test_oracle_columns_carry_type_and_nullability(self):
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([
+            ("ID", "NUMBER", 22, 10, 0, "N"),
+            ("VALOR", "NUMBER", 22, 12, 2, "Y"),
+        ])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert estrutura.table == "PEDIDOS"
+        assert [c.name for c in estrutura.columns] == ["ID", "VALOR"]
+        assert estrutura.columns[0].data_type == "NUMBER"
+        assert estrutura.columns[0].nullable is False, "Oracle spells it N"
+        assert estrutura.columns[1].nullable is True, "Oracle spells it Y"
+
+    def test_the_other_engines_spell_nullability_differently(self):
+        """Oracle compares against "Y"; everyone else against "YES". A test
+        that only covers Oracle would miss a whole branch reading it wrong."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([
+            ("ID", "int", 4, 10, 0, "NO"),
+            ("VALOR", "decimal", 9, 12, 2, "YES"),
+        ])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "sqlserver", "PEDIDOS")
+
+        assert estrutura.columns[0].nullable is False
+        # The load-bearing half. "NO" is False against both "Y" and "YES", so
+        # a NOT NULL column alone cannot tell the right comparison from the
+        # wrong one; only a nullable column can.
+        assert estrutura.columns[1].nullable is True
+
+    def test_a_primary_key_column_is_marked(self):
+        """`is_pk` is how `describe` shows the key without a second call."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([
+            ("ID", "NUMBER", 22, 10, 0, "N"),
+            ("VALOR", "NUMBER", 22, 12, 2, "Y"),
+        ])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert [c.name for c in estrutura.columns if c.is_pk] == ["ID"]
+
+    def test_a_lowercase_column_still_matches_its_key(self):
+        """The lookup upper-cases the column name before checking. PostgreSQL
+        returns lower-case names, so without that this silently marks nothing."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([("id", "integer", 4, 32, 0, "NO")])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "postgresql", "pedidos")
+
+        assert estrutura.columns[0].is_pk is True
+
+    def test_a_foreign_key_column_carries_its_reference(self):
+        """`fk_ref` is why `describe` needs no separate FK query."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([("CLIENTE_ID", "NUMBER", 22, 10, 0, "N")])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map",
+                   return_value={"CLIENTE_ID": "CLIENTES.ID"}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert estrutura.columns[0].fk_ref == "CLIENTES.ID"
+
+    def test_indexes_come_back(self):
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import IndexInfo, get_table_structure
+
+        db = _db_com_colunas([("ID", "NUMBER", 22, 10, 0, "N")])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes",
+                   return_value=[IndexInfo("PK_PEDIDOS", ["ID"], True)]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert [i.name for i in estrutura.indexes] == ["PK_PEDIDOS"]
+        assert estrutura.indexes[0].is_unique is True
+
+    def test_a_table_with_no_columns_returns_empty_not_an_error(self):
+        """A name that matches nothing is a normal answer, not an exception —
+        the CLI turns an empty structure into `not_found`, and it cannot do
+        that if this raises first."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "NAO_EXISTE")
+
+        assert estrutura.columns == []
+
+
+class TestGetViewDefinition:
+    """The other function `describe` rests on, also untested until now."""
+
+    def test_it_returns_the_sql(self):
+        from dbqm.core.object_browser import get_view_definition
+
+        db = _db_com_colunas([])
+        # For db_type "oracle", get_view_definition first calls _detect_owner,
+        # which also reads via cursor.fetchone() on the SAME mocked cursor.
+        # A 1-tuple works there (it only reads row[0]) but then blows up with
+        # an IndexError on the real query, which reads row[0] and row[1].
+        # A 2-tuple (owner, text) satisfies both call sites for real.
+        db.cursor.return_value.fetchone.return_value = ("SCOTT", "SELECT id FROM pedidos")
+        view = get_view_definition(db, "oracle", "V_PEDIDOS")
+
+        assert view.name == "V_PEDIDOS"
+        assert "SELECT" in view.sql_definition.upper()
+
+    def test_a_missing_view_gives_an_empty_definition(self):
+        """`describe` uses an empty definition plus zero columns to decide the
+        object does not exist, so this must not raise."""
+        from dbqm.core.object_browser import get_view_definition
+
+        db = _db_com_colunas([])
+        db.cursor.return_value.fetchone.return_value = None
+        view = get_view_definition(db, "oracle", "NAO_EXISTE")
+
+        assert view.sql_definition == ""

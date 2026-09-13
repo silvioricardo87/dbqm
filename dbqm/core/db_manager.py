@@ -5,8 +5,9 @@ import os
 import platform
 import re
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from dbqm.core.crypto import decrypt
 from dbqm.models.connection import Connection
@@ -574,3 +575,26 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
                 db.close()
             except Exception:
                 pass
+
+
+@contextmanager
+def open_connection(conn: Connection) -> Iterator[Any]:
+    """Yield an open driver handle for `conn` and close it on the way out.
+
+    `object_browser` and `table_browser` take an already-open handle, unlike
+    `execute_query`/`execute_adhoc`, which own the lifetime internally. Before
+    this, the only code opening a handle for them was the TUI's browser screen.
+
+    A failure to connect propagates unwrapped: the caller decides whether that
+    is `connection_failed` or something else. A `close()` that itself fails is
+    swallowed, because losing the body's exception to a cleanup error replaces
+    a real diagnosis with a useless one.
+    """
+    db = get_connection(conn)
+    try:
+        yield db
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass

@@ -215,3 +215,73 @@ class TestDriversRaiseHelpfulErrorWhenAbsent:
         with patch.dict(sys.modules, {"pymysql": None}):
             with pytest.raises(RuntimeError, match="MySQL"):
                 get_mysql_connection(self._conn("mysql"))
+
+
+class TestOpenConnection:
+    """The CLI's handle lifetime. `core/` owns it so no command reimplements it."""
+
+    def test_it_yields_the_open_handle(self):
+        from unittest.mock import MagicMock, patch
+
+        from dbqm.core.db_manager import open_connection
+
+        db = MagicMock()
+        with patch("dbqm.core.db_manager.get_connection", return_value=db):
+            with open_connection(MagicMock()) as aberto:
+                assert aberto is db
+                db.close.assert_not_called()
+
+    def test_it_closes_on_the_way_out(self):
+        from unittest.mock import MagicMock, patch
+
+        from dbqm.core.db_manager import open_connection
+
+        db = MagicMock()
+        with patch("dbqm.core.db_manager.get_connection", return_value=db):
+            with open_connection(MagicMock()):
+                pass
+        db.close.assert_called_once()
+
+    def test_it_closes_even_when_the_body_raises(self):
+        """The reason this is a context manager and not two calls."""
+        from unittest.mock import MagicMock, patch
+
+        import pytest
+
+        from dbqm.core.db_manager import open_connection
+
+        db = MagicMock()
+        with patch("dbqm.core.db_manager.get_connection", return_value=db):
+            with pytest.raises(ValueError):
+                with open_connection(MagicMock()):
+                    raise ValueError("boom")
+        db.close.assert_called_once()
+
+    def test_a_close_that_fails_does_not_mask_the_real_error(self):
+        """A driver whose close() throws must not replace the body's exception."""
+        from unittest.mock import MagicMock, patch
+
+        import pytest
+
+        from dbqm.core.db_manager import open_connection
+
+        db = MagicMock()
+        db.close.side_effect = RuntimeError("close falhou")
+        with patch("dbqm.core.db_manager.get_connection", return_value=db):
+            with pytest.raises(ValueError, match="boom"):
+                with open_connection(MagicMock()):
+                    raise ValueError("boom")
+
+    def test_a_connect_failure_propagates_unwrapped(self):
+        """The CLI maps the driver's error to `connection_failed`; it must see it."""
+        from unittest.mock import MagicMock, patch
+
+        import pytest
+
+        from dbqm.core.db_manager import open_connection
+
+        with patch("dbqm.core.db_manager.get_connection",
+                   side_effect=RuntimeError("ORA-12541")):
+            with pytest.raises(RuntimeError, match="ORA-12541"):
+                with open_connection(MagicMock()):
+                    pass

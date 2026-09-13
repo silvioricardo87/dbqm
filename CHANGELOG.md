@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.1.0] — 2026-09-12
+
+Schema discovery on the CLI: three commands to see what is in a database
+without hand-written catalogue SQL. Nothing existing changed shape, so this is
+a minor release.
+
+### Added
+
+- **`dbqm objects <connection> [--type TABLE|VIEW|PACKAGE|ROUTINE] [-f table|json]`**
+  — list what exists.
+- **`dbqm describe <object> <connection> [-f table|json]`** — one object's
+  columns (type, nullability, PK marker, FK reference) plus its indexes. It
+  dispatches on what the object turns out to be, so the caller never says
+  "table" or "view". **No row count, in either format**: a `COUNT(*)` is a
+  full scan and a describe is meant to be instant — `psql \d` shows none
+  either.
+- **`dbqm rows <table> <connection> [--limit N] [--offset N] [-f table|json|csv|raw]`**
+  — browse a table, paged. `rows` are parallel arrays, matching what 2.0.0
+  established for `run` and `sql`. Under `-f table` it also reports the total
+  row count and the `--offset` for the next page. There is deliberately no
+  `--where`: `dbqm sql` already takes a predicate.
+
+All three speak the 2.0.0 envelope under `-f json` and map failures the same
+way `run`/`sql` do: a connection that never opened is `connection_failed`
+(exit 3), a statement the engine rejected is `sql_error` (exit 4), and a
+capability the engine does not have is `usage` (exit 2).
+
+**Known gap, not introduced here:** `objects --type ROUTINE` cannot tell a
+PROCEDURE from a FUNCTION on any engine — the query joins both and returns
+only the name. Documented in `core/object_browser.py`.
+
+### Fixed
+
+- **Package and routine introspection on SQL Server, PostgreSQL and MySQL
+  raised a raw driver error.** Asking `list_package_routines` or
+  `get_package_source` for packages on those three engines used to surface an
+  unhandled driver traceback, and `dbqm objects --type PACKAGE` used to return
+  an empty list on them — which reads as "there are none here" rather than
+  "this engine has no such thing". Both now refuse cleanly with a message
+  naming the engine.
+- **`dbqm objects --type ROUTINE` on SQL Server returned an empty list.** That
+  engine's branch was never written, while PostgreSQL and MySQL both already
+  queried `information_schema.routines`; SQL Server now does too. Verified
+  against a real SQL Server: 41 routines where there used to be none.
+- **`dbqm describe` reported a genuine view as a TABLE** when the connected
+  user lacked the `VIEW DEFINITION` grant. SQL Server returns `NULL` from both
+  `information_schema.views` and `sys.sql_modules` in that case, with no
+  error, so the empty definition looked like "not a view".
+- `get_table_structure`'s docstring claimed a row count it never returned.
+
 ## [2.0.0] — 2026-09-12
 
 One machine-readable output contract for the whole CLI. Every JSON shape
