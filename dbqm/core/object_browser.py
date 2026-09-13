@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from dbqm.core.read_only import ReadOnlyViolation
+
 
 class UnsupportedEngine(RuntimeError):
     """A capability that exists only on one engine was asked of another.
@@ -881,9 +883,9 @@ def get_standalone_routine_info(db, routine_name: str, routine_type: str = "PROC
         cursor.close()
 
 
-def execute_standalone_routine(db, routine: RoutineInfo, param_values: dict[str, str]) -> RoutineExecutionResult:
+def execute_standalone_routine(db, routine: RoutineInfo, param_values: dict[str, str], conn=None) -> RoutineExecutionResult:
     """Execute a standalone procedure or function (not inside a package)."""
-    return execute_routine(db, "", routine, param_values)
+    return execute_routine(db, "", routine, param_values, conn=conn)
 
 
 # ---------------------------------------------------------------------------
@@ -1011,12 +1013,24 @@ def execute_routine(
     package: str,
     routine: RoutineInfo,
     param_values: dict[str, str],
+    conn=None,
 ) -> RoutineExecutionResult:
     """Execute a package routine via anonymous PL/SQL block.
 
     Builds a DECLARE/BEGIN/END block, enables DBMS_OUTPUT, handles
     IN/OUT params and FUNCTION return values.
+
+    Takes an open `db` handle rather than a `Connection`, so it cannot
+    classify the statement it builds. When `conn` is given and read-only, it
+    refuses outright: a routine can write regardless of the text that calls
+    it, which is exactly why it is refused rather than classified.
     """
+    if conn is not None and getattr(conn, "read_only", False):
+        raise ReadOnlyViolation(
+            f"Conexao '{conn.name}' e somente leitura e uma rotina pode "
+            "escrever independente do texto do comando. "
+            "Use --force-write para executar assim mesmo."
+        )
     start = time.time()
     cursor = db.cursor()
 

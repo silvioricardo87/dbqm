@@ -1012,3 +1012,25 @@ class TestCollectResultSetsTerminates:
 
         columns, rows, notas = _collect_result_sets(Explode())
         assert rows == [[7]]
+
+
+class TestIsSelectOnlyCountsStatements:
+    """The gate `execute_query` relies on inspected only `parsed[0]`, so a
+    saved query edited to `SELECT 1; DROP TABLE t` answered True while the
+    whole string reached the driver. The statement count is part of the
+    question, not a separate one."""
+
+    def test_a_single_select_passes(self):
+        from dbqm.core.query_engine import _is_select_only
+
+        assert _is_select_only("SELECT 1") is True
+
+    def test_a_trailing_semicolon_is_still_one_statement(self):
+        from dbqm.core.query_engine import _is_select_only
+
+        assert _is_select_only("SELECT 1;") is True
+
+    def test_a_select_followed_by_a_write_is_refused(self):
+        from dbqm.core.query_engine import _is_select_only
+
+        assert _is_select_only("SELECT 1; DROP TABLE t") is False
