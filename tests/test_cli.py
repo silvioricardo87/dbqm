@@ -2229,6 +2229,26 @@ class TestCmdObjects:
         assert capsys.readouterr().out == ""
         assert saiu.value.code == 2
 
+    def test_a_rejected_statement_is_sql_error_not_connection_failed(self, capsys):
+        """The distinction `errors.py` exists to preserve, and the one `run`
+        and `sql` cannot make. A connection that opened and then rejected what
+        we asked is exit 4; a connection that never opened is exit 3. Reported
+        as exit 3, a caller retries forever against a query the engine will
+        never accept."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.list_objects",
+                   side_effect=RuntimeError("Invalid object name 'sys.objects'")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["objects", "conexao", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 4
+
     def test_table_format_prints_the_names(self, capsys):
         from unittest.mock import patch
 

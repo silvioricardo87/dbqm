@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from typing import NoReturn
 
 from rich.markup import escape
@@ -26,7 +27,34 @@ def _fail_or_print(args: argparse.Namespace, command: str, code: str,
     if args.format == "json":
         fail(command, code, message)
     console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
-    raise SystemExit(int(exit_for(code)))
+    sys.exit(int(exit_for(code)))
+
+
+def _with_open_connection(args: argparse.Namespace, command: str, conn, acao):
+    """Open a handle, run `acao(db)` on it, and map each failure to its token.
+
+    The two failures are kept apart deliberately. `open_connection` failing
+    means the database did not answer -> `connection_failed` (3). `acao`
+    failing means the database answered and rejected what we asked -> a
+    statement error (4), or `usage` (2) when `core/` says the capability does
+    not exist on this engine at all. Collapsing both into `connection_failed`
+    is what `run` and `sql` do, and it is the distinction `errors.py` exists
+    to preserve: a caller retrying a connection failure would retry forever
+    against a query the engine will never accept.
+    """
+    try:
+        with deps.open_connection(conn) as db:
+            # These two handlers exhaust everything `acao` can raise, so the
+            # outer handler below can only ever see a failure from opening the
+            # connection itself. That is what keeps the two apart.
+            try:
+                return acao(db)
+            except deps.UnsupportedEngine as e:
+                _fail_or_print(args, command, "usage", str(e))
+            except Exception as e:
+                _fail_or_print(args, command, "sql_error", str(e))
+    except Exception as e:
+        _fail_or_print(args, command, "connection_failed", str(e))
 
 
 def cmd_objects(args: argparse.Namespace) -> None:
@@ -37,18 +65,10 @@ def cmd_objects(args: argparse.Namespace) -> None:
                        f"Conexao '{args.connection}' nao encontrada.")
 
     obj_type = args.type.upper()
-    try:
-        with deps.open_connection(conn) as db:
-            try:
-                nomes = deps.list_objects(db, conn.db_type, obj_type)
-            except deps.UnsupportedEngine as e:
-                _fail_or_print(args, "objects", "usage", str(e))
-    except deps.UnsupportedEngine:
-        raise
-    except SystemExit:
-        raise
-    except Exception as e:
-        _fail_or_print(args, "objects", "connection_failed", str(e))
+    nomes = _with_open_connection(
+        args, "objects", conn,
+        lambda db: deps.list_objects(db, conn.db_type, obj_type),
+    )
 
     if args.format == "json":
         ok("objects", {"connection_name": conn.name, "obj_type": obj_type,

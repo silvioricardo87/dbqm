@@ -142,6 +142,16 @@ class TestListObjectsProcedureFunction:
         # No cursor should have opened: the refusal happens before any query.
         mock_db.cursor.assert_not_called()
 
+    def test_an_unrecognized_type_still_returns_empty(self):
+        """The guard is keyed on PACKAGE alone. A type dbqm does not know is
+        not a lie of omission the way PACKAGE was — it is an unknown key, and
+        an empty list is the honest answer."""
+        mock_db = MagicMock()
+        mock_db.cursor.return_value.fetchall.return_value = []
+
+        assert list_objects(mock_db, "sqlserver", "SEQUENCE") == []
+        assert list_objects(mock_db, "oracle", "SEQUENCE") == []
+
     def test_package_still_works_on_oracle(self):
         mock_db = MagicMock()
         mock_cursor = MagicMock()
