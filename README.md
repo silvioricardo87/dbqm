@@ -138,6 +138,11 @@ dbqm run <query-name> -p data_inicio=2026-01-01 -p situacao=PAGO
 # Execute a query group (parameters are shared by every query in it)
 dbqm run-group <group-name> -p data_inicio=2026-01-01
 
+# Run one ad-hoc SQL across several connections and compare the results
+# (at least two -c/--connection; --key overrides the join column)
+dbqm multi "SELECT * FROM table" -c prod -c homolog
+dbqm multi "SELECT * FROM table" -c prod -c homolog -c staging --key id
+
 # Execute ad-hoc SQL (SELECT/CTE, DML with --commit, DDL, PL/SQL anonymous blocks with DBMS_OUTPUT)
 dbqm sql "SELECT * FROM table" <connection>
 dbqm sql "WITH x AS (SELECT 1 FROM dual) SELECT * FROM x" <connection>
@@ -260,6 +265,14 @@ regardless of the result, so a script chaining `dbqm run-group ... &&
 next-step` ran `next-step` unconditionally. It now stops on divergence, which
 is the point of running a comparison in a script — see [CHANGELOG.md](./CHANGELOG.md)
 for the full migration notes if you scripted against the pre-2.0 shapes.
+`dbqm multi` exits `5` on the same terms: the join column it actually used
+— the first column common to every connection, or whatever `--key` named —
+is reported alongside the comparison, in the `-f json` envelope's
+`join_key` field and in the `-f table` header, since a key chosen by a rule
+the caller cannot see would turn every number downstream into a guess. A
+connection that fails to answer or has its statement rejected stops the
+command with nothing exported, rather than comparing whatever subset did
+answer.
 
 `export-config` and `import-config` accept `--password-stdin` and the
 `DBQM_BUNDLE_PASSWORD` environment variable too, so neither blocks without a

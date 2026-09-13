@@ -123,10 +123,9 @@ the release history.
 | Order | Item | Theme | Effort | Agent value | Notes |
 |---|---|---|---|---|---|
 | 1 | **C4** — `dbqm call` (execute a routine) | execution | M | high | `execute_routine` already handles IN/OUT binding, return values and DBMS_OUTPUT capture — but is **Oracle-only** (no `db_type`, builds an anonymous PL/SQL block). Ship Oracle-first with a clean refusal, or pay for three more routine models. This is also the sub-project that would build a server-side read-only session (`SET TRANSACTION READ ONLY` on Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL — SQL Server has no equivalent), deferred here when the client-side guard (`X3`) shipped in 2.2.0. |
-| 2 | **C8** — `dbqm multi` (one ad-hoc SQL across N connections, compared) | execution | M | high | The Multi-Exec tab has no CLI equivalent; `run-group` only runs *saved* groups of *saved* queries. For sustainment work this is the most-used flow. Reuses `build_group_result` as-is. |
-| 3 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
-| 4 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
-| 5 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+| 2 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
+| 3 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
+| 4 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
 
 ### Deliberately not scheduled
 
@@ -147,6 +146,18 @@ the release history.
   inherited it, rather than introducing it. The honest options are to export
   what those statements do return — a row count, DBMS_OUTPUT — or to refuse
   the flag with `usage`; what it must not keep doing is accept and ignore.
+- **`run_comparison` is annotated `dict[str, QueryResult]` and has always
+  been passed `AdhocResult`** by the Multi-Exec screen. The two are
+  duck-compatible, so it works, and mypy misses the mismatch because
+  `group_engine.py` sits on the per-module exemption list. The `multi`
+  sub-project named the real requirement instead of inheriting the wrong
+  one — a `ResultLike` `Protocol` in `core/group_engine.py` — but left the
+  old signature as it was. Fixing it means taking `group_engine.py` off the
+  exemption list, which is a typing slice, not a feature.
+- **The `.sql`-file-path block in `cmd_multi` is duplicated verbatim from
+  `cmd_sql`.** Both accept either SQL text or a path to a `.sql` file, and
+  both implement it in place. Real duplication, deliberately not fixed
+  inside the `multi` feature commit.
 
 ## Suite hygiene
 
@@ -177,12 +188,13 @@ ships Oracle-first with a clean refusal elsewhere, or pays for three more
 routine models. Measured in 2.1.0, when the same discovery was made about
 `list_package_routines`.
 
-The html-export sub-project (2.4.0, see `CHANGELOG.md`) shipped ahead of
-that order: `--export` is shared plumbing that every later Tier 3 command
-touches again, and landing `html` first touched it once instead of twice.
-With that done, **C8** (`dbqm multi`) is next: the Multi-Exec tab has no CLI
-equivalent, `run-group` only runs *saved* groups of *saved* queries, and
-`build_group_result` is reusable as-is.
+The html-export sub-project (2.4.0) and `dbqm multi` (2.5.0, see
+`CHANGELOG.md` for both) shipped ahead of that order: `--export` is shared
+plumbing that every later Tier 3 command touches again, and the Multi-Exec
+tab's flow was the most-used one missing from the CLI. With both done,
+**C4** (`dbqm call`) is next in the controller's ordering, and carries the
+server-side read-only session deferred when the client-side guard (`X3`)
+shipped in 2.2.0.
 
 **A note on estimating, not an apology:** the html item's effort **S** was
 measured against `run-group` alone, where `export_group_html` already
