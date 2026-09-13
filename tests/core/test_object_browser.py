@@ -276,3 +276,163 @@ class TestUnsupportedEngine:
         db.cursor.return_value.fetchall.return_value = []
         list_package_routines(db, "oracle", "MEU_PACOTE")
         db.cursor.assert_called()
+
+
+def _db_com_colunas(linhas):
+    """A db whose cursor returns `linhas` for the columns query.
+
+    Row shape, per `get_table_structure`:
+    (name, data_type, data_length, data_precision, data_scale, nullable_raw)
+    """
+    from unittest.mock import MagicMock
+
+    db = MagicMock()
+    db.cursor.return_value.fetchall.return_value = list(linhas)
+    return db
+
+
+class TestGetTableStructure:
+    """`describe` rests on this and it had no tests."""
+
+    def test_oracle_columns_carry_type_and_nullability(self):
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([
+            ("ID", "NUMBER", 22, 10, 0, "N"),
+            ("VALOR", "NUMBER", 22, 12, 2, "Y"),
+        ])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert estrutura.table == "PEDIDOS"
+        assert [c.name for c in estrutura.columns] == ["ID", "VALOR"]
+        assert estrutura.columns[0].data_type == "NUMBER"
+        assert estrutura.columns[0].nullable is False, "Oracle spells it N"
+        assert estrutura.columns[1].nullable is True, "Oracle spells it Y"
+
+    def test_the_other_engines_spell_nullability_differently(self):
+        """Oracle compares against "Y"; everyone else against "YES". A test
+        that only covers Oracle would miss a whole branch reading it wrong."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([("ID", "int", 4, 10, 0, "NO")])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "sqlserver", "PEDIDOS")
+
+        assert estrutura.columns[0].nullable is False
+
+    def test_a_primary_key_column_is_marked(self):
+        """`is_pk` is how `describe` shows the key without a second call."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([
+            ("ID", "NUMBER", 22, 10, 0, "N"),
+            ("VALOR", "NUMBER", 22, 12, 2, "Y"),
+        ])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert [c.name for c in estrutura.columns if c.is_pk] == ["ID"]
+
+    def test_a_lowercase_column_still_matches_its_key(self):
+        """The lookup upper-cases the column name before checking. PostgreSQL
+        returns lower-case names, so without that this silently marks nothing."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([("id", "integer", 4, 32, 0, "NO")])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "postgresql", "pedidos")
+
+        assert estrutura.columns[0].is_pk is True
+
+    def test_a_foreign_key_column_carries_its_reference(self):
+        """`fk_ref` is why `describe` needs no separate FK query."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([("CLIENTE_ID", "NUMBER", 22, 10, 0, "N")])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map",
+                   return_value={"CLIENTE_ID": "CLIENTES.ID"}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert estrutura.columns[0].fk_ref == "CLIENTES.ID"
+
+    def test_indexes_come_back(self):
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import IndexInfo, get_table_structure
+
+        db = _db_com_colunas([("ID", "NUMBER", 22, 10, 0, "N")])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes",
+                   return_value=[IndexInfo("PK_PEDIDOS", ["ID"], True)]):
+            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+
+        assert [i.name for i in estrutura.indexes] == ["PK_PEDIDOS"]
+        assert estrutura.indexes[0].is_unique is True
+
+    def test_a_table_with_no_columns_returns_empty_not_an_error(self):
+        """A name that matches nothing is a normal answer, not an exception —
+        the CLI turns an empty structure into `not_found`, and it cannot do
+        that if this raises first."""
+        from unittest.mock import patch
+
+        from dbqm.core.object_browser import get_table_structure
+
+        db = _db_com_colunas([])
+        with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
+             patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
+             patch("dbqm.core.object_browser._get_indexes", return_value=[]):
+            estrutura = get_table_structure(db, "oracle", "NAO_EXISTE")
+
+        assert estrutura.columns == []
+
+
+class TestGetViewDefinition:
+    """The other function `describe` rests on, also untested until now."""
+
+    def test_it_returns_the_sql(self):
+        from dbqm.core.object_browser import get_view_definition
+
+        db = _db_com_colunas([])
+        # For db_type "oracle", get_view_definition first calls _detect_owner,
+        # which also reads via cursor.fetchone() on the SAME mocked cursor.
+        # A 1-tuple works there (it only reads row[0]) but then blows up with
+        # an IndexError on the real query, which reads row[0] and row[1].
+        # A 2-tuple (owner, text) satisfies both call sites for real.
+        db.cursor.return_value.fetchone.return_value = ("SCOTT", "SELECT id FROM pedidos")
+        view = get_view_definition(db, "oracle", "V_PEDIDOS")
+
+        assert view.name == "V_PEDIDOS"
+        assert "SELECT" in view.sql_definition.upper()
+
+    def test_a_missing_view_gives_an_empty_definition(self):
+        """`describe` uses an empty definition plus zero columns to decide the
+        object does not exist, so this must not raise."""
+        from dbqm.core.object_browser import get_view_definition
+
+        db = _db_com_colunas([])
+        db.cursor.return_value.fetchone.return_value = None
+        view = get_view_definition(db, "oracle", "NAO_EXISTE")
+
+        assert view.sql_definition == ""
