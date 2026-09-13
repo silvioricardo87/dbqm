@@ -2,9 +2,9 @@
 
 Two axes, deliberately not the same. `ExitCode` is what the shell sees and what
 a script branches on, so it stays small and stable. The token in
-`error.code` is finer — `usage`, `not_found` and `validation` all exit 2,
-because a caller wants one number while a reader wants to know which of the
-three happened.
+`error.code` is finer — `usage`, `not_found`, `validation` and `read_only`
+all exit 2, because a caller wants one number while a reader wants to know
+which of the four happened.
 
 Both live here so they cannot drift apart.
 
@@ -34,6 +34,7 @@ ERROR_CODES: dict[str, ExitCode] = {
     "usage": ExitCode.USAGE,
     "not_found": ExitCode.USAGE,
     "validation": ExitCode.USAGE,
+    "read_only": ExitCode.USAGE,
     "connection_failed": ExitCode.CONNECTION_FAILED,
     "sql_error": ExitCode.SQL_ERROR,
     "divergent": ExitCode.DIVERGENT,

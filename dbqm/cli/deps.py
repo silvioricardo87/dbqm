@@ -58,6 +58,7 @@ from dbqm.core.query_engine import (
     execute_explain,
     execute_query,
 )
+from dbqm.core.read_only import ReadOnlyViolation
 from dbqm.core.table_browser import browse_table
 from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
@@ -65,6 +66,7 @@ from dbqm.models.query import find_query, load_queries
 
 __all__ = [
     "QueryResult",
+    "ReadOnlyViolation",
     "UnsupportedEngine",
     "browse_table",
     "build_group_result",

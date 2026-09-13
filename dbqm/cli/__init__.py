@@ -73,6 +73,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Exportar resultado para arquivo")
     p_sql.add_argument("--commit", action="store_true",
                        help="Auto-commit para DML (INSERT/UPDATE/DELETE)")
+    p_sql.add_argument("--force-write", dest="force_write", action="store_true",
+                       help="Enviar mesmo numa conexao somente leitura")
     p_sql.add_argument("--explain", action="store_true",
                        help=(
                            "Mostra o plano de execucao da query (EXPLAIN PLAN + DBMS_XPLAN.DISPLAY no Oracle, "

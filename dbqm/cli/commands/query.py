@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import NoReturn
 
@@ -250,6 +251,14 @@ def cmd_sql(args: argparse.Namespace) -> None:
     if not conn:
         _fail_or_print(args, "sql", "not_found", f"Conexao '{args.connection}' nao encontrada.")
 
+    if getattr(args, "force_write", False) and conn.read_only:
+        # Resolve the override here, at the CLI's own boundary, instead of
+        # threading a flag through five `core/` signatures. `core/` reads
+        # `conn.read_only` and nothing else, so a future caller cannot forget
+        # to pass something it never had to know about. The replacement is
+        # transient and never reaches `save_connections`.
+        conn = replace(conn, read_only=False)
+
     sql = args.sql
     # If argument is a file path, read SQL from it
     sql_path = Path(sql)
@@ -259,7 +268,10 @@ def cmd_sql(args: argparse.Namespace) -> None:
     param_values = _parse_params(args.param, args, "sql")
 
     if args.explain:
-        result = deps.execute_explain(sql, conn, param_values)
+        try:
+            result = deps.execute_explain(sql, conn, param_values)
+        except deps.ReadOnlyViolation as e:
+            _fail_or_print(args, "sql", "read_only", str(e))
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error),
                             result.error or "Erro ao gerar plano de execucao.")
@@ -278,7 +290,10 @@ def cmd_sql(args: argparse.Namespace) -> None:
     if sql_type in ("INSERT", "UPDATE", "DELETE") and not args.commit:
         _fail_or_print(args, "sql", "usage", "DML requer --commit para confirmar a operacao.")
 
-    result = deps.execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
+    try:
+        result = deps.execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
+    except deps.ReadOnlyViolation as e:
+        _fail_or_print(args, "sql", "read_only", str(e))
 
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
     if not isinstance(result, tuple) and result.sql_type in ("INSERT", "UPDATE", "DELETE"):

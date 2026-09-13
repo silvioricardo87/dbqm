@@ -26,7 +26,7 @@ class TestErrorCodes:
     def test_every_token_maps_to_an_exit_code(self):
         esperados = {
             "usage", "not_found", "validation", "connection_failed",
-            "sql_error", "divergent", "unexpected",
+            "sql_error", "divergent", "unexpected", "read_only",
         }
         assert set(ERROR_CODES) == esperados
         assert all(isinstance(v, ExitCode) for v in ERROR_CODES.values())
@@ -41,3 +41,12 @@ class TestErrorCodes:
     def test_an_unknown_token_is_a_programming_error(self):
         with pytest.raises(KeyError):
             exit_for("inventado")
+
+
+def test_read_only_is_a_token_of_its_own():
+    """`usage` would not tell an agent whether the SQL was wrong or the
+    target was protected. The token is the fine axis; the exit code is the
+    coarse one, and both live in one table so they cannot drift."""
+    from dbqm.cli.errors import ExitCode, exit_for
+
+    assert exit_for("read_only") is ExitCode.USAGE

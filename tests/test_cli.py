@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 from dbqm.cli import build_parser, run_cli, _parse_params, COMMAND_MAP
-from dbqm.core.query_engine import QueryResult
+from dbqm.core.query_engine import AdhocResult, QueryResult
 from dbqm.core.group_engine import GroupResult, ComparisonResult, ComparisonRow
 from dbqm.models.connection import Connection
 from dbqm.models.query import Query, QueryParam
@@ -40,6 +40,16 @@ def _make_query_result(success=True, rows=None, columns=None):
         elapsed=0.05,
         success=success,
         error="" if success else "some error",
+    )
+
+
+def _make_adhoc_result():
+    return AdhocResult(
+        sql_type="DELETE",
+        connection_name="test_conn",
+        sql="DELETE FROM t",
+        rows_affected=1,
+        success=True,
     )
 
 
@@ -2571,3 +2581,93 @@ class TestCmdRows:
         # "|" not in saida" check cannot tell raw apart from table -- it
         # would pass even if `args.format` were hardcoded to "table" below.
         assert saida == "linha um\nlinha dois\n"
+
+
+class TestForceWrite:
+    """`--force-write` lifts the refusal to send. `--commit` still governs
+    persistence, exactly as on every other connection."""
+
+    def _protegida(self):
+        from dbqm.models.connection import Connection
+
+        return Connection(name="SS", db_type="postgresql", user="u",
+                          password="", read_only=True)
+
+    def test_a_write_without_the_flag_is_refused(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=self._protegida()):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["sql", "DELETE FROM t", "SS", "-f", "json", "--commit"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == "", "the rule the whole contract exists for"
+        assert saiu.value.code == 2
+        corpo = json.loads(capturado.err)
+        assert corpo["error"]["code"] == "read_only"
+        assert "--force-write" in corpo["error"]["message"]
+
+    def test_the_flag_lifts_the_refusal(self):
+        """What reaches `core/` is a connection whose flag is off -- the CLI
+        resolves the override at its own boundary, so `core/` has one rule."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=self._protegida()), \
+             patch("dbqm.cli.deps.execute_adhoc") as mock_exec:
+            mock_exec.return_value = _make_adhoc_result()
+            run_cli(["sql", "DELETE FROM t", "SS", "--force-write", "--commit"])
+
+        passada = mock_exec.call_args[0][1]
+        assert passada.read_only is False, "core sees a writable connection"
+        assert passada.name == "SS", "and it is still the same connection"
+
+    def test_the_flag_alone_does_not_commit(self):
+        """One flag, one meaning: --force-write answers "may I write here",
+        --commit answers "should it persist". Fusing them is what would leave
+        DML unprotected, since `sql` has always required --commit for it."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=self._protegida()):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["sql", "DELETE FROM t", "SS", "--force-write", "-f", "json"])
+
+        assert saiu.value.code == 2, "DML still requires --commit"
+
+    def test_a_select_needs_no_flag(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=self._protegida()), \
+             patch("dbqm.cli.deps.execute_adhoc") as mock_exec:
+            mock_exec.return_value = _make_adhoc_result()
+            run_cli(["sql", "SELECT 1", "SS", "-f", "json"])
+
+        assert json.loads(capsys.readouterr().out)["ok"] is True
+
+    def test_the_saved_connection_is_not_modified(self):
+        """The override is transient. A run with --force-write must not
+        persist an unlocked connection."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        conexao = self._protegida()
+        with patch("dbqm.cli.deps.find_connection", return_value=conexao), \
+             patch("dbqm.cli.deps.execute_adhoc") as mock_exec:
+            mock_exec.return_value = _make_adhoc_result()
+            run_cli(["sql", "DELETE FROM t", "SS", "--force-write", "--commit"])
+
+        assert conexao.read_only is True, "the stored object is untouched"
