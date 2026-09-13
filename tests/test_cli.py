@@ -161,7 +161,7 @@ class TestCmdRun:
              patch("dbqm.cli.deps.execute_query", return_value=result) as mock_exec, \
              patch("dbqm.cli.deps.record_query_execution"), \
              patch("dbqm.cli.deps.log_execution"), \
-             patch("dbqm.cli._print_query_result"):
+             patch("dbqm.cli.render._print_query_result"):
             run_cli(["run", "test_query"])
             # Should have used default value
             call_params = mock_exec.call_args[0][2]
@@ -177,7 +177,7 @@ class TestCmdRun:
              patch("dbqm.cli.deps.execute_query", return_value=result) as mock_exec, \
              patch("dbqm.cli.deps.record_query_execution"), \
              patch("dbqm.cli.deps.log_execution"), \
-             patch("dbqm.cli._print_query_result"):
+             patch("dbqm.cli.render._print_query_result"):
             run_cli(["run", "test_query", "-p", "id=99"])
             call_params = mock_exec.call_args[0][2]
             assert call_params["id"] == "99"
@@ -192,7 +192,7 @@ class TestCmdRun:
              patch("dbqm.cli.deps.execute_query", return_value=result), \
              patch("dbqm.cli.deps.record_query_execution"), \
              patch("dbqm.cli.deps.log_execution"), \
-             patch("dbqm.cli._print_query_result"):
+             patch("dbqm.cli.render._print_query_result"):
             run_cli(["run", "test_query", "-c", "other_conn"])
             mock_find_conn.assert_called_with("other_conn")
 
@@ -643,7 +643,7 @@ class TestCmdExportConfig:
     def test_export_prompts_password(self):
         with patch("dbqm.cli.deps.export_configs", return_value="/tmp/cfg.dbqm"), \
              patch("sys.stdin.isatty", return_value=True), \
-             patch("dbqm.cli.getpass.getpass", return_value="prompted_pw") as mock_gp:
+             patch("dbqm.cli.params.getpass.getpass", return_value="prompted_pw") as mock_gp:
             run_cli(["export-config"])
             mock_gp.assert_called_once()
 
