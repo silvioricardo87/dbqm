@@ -58,7 +58,12 @@ exclude = ["tests*", "dbqm.web*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --strict-markers --strict-config"
+filterwarnings = ["error"]
+xfail_strict = true
+markers = [
+    "asyncio: an async test, run by pytest-asyncio",
+]
 
 [tool.ruff]
 target-version = "py310"   # `requires-python = ">=3.10"`; users install into what they have

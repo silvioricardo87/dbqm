@@ -17,6 +17,7 @@ def test_verdict_style_renders_the_token_color():
     console = Console(
         theme=rich_theme(), file=io.StringIO(),
         force_terminal=True, color_system="truecolor", width=40,
+        no_color=False,
     )
     console.print("[ds.verdict.diff]DIFERE[/]")
     esperado = DARK_TOKENS["ds-verdict-diff"].lstrip("#")
