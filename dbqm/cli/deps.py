@@ -39,6 +39,7 @@ from dbqm.core.exporter import (
     export_query_txt,
 )
 from dbqm.core.group_engine import build_group_result
+from dbqm.core.html_report import export_group_html, export_query_html
 from dbqm.core.history import (
     clear_history,
     load_history,
@@ -83,9 +84,11 @@ __all__ = [
     "export_group_flat_csv",
     "export_group_flat_json",
     "export_group_flat_txt",
+    "export_group_html",
     "export_group_json",
     "export_group_txt",
     "export_query_csv",
+    "export_query_html",
     "export_query_json",
     "export_query_txt",
     "extract_ddl",

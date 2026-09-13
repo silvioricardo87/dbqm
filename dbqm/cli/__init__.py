@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Parametro (pode repetir)")
     p_run.add_argument("-f", "--format", choices=["table", "json", "csv", "raw"], default="table",
                        help="Formato de saida (padrao: table). 'raw' imprime valores sem decoracao.")
-    p_run.add_argument("-e", "--export", choices=["csv", "json", "txt"],
+    p_run.add_argument("-e", "--export", choices=["csv", "json", "txt", "html"],
                        help="Exportar resultado para arquivo")
 
     # --- run-group ---
@@ -43,8 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Parametro compartilhado (pode repetir)")
     p_grp.add_argument("-f", "--format", choices=["table", "json"], default="table",
                        help="Formato de saida")
-    p_grp.add_argument("-e", "--export", choices=["csv", "json", "txt"],
-                       help="Exportar resultado para arquivo")
+    p_grp.add_argument("-e", "--export", choices=["csv", "json", "txt", "html"],
+                       help="Exportar resultado para arquivo. 'html' nao pode ser usado com --flat.")
     p_grp.add_argument("--flat", action="store_true",
                        help="Usar formato flat (um bloco por coluna)")
 
@@ -69,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Parametro (pode repetir)")
     p_sql.add_argument("-f", "--format", choices=["table", "json", "csv", "raw"], default="table",
                        help="Formato de saida. 'raw' imprime valores sem decoracao.")
-    p_sql.add_argument("-e", "--export", choices=["csv", "json", "txt"],
+    p_sql.add_argument("-e", "--export", choices=["csv", "json", "txt", "html"],
                        help="Exportar resultado para arquivo")
     p_sql.add_argument("--commit", action="store_true",
                        help="Auto-commit para DML (INSERT/UPDATE/DELETE)")

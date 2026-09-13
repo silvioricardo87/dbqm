@@ -261,6 +261,20 @@ class TestCmdRun:
             run_cli(["run", "test_query", "-e", "csv"])
             mock_exp.assert_called_once()
 
+    def test_run_export_html(self, tmp_config_dir):
+        query = _make_query()
+        conn = _make_connection()
+        result = _make_query_result()
+
+        with patch("dbqm.cli.deps.find_query", return_value=query), \
+             patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.execute_query", return_value=result), \
+             patch("dbqm.cli.deps.record_query_execution"), \
+             patch("dbqm.cli.deps.log_execution"), \
+             patch("dbqm.cli.deps.export_query_html", return_value="/tmp/out.html") as mock_exp:
+            run_cli(["run", "test_query", "-e", "html"])
+            mock_exp.assert_called_once()
+
     def test_run_format_json(self, capsys):
         """`data` is `QueryResult.to_dict()` verbatim: `rows` are parallel
         arrays (a list per row, indexed by `columns`), not a dict per row —
@@ -427,6 +441,83 @@ class TestCmdRunGroup:
              patch("dbqm.cli.deps.export_group_csv", return_value="/tmp/g.csv") as mock_exp:
             run_cli(["run-group", "test_group", "-e", "csv"])
             mock_exp.assert_called_once()
+
+    def test_group_export_html(self):
+        group = _make_group()
+        q1 = _make_query("q1", "c1")
+        q2 = _make_query("q2", "c2")
+        c1 = _make_connection("c1")
+        c2 = _make_connection("c2")
+        gr = _make_group_result()
+
+        def find_query_side(name):
+            return {"q1": q1, "q2": q2}.get(name)
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        with patch("dbqm.cli.deps.find_group", return_value=group), \
+             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
+             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
+             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
+             patch("dbqm.cli.deps.record_group_execution"), \
+             patch("dbqm.cli.deps.export_group_html", return_value="/tmp/g.html") as mock_exp:
+            run_cli(["run-group", "test_group", "-e", "html"])
+            mock_exp.assert_called_once()
+
+    def test_group_flat_html_is_refused_table_format(self, capsys):
+        """The trap: `--flat` is a CSV-shaped denormalisation with no HTML
+        equivalent. Silently ignoring the flag would hand back a different
+        shape (the non-flat report) with no signal that `--flat` was
+        dropped. Checked under `table` too, not just `json`: a refusal that
+        only fires under one renderer is the bug class 2.3.0 existed to
+        fix.
+
+        The refusal fires before the group is even resolved (a bad argument
+        combination costs no work), so `find_group` is mocked but must never
+        be called -- that is also what proves this test is pinned to *this*
+        refusal and not to the flat arm's generic bare-`else` fallback,
+        which would also exit 2 with no export call but only after
+        resolving the group and running every query in it.
+        """
+        with patch("dbqm.cli.deps.find_group") as mock_find_group, \
+             patch("dbqm.cli.deps.export_group_flat_csv") as mock_flat_csv, \
+             patch("dbqm.cli.deps.export_group_flat_json") as mock_flat_json, \
+             patch("dbqm.cli.deps.export_group_flat_txt") as mock_flat_txt:
+            with pytest.raises(SystemExit) as excinfo:
+                run_cli(["run-group", "test_group", "--flat", "-e", "html"])
+            assert excinfo.value.code == 2
+            saida = capsys.readouterr().out
+            assert "--flat" in saida, "must name the refused flag, not just exit 2"
+            assert "Exportado:" not in saida, "no export must have happened"
+            mock_find_group.assert_not_called()
+            mock_flat_csv.assert_not_called()
+            mock_flat_json.assert_not_called()
+            mock_flat_txt.assert_not_called()
+
+    def test_group_flat_html_is_refused_json_format(self, capsys):
+        """Same refusal, `-f json` side: the contract is that stdout stays
+        empty and the failure carries the usage token on stderr. Also fires
+        before the group is resolved -- see the table-format sibling above
+        for why `find_group` must stay uncalled."""
+        with patch("dbqm.cli.deps.find_group") as mock_find_group, \
+             patch("dbqm.cli.deps.export_group_flat_csv") as mock_flat_csv, \
+             patch("dbqm.cli.deps.export_group_flat_json") as mock_flat_json, \
+             patch("dbqm.cli.deps.export_group_flat_txt") as mock_flat_txt:
+            with pytest.raises(SystemExit) as excinfo:
+                run_cli(["run-group", "test_group", "--flat", "-e", "html", "-f", "json"])
+            assert excinfo.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "usage"
+            assert "--flat" in corpo["error"]["message"]
+            assert "html" in corpo["error"]["message"]
+            mock_find_group.assert_not_called()
+            mock_flat_csv.assert_not_called()
+            mock_flat_json.assert_not_called()
+            mock_flat_txt.assert_not_called()
 
     def test_group_export_json_format_emits_envelope(self, capsys):
         """CRITICAL fix: `-e` used to print bare prose and return under
@@ -682,6 +773,24 @@ class TestCmdSql:
              patch("dbqm.cli.deps.export_query_csv", return_value="/tmp/out.csv") as mock_exp:
             run_cli(["sql", "SELECT 1", "test_conn", "-e", "csv"])
             mock_exp.assert_called_once()
+
+    def test_sql_export_html_does_not_fall_through_to_txt(self):
+        """The trap: `sql`'s export branch used to end in a bare `else` that
+        wrote TXT, so a new format would have written the wrong file and
+        reported success."""
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        adhoc = AdhocResult(
+            sql_type="SELECT", connection_name="test_conn",
+            columns=["x"], rows=[[1]], row_count=1, elapsed=0.01,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=adhoc), \
+             patch("dbqm.cli.deps.export_query_html", return_value="/tmp/o.html") as mock_html, \
+             patch("dbqm.cli.deps.export_query_txt") as mock_txt:
+            run_cli(["sql", "SELECT 1", "test_conn", "-e", "html"])
+            mock_html.assert_called_once()
+            mock_txt.assert_not_called()
 
     def test_sql_export_json_format_emits_envelope(self, capsys):
         """CRITICAL fix: `-e` used to print bare prose and return under
