@@ -192,13 +192,20 @@ def cmd_rows(args: argparse.Namespace) -> None:
             # `_validate_identifier` refused the name. Bad input, not a
             # missing table -- do not go asking whether it exists.
             raise
-        except Exception:
+        except Exception as original:
             # Ask only now: on success this costs nothing, and the catalogue
             # answers authoritatively instead of us matching four dialects of
             # "table does not exist". Views are not tables, so a valid view
             # name would wrongly 404 without also checking "VIEW".
-            tabelas = {t.upper() for t in deps.list_objects(db, conn.db_type, "TABLE")}
-            vistas = {v.upper() for v in deps.list_objects(db, conn.db_type, "VIEW")}
+            try:
+                tabelas = {t.upper() for t in deps.list_objects(db, conn.db_type, "TABLE")}
+                vistas = {v.upper() for v in deps.list_objects(db, conn.db_type, "VIEW")}
+            except Exception:
+                # The diagnosis itself failed. Raise the ORIGINAL by name, not
+                # a bare `raise`, which inside a nested handler re-raises the
+                # inner one -- the user must learn what their own query did
+                # wrong, not what the existence check did wrong.
+                raise original from None
             if args.table.upper() not in tabelas | vistas:
                 raise deps.ObjectNotFound(
                     f"Tabela '{args.table}' nao encontrada em {conn.name}."

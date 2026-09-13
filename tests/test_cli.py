@@ -2898,6 +2898,35 @@ class TestRowsOnAMissingTable:
         assert json.loads(capsys.readouterr().err)["error"]["code"] == "usage"
         mock_list.assert_not_called(), "no point asking whether a bad name exists"
 
+    def test_a_failing_existence_check_does_not_replace_the_real_error(self, capsys):
+        """The diagnosis must never become the diagnosis.
+
+        If `list_objects` itself fails -- no permission on the catalogue, a
+        transient outage -- the user has to learn what their own query did
+        wrong, not what the check did wrong. A bare `raise` inside the nested
+        handler re-raises the inner exception, which is precisely the bug this
+        pins: the original is raised by name.
+        """
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError("ORA-01013: cancelado pelo usuario")),              patch("dbqm.cli.deps.list_objects",
+                   side_effect=RuntimeError("ORA-00942: sem permissao em ALL_TABLES")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "T", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().err)["error"]
+        assert saiu.value.code == 4
+        assert "ORA-01013" in corpo["message"], "the user's own error survives"
+        assert "ALL_TABLES" not in corpo["message"], (
+            "the existence check's failure must not surface as the answer"
+        )
+
     def test_the_existence_check_costs_nothing_on_success(self):
         """It runs only on the error path."""
         from unittest.mock import patch
