@@ -21,12 +21,20 @@ MAX_LEGACY_MODULES = 36
 
 
 def _legacy_modules() -> list[str]:
+    """Every module exempted by every `ignore_errors` override.
+
+    mypy honours all `[[tool.mypy.overrides]]` blocks, so reading only the
+    first one would leave a side door open: a second `ignore_errors` block
+    would exempt modules that these tests never see.
+    """
     raiz = Path(__file__).resolve().parents[2]
     config = tomllib.loads((raiz / "pyproject.toml").read_text(encoding="utf-8"))
+    legado: list[str] = []
     for bloco in config["tool"]["mypy"].get("overrides", []):
         if bloco.get("ignore_errors"):
-            return list(bloco["module"])
-    return []
+            modulo = bloco["module"]
+            legado.extend([modulo] if isinstance(modulo, str) else modulo)
+    return legado
 
 
 def test_the_legacy_list_has_not_grown():

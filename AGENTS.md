@@ -107,7 +107,7 @@ The concrete commands, in dbqm's terms:
 | Step | Command | Note |
 |---|---|---|
 | 1 Build | `python -m build` | `build` is not a declared dependency — `pip install build` on a fresh machine. |
-| 2 Lint | `uvx ruff@0.16.7 check .` then `uv run mypy` | Ruff: fifteen rule families, chosen by measuring which the code already passed or nearly passed. mypy: `strict = true` in `pyproject.toml`, with a per-module exemption list that only shrinks (`tests/design/test_typing_policy.py` enforces the direction). Run via `uv run`, not `uvx` — mypy needs the project's own dependencies to resolve types, and an isolated `uvx` environment cannot see them. |
+| 2 Lint | `uvx ruff@0.16.7 check .` then `uv run mypy` | Ruff: fifteen rule families, chosen by measuring which the code already passed or nearly passed. mypy: `strict = true` in `pyproject.toml`, with a per-module exemption list that only shrinks (`tests/design/test_typing_policy.py` enforces the direction). Run via `uv run`, not `uvx` — mypy needs the project's own dependencies to resolve types, and an isolated `uvx` environment cannot see them. The two gates do not cover the same ground: ruff checks the whole tree, mypy checks `dbqm/` only (`files = ["dbqm"]`) — `tests/` is deliberately outside the type gate. |
 | 3 Test | `python -m pytest tests/ -x -q` | ~3m10s. Needs `pytest-asyncio` from the `dev` extra, or 327 async tests fail for an unrelated reason. Scope to the change; full run before a release. |
 | 4 Docs | see [README](#readme), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` | The README is the PyPI page. |
 | 5 Version | edit `dbqm/_version.py` | Manual, which `VERSIONING.md` forbids; the tag guard is the compensating control. |

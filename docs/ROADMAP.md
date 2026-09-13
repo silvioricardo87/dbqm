@@ -67,6 +67,14 @@ names a module that no longer exists, or if the tracked count drifts from
 the list — a module is typed by fixing its findings and deleting its entry,
 never by adding one.
 
+Two limits of that gate are worth knowing. It checks `dbqm/` only
+(`files = ["dbqm"]`), so `tests/` is outside it while `ruff` covers the whole
+tree. And `python_version` is pinned while the platform is not, so a
+`sys.platform` branch is only type-checked on a host that takes it —
+`core/oracle_client_installer.py`'s darwin and linux branches are skipped by
+every Windows run and get their first check on CI. Deliberate: between them
+the two hosts cover every branch, which pinning a single platform would not.
+
 The **464 findings at `--strict`, 76 at default** this tier carried in its
 planning figures were wrong, and it is worth recording why rather than
 quietly replacing them: they were measured with `uvx mypy
