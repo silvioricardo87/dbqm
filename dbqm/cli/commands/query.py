@@ -96,8 +96,8 @@ def cmd_run(args: argparse.Namespace) -> None:
                   row_count=result.row_count, success=result.success, error=result.error)
 
     # A failed query is a failure regardless of `--export`/`-f`: check it
-    # once here, before either branch, instead of leaving `table`/`csv`/`raw`
-    # to fall through to `render._print_query_result`'s own bare `exit(1)`.
+    # once here, before either branch, so `table`/`csv`/`raw` exit with the
+    # same mapped code as `json` instead of rendering an empty result.
     if not result.success:
         _fail_or_print(args, "run", _sql_error_code(result.error),
                         result.error or "Erro ao executar consulta.")

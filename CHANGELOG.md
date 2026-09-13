@@ -97,9 +97,9 @@ dbqm list connections -f json | jq '.data[].name'
 | — | `success` | new (always `true` here — a failed run never reaches this branch) |
 | — | `error` | new (always `""` here) |
 
-**3. `sql` (`-f json`, every branch except `--explain`, which is unchanged —
-SELECT, INSERT/UPDATE/DELETE, DDL, PL/SQL, and the unclassified-type fallback
-all move to the same shape):**
+**3. `sql` (`-f json`) — SELECT, INSERT/UPDATE/DELETE, DDL, PL/SQL and the
+unclassified-type fallback all move to the same shape. `--explain` keeps its
+own payload but is renamed along with the rest; see below the table:**
 
 | Old key | New key | Notes |
 |---|---|---|
@@ -121,7 +121,7 @@ all move to the same shape):**
 key is renamed to `connection_name` along with everything else — it was the one
 key left contradicting the rest of the contract.
 
-**5. `--export` with `-f json`, on `run`, `run-group` and `sql`:**
+**4. `--export` with `-f json`, on `run`, `run-group` and `sql`:**
 
 Exporting used to print `Exportado: <path>` as prose **on stdout**, even under
 `-f json`. It now emits an envelope, and `data` describes the export rather
@@ -136,7 +136,7 @@ result shape in the tables above. The rows are in the exported file, which is
 the point of the flag. `run-group --export` still exits `5` when the
 comparison diverged; before this release it returned early and exited `0`.
 
-**4. `run-group` (`-f json`): shape unchanged** —
+**5. `run-group` (`-f json`): shape unchanged** —
 `{"group", "all_match", "comparisons": [{"column", "total_keys", "equal_count",
 "diff_count", "absent_count", "normalized_count"}, ...]}` is exactly what it
 was. **The behaviour that changed is the exit code**, not the payload: see the
@@ -144,7 +144,7 @@ was. **The behaviour that changed is the exit code**, not the payload: see the
 unaffected; a pipeline that chains on the shell exit code needs to account for
 `5` meaning "ran fine, but diverged."
 
-**5. Errors move to stderr.** Any script that checked "did stdout have
+**6. Errors move to stderr.** Any script that checked "did stdout have
 content" instead of the exit code, or that redirected stderr away before
 piping stdout to `jq`, now sees empty stdout on failure instead of prose.
 
