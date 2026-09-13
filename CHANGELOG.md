@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.3.0] — 2026-09-13
+
+Defects in the published error contract, found and fixed in the same slice
+because they share the same paths. **Three exit codes move** for a script
+that branches on them — all of them the documented table finally being
+honoured, not a new behaviour.
+
+### Fixed
+
+- **A connection failure from `run` and `sql` now exits `3`, not `4`.**
+  `core/query_engine.py` used to wrap opening the connection and running the
+  statement in one `try`, so "the database never answered" and "the
+  statement was rejected" produced the identical string and the identical
+  exit code. The three executing functions (`execute_query`,
+  `execute_adhoc`, `execute_explain`) now split that `try` and carry the
+  answer out on a new `error_kind` field (`"connection"`, `"statement"`, or
+  `""` on success) — additive on the `run`/`sql` JSON payloads. The CLI maps
+  `error_kind == "connection"` to `connection_failed` (exit `3`); everything
+  else keeps exiting `4` (`sql_error`) as before. The obvious alternative —
+  catching a connection-specific exception class — does not work on Oracle:
+  `oracledb` raises the same `DatabaseError` for a bad password and a
+  missing table, so the failure kind has to be decided by where the call
+  was made, not by what it raised. **If a script retried `connection_failed`
+  and treated `sql_error` as final, it now retries the right thing.**
+- **`rows` on an object that does not exist now exits `2` (`not_found`),
+  not `4` (`sql_error`), agreeing with `describe`.** `rows` asks the
+  catalogue whether the name exists, but only after `browse_table` has
+  already failed, so a successful call pays nothing extra. Views are
+  checked alongside tables, since a valid view name is not a table. A
+  name `_validate_identifier` rejects outright stays `usage` and never
+  reaches the catalogue lookup. And if the lookup itself fails — no
+  permission on the catalogue, a transient outage — the user still reads
+  their own error, not the lookup's.
+- **`dbqm ddl -f json --stdout` no longer writes the extraction to disk.**
+  The payload keeps its `"path"` key and reports `null` instead of a
+  directory, since `--stdout` now means what it says in both formats.
+
+- **`dbqm ddl` now answers like every other command.** Two problems, both
+  found by reviewing the whole branch rather than any one change. A missing
+  object exited `4` (`sql_error`) where `describe` and `rows` both say
+  `not_found` (`2`) — the same disagreement fixed above, one command over.
+  And `core/ddl_extractor.py` opens its own connection outside any `try`
+  while `cmd_ddl` had no handler, so **an unreachable database escaped as an
+  unhandled exception and exited `1`** — "a bug in dbqm" — for a database
+  that was merely down. It now exits `3`, like the rest.
+
+- **`--explain`'s own two refusals are `usage` (`2`), not `sql_error` (`4`).**
+  Passing `EXPLAIN PLAN FOR` to `--explain`, and asking for `--explain` on an
+  engine that has none, both fail before any statement is sent. The second is
+  a capability the engine lacks, which the schema commands already answer
+  with `usage`.
+
 ## [2.2.0] — 2026-09-13
 
 A connection can be marked read-only, and dbqm then declines to send it

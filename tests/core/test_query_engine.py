@@ -1034,3 +1034,88 @@ class TestIsSelectOnlyCountsStatements:
         from dbqm.core.query_engine import _is_select_only
 
         assert _is_select_only("SELECT 1; DROP TABLE t") is False
+
+
+class TestErrorKind:
+    """Which failure happened is decided by where the call was made.
+
+    Not by the exception class: `oracledb` defaults any unmapped ORA code to
+    plain `DatabaseError`, so a bad password (ORA-01017) and a missing table
+    (ORA-00942) raise the identical type. Verified in the installed driver --
+    `exc_type = exceptions.DatabaseError` is the default and neither code is
+    in the mapping table.
+    """
+
+    def _conn(self):
+        from dbqm.models.connection import Connection
+
+        return Connection(name="c", db_type="postgresql", user="u", password="")
+
+    def test_a_connection_failure_says_connection(self):
+        from unittest.mock import patch
+
+        from dbqm.core.query_engine import execute_adhoc
+
+        with patch("dbqm.core.query_engine.get_connection",
+                   side_effect=RuntimeError("could not translate host name")):
+            r = execute_adhoc("SELECT 1", self._conn(), {})
+
+        assert r.success is False
+        assert r.error_kind == "connection"
+        assert "host name" in r.error, "the driver's own message survives"
+
+    def test_a_rejected_statement_says_statement(self):
+        from unittest.mock import MagicMock, patch
+
+        from dbqm.core.query_engine import execute_adhoc
+
+        db = MagicMock()
+        db.cursor.return_value.execute.side_effect = RuntimeError(
+            'relation "nao_existe" does not exist'
+        )
+        with patch("dbqm.core.query_engine.get_connection", return_value=db):
+            r = execute_adhoc("SELECT 1 FROM nao_existe", self._conn(), {})
+
+        assert r.success is False
+        assert r.error_kind == "statement"
+
+    def test_success_leaves_it_empty(self):
+        from unittest.mock import MagicMock, patch
+
+        from dbqm.core.query_engine import execute_adhoc
+
+        db = MagicMock()
+        db.cursor.return_value.description = [("a",)]
+        db.cursor.return_value.fetchall.return_value = []
+        db.cursor.return_value.nextset.return_value = False
+        with patch("dbqm.core.query_engine.get_connection", return_value=db):
+            r = execute_adhoc("SELECT 1", self._conn(), {})
+
+        assert r.success is True
+        assert r.error_kind == ""
+
+    def test_execute_query_distinguishes_them_too(self):
+        from unittest.mock import patch
+
+        from dbqm.core.query_engine import execute_query
+        from dbqm.models.query import Query
+
+        q = Query(name="q", sql="SELECT 1", connection="c")
+        with patch("dbqm.core.query_engine.get_connection",
+                   side_effect=RuntimeError("no listener")):
+            r = execute_query(q, self._conn(), {})
+
+        assert r.error_kind == "connection"
+
+    def test_the_handle_is_closed_even_when_the_statement_fails(self):
+        """Splitting the try must not drop the cleanup."""
+        from unittest.mock import MagicMock, patch
+
+        from dbqm.core.query_engine import execute_adhoc
+
+        db = MagicMock()
+        db.cursor.return_value.execute.side_effect = RuntimeError("rejeitado")
+        with patch("dbqm.core.query_engine.get_connection", return_value=db):
+            execute_adhoc("SELECT 1", self._conn(), {})
+
+        db.close.assert_called()

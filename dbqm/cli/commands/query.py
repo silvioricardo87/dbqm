@@ -25,14 +25,32 @@ _USAGE_SQL_MESSAGES = (
     "Apenas comandos SELECT sao permitidos.",
     "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL "
     "(CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+    "Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
 )
 
+#: `--explain` on an engine that has none. A capability the engine does not
+#: have, which `schema.py` already answers with `usage` for the same class of
+#: condition -- reporting it as `sql_error` would say a statement was
+#: rejected when none was ever sent. Matched by prefix because the message
+#: names the engine.
+_UNSUPPORTED_EXPLAIN_PREFIX = "--explain ainda nao e suportado para "
 
-def _sql_error_code(message: str | None) -> str:
-    """`usage` for the two known bad-input messages `core/` can return,
-    `sql_error` for everything else (the driver rejected or failed on a
-    statement that was actually sent)."""
-    return "usage" if message in _USAGE_SQL_MESSAGES else "sql_error"
+
+def _sql_error_code(message: str | None, error_kind: str = "") -> str:
+    """The token for a failed result.
+
+    `connection` wins over everything: the database never answered, so
+    nothing about the statement is known. Otherwise `usage` for the two
+    known bad-input messages `core/` can return, and `sql_error` for the
+    rest -- the driver rejected or failed on a statement actually sent.
+    """
+    if error_kind == "connection":
+        return "connection_failed"
+    if message in _USAGE_SQL_MESSAGES:
+        return "usage"
+    if message and message.startswith(_UNSUPPORTED_EXPLAIN_PREFIX):
+        return "usage"
+    return "sql_error"
 
 
 def _fail_or_print(
@@ -100,7 +118,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     # once here, before either branch, so `table`/`csv`/`raw` exit with the
     # same mapped code as `json` instead of rendering an empty result.
     if not result.success:
-        _fail_or_print(args, "run", _sql_error_code(result.error),
+        _fail_or_print(args, "run", _sql_error_code(result.error, result.error_kind),
                         result.error or "Erro ao executar consulta.")
 
     # Export if requested
@@ -168,7 +186,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
 
         result = deps.execute_query(query, conn, param_values)
         if not result.success:
-            _fail_or_print(args, "run-group", _sql_error_code(result.error),
+            _fail_or_print(args, "run-group", _sql_error_code(result.error, result.error_kind),
                             f"Erro na consulta '{qname}': {result.error}")
 
         # Apply column maps
@@ -273,7 +291,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
         except deps.ReadOnlyViolation as e:
             _fail_or_print(args, "sql", "read_only", str(e))
         if not result.success:
-            _fail_or_print(args, "sql", _sql_error_code(result.error),
+            _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                             result.error or "Erro ao gerar plano de execucao.")
         if args.format == "json":
             plano = [row[0] if row else "" for row in result.rows]
@@ -308,7 +326,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
     if not isinstance(result, tuple) and result.sql_type in ("INSERT", "UPDATE", "DELETE"):
         if not result.success:
-            _fail_or_print(args, "sql", _sql_error_code(result.error),
+            _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                             result.error or "Erro ao executar SQL.")
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
@@ -319,7 +337,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # DDL results
     if not isinstance(result, tuple) and result.sql_type == "DDL":
         if not result.success:
-            code = _sql_error_code(result.error)
+            code = _sql_error_code(result.error, result.error_kind)
             if args.format == "json":
                 fail("sql", code, result.error or "Erro ao executar DDL.")
             console.print(f"[ds.op.failure]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/ds.op.failure]")
@@ -334,7 +352,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # PL/SQL anonymous block results
     if not isinstance(result, tuple) and result.sql_type == "PLSQL":
         if not result.success:
-            _fail_or_print(args, "sql", _sql_error_code(result.error),
+            _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                             result.error or "Erro ao executar bloco.")
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
@@ -361,7 +379,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
         return
 
     if not result.success:
-        _fail_or_print(args, "sql", _sql_error_code(result.error),
+        _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                         result.error or "Erro ao executar SQL.")
 
     if result.sql_type == "SELECT":

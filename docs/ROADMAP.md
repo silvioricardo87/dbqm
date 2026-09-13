@@ -19,7 +19,20 @@ not be retried lives in `docs/ARCHITECTURE.md` under the known debt.
 
 ## Tier 0 — Bugs
 
-**Empty.** Bugs return here the moment one is found, above every feature.
+**Empty.** Three defects in the CLI's error contract (`B1`-`B3`, unreachable
+exit `3`, `rows`/`describe` disagreeing about the same missing name, and
+`ddl --stdout` writing to disk anyway) were found while building 2.0.0
+through 2.2.0, parked in execution logs rather than here, and shipped in
+2.3.0 — see `CHANGELOG.md`. Bugs return to this tier the moment one is
+found; it does not stay empty by policy, only by absence of evidence.
+
+### Decision pending, not a defect
+
+`to_dict()` on the `core/` dataclasses publishes `error` and `output_lines`.
+Driver error text can echo a DSN or a host, and `output_lines` carries whatever
+DBMS_OUTPUT produced. Nothing is redacted, deliberately — redaction here is a
+policy call for the maintainer, not an implementation detail. Worth settling
+before anything persists that output to a log.
 
 ---
 
@@ -87,8 +100,7 @@ survive the session.
 
 ## Suggested next slice
 
-Tiers 0 and 1 are empty. Discovery (`C2`, `C3`) shipped in 2.1.0 and the
-read-only guard (`X3`) shipped in 2.2.0. The next item is **C4** (`dbqm
+**Tier 0 is empty**, so the next item is **C4** (`dbqm
 call`) — `execute_routine` already exists and handles IN/OUT binding, return
 values and DBMS_OUTPUT capture. **It is Oracle-only**, though: it takes no
 `db_type` at all and builds an anonymous PL/SQL block, so C4 either ships

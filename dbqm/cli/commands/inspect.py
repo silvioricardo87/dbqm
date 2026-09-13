@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import NoReturn
 
 from rich.markup import escape
 from rich.table import Table
@@ -136,15 +137,45 @@ def cmd_list(args: argparse.Namespace) -> None:
         sys.exit(int(exit_for("usage")))
 
 
+#: What `ddl_extractor` writes into `result.errors` when the object is simply
+#: not there. Matched by text because dbqm wrote it itself -- the same trick
+#: `_USAGE_SQL_MESSAGES` uses in `commands/query.py`, and guarded by a test
+#: that fails if `ddl_extractor` rewords it.
+_DDL_NOT_FOUND = " nao encontrado."
+
+
+def _ddl_error_code(errors: list[str]) -> str:
+    """`not_found` when the object is absent, `sql_error` otherwise.
+
+    `describe` and `rows` both answer `not_found` for a name that is not
+    there; `ddl` said `sql_error`, which is the same disagreement B2 fixed
+    one command over.
+    """
+    if all(e.endswith(_DDL_NOT_FOUND) for e in errors):
+        return "not_found"
+    return "sql_error"
+
+
+def _fail_ddl(args: argparse.Namespace, code: str, message: str) -> NoReturn:
+    """One branch point for `-f json`, like `query._fail_or_print`."""
+    if args.format == "json":
+        fail("ddl", code, message)
+    console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
+    sys.exit(int(exit_for(code)))
+
+
 def cmd_ddl(args: argparse.Namespace) -> None:
     """Extract DDL for a database object.
 
-    Under `-f json` the per-object progress callback is routed to stderr —
+    Under `-f json` the per-object progress callback is routed to stderr --
     under table it stays on stdout as before, dim progress next to the human
-    output. The extraction is always saved to disk under json (regardless of
-    `--stdout`, which only matters when there is no envelope to carry the DDL
-    text back to the caller already): the payload needs a `path` either way,
-    and every object's DDL travels inline in `objects` too.
+    output.
+
+    `--stdout` means what it says in both formats: nothing is written to
+    disk. The payload keeps its `path` key and reports `None`, rather than
+    dropping the key, so a consumer reads the same shape either way and
+    learns the answer from the value. Every object's DDL travels inline in
+    `objects` regardless, which is what makes skipping the file harmless.
     """
     conn = deps.find_connection(args.connection)
     if not conn:
@@ -159,15 +190,27 @@ def cmd_ddl(args: argparse.Namespace) -> None:
         else:
             console.print(f"  [{current}/{total}] {escape(obj_type)}: {escape(obj_name)}", style="dim")
 
-    result = deps.extract_ddl(conn, args.object, on_progress=on_progress)
+    # `extract_ddl` opens its own handle and records every statement failure
+    # into `result.errors`, so anything that escapes it is a failure to open --
+    # the same call-site reasoning `query_engine` uses for `error_kind`.
+    # Without this the exception reached `main.py` and became exit 1, "a bug in
+    # dbqm", for a database that was merely unreachable.
+    try:
+        result = deps.extract_ddl(conn, args.object, on_progress=on_progress)
+    except Exception as e:
+        _fail_ddl(args, "connection_failed", str(e))
 
     if args.format == "json":
         if result.errors and not result.objects:
-            fail("ddl", "sql_error", "; ".join(result.errors))
-        dir_path, _ = deps.save_extraction(result)
+            fail("ddl", _ddl_error_code(result.errors), "; ".join(result.errors))
+        if args.stdout:
+            path = None
+        else:
+            dir_path, _ = deps.save_extraction(result)
+            path = str(dir_path)
         data = {
             "objects": [o.to_dict() for o in result.objects],
-            "path": str(dir_path),
+            "path": path,
         }
         ok("ddl", data, warnings=result.errors or None)
         return

@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 from dbqm.cli import build_parser, run_cli, _parse_params, COMMAND_MAP
 from dbqm.core.query_engine import AdhocResult, QueryResult
 from dbqm.core.group_engine import GroupResult, ComparisonResult, ComparisonRow
+from dbqm.core.ddl_extractor import ExtractionResult, ExtractedObject
 from dbqm.models.connection import Connection
 from dbqm.models.query import Query, QueryParam
 from dbqm.models.group import Group
@@ -30,7 +31,7 @@ def _make_query(name="test_query", connection="test_conn", sql="SELECT 1 FROM du
     )
 
 
-def _make_query_result(success=True, rows=None, columns=None):
+def _make_query_result(success=True, rows=None, columns=None, error="", error_kind=""):
     return QueryResult(
         query_name="test_query",
         connection_name="test_conn",
@@ -39,17 +40,20 @@ def _make_query_result(success=True, rows=None, columns=None):
         row_count=len(rows) if rows is not None else 2,
         elapsed=0.05,
         success=success,
-        error="" if success else "some error",
+        error=error or ("" if success else "some error"),
+        error_kind=error_kind,
     )
 
 
-def _make_adhoc_result():
+def _make_adhoc_result(success=True, error="", error_kind=""):
     return AdhocResult(
         sql_type="DELETE",
         connection_name="test_conn",
         sql="DELETE FROM t",
         rows_affected=1,
-        success=True,
+        success=success,
+        error=error,
+        error_kind=error_kind,
     )
 
 
@@ -82,6 +86,26 @@ def _make_group_result():
         ],
         all_match=True,
         summary_lines=["Coluna: status", "  Iguais: 1"],
+    )
+
+
+def _make_extraction():
+    """Create a real ExtractionResult with the actual dataclass structure."""
+    return ExtractionResult(
+        object_name="MY_TABLE",
+        object_type="TABLE",
+        owner="TEST_OWNER",
+        connection_name="test_conn",
+        objects=[
+            ExtractedObject(
+                name="MY_TABLE",
+                obj_type="TABLE",
+                ddl="CREATE TABLE TEST_OWNER.MY_TABLE (id NUMBER PRIMARY KEY);",
+            ),
+        ],
+        dependencies=[],
+        errors=[],
+        saved_files=[],
     )
 
 
@@ -2500,9 +2524,11 @@ class TestCmdRows:
         assert saiu.value.code == 2
         mock_open.assert_not_called()
 
-    def test_a_rejected_table_name_is_sql_error(self, capsys):
-        """`browse_table` validates the identifier and raises; that is the
-        statement failing, not the connection."""
+    def test_a_rejected_table_name_is_usage_not_sql_error(self, capsys):
+        """`browse_table` validates the identifier and raises `ValueError`;
+        that is bad input, not a statement the driver rejected. See
+        `TestRowsOnAMissingTable` for the fuller case, including that the
+        existence check must not run on this path."""
         from unittest.mock import patch
 
         import pytest
@@ -2517,7 +2543,7 @@ class TestCmdRows:
                 run_cli(["rows", "PEDIDOS; DROP TABLE X", "conexao", "-f", "json"])
 
         assert capsys.readouterr().out == ""
-        assert saiu.value.code == 4
+        assert saiu.value.code == 2
 
     def test_table_format_says_there_is_more_beyond_the_page(self, capsys):
         """`QueryResult` has no `total_count`, so the renderer cannot report
@@ -2753,3 +2779,325 @@ class TestConnectionReadOnlyFlag:
 
         linhas = json.loads(capsys.readouterr().out)["data"]
         assert linhas[0]["read_only"] is True
+
+
+class TestConnectionFailedIsReachable:
+    """Exit 3 has been in the published table since 2.0.0 and `run`/`sql`
+    could never produce it: both failures arrived as one string."""
+
+    def test_sql_exits_three_when_the_database_never_answered(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        falhou = _make_adhoc_result(success=False, error="no listener",
+                                    error_kind="connection")
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=falhou):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["sql", "SELECT 1", "conexao", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == ""
+        assert saiu.value.code == 3
+        assert json.loads(capturado.err)["error"]["code"] == "connection_failed"
+
+    def test_sql_still_exits_four_when_the_statement_was_rejected(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        falhou = _make_adhoc_result(success=False, error="ORA-00942",
+                                    error_kind="statement")
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=falhou):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["sql", "SELECT 1", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
+        assert json.loads(capsys.readouterr().err)["error"]["code"] == "sql_error"
+
+    def test_run_exits_three_too(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        falhou = _make_query_result(success=False, error="no listener",
+                                    error_kind="connection")
+        with patch("dbqm.cli.deps.find_query", return_value=_make_query()), \
+             patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.execute_query", return_value=falhou), \
+             patch("dbqm.cli.deps.record_query_execution"), \
+             patch("dbqm.cli.deps.log_execution"):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["run", "test_query", "-f", "json"])
+
+        assert saiu.value.code == 3
+
+    def test_the_bad_input_messages_still_map_to_usage(self, capsys):
+        """`_sql_error_code`'s existing job must survive: two messages `core/`
+        returns are usage errors, not statement failures."""
+        from dbqm.cli.commands.query import _sql_error_code
+
+        # The literals, not the constant. Feeding `_USAGE_SQL_MESSAGES` back
+        # into the function that reads it passes for any content, including
+        # content `core/` no longer produces. `tests/cli/test_usage_sql_messages.py`
+        # is what keeps these strings and `core/`'s in step.
+        assert _sql_error_code("Apenas comandos SELECT sao permitidos.",
+                               "statement") == "usage"
+        assert _sql_error_code("--explain ainda nao e suportado para mysql.",
+                               "statement") == "usage"
+        assert _sql_error_code("ORA-00942: tabela inexistente",
+                               "statement") == "sql_error"
+
+
+class TestRowsOnAMissingTable:
+    """`describe` and `rows` disagreed about the same missing name: 2 versus
+    4. Each is defensible alone -- `describe` reads metadata and finds
+    nothing, `rows` runs SELECT COUNT(*) and the driver rejects it -- but an
+    agent branches on `error.code`, and the pair is not."""
+
+    def test_a_missing_table_is_not_found(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError('relation "nada" does not exist')), \
+             patch("dbqm.cli.deps.list_objects", return_value=["OUTRA"]):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "NADA", "conexao", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == ""
+        assert saiu.value.code == 2
+        assert json.loads(capturado.err)["error"]["code"] == "not_found"
+
+    def test_a_real_failure_on_a_table_that_exists_stays_sql_error(self, capsys):
+        """The check must not swallow genuine SQL failures."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError("ORA-01013: user requested cancel")), \
+             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS"]):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "PEDIDOS", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
+
+    def test_a_rejected_identifier_is_usage_not_not_found(self, capsys):
+        """`_validate_identifier` raises ValueError for a name it refuses to
+        put in a statement. That is bad input, not a missing table, and it
+        must not send the existence check looking."""
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=ValueError("Identificador invalido")), \
+             patch("dbqm.cli.deps.list_objects") as mock_list:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "X; DROP", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 2
+        assert json.loads(capsys.readouterr().err)["error"]["code"] == "usage"
+        # No point asking whether a name the code already refused exists.
+        mock_list.assert_not_called()
+
+    def test_a_failing_existence_check_does_not_replace_the_real_error(self, capsys):
+        """The diagnosis must never become the diagnosis.
+
+        If `list_objects` itself fails -- no permission on the catalogue, a
+        transient outage -- the user has to learn what their own query did
+        wrong, not what the check did wrong. A bare `raise` inside the nested
+        handler re-raises the inner exception, which is precisely the bug this
+        pins: the original is raised by name.
+        """
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError("ORA-01013: cancelado pelo usuario")),              patch("dbqm.cli.deps.list_objects",
+                   side_effect=RuntimeError("ORA-00942: sem permissao em ALL_TABLES")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "T", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().err)["error"]
+        assert saiu.value.code == 4
+        assert "ORA-01013" in corpo["message"], "the user's own error survives"
+        assert "ALL_TABLES" not in corpo["message"], (
+            "the existence check's failure must not surface as the answer"
+        )
+
+    def test_the_existence_check_costs_nothing_on_success(self):
+        """It runs only on the error path."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        ok_result = BrowseResult(
+            table="T", connection_name="c", columns=["A"], rows=[[1]],
+            row_count=1, total_count=1, elapsed=0.0, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=ok_result), \
+             patch("dbqm.cli.deps.list_objects") as mock_list:
+            run_cli(["rows", "T", "conexao", "-f", "json"])
+
+        mock_list.assert_not_called()
+
+    def test_a_view_that_fails_is_not_reported_as_missing(self, capsys):
+        """`list_objects(db, db_type, "TABLE")` will not find a view -- a
+        genuine failure against a name that is a valid view must not be
+        misreported as `not_found` just because it is absent from the TABLE
+        list. The check must also ask about `"VIEW"` before concluding the
+        object is absent."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        def fake_list_objects(db, db_type, obj_type):
+            if obj_type == "VIEW":
+                return ["V_PEDIDOS"]
+            return []
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=RuntimeError("driver rejected the count")), \
+             patch("dbqm.cli.deps.list_objects",
+                   side_effect=fake_list_objects) as mock_list:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "V_PEDIDOS", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
+        assert {c.args[2] for c in mock_list.call_args_list} == {"TABLE", "VIEW"}
+
+
+class TestDdlAgreesWithTheRest:
+    """`ddl` was the pair that still disagreed. A missing object answered
+    `sql_error` where `describe` and `rows` both say `not_found`, and an
+    unreachable database escaped as an unhandled exception -- exit 1, "a bug
+    in dbqm", for a database that was merely down."""
+
+    def _extracao(self, errors):
+        from dbqm.core.ddl_extractor import ExtractionResult
+
+        r = ExtractionResult(object_name="OBJ", object_type="TABLE",
+                             owner="", connection_name="conexao")
+        r.errors = errors
+        return r
+
+    def test_an_unreachable_database_exits_three(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
+                   side_effect=RuntimeError("ORA-12541: TNS sem listener")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == ""
+        assert saiu.value.code == 3, "not 1: the database was down, not dbqm"
+        assert json.loads(capturado.err)["error"]["code"] == "connection_failed"
+
+    def test_a_missing_object_is_not_found(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
+                   return_value=self._extracao(["Objeto 'OBJ' nao encontrado."])):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 2, "the same answer describe and rows give"
+        assert json.loads(capsys.readouterr().err)["error"]["code"] == "not_found"
+
+    def test_a_real_extraction_failure_stays_sql_error(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
+                   return_value=self._extracao(["Erro ao extrair TABLE: ORA-01013"])):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
+
+
+class TestDdlStdout:
+    """--stdout says "print to stdout instead of saving to a file" in its
+    own help text. The json branch never read it."""
+
+    def test_stdout_writes_nothing_to_disk(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.extract_ddl", return_value=_make_extraction()), \
+             patch("dbqm.cli.deps.save_extraction") as mock_save:
+            run_cli(["ddl", "OBJ", "conexao", "--stdout", "-f", "json"])
+
+        mock_save.assert_not_called()
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"]["path"] is None, (
+            "the same shape either way -- the value carries the answer"
+        )
+
+    def test_without_the_flag_it_still_saves(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.extract_ddl", return_value=_make_extraction()), \
+             patch("dbqm.cli.deps.save_extraction", return_value=("/algum/caminho", 2)) as mock_save:
+            run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        mock_save.assert_called_once()
+        assert json.loads(capsys.readouterr().out)["data"]["path"] is not None

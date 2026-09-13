@@ -51,6 +51,14 @@ def _with_open_connection(args: argparse.Namespace, command: str, conn, acao):
                 return acao(db)
             except deps.UnsupportedEngine as e:
                 _fail_or_print(args, command, "usage", str(e))
+            except deps.ObjectNotFound as e:
+                _fail_or_print(args, command, "not_found", str(e))
+            except ValueError as e:
+                # `_validate_identifier` refused the name before any
+                # statement ran: bad input, not a statement the driver
+                # rejected. Must come before the generic `Exception` arm
+                # below or Python's first-match rule sends it to sql_error.
+                _fail_or_print(args, command, "usage", str(e))
             except Exception as e:
                 _fail_or_print(args, command, "sql_error", str(e))
     except Exception as e:
@@ -174,13 +182,37 @@ def cmd_rows(args: argparse.Namespace) -> None:
         _fail_or_print(args, "rows", "not_found",
                        f"Conexao '{args.connection}' nao encontrada.")
 
-    resultado = _with_open_connection(
-        args, "rows", conn,
-        lambda db: deps.browse_table(
-            db, conn.db_type, args.table, conn.name,
-            limit=args.limit, offset=args.offset,
-        ),
-    )
+    def acao(db):
+        try:
+            return deps.browse_table(
+                db, conn.db_type, args.table, conn.name,
+                limit=args.limit, offset=args.offset,
+            )
+        except ValueError:
+            # `_validate_identifier` refused the name. Bad input, not a
+            # missing table -- do not go asking whether it exists.
+            raise
+        except Exception as original:
+            # Ask only now: on success this costs nothing, and the catalogue
+            # answers authoritatively instead of us matching four dialects of
+            # "table does not exist". Views are not tables, so a valid view
+            # name would wrongly 404 without also checking "VIEW".
+            try:
+                tabelas = {t.upper() for t in deps.list_objects(db, conn.db_type, "TABLE")}
+                vistas = {v.upper() for v in deps.list_objects(db, conn.db_type, "VIEW")}
+            except Exception:
+                # The diagnosis itself failed. Raise the ORIGINAL by name, not
+                # a bare `raise`, which inside a nested handler re-raises the
+                # inner one -- the user must learn what their own query did
+                # wrong, not what the existence check did wrong.
+                raise original from None
+            if args.table.upper() not in tabelas | vistas:
+                raise deps.ObjectNotFound(
+                    f"Tabela '{args.table}' nao encontrada em {conn.name}."
+                )
+            raise
+
+    resultado = _with_open_connection(args, "rows", conn, acao)
 
     if args.format == "json":
         ok("rows", resultado.to_dict())

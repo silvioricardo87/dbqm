@@ -9,6 +9,17 @@ from typing import Any
 from dbqm.core.read_only import ReadOnlyViolation
 
 
+class ObjectNotFound(RuntimeError):
+    """A statement failed and the catalogue confirms the name is not there.
+
+    Raised only on the error path: checking existence up front would cost a
+    metadata round trip on every successful call, which is the common case.
+    Checking after a failure costs nothing when things work and gives an
+    authoritative answer from the catalogue instead of matching the driver's
+    wording for "does not exist" across dialects.
+    """
+
+
 class UnsupportedEngine(RuntimeError):
     """A capability that exists only on one engine was asked of another.
 
