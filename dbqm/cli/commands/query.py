@@ -133,6 +133,8 @@ def cmd_run(args: argparse.Namespace) -> None:
             path = deps.export_query_json(result, table_name, param_values)
         elif fmt == "txt":
             path = deps.export_query_txt(result, table_name, param_values)
+        elif fmt == "html":
+            path = deps.export_query_html(result, table_name, param_values)
         else:
             _fail_or_print(args, "run", "usage", f"Formato de export invalido: {fmt}")
         if args.format == "json":
@@ -214,20 +216,30 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     if args.export:
         fmt = args.export
         flat = args.flat
+        if fmt == "html" and flat:
+            _fail_or_print(args, "run-group", "usage",
+                           "--flat nao tem versao HTML. Use --export html sem --flat, "
+                           "ou --flat com csv, json ou txt.")
         if flat:
             if fmt == "csv":
                 path = deps.export_group_flat_csv(group_result, param_values)
             elif fmt == "json":
                 path = deps.export_group_flat_json(group_result, param_values)
-            else:
+            elif fmt == "txt":
                 path = deps.export_group_flat_txt(group_result, param_values)
+            else:
+                _fail_or_print(args, "run-group", "usage", f"Formato de export invalido: {fmt}")
         else:
             if fmt == "csv":
                 path = deps.export_group_csv(group_result, param_values)
             elif fmt == "json":
                 path = deps.export_group_json(group_result, param_values)
-            else:
+            elif fmt == "txt":
                 path = deps.export_group_txt(group_result, param_values)
+            elif fmt == "html":
+                path = deps.export_group_html(group_result, param_values)
+            else:
+                _fail_or_print(args, "run-group", "usage", f"Formato de export invalido: {fmt}")
         if args.format == "json":
             ok("run-group", {"exported": str(path), "format": fmt})
         else:
@@ -412,8 +424,12 @@ def cmd_sql(args: argparse.Namespace) -> None:
                 path = deps.export_query_csv(qr, "adhoc", param_values)
             elif fmt == "json":
                 path = deps.export_query_json(qr, "adhoc", param_values)
-            else:
+            elif fmt == "txt":
                 path = deps.export_query_txt(qr, "adhoc", param_values)
+            elif fmt == "html":
+                path = deps.export_query_html(qr, "adhoc", param_values)
+            else:
+                _fail_or_print(args, "sql", "usage", f"Formato de export invalido: {fmt}")
             if args.format == "json":
                 ok("sql", {"exported": str(path), "format": fmt})
                 return
