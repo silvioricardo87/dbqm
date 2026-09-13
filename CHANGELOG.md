@@ -39,6 +39,26 @@ A MINOR release: a new command.
   to every result; a set of results sharing exactly one column; and `--key`
   naming that sole column. All three previously produced "everything
   matches" over data never compared.
+- **`multi` refuses SQL that is not a query, before opening a single
+  connection.** It had no `--commit` gate the way `cmd_sql` does, so
+  `multi "DELETE FROM t" -c prod -c homolog` ran the delete on every
+  connection (uncommitted) and only then failed with "no comparable
+  columns" — a comparison has no result set to compare when the statement
+  never returns one. Refuses DML, DDL and PL/SQL with `usage` up front;
+  allows only `SELECT` and `EXPLAIN`.
+- **A read-only connection is reported as `read_only`/exit 2, not
+  `connection_failed`/exit 3.** `execute_across` (`core/group_engine.py`)
+  tagged a `ReadOnlyViolation` the same as an unreachable host, so the
+  message read "Falha na conexao" for a connection that was never
+  unreachable — it was refused on purpose, the same condition `cmd_sql`
+  already reports as `read_only`. The two commands now agree about what
+  the same event is.
+- **`-c prod -c prod` no longer compares a database with itself.**
+  `execute_across` keys its result dict by connection name, so a repeated
+  `-c` collapsed to one entry and a comparison over a single result could
+  only ever report CONSISTENTE. `multi` now de-duplicates its connection
+  names and refuses with `usage`, naming the repeated one, unless at least
+  two *distinct* connections remain.
 
 The TUI's Multi-Exec tab is unchanged; its tests were the check.
 

@@ -133,7 +133,7 @@ the release history.
   for agent consumption and would remove the shell round-trip entirely — but it
   should wrap a settled CLI contract, not race it. The contract settled in
   2.0.0, discovery landed in 2.1.0, and the read-only guard landed in 2.2.0;
-  revisit once execution (`C4`, `C8`) has landed too.
+  revisit once execution (`C4`) has landed too.
 
 ---
 
@@ -158,6 +158,17 @@ the release history.
   `cmd_sql`.** Both accept either SQL text or a path to a `.sql` file, and
   both implement it in place. Real duplication, deliberately not fixed
   inside the `multi` feature commit.
+- **`run_comparison` collapses duplicate key values — last row wins.** It
+  indexes each side as `indexed[qname][key_val] = row_dict`
+  (`core/group_engine.py`), so two rows sharing a key value on the same side
+  compare as one. Two rows with an all-NULL key column collapse to a single
+  entry on that side, and genuinely different data can compare as equal —
+  `all_match: true`, exit 0, over rows the comparison never actually told
+  apart. This is pre-existing behaviour, not something the `multi`
+  sub-project introduced, but `run-group` uses a join key a person curated
+  for that specific group, while `multi` derives one from whatever columns
+  happen to be common to the connections given — which is what turns this
+  from a theoretical gap into one worth hitting in practice.
 
 ## Suite hygiene
 
