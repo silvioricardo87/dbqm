@@ -9,6 +9,7 @@ from typing import Any
 import sqlparse
 
 from dbqm.core.db_manager import get_connection
+from dbqm.core.read_only import check_read_only
 from dbqm.models.connection import Connection
 from dbqm.models.query import Query, QueryParam
 
@@ -369,6 +370,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     buffered lines are drained into AdhocResult.output_lines for SELECT/DML too.
     Anonymous PL/SQL blocks always capture DBMS_OUTPUT regardless of the flag.
     """
+    check_read_only(sql, conn)
     sql = sql.strip()
     original_sql = sql
     sql_type = classify_sql(sql)
@@ -565,6 +567,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
     The returned AdhocResult has sql_type='EXPLAIN', columns=['plan'], and
     rows=[[line], ...] (one row per plan line).
     """
+    check_read_only(sql, conn)
     sql = sql.strip().rstrip(";")
     # Refuse if the user already passed an EXPLAIN — we'd double-wrap.
     first_word = sql.split()[0].upper() if sql.split() else ""

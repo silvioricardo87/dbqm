@@ -1,6 +1,8 @@
 """Oracle package editor — core logic for creating, editing, and compiling packages."""
 from __future__ import annotations
 
+from dbqm.core.read_only import ReadOnlyViolation
+
 
 def check_package_exists(db, pkg_name: str) -> bool:
     """Check if a package exists in the database."""
@@ -44,8 +46,19 @@ def _get_source(db, pkg_name: str, obj_type: str) -> str:
         cursor.close()
 
 
-def compile_package(db, sql: str) -> tuple[bool, str]:
-    """Execute CREATE OR REPLACE PACKAGE/BODY. Returns (success, error_msg)."""
+def compile_package(db, sql: str, conn=None) -> tuple[bool, str]:
+    """Execute CREATE OR REPLACE PACKAGE/BODY. Returns (success, error_msg).
+
+    Takes an open `db` handle rather than a `Connection`, so it cannot
+    classify the statement. It is DDL by definition, so when `conn` is given
+    and read-only it refuses outright.
+    """
+    if conn is not None and getattr(conn, "read_only", False):
+        raise ReadOnlyViolation(
+            f"Conexao '{conn.name}' e somente leitura e a compilacao de "
+            "pacote e sempre DDL. "
+            "Use --force-write para compilar assim mesmo."
+        )
     cursor = db.cursor()
     try:
         cursor.execute(sql)
