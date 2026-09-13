@@ -32,8 +32,10 @@ class TestValidate:
     def test_unknown_db_type_lists_the_valid_ones(self):
         errors = validate({"name": "prod", "db_type": "sqlite"})
         assert errors == [
-            "Tipo de banco invalido: sqlite. "
-            "Use um de: oracle, sqlserver, postgresql, mysql."
+            (
+                "Tipo de banco invalido: sqlite. "
+                "Use um de: oracle, sqlserver, postgresql, mysql."
+            )
         ]
 
     def test_unknown_oracle_mode_lists_the_valid_ones(self):
@@ -67,11 +69,11 @@ class TestConstants:
 
 
 def _existing(**kwargs) -> Connection:
-    defaults = dict(
-        name="prod", db_type="oracle", user="admin", password="ciphertext",
-        mode="direct", host="old.example.com", port=1521, service_name="OLD",
-        created_at="2020-01-01T00:00:00",
-    )
+    defaults = {
+        "name": "prod", "db_type": "oracle", "user": "admin", "password": "ciphertext",
+        "mode": "direct", "host": "old.example.com", "port": 1521, "service_name": "OLD",
+        "created_at": "2020-01-01T00:00:00",
+    }
     defaults.update(kwargs)
     return Connection(**defaults)
 

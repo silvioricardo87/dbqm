@@ -685,7 +685,7 @@ def result_tables_without_fixed_key() -> list[tuple[str, int, str]]:
 def test_the_table_scan_finds_the_columns():
     """If nobody builds columns anymore, this guard stopped watching."""
     total = 0
-    for _rel_, modulo in _modulos():
+    for _, modulo in _modulos():
         for no in ast.walk(modulo):
             if isinstance(no, ast.Call) and _called_name(no) in {
                 "add_column",

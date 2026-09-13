@@ -4046,7 +4046,7 @@ async def test_vertical_record_right_aligns_labels_after_escaping(tmp_config_dir
         rt.toggle_vertical()
 
         texto = rt._vertical_view.content.plain
-        linha_id = next(l for l in texto.splitlines() if l.strip().startswith("id:"))
+        linha_id = next(linha for linha in texto.splitlines() if linha.strip().startswith("id:"))
         rotulo_id = linha_id.split(":", 1)[0][2:]  # tira o prefixo "  "
         assert rotulo_id == "            id"
         assert len(rotulo_id) == len("nome_da_coluna")

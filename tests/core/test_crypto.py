@@ -1,5 +1,6 @@
 """Tests for encryption utilities."""
 import pytest
+from cryptography.fernet import InvalidToken
 from dbqm.core.crypto import (
     encrypt, decrypt, encrypt_with_password, decrypt_with_password,
     generate_salt, _derive_key_from_password,
@@ -16,14 +17,14 @@ class TestPasswordBasedCrypto:
     def test_wrong_password_fails(self):
         salt = generate_salt()
         token = encrypt_with_password("secret", "correct", salt)
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidToken):
             decrypt_with_password(token, "wrong", salt)
 
     def test_different_salt_fails(self):
         salt1 = generate_salt()
         salt2 = generate_salt()
         token = encrypt_with_password("secret", "pw", salt1)
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidToken):
             decrypt_with_password(token, "pw", salt2)
 
     def test_generate_salt_unique(self):

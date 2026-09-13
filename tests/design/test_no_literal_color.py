@@ -19,5 +19,5 @@ def test_literal_color_does_not_grow():
     achados = violations()
     assert len(achados) == TETO, (
         f"{len(achados)} cores literais, teto {TETO}. Novas:\n"
-        + "\n".join(f"  {a}:{l}  {t}" for a, l, t in achados[:20])
+        + "\n".join(f"  {a}:{linha}  {t}" for a, linha, t in achados[:20])
     )
