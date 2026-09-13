@@ -330,9 +330,10 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # above already exits before this call whenever `sql_type` is DML and
     # `--commit` was not given, and no other `sql_type` ever produces that
     # tuple. So this call always yields a plain `AdhocResult`.
-    assert not isinstance(outcome, tuple), (
-        "execute_adhoc returned a manual-commit tuple despite auto_commit=True"
-    )
+    if isinstance(outcome, tuple):  # pragma: no cover - unreachable, see above
+        raise RuntimeError(
+            "execute_adhoc returned a manual-commit tuple despite auto_commit=True"
+        )
     result = outcome
 
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
