@@ -36,7 +36,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.23"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "mypy>=1.11"]
 oracle = ["oracledb>=2.0"]
 postgres = ["psycopg[binary]>=3.1"]
 sqlserver = ["pymssql>=2.2"]
@@ -87,3 +87,64 @@ select = [
 #                code to satisfy a number nobody chose.
 #   I     197 -- import order. First family to widen into; mostly automatic.
 #   F     180 -- 129 unused variables, 45 unused imports. Second to widen.
+
+[tool.mypy]
+python_version = "3.10"          # `requires-python = ">=3.10"`
+files = ["dbqm"]                 # so plain `uv run mypy` checks the package
+strict = true
+# A module NOT listed below is strict. That is the ratchet: every new module
+# is strict from its first line, and the list only ever shrinks.
+
+[[tool.mypy.overrides]]
+# `pymysql` is the one dependency without `py.typed`. Named alone rather than
+# globally: a blanket `ignore_missing_imports` would silently downgrade a
+# future dependency to `Any`, which is exactly the mistake that made the first
+# measurement of this work report 464 findings instead of 396.
+module = ["pymysql.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# 36 modules not yet clean under `--strict`, measured 2026-09-13 (361 findings
+# total). Generated from a real run, not transcribed:
+#   uv run mypy --strict dbqm/ 2>&1 | sed 's/:.*//' | sort -u
+# Each entry carries its finding count as a debt register, not just a list of
+# names. This list only shrinks -- see tests/test_typing_policy.py.
+module = [
+    "dbqm.cli.commands.connection",    # 3
+    "dbqm.cli.commands.inspect",       # 17
+    "dbqm.cli.commands.schema",        # 4
+    "dbqm.core.config_portability",    # 11
+    "dbqm.core.connection_builder",    # 5
+    "dbqm.core.db_manager",            # 2
+    "dbqm.core.ddl_extractor",         # 42
+    "dbqm.core.ddl_pg",                # 9
+    "dbqm.core.exporter",              # 17
+    "dbqm.core.group_engine",          # 11
+    "dbqm.core.history",               # 5
+    "dbqm.core.object_browser",        # 22
+    "dbqm.core.package_editor",        # 7
+    "dbqm.core.query_engine",          # 18
+    "dbqm.core.table_browser",         # 9
+    "dbqm.main",                       # 1
+    "dbqm.models.group",               # 6
+    "dbqm.models.query",               # 6
+    "dbqm.ui.app",                     # 20
+    "dbqm.ui.screens.adhoc",           # 12
+    "dbqm.ui.screens.browser",         # 20
+    "dbqm.ui.screens.connections",     # 5
+    "dbqm.ui.screens.exec_routine",    # 10
+    "dbqm.ui.screens.group_exec",      # 4
+    "dbqm.ui.screens.group_manage",    # 11
+    "dbqm.ui.screens.group_run",       # 18
+    "dbqm.ui.screens.history",         # 3
+    "dbqm.ui.screens.package_editor",  # 10
+    "dbqm.ui.screens.query_exec",      # 14
+    "dbqm.ui.screens.query_manage",    # 6
+    "dbqm.ui.screens.settings",        # 5
+    "dbqm.ui.screens.template_manage", # 4
+    "dbqm.ui.screens.tools",           # 3
+    "dbqm.ui.widgets.group_result",    # 14
+    "dbqm.ui.widgets.query_list",      # 4
+    "dbqm.ui.widgets.result_table",    # 3
+]
+ignore_errors = true
