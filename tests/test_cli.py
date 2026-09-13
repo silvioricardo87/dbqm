@@ -2314,14 +2314,17 @@ class TestCmdDescribe:
         import pytest
 
         from dbqm.cli import run_cli
-        from dbqm.core.object_browser import TableStructure
+        from dbqm.core.object_browser import TableStructure, ViewInfo
 
+        # A real empty ViewInfo, not a MagicMock: every attribute of a bare
+        # mock is truthy, which would make the "is it a view" check pass and
+        # hide the very conjunction this test is here to pin.
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.get_table_structure",
                    return_value=TableStructure(table="NAO_EXISTE")), \
-             patch("dbqm.cli.deps.get_view_definition") as mock_view:
-            mock_view.return_value.sql_definition = ""
+             patch("dbqm.cli.deps.get_view_definition",
+                   return_value=ViewInfo(name="NAO_EXISTE", owner="", sql_definition="")):
             with pytest.raises(SystemExit) as saiu:
                 run_cli(["describe", "NAO_EXISTE", "conexao", "-f", "json"])
 
@@ -2350,6 +2353,47 @@ class TestCmdDescribe:
 
         corpo = json.loads(capsys.readouterr().out)
         assert corpo["data"]["sql_definition"] == "SELECT id FROM pedidos"
+
+    def test_a_view_whose_source_is_unreadable_is_still_a_view(self, capsys):
+        """Measured on SQL Server: without the VIEW DEFINITION grant both
+        information_schema.views and sys.sql_modules return NULL rather than
+        an error, so a real view arrives with its owner set and an empty
+        definition. Labelling on the definition alone calls it a TABLE."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import ColumnInfo, TableStructure, ViewInfo
+
+        estrutura = TableStructure(
+            table="VW_ALGO",
+            columns=[ColumnInfo("ID", "int", 4, 10, 0, False)],
+        )
+        sem_fonte = ViewInfo(name="VW_ALGO", owner="dbo", sql_definition="")
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_table_structure", return_value=estrutura),              patch("dbqm.cli.deps.get_view_definition", return_value=sem_fonte):
+            run_cli(["describe", "VW_ALGO", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"]["object_type"] == "VIEW"
+        assert "sql_definition" not in corpo["data"], "nothing to report is not an empty string"
+
+    def test_a_plain_table_says_so(self, capsys):
+        """The other half of the same decision: no owner, no definition."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.object_browser import ColumnInfo, TableStructure, ViewInfo
+
+        estrutura = TableStructure(
+            table="PEDIDOS",
+            columns=[ColumnInfo("ID", "int", 4, 10, 0, False)],
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_table_structure", return_value=estrutura),              patch("dbqm.cli.deps.get_view_definition",
+                   return_value=ViewInfo(name="PEDIDOS", owner="", sql_definition="")):
+            run_cli(["describe", "PEDIDOS", "conexao", "-f", "json"])
+
+        assert json.loads(capsys.readouterr().out)["data"]["object_type"] == "TABLE"
 
     def test_table_format_shows_the_same_facts_as_json(self, capsys):
         """The two formats must not disagree. Same call, same content."""

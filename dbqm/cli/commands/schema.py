@@ -104,12 +104,25 @@ def cmd_describe(args: argparse.Namespace) -> None:
     estrutura, view = _with_open_connection(args, "describe", conn, acao)
 
     definicao = view.sql_definition or ""
-    if not estrutura.columns and not definicao:
+    # `owner`, not the definition, is what says the object is a view. A view
+    # whose source the connected user may not read comes back with its owner
+    # set and an empty definition -- measured on SQL Server, where a missing
+    # VIEW DEFINITION grant makes both information_schema.views and
+    # sys.sql_modules return NULL rather than an error. Labelling on the
+    # definition alone reports such a view as a table.
+    e_view = bool(view.owner or definicao)
+    if not estrutura.columns and not e_view:
         _fail_or_print(args, "describe", "not_found",
                        f"Objeto '{args.object}' nao encontrado em {conn.name}.")
 
+    tipo = "VIEW" if e_view else "TABLE"
     data = estrutura.to_dict()
     data["connection_name"] = conn.name
+    # Stated rather than left to be inferred from which keys are present: a
+    # consumer must not have to guess the object's type from the absence of
+    # `sql_definition`, which is exactly what the unreadable-source case
+    # would make it get wrong.
+    data["object_type"] = tipo
     if definicao:
         data["sql_definition"] = definicao
 
@@ -117,8 +130,7 @@ def cmd_describe(args: argparse.Namespace) -> None:
         ok("describe", data)
         return
 
-    rotulo = "VIEW" if definicao else "TABLE"
-    console.print(f"{escape(estrutura.table)} ({rotulo})")
+    console.print(f"{escape(estrutura.table)} ({tipo})")
 
     colunas = Table(show_header=True)
     colunas.add_column("Coluna")
