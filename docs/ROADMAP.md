@@ -59,20 +59,18 @@ carried.
 
 The output contract (`X1`) shipped in 2.0.0: `-f json` on every command, one
 envelope, errors as structured JSON on stderr, and a stable documented
-exit-code table. Themes, in the order they unlock each other now:
-**discovery** (C2, C3) is worth parsing now that an agent can rely on the
-contract, **execution** (C4, C8) is what an agent does once it can see,
-**safety** (X3) is what makes that defensible, and **curation** (C5-C7) is how
-findings survive the session.
+exit-code table. **Discovery** (`C2`, `C3`) shipped in 2.1.0 — an agent can
+now see a database's shape without hand-written catalogue SQL. Themes, in the
+order they unlock each other now: **execution** (C4, C8) is what an agent
+does once it can see, **safety** (X3) is what makes that defensible, and
+**curation** (C5-C7) is how findings survive the session.
 
 | Order | Item | Theme | Effort | Agent value | Notes |
 |---|---|---|---|---|---|
-| 1 | **C2** — `dbqm objects` / `dbqm describe` | discovery | M | **critical** | The biggest gain for the least work: `core/object_browser.py` is already complete and engine-aware (columns, PK, FK, indexes, view definitions, package routines). Without it an agent hand-writes catalogue SQL per engine. |
 | 2 | **C4** — `dbqm call` (execute a routine) | execution | M | high | `execute_routine` already handles IN/OUT binding, return values and DBMS_OUTPUT capture. |
 | 3 | **X3** — read-only guard | safety | S | high | `DBQM_READONLY=1` / `--read-only` refuse anything but SELECT/EXPLAIN before it reaches the driver, plus a `read_only` field on `Connection`. This is what makes handing an agent the tool defensible. |
 | 4 | **C8** — `dbqm multi` (one ad-hoc SQL across N connections, compared) | execution | M | high | The Multi-Exec tab has no CLI equivalent; `run-group` only runs *saved* groups of *saved* queries. For sustainment work this is the most-used flow. Reuses `build_group_result` as-is. |
 | 5 | **C11** — HTML report from the CLI | evidence | **S** | medium | `core/html_report.py` exists; `-e/--export` just does not offer `html`. The cheapest item on this list. |
-| 6 | **C3** — `dbqm rows` (browse a table) | discovery | M | medium-high | `core/table_browser.py` resolves foreign keys to a human label, so an agent reads `PAGO` instead of `3`. Open question: is `--where` worth the injection surface when `dbqm sql` exists? |
 | 7 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
 | 8 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
 | 9 | **C9 / C10 / C12 / X4** — templates, `config get|set`, oracle-client, self-description | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
@@ -88,10 +86,9 @@ findings survive the session.
 
 ## Suggested next slice
 
-Tiers 0 and 1 are empty. The next item is **C2** (schema discovery) — the
-output contract it depends on (`X1`) shipped in 2.0.0, and this is the biggest
-remaining gain for the least work: `core/object_browser.py` is already
-complete and engine-aware.
+Tiers 0 and 1 are empty. Discovery (`C2`, `C3`) shipped in 2.1.0. The next
+item is **C4** (`dbqm call`) — `execute_routine` already exists and is
+engine-aware; what is missing is the CLI surface over it.
 
 **C11** (HTML report from the CLI) is the only remaining item of effort S with
 real value: `core/html_report.py` exists and `-e/--export` simply does not offer
