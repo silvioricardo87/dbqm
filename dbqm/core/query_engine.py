@@ -29,6 +29,21 @@ class QueryResult:
     success: bool = True
     error: str = ""
 
+    def to_dict(self) -> dict:
+        """Wire shape. `rows` holds raw driver values (`datetime`, `Decimal`,
+        LOB, …); it is only JSON-safe because `dbqm/cli/envelope.py` dumps
+        with `default=str`."""
+        return {
+            "query_name": self.query_name,
+            "connection_name": self.connection_name,
+            "columns": list(self.columns),
+            "rows": [list(r) for r in self.rows],
+            "row_count": self.row_count,
+            "elapsed": self.elapsed,
+            "success": self.success,
+            "error": self.error,
+        }
+
 
 def _strip_leading_comments(sql: str) -> str:
     """Drop leading line (``--``) and block (``/* */``) comments plus blank
@@ -219,6 +234,11 @@ class AdhocResult:
     """Result of an ad-hoc SQL execution (SELECT or DML)."""
     sql_type: str
     connection_name: str
+    # The statement text actually sent to the driver (stripped, trailing `;`
+    # trimmed — not the PL/SQL-normalized form). `AdhocResult` has no saved
+    # query name to fall back on the way `QueryResult.query_name` does, so
+    # this is the only unambiguous way for a consumer to know what ran.
+    sql: str = ""
     # The engine that ran it. A renderer needs this to label the outcome
     # honestly: "Bloco PL/SQL executado" on a SQL Server connection is a lie
     # that cost a reader real confusion.
@@ -232,6 +252,26 @@ class AdhocResult:
     error: str = ""
     committed: bool = False
     output_lines: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Wire shape. `rows` holds raw driver values (`datetime`, `Decimal`,
+        LOB, …); it is only JSON-safe because `dbqm/cli/envelope.py` dumps
+        with `default=str`."""
+        return {
+            "sql_type": self.sql_type,
+            "connection_name": self.connection_name,
+            "sql": self.sql,
+            "db_type": self.db_type,
+            "columns": list(self.columns),
+            "rows": [list(r) for r in self.rows],
+            "row_count": self.row_count,
+            "rows_affected": self.rows_affected,
+            "elapsed": self.elapsed,
+            "success": self.success,
+            "error": self.error,
+            "committed": self.committed,
+            "output_lines": list(self.output_lines),
+        }
 
 
 def block_label(db_type: str) -> str:
@@ -330,6 +370,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     Anonymous PL/SQL blocks always capture DBMS_OUTPUT regardless of the flag.
     """
     sql = sql.strip()
+    original_sql = sql
     sql_type = classify_sql(sql)
     # Strip trailing `;` only for SELECT/DML — Oracle rejects it there.
     # DDL and PL/SQL blocks must keep their internal/final `;` to compile
@@ -343,6 +384,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
         return AdhocResult(
             sql_type=sql_type,
             connection_name=conn.name,
+            sql=original_sql,
             db_type=conn.db_type,
             success=False,
             error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL (CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
@@ -381,6 +423,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                sql=original_sql,
                 db_type=conn.db_type,
                 columns=columns,
                 rows=rows,
@@ -397,6 +440,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                sql=original_sql,
                 db_type=conn.db_type,
                 elapsed=elapsed,
                 committed=True,
@@ -420,6 +464,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                sql=original_sql,
                 db_type=conn.db_type,
                 columns=columns,
                 rows=rows,
@@ -439,6 +484,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
+                    sql=original_sql,
                     db_type=conn.db_type,
                     columns=columns,
                     rows=rows,
@@ -453,6 +499,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             return AdhocResult(
                 sql_type=sql_type,
                 connection_name=conn.name,
+                sql=original_sql,
                 db_type=conn.db_type,
                 elapsed=elapsed,
                 committed=True,
@@ -467,6 +514,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
+                    sql=original_sql,
                     db_type=conn.db_type,
                     rows_affected=rows_affected,
                     elapsed=elapsed,
@@ -480,6 +528,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 return AdhocResult(
                     sql_type=sql_type,
                     connection_name=conn.name,
+                    sql=original_sql,
                     db_type=conn.db_type,
                     rows_affected=rows_affected,
                     elapsed=elapsed,
@@ -490,6 +539,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
         return AdhocResult(
             sql_type=sql_type,
             connection_name=conn.name,
+            sql=original_sql,
             db_type=conn.db_type,
             success=False,
             error=str(e).split('\n')[0][:500],
@@ -522,6 +572,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
         return AdhocResult(
             sql_type="EXPLAIN",
             connection_name=conn.name,
+            sql=sql,
             db_type=conn.db_type,
             success=False,
             error="Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
@@ -550,6 +601,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
             return AdhocResult(
                 sql_type="EXPLAIN",
                 connection_name=conn.name,
+                sql=sql,
                 db_type=conn.db_type,
                 columns=["plan"],
                 rows=rows,
@@ -560,6 +612,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
             return AdhocResult(
                 sql_type="EXPLAIN",
                 connection_name=conn.name,
+                sql=sql,
                 db_type=conn.db_type,
                 success=False,
                 error=str(e).split("\n")[0][:500],
@@ -577,6 +630,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
     return AdhocResult(
         sql_type="EXPLAIN",
         connection_name=conn.name,
+        sql=sql,
         db_type=conn.db_type,
         success=False,
         error=f"--explain ainda nao e suportado para {conn.db_type}.",

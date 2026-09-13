@@ -7,6 +7,147 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.0.0] — 2026-09-12
+
+One machine-readable output contract for the whole CLI. Every JSON shape
+public since 1.7.0 changes, plus two behaviour changes — this is why it is a
+major release, and the **Migration** section below is a straight port of it.
+
+### Added
+
+- **`test`, `ddl`, `export-config` and `import-config` gained `-f/--format`**,
+  with a `json` option. Every command now offers `table|json` at minimum,
+  and `run`/`run-group`/`sql` add `csv`/`raw` on top.
+
+### Changed
+
+- **Every command emits one JSON envelope under `-f json`.** A success prints
+  `{"ok": true, "command": "...", "data": {...}}` to stdout; a failure prints
+  `{"ok": false, "command": "...", "error": {"code", "message", "exit"}}` to
+  **stderr**, with stdout left completely empty. Before this, an error printed
+  Portuguese prose to *stdout*, so `| jq` broke on every failure — a script
+  had no reliable way to tell a failed run from a successful one that happened
+  to print little.
+- **`run`, `run-group` and `sql` now serialise through the `core/` dataclasses'
+  own `to_dict()`** instead of a hand-built dict per branch. This renamed
+  several keys and changed how `rows` is shaped — see the migration table.
+  The `rows` change fixes a real bug: the old `rows` were objects keyed by
+  column name, which silently dropped a column whenever a SELECT repeated a
+  name — `SELECT a.id, b.id FROM a JOIN b` returned two values for three
+  declared columns, the third overwriting the first under the same key.
+  Parallel arrays carry every column regardless of repeated names. Verified
+  against a real SQL Server with a genuinely repeated column from a join:
+  `"columns": ["id", "nome", "id"]`, `"rows": [[1, "texto", 2]]` — all three
+  values present.
+- **`run-group` now exits `5` when the comparison diverges.** Before this it
+  always exited `0`, whether the comparison matched or not. This is the
+  single most consequential change in this release for existing scripts: a
+  `dbqm run-group ... && next-step` chain used to run `next-step`
+  unconditionally and now stops the moment the databases disagree — under
+  `-f json` and under the default `-f table` alike, since the exit code is
+  set independently of how the result is printed.
+- **Exit code `1` stops being a catch-all.** It now means specifically "a bug
+  in dbqm," not "anything went wrong." The full, stable table:
+
+  | Code | Meaning |
+  |---|---|
+  | `0` | success |
+  | `1` | a bug in dbqm — not the input, not the database |
+  | `2` | usage error, name not found, or a value that fails validation |
+  | `3` | connection failed |
+  | `4` | SQL error — the statement reached the driver and was rejected |
+  | `5` | comparison ran to completion and diverged (`run-group`) |
+  | `130` | interrupted (Ctrl+C) |
+
+  This supersedes the narrower table the `connection` group alone documented
+  since 1.22.0 (`0`/`2`/`3`); those three codes keep their meaning, and the
+  table now applies to every command.
+
+### Migration
+
+**1. Every list/show/mutate command gains an envelope.** What used to be the
+whole JSON payload now sits under `data`:
+
+| Command | Before | After |
+|---|---|---|
+| `list <resource>` | `[{...}]` | `{"ok":true,"command":"list.connections","data":[{...}]}` |
+| `history` | `[{...}]` | `{"ok":true,"command":"history","data":[{...}]}` |
+| `connection show` | `{...}` | `{"ok":true,"command":"connection.show","data":{...}}` |
+| `connection add\|update\|rm` | `{"name":...,"created":true}` | the same object, now under `data` |
+
+A consumer piping with `jq` moves the filter one level down:
+
+```bash
+# before
+dbqm list connections -f json | jq '.[].name'
+# after
+dbqm list connections -f json | jq '.data[].name'
+```
+
+**2. `run` (`-f json`):**
+
+| Old key | New key | Notes |
+|---|---|---|
+| `query` (query name) | `query_name` | renamed |
+| `connection` | `connection_name` | renamed |
+| `columns` | `columns` | unchanged |
+| `rows`: `[{"col": val, ...}, ...]` (one dict per row) | `rows`: `[[val, ...], ...]` (one array per row, positionally matching `columns`) | **shape change** — zip `columns` with each row yourself now; this is also the fix for the silent data-loss bug above |
+| `row_count` | `row_count` | unchanged |
+| `elapsed` (rounded to 3 decimals) | `elapsed` (raw float, unrounded) | may now have more decimal places |
+| — | `success` | new (always `true` here — a failed run never reaches this branch) |
+| — | `error` | new (always `""` here) |
+
+**3. `sql` (`-f json`) — SELECT, INSERT/UPDATE/DELETE, DDL, PL/SQL and the
+unclassified-type fallback all move to the same shape. `--explain` keeps its
+own payload but is renamed along with the rest; see below the table:**
+
+| Old key | New key | Notes |
+|---|---|---|
+| `query` (present only on the SELECT branch; the raw SQL text) | `sql` | renamed — this also resolves `run`'s `"query"` meaning the saved query's *name* while `sql`'s `"query"` meant the SQL *text*; `query_name` and `sql` now never collide |
+| `connection` | `connection_name` | renamed |
+| `columns` | `columns` | unchanged (present on SELECT/PL-SQL; empty list on DML/DDL/fallback, same as before) |
+| `rows`: `[{"col": val, ...}, ...]` (SELECT/PL-SQL only) | `rows`: `[[val, ...], ...]` | **shape change**, same fix as `run` |
+| `row_count` | `row_count` | unchanged |
+| `rows_affected` | `rows_affected` | unchanged |
+| `committed` | `committed` | unchanged |
+| `elapsed` (rounded) | `elapsed` (raw) | unrounded now |
+| — | `sql_type` | was already present on every branch except SELECT before; now uniform |
+| — | `db_type` | new — which engine ran it (`oracle`/`sqlserver`/`postgresql`/`mysql`) |
+| — | `success` | new (always `true` here) |
+| — | `error` | new (always `""` here) |
+| — | `output_lines` | new as a `data` field — was already riding separately as the envelope's top-level `warnings`, which is unchanged; it now also appears inside `data` |
+
+`sql --explain` keeps its `{"elapsed", "plan"}` payload, and its `connection`
+key is renamed to `connection_name` along with everything else — it was the one
+key left contradicting the rest of the contract.
+
+**4. `--export` with `-f json`, on `run`, `run-group` and `sql`:**
+
+Exporting used to print `Exportado: <path>` as prose **on stdout**, even under
+`-f json`. It now emits an envelope, and `data` describes the export rather
+than the result:
+
+| Before | After |
+|---|---|
+| `Exportado: /path/to/file.csv` (plain text on stdout, exit 0) | `{"ok":true,"command":"run","data":{"exported":"/path/to/file.csv","format":"csv"}}` |
+
+So with `--export` the `data` shape is `{"exported", "format"}` — **not** the
+result shape in the tables above. The rows are in the exported file, which is
+the point of the flag. `run-group --export` still exits `5` when the
+comparison diverged; before this release it returned early and exited `0`.
+
+**5. `run-group` (`-f json`): shape unchanged** —
+`{"group", "all_match", "comparisons": [{"column", "total_keys", "equal_count",
+"diff_count", "absent_count", "normalized_count"}, ...]}` is exactly what it
+was. **The behaviour that changed is the exit code**, not the payload: see the
+`run-group` exit-`5` note above. A pipeline that only reads the JSON is
+unaffected; a pipeline that chains on the shell exit code needs to account for
+`5` meaning "ran fine, but diverged."
+
+**6. Errors move to stderr.** Any script that checked "did stdout have
+content" instead of the exit code, or that redirected stderr away before
+piping stdout to `jq`, now sees empty stdout on failure instead of prose.
+
 ## [1.23.0] — 2026-09-12
 
 ### Added
