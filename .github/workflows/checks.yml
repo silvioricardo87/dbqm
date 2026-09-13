@@ -1,7 +1,10 @@
 name: Checks
 
 on:
+  # `push` is scoped to main: without a filter, a push to a feature branch and
+  # the pull request opened from it each run the whole suite, twice per change.
   push:
+    branches: [main]
   pull_request:
 
 jobs:
