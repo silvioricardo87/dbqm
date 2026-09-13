@@ -7,6 +7,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+class UnsupportedEngine(RuntimeError):
+    """A capability that exists only on one engine was asked of another.
+
+    Packages and routine introspection read `all_source` / `all_arguments`,
+    which are Oracle data dictionary views. The other three engines model
+    routines differently and are not covered. Raised before any cursor opens,
+    so the caller gets a message instead of a driver traceback.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Dataclasses
 # ---------------------------------------------------------------------------
@@ -514,7 +524,9 @@ def _get_indexes(cursor, db_type: str, table: str) -> list[IndexInfo]:
 
 
 def get_table_structure(db, db_type: str, table: str) -> TableStructure:
-    """Get full table structure: columns, PKs, FKs, indexes, row count.
+    """Get a table's structure: columns (each with its PK flag and FK
+    reference) and indexes. No row count — that would be a full scan, and a
+    describe is meant to be instant.
 
     Oracle: user_tab_columns, user_constraints, user_indexes.
     SQL Server: information_schema.columns, sys.indexes.
@@ -776,6 +788,10 @@ def list_package_routines(db, db_type: str, package: str) -> PackageInfo:
 
     Uses all_source to get the package spec, then parses declarations.
     """
+    if db_type != "oracle":
+        raise UnsupportedEngine(
+            f"Packages e rotinas so existem no Oracle. Conexao e {db_type}."
+        )
     cursor = db.cursor()
     try:
         owner = _detect_owner(cursor, db_type, package, "PACKAGE")
@@ -866,6 +882,10 @@ def get_package_source(db, db_type: str, package: str, source_type: str = "PACKA
 
     source_type: 'PACKAGE' for spec, 'PACKAGE BODY' for body.
     """
+    if db_type != "oracle":
+        raise UnsupportedEngine(
+            f"Packages e rotinas so existem no Oracle. Conexao e {db_type}."
+        )
     cursor = db.cursor()
     try:
         owner = _detect_owner(cursor, db_type, package, "PACKAGE")

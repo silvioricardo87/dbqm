@@ -210,3 +210,69 @@ class TestGetStandaloneRoutineInfo:
 
         info = get_standalone_routine_info(mock_db, "MY_PROC")
         assert info.params[0].direction == "IN OUT"
+
+
+class TestUnsupportedEngine:
+    """Packages and routine introspection are Oracle-only in fact: these four
+    functions take a db_type and never branch on it, going straight to
+    all_source with Oracle bind syntax. The guard turns a driver traceback
+    into a message a user can act on."""
+
+    def test_list_package_routines_refuses_sqlserver(self):
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, list_package_routines
+
+        db = MagicMock()
+        with pytest.raises(UnsupportedEngine, match="Oracle"):
+            list_package_routines(db, "sqlserver", "MEU_PACOTE")
+        db.cursor.assert_not_called()
+
+    def test_get_package_source_refuses_postgresql(self):
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, get_package_source
+
+        db = MagicMock()
+        with pytest.raises(UnsupportedEngine, match="Oracle"):
+            get_package_source(db, "postgresql", "MEU_PACOTE")
+        db.cursor.assert_not_called()
+
+    def test_get_package_source_respects_its_default_source_type(self):
+        """The signature is (db, db_type, package, source_type="PACKAGE");
+        the guard must fire whether or not the fourth argument is given."""
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, get_package_source
+
+        with pytest.raises(UnsupportedEngine):
+            get_package_source(MagicMock(), "mysql", "PKG", "BODY")
+
+    def test_the_message_names_the_engine_that_was_asked(self):
+        """A message saying only "Oracle only" leaves the user guessing what
+        dbqm thought the connection was."""
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from dbqm.core.object_browser import UnsupportedEngine, list_package_routines
+
+        with pytest.raises(UnsupportedEngine, match="sqlserver"):
+            list_package_routines(MagicMock(), "sqlserver", "X")
+
+    def test_oracle_is_not_refused(self):
+        """The guard must not become a wall. Oracle reaches the cursor."""
+        from unittest.mock import MagicMock
+
+        from dbqm.core.object_browser import list_package_routines
+
+        db = MagicMock()
+        db.cursor.return_value.fetchall.return_value = []
+        list_package_routines(db, "oracle", "MEU_PACOTE")
+        db.cursor.assert_called()
