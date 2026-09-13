@@ -205,25 +205,35 @@ def _is_numeric_type(dtype: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def list_objects(db, db_type: str, obj_type: str) -> list[str]:
-    """List database objects by type (TABLE, PACKAGE, VIEW).
+    """List database objects by type (TABLE, PACKAGE, VIEW, ROUTINE).
 
     Oracle: user_tables / user_objects / user_views.
-    SQL Server: information_schema (no packages).
+    SQL Server, PostgreSQL, MySQL: information_schema.
 
-    Limite conhecido, nao corrigido aqui: para `obj_type="ROUTINE"` (Oracle,
-    PostgreSQL e MySQL), a consulta junta PROCEDURE e FUNCTION e devolve so
-    o nome (`object_name`/`routine_name`) — quem chama nao tem como saber
-    qual e qual. A UI (`dbqm/ui/screens/browser.py`, filtro "Rotinas") por
-    isso mostra "Rotina" pra ambos, sem distinguir. Corrigir de verdade
-    exige mudar a forma de retorno desta funcao (de `list[str]` pra algo
-    como `list[tuple[str, str]]`, nome+tipo por objeto) em TODAS as
-    branches de ROUTINE abaixo, nao so na de Oracle — fora do escopo de
-    quem so mexe em tela.
+    PACKAGE raises `UnsupportedEngine` on every engine but Oracle — packages
+    are an Oracle concept, and an empty list would read as "there are none
+    here" instead of "this question does not apply here". An unrecognized
+    `obj_type` string still returns `[]`: that is an unknown key, not a lie.
+
+    Limite conhecido, nao corrigido aqui: para `obj_type="ROUTINE"` (todos os
+    engines), a consulta junta PROCEDURE e FUNCTION e devolve so o nome
+    (`object_name`/`routine_name`) — quem chama nao tem como saber qual e
+    qual. A UI (`dbqm/ui/screens/browser.py`, filtro "Rotinas") por isso
+    mostra "Rotina" pra ambos, sem distinguir. Corrigir de verdade exige
+    mudar a forma de retorno desta funcao (de `list[str]` pra algo como
+    `list[tuple[str, str]]`, nome+tipo por objeto) em TODAS as branches de
+    ROUTINE abaixo, nao so na de Oracle — fora do escopo de quem so mexe em
+    tela.
     """
+    obj_upper = obj_type.upper()
+
+    if db_type != "oracle" and obj_upper == "PACKAGE":
+        raise UnsupportedEngine(
+            f"Packages so existem no Oracle. Conexao e {db_type}."
+        )
+
     cursor = db.cursor()
     try:
-        obj_upper = obj_type.upper()
-
         if db_type == "oracle":
             if obj_upper == "TABLE":
                 cursor.execute(
@@ -263,8 +273,11 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
                     "SELECT table_name FROM information_schema.views "
                     "ORDER BY table_name"
                 )
-            elif obj_upper == "PACKAGE":
-                return []
+            elif obj_upper == "ROUTINE":
+                cursor.execute(
+                    "SELECT routine_name FROM information_schema.routines "
+                    "ORDER BY routine_name"
+                )
             else:
                 return []
         elif db_type == "postgresql":

@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock
 from dbqm.core.object_browser import (
     _is_numeric_type, _parse_params, _parse_spec_routines,
-    RoutineInfo, RoutineParam, get_standalone_routine_info,
+    RoutineInfo, RoutineParam, UnsupportedEngine, get_standalone_routine_info,
     list_objects,
 )
 
@@ -130,14 +130,44 @@ class TestListObjectsProcedureFunction:
         assert result == ["FN_CALC"]
         assert mock_cursor.execute.call_args[0][1]["t"] == "FUNCTION"
 
-    def test_sqlserver_no_packages(self):
+    @pytest.mark.parametrize("db_type", ["sqlserver", "postgresql", "mysql"])
+    def test_package_refuses_every_engine_but_oracle(self, db_type):
+        """An empty list would read as "there are none here"; packages are
+        a concept that does not exist off Oracle at all, so the caller must
+        get the same refusal `list_package_routines`/`get_package_source`
+        already give for the same question."""
+        mock_db = MagicMock()
+        with pytest.raises(UnsupportedEngine, match=db_type):
+            list_objects(mock_db, db_type, "PACKAGE")
+        # No cursor should have opened: the refusal happens before any query.
+        mock_db.cursor.assert_not_called()
+
+    def test_package_still_works_on_oracle(self):
         mock_db = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = []
+        mock_cursor.fetchall.return_value = [("PKG_ORDERS",)]
         mock_db.cursor.return_value = mock_cursor
 
-        result = list_objects(mock_db, "sqlserver", "PACKAGE")
-        assert result == []
+        result = list_objects(mock_db, "oracle", "PACKAGE")
+        assert result == ["PKG_ORDERS"]
+
+    def test_sqlserver_routine_reaches_the_cursor(self):
+        """Falsified: with the `ROUTINE` branch removed from the `sqlserver`
+        block, this test fails with
+        `assert [] == ['MY_PROC', 'FN_CALC']` — `list_objects` falls through
+        to the trailing `else: return []` instead of querying
+        `information_schema.routines`. Restoring the branch makes it pass
+        again, which is what proves this test can tell right code from
+        wrong."""
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [("MY_PROC",), ("FN_CALC",)]
+        mock_db.cursor.return_value = mock_cursor
+
+        result = list_objects(mock_db, "sqlserver", "ROUTINE")
+        assert result == ["MY_PROC", "FN_CALC"]
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "information_schema.routines" in sql
 
     def test_oracle_routine_returns_procedures_and_functions(self):
         mock_db = MagicMock()
