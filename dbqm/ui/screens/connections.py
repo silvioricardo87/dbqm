@@ -594,7 +594,7 @@ class ConnectionsScreen(Vertical):
             )
 
     # ------------------------------------------------------------------
-    # Save (create or update)
+    # Saving: creates a new connection or updates an existing one.
     # ------------------------------------------------------------------
 
     def _val(self, field_id: str) -> str:

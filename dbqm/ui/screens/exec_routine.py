@@ -545,7 +545,7 @@ class ExecRoutineScreen(Vertical):
             except Exception:
                 pass
             return True
-        elif self.query_one("#er-list-phase").display:
+        if self.query_one("#er-list-phase").display:
             self.query_one("#er-list-phase").display = False
             self.query_one("#er-select-phase").display = True
             self._objects = []

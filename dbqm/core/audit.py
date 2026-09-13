@@ -39,7 +39,7 @@ def log_execution(
 
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     is_new = not AUDIT_FILE.exists()
-    with open(AUDIT_FILE, "a", encoding="utf-8") as f:
+    with AUDIT_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
     if is_new:
         try:

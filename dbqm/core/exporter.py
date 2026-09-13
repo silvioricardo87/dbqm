@@ -37,8 +37,7 @@ _MIN_FILENAME_BODY = 8
 def _sanitize(name: str) -> str:
     """Sanitize a name for safe use in filenames."""
     s = name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-    s = re.sub(r'[<>:"|?*]', "_", s)
-    return s
+    return re.sub(r'[<>:"|?*]', "_", s)
 
 
 def _normalize_label(name: str) -> str:
@@ -242,7 +241,7 @@ def export_query_csv(result: QueryResult, table: str = "", params: dict | None =
     """Export a single query result to CSV. Returns the file path."""
     label = table or result.query_name
     filepath = _build_filepath("consultas", label, result.connection_name, params, "csv")
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
+    with filepath.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(result.columns)
         writer.writerows(result.rows)
@@ -259,7 +258,7 @@ def export_query_json(result: QueryResult, table: str = "", params: dict | None 
         "columns": result.columns,
         "row_count": result.row_count,
         "elapsed": round(result.elapsed, 3),
-        "rows": [dict(zip(result.columns, row)) for row in result.rows],
+        "rows": [dict(zip(result.columns, row, strict=True)) for row in result.rows],
     }
     filepath.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     return str(filepath)
@@ -373,7 +372,7 @@ def export_group_csv(group_result: GroupResult, params: dict | None = None) -> s
 
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
 
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
+    with filepath.open("w", newline="", encoding="utf-8") as f:
         if params:
             for k, v in params.items():
                 f.write(f"# Parametro: {k} = {v}\n")
@@ -539,7 +538,7 @@ def export_group_flat_csv(group_result: GroupResult, params: dict | None = None)
 
     query_names = list(group_result.query_results.keys())
 
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
+    with filepath.open("w", newline="", encoding="utf-8") as f:
         if params:
             for k, v in params.items():
                 f.write(f"# Parametro: {k} = {v}\n")

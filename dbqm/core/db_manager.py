@@ -103,7 +103,7 @@ def _python_is_64bit() -> bool:
 def _pe_machine(dll: Path) -> int | None:
     """Read the COFF machine field of a PE binary. None when unreadable."""
     try:
-        with open(dll, "rb") as f:
+        with dll.open("rb") as f:
             f.seek(0x3C)
             pe_offset = int.from_bytes(f.read(4), "little")
             f.seek(pe_offset + 4)
@@ -450,14 +450,13 @@ def get_connection(conn: Connection) -> Any:
     """Get a database connection based on connection type."""
     if conn.db_type == "oracle":
         return get_oracle_connection(conn)
-    elif conn.db_type == "sqlserver":
+    if conn.db_type == "sqlserver":
         return get_sqlserver_connection(conn)
-    elif conn.db_type == "postgresql":
+    if conn.db_type == "postgresql":
         return get_postgresql_connection(conn)
-    elif conn.db_type == "mysql":
+    if conn.db_type == "mysql":
         return get_mysql_connection(conn)
-    else:
-        raise ValueError(f"Tipo de banco desconhecido: {conn.db_type}")
+    raise ValueError(f"Tipo de banco desconhecido: {conn.db_type}")
 
 
 def fetch_table_columns(conn: Connection, table: str) -> list[str]:

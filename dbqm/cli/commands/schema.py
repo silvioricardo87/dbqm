@@ -209,7 +209,7 @@ def cmd_rows(args: argparse.Namespace) -> None:
             if args.table.upper() not in tabelas | vistas:
                 raise deps.ObjectNotFound(
                     f"Tabela '{args.table}' nao encontrada em {conn.name}."
-                )
+                ) from original
             raise
 
     resultado = _with_open_connection(args, "rows", conn, acao)

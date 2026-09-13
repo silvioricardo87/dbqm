@@ -92,7 +92,7 @@ def run_comparison(
             continue
         for row in result.rows:
             key_val = row[key_idx]
-            row_dict = dict(zip(result.columns, row))
+            row_dict = dict(zip(result.columns, row, strict=True))
             indexed[qname][key_val] = row_dict
 
     # Collect all unique keys
@@ -138,8 +138,8 @@ def run_comparison(
                 status = "ABSENT"
                 absent_count += 1
             else:
-                unique_normalized = set(v for v in values.values() if v is not None)
-                unique_raw = set(str(v) for v in raw_values.values() if v is not None)
+                unique_normalized = {v for v in values.values() if v is not None}
+                unique_raw = {str(v) for v in raw_values.values() if v is not None}
                 if len(unique_normalized) <= 1:
                     if len(unique_raw) <= 1:
                         status = "OK"

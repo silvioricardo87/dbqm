@@ -243,7 +243,7 @@ def _download(url: str, dest: Path, progress: ProgressCallback | None) -> None:
         total = resp.length  # may be None
         chunk = 1 << 16
         done = 0
-        with open(dest, "wb") as out:
+        with dest.open("wb") as out:
             while True:
                 buf = resp.read(chunk)
                 if not buf:
