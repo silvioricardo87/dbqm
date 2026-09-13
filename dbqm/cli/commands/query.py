@@ -286,6 +286,16 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     sql_type = deps.classify_sql(sql)
 
+    # Ask the read-only question before the --commit one. `execute_adhoc`
+    # enforces the guard either way, and that is what protects every other
+    # caller -- this call is purely about which refusal the user reads first.
+    # Reporting the missing --commit sends them to add it and only then meet
+    # the real obstacle: two round trips to learn the connection is protected.
+    try:
+        deps.check_read_only(sql, conn)
+    except deps.ReadOnlyViolation as e:
+        _fail_or_print(args, "sql", "read_only", str(e))
+
     # Require --commit for DML operations
     if sql_type in ("INSERT", "UPDATE", "DELETE") and not args.commit:
         _fail_or_print(args, "sql", "usage", "DML requer --commit para confirmar a operacao.")

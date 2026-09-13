@@ -2644,6 +2644,32 @@ class TestForceWrite:
 
         assert saiu.value.code == 2, "DML still requires --commit"
 
+    def test_the_read_only_refusal_comes_before_the_commit_one(self, capsys):
+        """Reporting the missing --commit first sends the user to add it and
+        only then meet the real obstacle -- two round trips to learn the
+        connection is protected. The guard inside `execute_adhoc` still
+        enforces it for every other caller; this is about which refusal the
+        user reads."""
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=self._protegida()):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["sql", "DELETE FROM t", "SS", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == ""
+        assert saiu.value.code == 2
+        corpo = json.loads(capturado.err)
+        assert corpo["error"]["code"] == "read_only", (
+            "not `usage` about --commit: the connection being protected is "
+            "the obstacle, and adding --commit would not clear it"
+        )
+
     def test_a_select_needs_no_flag(self, capsys):
         import json
         from unittest.mock import patch
