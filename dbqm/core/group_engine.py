@@ -54,7 +54,10 @@ class GroupResult:
     summary_lines: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        """Wire shape. Nested dataclasses serialise through their own to_dict."""
+        """Wire shape. Nested dataclasses serialise through their own
+        to_dict. `summary_lines` does not travel here: it is Portuguese
+        display prose (`"  Iguais:       3"`), and every number in it is
+        already in `comparisons[*].*_count` — presentation, not data."""
         return {
             "group_name": self.group_name,
             "query_results": {
@@ -62,7 +65,6 @@ class GroupResult:
             },
             "comparisons": [c.to_dict() for c in self.comparisons],
             "all_match": self.all_match,
-            "summary_lines": list(self.summary_lines),
         }
 
 

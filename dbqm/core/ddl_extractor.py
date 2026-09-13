@@ -26,6 +26,14 @@ class ExtractedObject:
     obj_type: str
     ddl: str
 
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "name": self.name,
+            "obj_type": self.obj_type,
+            "ddl": self.ddl,
+        }
+
 
 @dataclass
 class ExtractionResult:
@@ -37,6 +45,19 @@ class ExtractionResult:
     dependencies: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     saved_files: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Wire shape. Nested dataclasses serialise through their own to_dict."""
+        return {
+            "object_name": self.object_name,
+            "object_type": self.object_type,
+            "owner": self.owner,
+            "connection_name": self.connection_name,
+            "objects": [o.to_dict() for o in self.objects],
+            "dependencies": list(self.dependencies),
+            "errors": list(self.errors),
+            "saved_files": list(self.saved_files),
+        }
 
 
 def _query_all(cursor, sql: str, params: dict | None = None) -> list[tuple]:
@@ -494,6 +515,20 @@ class RoutineExtractionResult:
     dependencies: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     saved_files: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Wire shape. Nested dataclasses serialise through their own to_dict."""
+        return {
+            "package_name": self.package_name,
+            "routine_name": self.routine_name,
+            "owner": self.owner,
+            "connection_name": self.connection_name,
+            "spec_headers": [o.to_dict() for o in self.spec_headers],
+            "body_routines": [o.to_dict() for o in self.body_routines],
+            "dependencies": list(self.dependencies),
+            "errors": list(self.errors),
+            "saved_files": list(self.saved_files),
+        }
 
 
 def extract_routine(conn: Connection, package_name: str, routine_name: str) -> RoutineExtractionResult:

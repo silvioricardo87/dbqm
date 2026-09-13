@@ -49,8 +49,10 @@ class BrowseResult:
     fk_columns: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        """Wire shape. `rows` are raw values, not FK-resolved labels — those
-        are baked into `rows` already by `browse_table`, so there is nothing
+        """Wire shape. `rows` holds raw driver values (`datetime`, `Decimal`,
+        LOB, …) — JSON-safe only because `dbqm/cli/envelope.py` dumps with
+        `default=str`. They are not FK-resolved labels either — those are
+        baked into `rows` already by `browse_table`, so there is nothing
         further to nest here."""
         return {
             "table": self.table,
