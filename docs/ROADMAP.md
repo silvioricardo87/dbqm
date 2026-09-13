@@ -54,7 +54,7 @@ others because it is the one gate the code does not already nearly pass.
 
 | Order | Step | Effect | Status |
 |---|---|---|---|
-| 1 | uv + `uv.lock` + `.python-version`, delete the empty `requirements.txt` | Every later gate runs on a reproducible environment | Done — 2.3.1 |
+| 1 | uv + `uv.lock` + `.python-version` | Every later gate runs on a reproducible environment. `requirements.txt` was already gone before this started, not deleted by it. | Done — 2.3.1 |
 | 2 | ruff, starting with the rules the code already passes, widening one family at a time | Fills the empty Lint step of the task-completion cycle | Done — 2.3.1, fifteen rule families |
 | 3 | mypy `strict` with a per-module ratchet for legacy modules | New code is typed from its first line | **Pending.** Measured at `fe3b906`: **464 findings at `--strict`, 76 at default**. The gap between those two numbers is why a per-module ratchet, not a flag flip, is the only viable path in. |
 | 4 | pytest strict config (`--strict-markers`, `filterwarnings = error`, `xfail_strict`) | Surfaces warnings the suite currently swallows | Done — 2.3.1 |
