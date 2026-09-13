@@ -164,6 +164,14 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     on stdout. The exit code alone is what lets a shell branch on the verdict
     without parsing anything.
     """
+    # An argument combination that can never be valid is refused before any
+    # work happens -- before the group is even resolved, let alone any query
+    # run or any history record written.
+    if args.export == "html" and args.flat:
+        _fail_or_print(args, "run-group", "usage",
+                       "--flat nao tem versao HTML. Use --export html sem --flat, "
+                       "ou --flat com csv, json ou txt.")
+
     group = deps.find_group(args.group)
     if not group:
         _fail_or_print(args, "run-group", "not_found", f"Grupo '{args.group}' nao encontrado.")
@@ -216,10 +224,6 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     if args.export:
         fmt = args.export
         flat = args.flat
-        if fmt == "html" and flat:
-            _fail_or_print(args, "run-group", "usage",
-                           "--flat nao tem versao HTML. Use --export html sem --flat, "
-                           "ou --flat com csv, json ou txt.")
         if flat:
             if fmt == "csv":
                 path = deps.export_group_flat_csv(group_result, param_values)

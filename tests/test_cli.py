@@ -472,26 +472,16 @@ class TestCmdRunGroup:
         shape (the non-flat report) with no signal that `--flat` was
         dropped. Checked under `table` too, not just `json`: a refusal that
         only fires under one renderer is the bug class 2.3.0 existed to
-        fix."""
-        group = _make_group()
-        q1 = _make_query("q1", "c1")
-        q2 = _make_query("q2", "c2")
-        c1 = _make_connection("c1")
-        c2 = _make_connection("c2")
-        gr = _make_group_result()
+        fix.
 
-        def find_query_side(name):
-            return {"q1": q1, "q2": q2}.get(name)
-
-        def find_conn_side(name):
-            return {"c1": c1, "c2": c2}.get(name)
-
-        with patch("dbqm.cli.deps.find_group", return_value=group), \
-             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
-             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
-             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
-             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
-             patch("dbqm.cli.deps.record_group_execution"), \
+        The refusal fires before the group is even resolved (a bad argument
+        combination costs no work), so `find_group` is mocked but must never
+        be called -- that is also what proves this test is pinned to *this*
+        refusal and not to the flat arm's generic bare-`else` fallback,
+        which would also exit 2 with no export call but only after
+        resolving the group and running every query in it.
+        """
+        with patch("dbqm.cli.deps.find_group") as mock_find_group, \
              patch("dbqm.cli.deps.export_group_flat_csv") as mock_flat_csv, \
              patch("dbqm.cli.deps.export_group_flat_json") as mock_flat_json, \
              patch("dbqm.cli.deps.export_group_flat_txt") as mock_flat_txt:
@@ -499,33 +489,19 @@ class TestCmdRunGroup:
                 run_cli(["run-group", "test_group", "--flat", "-e", "html"])
             assert excinfo.value.code == 2
             saida = capsys.readouterr().out
+            assert "--flat" in saida, "must name the refused flag, not just exit 2"
             assert "Exportado:" not in saida, "no export must have happened"
+            mock_find_group.assert_not_called()
             mock_flat_csv.assert_not_called()
             mock_flat_json.assert_not_called()
             mock_flat_txt.assert_not_called()
 
     def test_group_flat_html_is_refused_json_format(self, capsys):
         """Same refusal, `-f json` side: the contract is that stdout stays
-        empty and the failure carries the usage token on stderr."""
-        group = _make_group()
-        q1 = _make_query("q1", "c1")
-        q2 = _make_query("q2", "c2")
-        c1 = _make_connection("c1")
-        c2 = _make_connection("c2")
-        gr = _make_group_result()
-
-        def find_query_side(name):
-            return {"q1": q1, "q2": q2}.get(name)
-
-        def find_conn_side(name):
-            return {"c1": c1, "c2": c2}.get(name)
-
-        with patch("dbqm.cli.deps.find_group", return_value=group), \
-             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
-             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
-             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
-             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
-             patch("dbqm.cli.deps.record_group_execution"), \
+        empty and the failure carries the usage token on stderr. Also fires
+        before the group is resolved -- see the table-format sibling above
+        for why `find_group` must stay uncalled."""
+        with patch("dbqm.cli.deps.find_group") as mock_find_group, \
              patch("dbqm.cli.deps.export_group_flat_csv") as mock_flat_csv, \
              patch("dbqm.cli.deps.export_group_flat_json") as mock_flat_json, \
              patch("dbqm.cli.deps.export_group_flat_txt") as mock_flat_txt:
@@ -538,6 +514,7 @@ class TestCmdRunGroup:
             assert corpo["error"]["code"] == "usage"
             assert "--flat" in corpo["error"]["message"]
             assert "html" in corpo["error"]["message"]
+            mock_find_group.assert_not_called()
             mock_flat_csv.assert_not_called()
             mock_flat_json.assert_not_called()
             mock_flat_txt.assert_not_called()
