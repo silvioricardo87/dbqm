@@ -175,6 +175,12 @@ def _make_conn(name):
     return Connection(name=name, db_type="oracle", user="", password="")
 
 
+def _resolved(*names):
+    """`(name, Connection)` pairs, all resolved -- the shape execute_across
+    expects when the caller found every connection."""
+    return [(n, _make_conn(n)) for n in names]
+
+
 class TestExecuteAcross:
     def test_a_raised_exception_becomes_a_connection_failure_and_the_rest_still_run(
         self, monkeypatch
@@ -192,9 +198,7 @@ class TestExecuteAcross:
 
         monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
 
-        results = execute_across(
-            "SELECT 1", [_make_conn("bad"), _make_conn("good")], {}
-        )
+        results = execute_across("SELECT 1", _resolved("bad", "good"), {})
 
         assert calls == ["bad", "good"]
         assert results["bad"].success is False
@@ -211,7 +215,7 @@ class TestExecuteAcross:
 
         monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
 
-        results = execute_across("SELECT bogus FROM t", [_make_conn("c1")], {})
+        results = execute_across("SELECT bogus FROM t", _resolved("c1"), {})
         assert results["c1"].success is False
         assert results["c1"].error_kind == "statement"
 
@@ -224,7 +228,7 @@ class TestExecuteAcross:
 
         monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
 
-        results = execute_across("UPDATE t SET x = 1", [_make_conn("c1")], {})
+        results = execute_across("UPDATE t SET x = 1", _resolved("c1"), {})
         assert isinstance(results["c1"], AdhocResult)
         assert results["c1"].rows_affected == 1
 
@@ -241,8 +245,43 @@ class TestExecuteAcross:
         seen: list[tuple[str, bool]] = []
         execute_across(
             "SELECT 1",
-            [_make_conn("a"), _make_conn("bad"), _make_conn("b")],
+            _resolved("a", "bad", "b"),
             {},
             on_result=lambda name, res: seen.append((name, res.success)),
         )
         assert seen == [("a", True), ("bad", False), ("b", True)]
+
+    def test_a_missing_connection_gets_no_entry_but_fires_on_missing_in_order(
+        self, monkeypatch
+    ):
+        """A `None` connection is never executed -- it must not appear in the
+        returned dict at all (there is no result to report), and on_missing
+        must fire in the same sequence as on_progress/on_result for the
+        connections around it, not before or after them all."""
+        def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
+            return AdhocResult(sql_type="SELECT", connection_name=conn.name)
+
+        monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
+
+        events: list[tuple[str, str]] = []
+        conns: list[tuple[str, Connection | None]] = [
+            ("a", _make_conn("a")),
+            ("ghost", None),
+            ("b", _make_conn("b")),
+        ]
+        results = execute_across(
+            "SELECT 1",
+            conns,
+            {},
+            on_progress=lambda name: events.append(("progress", name)),
+            on_result=lambda name, res: events.append(("result", name)),
+            on_missing=lambda name: events.append(("missing", name)),
+        )
+
+        assert "ghost" not in results
+        assert set(results) == {"a", "b"}
+        assert events == [
+            ("progress", "a"), ("result", "a"),
+            ("missing", "ghost"),
+            ("progress", "b"), ("result", "b"),
+        ]

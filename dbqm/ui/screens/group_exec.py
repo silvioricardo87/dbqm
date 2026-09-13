@@ -261,6 +261,7 @@ class GroupExecScreen(Vertical):
             build_adhoc_group_result,
             execute_across,
         )
+        from dbqm.core.query_engine import AdhocResult
 
         def on_progress(cname: str) -> None:
             self.app.call_from_thread(
@@ -268,7 +269,7 @@ class GroupExecScreen(Vertical):
                 f"Executando em [bold]{escape_markup(cname)}[/]...",
             )
 
-        def on_result(cname: str, res) -> None:
+        def on_result(cname: str, res: AdhocResult) -> None:
             if not res.success:
                 self.app.call_from_thread(
                     self.notify,
@@ -277,30 +278,22 @@ class GroupExecScreen(Vertical):
                     timeout=8,
                 )
 
-        try:
-            # Resolved one connection at a time (rather than gathered into a
-            # single execute_across call) so a "nao encontrada" warning lands
-            # at the same point in the sequence it always did: interleaved
-            # with the progress/error notifications of the connections
-            # around it, not all upfront -- execute_across only ever sees
-            # already-resolved connections, one per call here.
-            results = {}
-            for cname in conn_names:
-                conn = find_connection(cname)
-                if conn is None:
-                    self.app.call_from_thread(
-                        self.notify,
-                        f"Conexao '{cname}' nao encontrada.",
-                        severity="warning",
-                    )
-                    continue
+        def on_missing(cname: str) -> None:
+            self.app.call_from_thread(
+                self.notify,
+                f"Conexao '{cname}' nao encontrada.",
+                severity="warning",
+            )
 
-                one = execute_across(
-                    sql, [conn], {}, on_progress=on_progress, on_result=on_result
-                )
-                res = one[cname]
-                if res.success:
-                    results[cname] = res
+        try:
+            conns = [(cname, find_connection(cname)) for cname in conn_names]
+            all_results = execute_across(
+                sql, conns, {},
+                on_progress=on_progress, on_result=on_result, on_missing=on_missing,
+            )
+            results = {
+                cname: res for cname, res in all_results.items() if res.success
+            }
 
             if len(results) < 1:
                 self.app.call_from_thread(

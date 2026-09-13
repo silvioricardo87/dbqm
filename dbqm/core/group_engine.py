@@ -139,40 +139,56 @@ def build_adhoc_group_result(
 
 def execute_across(
     sql: str,
-    conns: list[Connection],
+    conns: list[tuple[str, Connection | None]],
     param_values: dict[str, str],
     on_progress: Callable[[str], None] | None = None,
     on_result: Callable[[str, AdhocResult], None] | None = None,
+    on_missing: Callable[[str], None] | None = None,
 ) -> dict[str, AdhocResult]:
-    """Run the same SQL on each connection, in order.
+    """Run the same SQL on each resolved connection, in order.
 
-    Returns one entry per connection whether it succeeded or not, and
-    **decides nothing about what a failure means** -- the TUI carries on so a
+    `conns` is a list of `(name, connection)` pairs, already resolved by the
+    caller -- core does not look connections up itself. `dbqm/cli/deps.py`
+    exists precisely so the CLI's connection lookup can be rebound in tests;
+    a lookup done here would route around that seam. A pair whose connection
+    is `None` fires `on_missing(name)`, in sequence with the pairs around it,
+    and contributes **no entry** to the returned dict -- it was never run,
+    so there is nothing to report. A pair that *did* run, successfully or
+    not, always gets an entry; Task 3 tells the two apart by entry
+    membership (`not_found`) versus `AdhocResult.error_kind` (`connection_failed`
+    vs `sql_error`).
+
+    Decides nothing about what a failure means -- the TUI carries on so a
     dead connection does not discard the comparison on screen, the CLI stops
     because a comparison over a subset answers a different question. A core
-    that picked one would force the other to work around it.
+    that picked one policy would force the other to work around it.
 
-    A raised exception becomes an unsuccessful AdhocResult, so one
-    unreachable host cannot end the loop.
+    A raised exception becomes an unsuccessful AdhocResult with
+    `error_kind="connection"`, so one unreachable host cannot end the loop.
 
-    `on_result`, when given, fires once per connection, right after that
-    connection's result is recorded -- so a caller that wants to react to a
-    single failure (notify, log, stop) does not have to wait for every other
+    `on_progress`, `on_result` and `on_missing` each fire once per pair, in
+    the same sequential order as `conns` -- a caller that wants to react
+    per-connection (notify, log, stop) does not have to wait for every other
     connection to finish first.
     """
     from dbqm.core.query_engine import execute_adhoc
 
     results: dict[str, AdhocResult] = {}
-    for conn in conns:
+    for name, conn in conns:
+        if conn is None:
+            if on_missing is not None:
+                on_missing(name)
+            continue
+
         if on_progress is not None:
-            on_progress(conn.name)
+            on_progress(name)
 
         try:
             res = execute_adhoc(sql, conn, param_values)
         except Exception as e:
             res = AdhocResult(
                 sql_type="",
-                connection_name=conn.name,
+                connection_name=name,
                 sql=sql,
                 db_type=conn.db_type,
                 success=False,
@@ -184,9 +200,9 @@ def execute_across(
             if isinstance(res, tuple):
                 res = res[0]
 
-        results[conn.name] = res
+        results[name] = res
         if on_result is not None:
-            on_result(conn.name, res)
+            on_result(name, res)
 
     return results
 
