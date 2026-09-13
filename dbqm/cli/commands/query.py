@@ -15,6 +15,7 @@ from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
+from dbqm.core.group_engine import GroupResult
 
 # `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
 # error string — the statement was never sent to the driver, so calling it
@@ -73,6 +74,46 @@ def _fail_or_print(
     if extra:
         console.print(extra)
     sys.exit(int(exit_for(code)))
+
+
+def _export_group(
+    args: argparse.Namespace,
+    command: str,
+    group_result: GroupResult,
+    param_values: dict[str, str],
+) -> str:
+    """Both export arms (flat and full) for a `GroupResult`, and both
+    `usage` fall-throughs, shared by every command that exports one.
+
+    `command` names the caller in the failure envelope — `run-group` and
+    `multi` are different commands, and a hard-coded name here would make
+    one of them lie about which command produced the failure.
+
+    Does not include the `--flat`-with-`html` refusal: that fires as the
+    caller's first statement, before any query runs, so it stays there.
+    """
+    fmt = args.export
+    if args.flat:
+        if fmt == "csv":
+            path = deps.export_group_flat_csv(group_result, param_values)
+        elif fmt == "json":
+            path = deps.export_group_flat_json(group_result, param_values)
+        elif fmt == "txt":
+            path = deps.export_group_flat_txt(group_result, param_values)
+        else:
+            _fail_or_print(args, command, "usage", f"Formato de export invalido: {fmt}")
+    else:
+        if fmt == "csv":
+            path = deps.export_group_csv(group_result, param_values)
+        elif fmt == "json":
+            path = deps.export_group_json(group_result, param_values)
+        elif fmt == "txt":
+            path = deps.export_group_txt(group_result, param_values)
+        elif fmt == "html":
+            path = deps.export_group_html(group_result, param_values)
+        else:
+            _fail_or_print(args, command, "usage", f"Formato de export invalido: {fmt}")
+    return path
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -223,27 +264,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # headline behaviour of this release out with a flag.
     if args.export:
         fmt = args.export
-        flat = args.flat
-        if flat:
-            if fmt == "csv":
-                path = deps.export_group_flat_csv(group_result, param_values)
-            elif fmt == "json":
-                path = deps.export_group_flat_json(group_result, param_values)
-            elif fmt == "txt":
-                path = deps.export_group_flat_txt(group_result, param_values)
-            else:
-                _fail_or_print(args, "run-group", "usage", f"Formato de export invalido: {fmt}")
-        else:
-            if fmt == "csv":
-                path = deps.export_group_csv(group_result, param_values)
-            elif fmt == "json":
-                path = deps.export_group_json(group_result, param_values)
-            elif fmt == "txt":
-                path = deps.export_group_txt(group_result, param_values)
-            elif fmt == "html":
-                path = deps.export_group_html(group_result, param_values)
-            else:
-                _fail_or_print(args, "run-group", "usage", f"Formato de export invalido: {fmt}")
+        path = _export_group(args, "run-group", group_result, param_values)
         if args.format == "json":
             ok("run-group", {"exported": str(path), "format": fmt})
         else:

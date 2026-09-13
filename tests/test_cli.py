@@ -654,6 +654,23 @@ class TestCmdRunGroup:
                 run_cli(["run-group", "test_group"])
             assert exc.value.code == 5
 
+    def test_multi_and_run_group_export_through_the_same_helper(self):
+        """Two commands, one export path. A second implementation is how two
+        commands start disagreeing about what --flat means.
+
+        This test is deliberately structural: it does not exercise any
+        behaviour (the export tests above already do that). It asserts that
+        `cmd_run_group` delegates to `_export_group` instead of naming the
+        exporters itself, so a second caller (`multi`, task 3) shares the
+        same code path rather than growing a fifth copy of the branch.
+        """
+        from dbqm.cli.commands import query as q
+        import inspect
+
+        fonte = inspect.getsource(q.cmd_run_group)
+        assert "_export_group(" in fonte
+        assert "export_group_flat_csv" not in fonte
+
 
 # ---------------------------------------------------------------------------
 # sql subcommand
