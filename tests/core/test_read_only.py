@@ -109,7 +109,8 @@ class TestTheWiring:
         with patch("dbqm.core.query_engine.get_connection") as mock_get:
             with pytest.raises(ReadOnlyViolation):
                 execute_adhoc("DELETE FROM t", _conn(), {})
-        mock_get.assert_not_called(), "refused before the driver was reached"
+        # The point of the guard: refused before the driver was reached.
+        mock_get.assert_not_called()
 
     def test_execute_explain_refuses_a_wrapped_write(self):
         """It wraps caller SQL in EXPLAIN PLAN FOR {sql} with no check that
@@ -135,3 +136,50 @@ class TestTheWiring:
         with patch("dbqm.core.query_engine.get_connection", return_value=db):
             r = execute_adhoc("SELECT 1", _conn(read_only=False), {})
         assert r.success is True
+
+class TestExplainThatExecutes:
+    """`EXPLAIN` alone is not read-only.
+
+    On PostgreSQL and MySQL, `EXPLAIN ANALYZE DELETE FROM t` **runs the
+    delete** -- the plan comes from executing the statement, not from
+    predicting it. `classify_sql` reports the whole thing as EXPLAIN, so
+    without a second look the guard waves a write through on two of the four
+    engines.
+    """
+
+    @pytest.mark.parametrize("sql", [
+        "EXPLAIN SELECT 1",
+        "EXPLAIN PLAN FOR SELECT 1",
+        "EXPLAIN ANALYZE SELECT 1",
+        "EXPLAIN (FORMAT JSON) SELECT 1",
+        "EXPLAIN FORMAT=JSON SELECT 1",
+    ])
+    def test_explaining_a_query_passes(self, sql):
+        check_read_only(sql, _conn())
+
+    @pytest.mark.parametrize("sql", [
+        "EXPLAIN ANALYZE DELETE FROM t",
+        "EXPLAIN ANALYZE INSERT INTO t VALUES (1)",
+        "EXPLAIN (ANALYZE, FORMAT JSON) UPDATE t SET a = 1",
+        "EXPLAIN PLAN FOR DELETE FROM t",
+        "EXPLAIN DROP TABLE t",
+    ])
+    def test_explaining_a_write_is_refused(self, sql):
+        with pytest.raises(ReadOnlyViolation):
+            check_read_only(sql, _conn())
+
+    def test_an_unrecognised_explain_is_refused(self):
+        """Fail closed: a prefix shape this does not know reduces to nothing
+        it can vouch for, so it is refused rather than assumed harmless."""
+        with pytest.raises(ReadOnlyViolation):
+            check_read_only("EXPLAIN", _conn())
+
+
+class TestTheConnectionIsRead:
+    """A defaulted `getattr` would approve anything that is not a Connection,
+    including None -- silently, which is the failure this module exists to
+    prevent."""
+
+    def test_a_missing_connection_is_an_error_not_a_pass(self):
+        with pytest.raises(AttributeError):
+            check_read_only("DROP TABLE t", None)

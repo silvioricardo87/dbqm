@@ -72,8 +72,18 @@ def _strip_leading_comments(sql: str) -> str:
 
 
 def _is_select_only(sql: str) -> bool:
-    """Ensure the SQL is a SELECT statement (no DML/DDL)."""
-    parsed = sqlparse.parse(_strip_leading_comments(sql))
+    """Ensure the SQL is a SELECT statement (no DML/DDL).
+
+    The statement count is part of the question, not a separate one: this
+    inspects `parsed[0]`, so without it `SELECT 1; DROP TABLE t` answers True
+    while the whole string is what reaches the driver.
+    """
+    from dbqm.core.read_only import statement_count
+
+    limpa = _strip_leading_comments(sql)
+    if statement_count(limpa) != 1:
+        return False
+    parsed = sqlparse.parse(limpa)
     if not parsed:
         return False
     stmt_type = parsed[0].get_type()
