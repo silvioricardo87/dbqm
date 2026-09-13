@@ -129,12 +129,23 @@ def build(values: dict, existing: Connection | None = None) -> Connection:
     else:
         password = ""
 
+    # Keyed on PRESENCE, like `password`: an absent key means "keep what is
+    # stored". Without that, `connection update --host x` on a protected
+    # connection would quietly unlock it.
+    if "read_only" in values:
+        read_only = bool(values["read_only"])
+    elif existing is not None:
+        read_only = existing.read_only
+    else:
+        read_only = False
+
     conn = Connection(
         name=_text(values, "name"),
         db_type=db_type,
         user=_text(values, "user"),
         password=password,
         description=_text(values, "description"),
+        read_only=read_only,
         **fields,
     )
     if existing is not None:

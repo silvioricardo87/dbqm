@@ -123,3 +123,39 @@ class TestConnectionDescription:
         }), encoding="utf-8")
         loaded = load_connections()
         assert loaded[0].description == ""
+
+
+class TestReadOnlyField:
+    """A connection can be marked query-only. The field has to load from
+    configs written before it existed."""
+
+    def test_it_defaults_to_false(self):
+        from dbqm.models.connection import Connection
+
+        c = Connection(name="c", db_type="oracle", user="u", password="")
+        assert c.read_only is False
+
+    def test_a_config_written_before_the_field_existed_loads(self):
+        """`from_dict` fills the default for an absent key. Without this,
+        every saved connection breaks on upgrade."""
+        from dbqm.models.connection import Connection
+
+        c = Connection.from_dict({
+            "name": "antiga", "db_type": "oracle", "user": "u", "password": "",
+        })
+        assert c.read_only is False
+
+    def test_it_survives_a_round_trip(self):
+        from dbqm.models.connection import Connection
+
+        c = Connection(name="c", db_type="oracle", user="u", password="",
+                       read_only=True)
+        assert Connection.from_dict(c.to_dict()).read_only is True
+
+    def test_false_is_written_not_dropped(self):
+        """`to_dict` drops None, not False. A connection explicitly marked
+        writable must not be indistinguishable from one never set."""
+        from dbqm.models.connection import Connection
+
+        c = Connection(name="c", db_type="oracle", user="u", password="")
+        assert c.to_dict()["read_only"] is False

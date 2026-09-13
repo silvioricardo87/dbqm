@@ -25,6 +25,10 @@ class Connection:
     database: Optional[str] = None
     # Free-form notes about this connection (purpose, schema, contacts, etc.)
     description: str = ""
+    #: When true, dbqm declines to send anything but a query to this target.
+    #: A rail against mistakes, not a security boundary: whoever can connect
+    #: can still write with another client.
+    read_only: bool = False
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
 
     def to_dict(self) -> dict:

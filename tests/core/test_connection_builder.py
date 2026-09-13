@@ -218,3 +218,43 @@ class TestUpsert:
         upsert({"name": "b", "db_type": "mysql"})
         upsert({"name": "a", "db_type": "mysql", "host": "novo"})
         assert [c.name for c in load_connections()] == ["a", "b"]
+
+
+class TestReadOnlyInBuild:
+    """Keyed on presence, like `password`: an absent key means keep what is
+    stored, so `connection update --host x` does not silently unlock a
+    protected connection."""
+
+    def test_it_is_set_from_the_values(self):
+        from dbqm.core.connection_builder import build
+
+        c = build({"name": "c", "db_type": "mysql", "host": "h", "user": "u",
+                   "read_only": True})
+        assert c.read_only is True
+
+    def test_it_defaults_to_false_when_absent_and_new(self):
+        from dbqm.core.connection_builder import build
+
+        c = build({"name": "c", "db_type": "mysql", "host": "h", "user": "u"})
+        assert c.read_only is False
+
+    def test_an_absent_key_keeps_what_is_stored(self):
+        """The rule that matters: updating any other field must not unlock."""
+        from dbqm.core.connection_builder import build
+        from dbqm.models.connection import Connection
+
+        existente = Connection(name="c", db_type="mysql", user="u",
+                               password="", host="antigo", read_only=True)
+        c = build({"name": "c", "db_type": "mysql", "host": "novo",
+                   "user": "u"}, existing=existente)
+        assert c.read_only is True, "an unrelated update must not unlock"
+
+    def test_a_present_false_unlocks(self):
+        from dbqm.core.connection_builder import build
+        from dbqm.models.connection import Connection
+
+        existente = Connection(name="c", db_type="mysql", user="u",
+                               password="", read_only=True)
+        c = build({"name": "c", "db_type": "mysql", "host": "h", "user": "u",
+                   "read_only": False}, existing=existente)
+        assert c.read_only is False
