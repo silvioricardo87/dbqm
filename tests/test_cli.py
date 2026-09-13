@@ -30,7 +30,7 @@ def _make_query(name="test_query", connection="test_conn", sql="SELECT 1 FROM du
     )
 
 
-def _make_query_result(success=True, rows=None, columns=None):
+def _make_query_result(success=True, rows=None, columns=None, error="", error_kind=""):
     return QueryResult(
         query_name="test_query",
         connection_name="test_conn",
@@ -39,17 +39,20 @@ def _make_query_result(success=True, rows=None, columns=None):
         row_count=len(rows) if rows is not None else 2,
         elapsed=0.05,
         success=success,
-        error="" if success else "some error",
+        error=error or ("" if success else "some error"),
+        error_kind=error_kind,
     )
 
 
-def _make_adhoc_result():
+def _make_adhoc_result(success=True, error="", error_kind=""):
     return AdhocResult(
         sql_type="DELETE",
         connection_name="test_conn",
         sql="DELETE FROM t",
         rows_affected=1,
-        success=True,
+        success=success,
+        error=error,
+        error_kind=error_kind,
     )
 
 
@@ -2753,3 +2756,73 @@ class TestConnectionReadOnlyFlag:
 
         linhas = json.loads(capsys.readouterr().out)["data"]
         assert linhas[0]["read_only"] is True
+
+
+class TestConnectionFailedIsReachable:
+    """Exit 3 has been in the published table since 2.0.0 and `run`/`sql`
+    could never produce it: both failures arrived as one string."""
+
+    def test_sql_exits_three_when_the_database_never_answered(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        falhou = _make_adhoc_result(success=False, error="no listener",
+                                    error_kind="connection")
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=falhou):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["sql", "SELECT 1", "conexao", "-f", "json"])
+
+        capturado = capsys.readouterr()
+        assert capturado.out == ""
+        assert saiu.value.code == 3
+        assert json.loads(capturado.err)["error"]["code"] == "connection_failed"
+
+    def test_sql_still_exits_four_when_the_statement_was_rejected(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        falhou = _make_adhoc_result(success=False, error="ORA-00942",
+                                    error_kind="statement")
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=falhou):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["sql", "SELECT 1", "conexao", "-f", "json"])
+
+        assert saiu.value.code == 4
+        assert json.loads(capsys.readouterr().err)["error"]["code"] == "sql_error"
+
+    def test_run_exits_three_too(self, capsys):
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        falhou = _make_query_result(success=False, error="no listener",
+                                    error_kind="connection")
+        with patch("dbqm.cli.deps.find_query", return_value=_make_query()), \
+             patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.execute_query", return_value=falhou), \
+             patch("dbqm.cli.deps.record_query_execution"), \
+             patch("dbqm.cli.deps.log_execution"):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["run", "test_query", "-f", "json"])
+
+        assert saiu.value.code == 3
+
+    def test_the_bad_input_messages_still_map_to_usage(self, capsys):
+        """`_sql_error_code`'s existing job must survive: two messages `core/`
+        returns are usage errors, not statement failures."""
+        from dbqm.cli.commands.query import _USAGE_SQL_MESSAGES, _sql_error_code
+
+        for mensagem in _USAGE_SQL_MESSAGES:
+            assert _sql_error_code(mensagem, "statement") == "usage"
