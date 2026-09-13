@@ -20,7 +20,14 @@ user and carries no internal structure at all — it is the package's PyPI page.
 dbqm/
 ├── main.py            # App bootstrap (console-script target: dbqm.main:main)
 ├── __main__.py        # `python -m dbqm` — routes to CLI or TUI
-├── cli.py             # Non-interactive CLI (sql, run, run-group, connection, list, ...)
+├── cli/               # Non-interactive CLI (sql, run, run-group, connection, list, ...)
+│   ├── __init__.py     # run_cli, build_parser, COMMAND_MAP — the public API
+│   ├── deps.py         # What the CLI consumes from core/ and models/, in one place
+│   ├── envelope.py     # ok()/fail() — the single JSON shape
+│   ├── errors.py       # ExitCode (IntEnum) and the token -> exit-code table
+│   ├── render.py       # table / csv / raw output
+│   ├── params.py       # _parse_params, resolve_password
+│   └── commands/       # One module per group: query, connection, inspect, config_bundle
 ├── _version.py        # __version__ (SemVer; read by pyproject.toml)
 ├── design/            # Design tokens (colors, contrast floors); imports nothing from dbqm
 │   └── tokens.py       # TOKENS_CLARO / TOKENS_ESCURO / TEMAS, one source for TUI + CLI + HTML report
@@ -63,9 +70,9 @@ dbqm/
 > migrated to Textual `screens/`. Ignore any older doc that references flows.
 
 **Layering rule:** `core/` is UI-agnostic and must never import from `ui/`.
-Both the TUI (`ui/app.py`) and the CLI (`cli.py`) call into `core/`.
+Both the TUI (`ui/app.py`) and the CLI (`cli/`) call into `core/`.
 `design/` sits below both: it imports nothing from `dbqm`, and is imported by
-the TUI (`ui/theme.py`), the CLI (`cli.py`), and the HTML report
+the TUI (`ui/theme.py`), the CLI (`cli/render.py`), and the HTML report
 (`core/html_report.py`) — one source of color/contrast truth for all three
 consumers, none of them importing each other.
 
@@ -116,11 +123,31 @@ consumers, none of them importing each other.
   (`format_dbms_evidence`): executed SQL + connection + date/time + DBMS_OUTPUT +
   outcome. Timestamp is captured in the UI and injected so the exporter stays pure.
 
-### CLI (`cli.py`)
+### CLI (`cli/`)
 - Non-interactive commands: `sql`, `run`, `run-group`, `test`, `list`, `ddl`,
   `history`, `export-config`, `import-config`, and the `connection` group.
 - `-f/--format`: `table | json | csv | raw` (`raw` prints values without
-  decoration — for extracting CLOB/LONG sources cleanly).
+  decoration — for extracting CLOB/LONG sources cleanly). `test`, `ddl`,
+  `export-config` and `import-config` offer `table | json`.
+- **Under `-f json`, stdout carries one envelope and nothing else** — no error,
+  no progress line, no warning. `envelope.ok()` writes
+  `{"ok":true,"command":...,"data":...}` to stdout; `envelope.fail()` writes
+  `{"ok":false,"command":...,"error":{"code","message","exit"}}` to **stderr**
+  and leaves stdout empty, so a failure never breaks `| jq`. `table`, `csv` and
+  `raw` get no envelope: they are for humans and text pipes.
+- **`error.code` is a machine token; `error.message` stays Portuguese without
+  accents.** A consumer branches on the token, never on the sentence. The token
+  is finer than the exit code — `usage`, `not_found` and `validation` all exit
+  2 — and `errors.py` holds both in one table so they cannot drift.
+- **Exit codes** (`errors.ExitCode`): 0 success, 1 **a bug in dbqm**, 2 usage /
+  not found / validation, 3 connection failed, 4 SQL error, 5 divergent
+  comparison, 130 interrupted. `run-group` exiting 5 on divergence is what lets
+  a script learn that a comparison *ran and diverged* without parsing text.
+- **The `core/` dataclasses own their wire shape** (`to_dict()`), so the CLI
+  never invents a second one. `rows` are parallel arrays, not objects keyed by
+  column: a repeated column name (`SELECT a.id, b.id`) would silently drop a
+  value. `tests/core/test_serialization.py` walks `dbqm.core.*` and fails when
+  a dataclass that reaches an output has no `to_dict`.
 - Example: `python -m dbqm sql "<sql-or-file>" "<connection name>" -f raw`.
 - **`connection add|update|rm|show|list`** is the only CRUD reachable outside
   the TUI. It calls `core/connection_builder.py`, never `upsert` — `add` on an
