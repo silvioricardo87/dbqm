@@ -164,10 +164,14 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     if args.format == "json":
         if result.errors and not result.objects:
             fail("ddl", "sql_error", "; ".join(result.errors))
-        dir_path, _ = deps.save_extraction(result)
+        if args.stdout:
+            path = None
+        else:
+            dir_path, _ = deps.save_extraction(result)
+            path = str(dir_path)
         data = {
             "objects": [o.to_dict() for o in result.objects],
-            "path": str(dir_path),
+            "path": path,
         }
         ok("ddl", data, warnings=result.errors or None)
         return

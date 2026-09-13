@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 from dbqm.cli import build_parser, run_cli, _parse_params, COMMAND_MAP
 from dbqm.core.query_engine import AdhocResult, QueryResult
 from dbqm.core.group_engine import GroupResult, ComparisonResult, ComparisonRow
+from dbqm.core.ddl_extractor import ExtractionResult, ExtractedObject
 from dbqm.models.connection import Connection
 from dbqm.models.query import Query, QueryParam
 from dbqm.models.group import Group
@@ -85,6 +86,26 @@ def _make_group_result():
         ],
         all_match=True,
         summary_lines=["Coluna: status", "  Iguais: 1"],
+    )
+
+
+def _make_extraction():
+    """Create a real ExtractionResult with the actual dataclass structure."""
+    return ExtractionResult(
+        object_name="MY_TABLE",
+        object_type="TABLE",
+        owner="TEST_OWNER",
+        connection_name="test_conn",
+        objects=[
+            ExtractedObject(
+                name="MY_TABLE",
+                obj_type="TABLE",
+                ddl="CREATE TABLE TEST_OWNER.MY_TABLE (id NUMBER PRIMARY KEY);",
+            ),
+        ],
+        dependencies=[],
+        errors=[],
+        saved_files=[],
     )
 
 
@@ -2974,3 +2995,39 @@ class TestRowsOnAMissingTable:
 
         assert saiu.value.code == 4
         assert {c.args[2] for c in mock_list.call_args_list} == {"TABLE", "VIEW"}
+
+
+class TestDdlStdout:
+    """--stdout says "print to stdout instead of saving to a file" in its
+    own help text. The json branch never read it."""
+
+    def test_stdout_writes_nothing_to_disk(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.extract_ddl", return_value=_make_extraction()), \
+             patch("dbqm.cli.deps.save_extraction") as mock_save:
+            run_cli(["ddl", "OBJ", "conexao", "--stdout", "-f", "json"])
+
+        mock_save.assert_not_called()
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"]["path"] is None, (
+            "the same shape either way -- the value carries the answer"
+        )
+
+    def test_without_the_flag_it_still_saves(self, capsys):
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.extract_ddl", return_value=_make_extraction()), \
+             patch("dbqm.cli.deps.save_extraction", return_value=("/algum/caminho", 2)) as mock_save:
+            run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+
+        mock_save.assert_called_once()
+        assert json.loads(capsys.readouterr().out)["data"]["path"] is not None
