@@ -139,12 +139,15 @@ def cmd_list(args: argparse.Namespace) -> None:
 def cmd_ddl(args: argparse.Namespace) -> None:
     """Extract DDL for a database object.
 
-    Under `-f json` the per-object progress callback is routed to stderr —
+    Under `-f json` the per-object progress callback is routed to stderr --
     under table it stays on stdout as before, dim progress next to the human
-    output. The extraction is always saved to disk under json (regardless of
-    `--stdout`, which only matters when there is no envelope to carry the DDL
-    text back to the caller already): the payload needs a `path` either way,
-    and every object's DDL travels inline in `objects` too.
+    output.
+
+    `--stdout` means what it says in both formats: nothing is written to
+    disk. The payload keeps its `path` key and reports `None`, rather than
+    dropping the key, so a consumer reads the same shape either way and
+    learns the answer from the value. Every object's DDL travels inline in
+    `objects` regardless, which is what makes skipping the file harmless.
     """
     conn = deps.find_connection(args.connection)
     if not conn:
