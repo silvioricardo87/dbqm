@@ -30,6 +30,25 @@ def _light_theme_block(tokens: dict[str, str]) -> str:
     return f"@media (prefers-color-scheme: light) {{\n  :root {{\n{linhas}\n  }}\n}}"
 
 
+#: Layout rules shared by every report shell -- reset, body, header, the
+#: params table and the data table. Renderer-specific rules (status
+#: colouring, filter bar, search box, …) stay in their own `_build_*`
+#: function; only what both renderers actually share lives here, so a change
+#: to shared padding cannot drift between the two documents.
+_BASE_STYLE_RULES = """\
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--ds-background); color: var(--ds-text); padding: 24px; }
+    .header { background: var(--ds-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .header h1 { color: var(--ds-identity); font-size: 1.4em; }
+    .header .meta { color: var(--ds-text-muted); font-size: 0.85em; margin-top: 8px; }
+    .params { margin: 12px 0; border-collapse: collapse; }
+    .params td { padding: 4px 16px 4px 0; color: var(--ds-text-muted); font-size: 0.9em; }
+    table.data { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.9em; }
+    table.data th { background: var(--ds-panel); color: var(--ds-identity); padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--ds-border); }
+    table.data td { padding: 6px 12px; border-bottom: 1px solid var(--ds-border); }
+    table.data tr:hover { background: var(--ds-surface-raised); }"""
+
+
 def export_group_html(group_result: GroupResult, params: dict[str, str] | None = None) -> str:
     """Export group comparison as a standalone HTML file. Returns file path."""
     query_names = list(group_result.query_results.keys())
@@ -119,26 +138,16 @@ def _build_html(group_result: GroupResult, query_names: list[str], params: dict[
        despercebido. Por isso: nenhuma cor composta em CSS pode carregar
        texto; texto so usa var(--token) puro, e estado em superficie e
        borda/marcador, nunca preenchimento. */
-    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--ds-background); color: var(--ds-text); padding: 24px; }}
-    .header {{ background: var(--ds-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
-    .header h1 {{ color: var(--ds-identity); font-size: 1.4em; }}
-    .header .meta {{ color: var(--ds-text-muted); font-size: 0.85em; margin-top: 8px; }}
+{_BASE_STYLE_RULES}
     .badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 0.85em; }}
     /* Estado em superficie e borda/marcador, nunca preenchimento: um preenchimento
        misturado a partir do proprio texto sempre compromete um dos dois. */
     .badge.ok {{ background: var(--ds-panel); color: var(--ds-verdict-match); border: 1px solid var(--ds-verdict-match); }}
     .badge.diff {{ background: var(--ds-panel); color: var(--ds-verdict-diff); border: 1px solid var(--ds-verdict-diff); }}
-    .params {{ margin: 12px 0; border-collapse: collapse; }}
-    .params td {{ padding: 4px 16px 4px 0; color: var(--ds-text-muted); font-size: 0.9em; }}
     h3 {{ color: var(--ds-identity); margin: 24px 0 8px; }}
     .filter-bar {{ margin-bottom: 8px; }}
     .filter-btn {{ background: var(--ds-panel); color: var(--ds-text-muted); border: 1px solid var(--ds-border); padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; font-size: 0.8em; }}
     .filter-btn.active {{ background: var(--ds-surface-raised); color: var(--ds-identity); border-color: var(--ds-identity); }}
-    table.data {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.9em; }}
-    table.data th {{ background: var(--ds-panel); color: var(--ds-identity); padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--ds-border); }}
-    table.data td {{ padding: 6px 12px; border-bottom: 1px solid var(--ds-border); }}
-    table.data tr:hover {{ background: var(--ds-surface-raised); }}
     .key {{ color: var(--ds-text-strong); font-weight: 600; }}
     .ok {{ color: var(--ds-verdict-match); font-weight: 600; }}
     .diff {{ color: var(--ds-verdict-diff); font-weight: 600; }}
@@ -223,17 +232,7 @@ def _build_query_html(result: QueryResult, label: str, params: dict[str, str] | 
 <style>
 {css_variables(DARK_TOKENS)}
 {_light_theme_block(LIGHT_TOKENS)}
-    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--ds-background); color: var(--ds-text); padding: 24px; }}
-    .header {{ background: var(--ds-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
-    .header h1 {{ color: var(--ds-identity); font-size: 1.4em; }}
-    .header .meta {{ color: var(--ds-text-muted); font-size: 0.85em; margin-top: 8px; }}
-    .params {{ margin: 12px 0; border-collapse: collapse; }}
-    .params td {{ padding: 4px 16px 4px 0; color: var(--ds-text-muted); font-size: 0.9em; }}
-    table.data {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.9em; }}
-    table.data th {{ background: var(--ds-panel); color: var(--ds-identity); padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--ds-border); }}
-    table.data td {{ padding: 6px 12px; border-bottom: 1px solid var(--ds-border); }}
-    table.data tr:hover {{ background: var(--ds-surface-raised); }}
+{_BASE_STYLE_RULES}
 </style>
 </head>
 <body>

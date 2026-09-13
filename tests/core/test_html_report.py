@@ -145,3 +145,15 @@ def test_query_html_names_the_file_after_the_connection(tmp_path, monkeypatch):
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
     caminho = export_query_html(_result())
     assert "prod" in Path(caminho).name
+
+
+def test_query_html_renders_zero_as_itself_not_as_an_empty_cell(tmp_path, monkeypatch):
+    """0 and "" are legitimate values, not missing data -- only None is missing.
+    `h(str(v)) if v else ""` would blank a real 0 exactly like it blanks a
+    None; this fixture has a 0 and a None side by side so that distinction is
+    actually exercised, unlike a fixture whose only falsy value is None."""
+    monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
+    resultado = _result(columns=["QTD", "OBS", "STATUS"], rows=[[0, "", None]])
+    texto = Path(export_query_html(resultado)).read_text(encoding="utf-8")
+    assert "<td>0</td>" in texto
+    assert texto.count("<td></td>") >= 2
