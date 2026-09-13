@@ -183,3 +183,45 @@ class TestTheConnectionIsRead:
     def test_a_missing_connection_is_an_error_not_a_pass(self):
         with pytest.raises(AttributeError):
             check_read_only("DROP TABLE t", None)
+
+
+class TestTheTwoTuiOnlyPaths:
+    """Routine execution and package compilation exist only in the TUI, so
+    the refusal must not point at `--force-write` -- that flag lives on
+    `dbqm sql` and there is no CLI subcommand for either. A message naming a
+    recourse the user cannot take is worse than a bare refusal: it sends them
+    looking for something that is not there."""
+
+    def test_compile_package_refuses_before_any_cursor(self):
+        from unittest.mock import MagicMock
+
+        from dbqm.core.package_editor import compile_package
+
+        db = MagicMock()
+        with pytest.raises(ReadOnlyViolation):
+            compile_package(db, "CREATE OR REPLACE PACKAGE x AS END;", conn=_conn())
+        assert db.cursor.call_count == 0
+
+    def test_compile_package_proceeds_on_a_writable_connection(self):
+        """The guard must not become a wall."""
+        from unittest.mock import MagicMock
+
+        from dbqm.core.package_editor import compile_package
+
+        db = MagicMock()
+        compile_package(db, "CREATE OR REPLACE PACKAGE x AS END;",
+                        conn=_conn(read_only=False))
+        assert db.cursor.call_count == 1
+
+    @pytest.mark.parametrize("mensagem_de", [
+        "dbqm.core.object_browser",
+        "dbqm.core.package_editor",
+    ])
+    def test_neither_message_names_an_unreachable_flag(self, mensagem_de):
+        import importlib
+        import inspect
+
+        fonte = inspect.getsource(importlib.import_module(mensagem_de))
+        assert "--force-write" not in fonte, (
+            "these paths are TUI-only; --force-write is a flag on `dbqm sql`"
+        )

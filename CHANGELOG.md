@@ -29,6 +29,12 @@ anything but a query.
   `--commit` for DML; letting `--force-write` also imply it would leave
   `DELETE`, `UPDATE` and `INSERT` unprotected on a connection marked
   read-only for exactly that reason.
+
+  **There is no override for routine execution or package compilation.**
+  Both exist only in the TUI and `--force-write` is a flag on `dbqm sql`, so
+  on a protected connection those two operations simply refuse; the way
+  through is to clear the read-only mark on the connection, which is what
+  their message says.
 - **A new `read_only` error token**, exit `2`, alongside `usage`,
   `not_found` and `validation`.
 

@@ -53,11 +53,11 @@ def compile_package(db, sql: str, conn=None) -> tuple[bool, str]:
     classify the statement. It is DDL by definition, so when `conn` is given
     and read-only it refuses outright.
     """
-    if conn is not None and getattr(conn, "read_only", False):
+    if conn is not None and conn.read_only:
         raise ReadOnlyViolation(
             f"Conexao '{conn.name}' e somente leitura e a compilacao de "
             "pacote e sempre DDL. "
-            "Use --force-write para compilar assim mesmo."
+            "Desmarque 'Somente leitura' na conexao para compilar."
         )
     cursor = db.cursor()
     try:
