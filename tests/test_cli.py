@@ -2671,3 +2671,59 @@ class TestForceWrite:
             run_cli(["sql", "DELETE FROM t", "SS", "--force-write", "--commit"])
 
         assert conexao.read_only is True, "the stored object is untouched"
+
+
+class TestConnectionReadOnlyFlag:
+    def test_add_marks_the_connection(self, tmp_config_dir, capsys):
+        import json
+
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "protegida", "--type", "mysql",
+                 "--host", "h", "--user", "u", "--no-password", "--read-only"])
+        capsys.readouterr()
+        run_cli(["connection", "show", "protegida", "-f", "json"])
+
+        assert json.loads(capsys.readouterr().out)["data"]["read_only"] is True
+
+    def test_update_can_unlock(self, tmp_config_dir, capsys):
+        import json
+
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "protegida", "--type", "mysql",
+                 "--host", "h", "--user", "u", "--no-password", "--read-only"])
+        run_cli(["connection", "update", "protegida", "--no-read-only"])
+        capsys.readouterr()
+        run_cli(["connection", "show", "protegida", "-f", "json"])
+
+        assert json.loads(capsys.readouterr().out)["data"]["read_only"] is False
+
+    def test_an_unrelated_update_does_not_unlock(self, tmp_config_dir, capsys):
+        """The rule that makes the field worth having: changing the host must
+        not quietly remove the protection."""
+        import json
+
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "protegida", "--type", "mysql",
+                 "--host", "h", "--user", "u", "--no-password", "--read-only"])
+        run_cli(["connection", "update", "protegida", "--host", "outro"])
+        capsys.readouterr()
+        run_cli(["connection", "show", "protegida", "-f", "json"])
+
+        assert json.loads(capsys.readouterr().out)["data"]["read_only"] is True
+
+    def test_list_reports_it(self, tmp_config_dir, capsys):
+        """An agent should be able to ask before it tries."""
+        import json
+
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "protegida", "--type", "mysql",
+                 "--host", "h", "--user", "u", "--no-password", "--read-only"])
+        capsys.readouterr()
+        run_cli(["connection", "list", "-f", "json"])
+
+        linhas = json.loads(capsys.readouterr().out)["data"]
+        assert linhas[0]["read_only"] is True

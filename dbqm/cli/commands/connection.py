@@ -89,6 +89,7 @@ def _connection_values(args: argparse.Namespace, password: str | None) -> dict:
         "user": args.user,
         "description": args.description,
         "password": password,
+        "read_only": args.read_only,
     }
     return {key: value for key, value in values.items() if value is not None}
 
@@ -250,7 +251,8 @@ def _connection_list(args: argparse.Namespace) -> None:
     """
     if args.format == "json":
         items = deps.load_connections()
-        data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target()}
+        data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target(),
+                  "read_only": c.read_only}
                  for c in items]
         ok("connection.list", data)
         return

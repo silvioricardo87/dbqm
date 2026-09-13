@@ -67,7 +67,8 @@ def cmd_list(args: argparse.Namespace) -> None:
     if resource == "connections":
         items = deps.load_connections()
         if args.format == "json":
-            data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target()} for c in items]
+            data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target(),
+                      "read_only": c.read_only} for c in items]
             ok("list.connections", data)
             return
         if not items:

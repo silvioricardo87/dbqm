@@ -64,6 +64,13 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
                        help="Ler a senha de uma linha na entrada padrao")
     senha.add_argument("--no-password", action="store_true", dest="no_password",
                        help="Gravar sem senha (ou, em update, apagar a guardada)")
+    grupo_ro = parser.add_mutually_exclusive_group()
+    grupo_ro.add_argument("--read-only", dest="read_only", action="store_true",
+                          default=None,
+                          help="Marcar a conexao como somente leitura")
+    grupo_ro.add_argument("--no-read-only", dest="read_only",
+                          action="store_false",
+                          help="Permitir escrita nesta conexao")
     parser.add_argument("--test", action="store_true", dest="test_before_save",
                         help="Testar a conexao antes de gravar; se falhar, nao grava")
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
