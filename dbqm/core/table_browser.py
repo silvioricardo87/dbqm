@@ -25,6 +25,14 @@ class FKInfo:
     ref_table: str
     ref_column: str
 
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "column": self.column,
+            "ref_table": self.ref_table,
+            "ref_column": self.ref_column,
+        }
+
 
 @dataclass
 class BrowseResult:
@@ -39,6 +47,23 @@ class BrowseResult:
     limit: int
     offset: int
     fk_columns: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Wire shape. `rows` are raw values, not FK-resolved labels — those
+        are baked into `rows` already by `browse_table`, so there is nothing
+        further to nest here."""
+        return {
+            "table": self.table,
+            "connection_name": self.connection_name,
+            "columns": list(self.columns),
+            "rows": [list(r) for r in self.rows],
+            "row_count": self.row_count,
+            "total_count": self.total_count,
+            "elapsed": self.elapsed,
+            "limit": self.limit,
+            "offset": self.offset,
+            "fk_columns": list(self.fk_columns),
+        }
 
 
 def list_tables(db, db_type: str) -> list[str]:

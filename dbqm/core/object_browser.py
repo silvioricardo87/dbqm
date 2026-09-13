@@ -23,6 +23,19 @@ class ColumnInfo:
     is_pk: bool = False
     fk_ref: str = ""
 
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "name": self.name,
+            "data_type": self.data_type,
+            "data_length": self.data_length,
+            "data_precision": self.data_precision,
+            "data_scale": self.data_scale,
+            "nullable": self.nullable,
+            "is_pk": self.is_pk,
+            "fk_ref": self.fk_ref,
+        }
+
 
 @dataclass
 class IndexInfo:
@@ -30,6 +43,14 @@ class IndexInfo:
     name: str
     columns: list[str] = field(default_factory=list)
     is_unique: bool = False
+
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "name": self.name,
+            "columns": list(self.columns),
+            "is_unique": self.is_unique,
+        }
 
 
 @dataclass
@@ -40,6 +61,15 @@ class TableStructure:
     indexes: list[IndexInfo] = field(default_factory=list)
     elapsed: float = 0.0
 
+    def to_dict(self) -> dict:
+        """Wire shape. Nested dataclasses serialise through their own to_dict."""
+        return {
+            "table": self.table,
+            "columns": [c.to_dict() for c in self.columns],
+            "indexes": [i.to_dict() for i in self.indexes],
+            "elapsed": self.elapsed,
+        }
+
 
 @dataclass
 class RoutineParam:
@@ -48,6 +78,15 @@ class RoutineParam:
     data_type: str
     direction: str  # IN, OUT, IN OUT
     default: str = ""
+
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "name": self.name,
+            "data_type": self.data_type,
+            "direction": self.direction,
+            "default": self.default,
+        }
 
 
 @dataclass
@@ -72,6 +111,16 @@ class RoutineInfo:
             return f"({sig}) RETURN {self.return_type}"
         return f"({sig})"
 
+    def to_dict(self) -> dict:
+        """Wire shape. `signature` is a formatted string, not data — a
+        consumer builds its own from `params`; it does not travel here."""
+        return {
+            "name": self.name,
+            "routine_type": self.routine_type,
+            "params": [p.to_dict() for p in self.params],
+            "return_type": self.return_type,
+        }
+
 
 @dataclass
 class PackageInfo:
@@ -80,6 +129,14 @@ class PackageInfo:
     owner: str
     routines: list[RoutineInfo] = field(default_factory=list)
 
+    def to_dict(self) -> dict:
+        """Wire shape. Nested dataclasses serialise through their own to_dict."""
+        return {
+            "name": self.name,
+            "owner": self.owner,
+            "routines": [r.to_dict() for r in self.routines],
+        }
+
 
 @dataclass
 class ViewInfo:
@@ -87,6 +144,14 @@ class ViewInfo:
     name: str
     owner: str
     sql_definition: str = ""
+
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "name": self.name,
+            "owner": self.owner,
+            "sql_definition": self.sql_definition,
+        }
 
 
 @dataclass
@@ -97,6 +162,16 @@ class RoutineExecutionResult:
     return_value: Any = None
     elapsed: float = 0.0
     error: str = ""
+
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "success": self.success,
+            "output_lines": list(self.output_lines),
+            "return_value": self.return_value,
+            "elapsed": self.elapsed,
+            "error": self.error,
+        }
 
 
 # ---------------------------------------------------------------------------

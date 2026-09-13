@@ -29,6 +29,19 @@ class QueryResult:
     success: bool = True
     error: str = ""
 
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "query_name": self.query_name,
+            "connection_name": self.connection_name,
+            "columns": list(self.columns),
+            "rows": [list(r) for r in self.rows],
+            "row_count": self.row_count,
+            "elapsed": self.elapsed,
+            "success": self.success,
+            "error": self.error,
+        }
+
 
 def _strip_leading_comments(sql: str) -> str:
     """Drop leading line (``--``) and block (``/* */``) comments plus blank
@@ -232,6 +245,23 @@ class AdhocResult:
     error: str = ""
     committed: bool = False
     output_lines: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "sql_type": self.sql_type,
+            "connection_name": self.connection_name,
+            "db_type": self.db_type,
+            "columns": list(self.columns),
+            "rows": [list(r) for r in self.rows],
+            "row_count": self.row_count,
+            "rows_affected": self.rows_affected,
+            "elapsed": self.elapsed,
+            "success": self.success,
+            "error": self.error,
+            "committed": self.committed,
+            "output_lines": list(self.output_lines),
+        }
 
 
 def block_label(db_type: str) -> str:

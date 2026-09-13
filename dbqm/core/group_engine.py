@@ -13,6 +13,14 @@ class ComparisonRow:
     values: dict[str, Any]  # {query_name: value}
     status: str  # "OK", "DIFF", "ABSENT", "OK*" (normalized match)
 
+    def to_dict(self) -> dict:
+        """Wire shape."""
+        return {
+            "key_value": self.key_value,
+            "values": dict(self.values),
+            "status": self.status,
+        }
+
 
 @dataclass
 class ComparisonResult:
@@ -24,6 +32,18 @@ class ComparisonResult:
     absent_count: int
     normalized_count: int  # OK* matches
 
+    def to_dict(self) -> dict:
+        """Wire shape. Nested dataclasses serialise through their own to_dict."""
+        return {
+            "column": self.column,
+            "rows": [r.to_dict() for r in self.rows],
+            "total_keys": self.total_keys,
+            "equal_count": self.equal_count,
+            "diff_count": self.diff_count,
+            "absent_count": self.absent_count,
+            "normalized_count": self.normalized_count,
+        }
+
 
 @dataclass
 class GroupResult:
@@ -32,6 +52,18 @@ class GroupResult:
     comparisons: list[ComparisonResult]
     all_match: bool
     summary_lines: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Wire shape. Nested dataclasses serialise through their own to_dict."""
+        return {
+            "group_name": self.group_name,
+            "query_results": {
+                name: qr.to_dict() for name, qr in self.query_results.items()
+            },
+            "comparisons": [c.to_dict() for c in self.comparisons],
+            "all_match": self.all_match,
+            "summary_lines": list(self.summary_lines),
+        }
 
 
 def run_comparison(
