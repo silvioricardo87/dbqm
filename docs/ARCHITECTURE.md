@@ -97,6 +97,19 @@ consumers, none of them importing each other.
   shortcuts are supported; `DBMS_OUTPUT` is captured automatically on Oracle.
 - DDL keeps its final `;` (stripping it would leave objects INVALID); after DDL,
   compilation errors are fetched and surfaced.
+- `execute_query`/`execute_adhoc`/`execute_explain` each wrap `get_connection`
+  in its own `try`, separate from the one around the statement, so a result's
+  `error_kind` (`"connection"` vs `"statement"`) is set by **which `try` caught
+  the exception, not what type it was**. This is deliberate, not an
+  oversight: catching a connection-specific exception class does not work on
+  Oracle, where `oracledb` raises the same `DatabaseError` for a bad password
+  (ORA-01017) and a missing table (ORA-00942). There is no exception
+  attribute to branch on that is reliable across drivers, so the call site
+  is the only signal that is. Anyone tempted to "simplify" this back into a
+  single `try`/`except` around both calls is reintroducing the exact bug
+  `error_kind` exists to fix — the CLI maps `"connection"` to exit `3` and
+  everything else to exit `4`, and collapsing the two `try` blocks collapses
+  that distinction with it.
 
 ### The read-only guard (`core/read_only.py`)
 - `check_read_only(sql, conn)` sits at **classification**, before a

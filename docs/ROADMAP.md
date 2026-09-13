@@ -19,15 +19,12 @@ not be retried lives in `docs/ARCHITECTURE.md` under the known debt.
 
 ## Tier 0 — Bugs
 
-Three defects in the CLI's error contract, found while building 2.0.0 through
-2.2.0 and parked in execution logs rather than here — which was the wrong
-place for them. They share the same paths, so they are one slice.
-
-| # | Bug | Evidence | What goes wrong for a user |
-|---|---|---|---|
-| **B1** | Exit code `3` is unreachable from `run` and `sql` | `core/query_engine.py` collapses a connection failure and a rejected statement into one `error` string, so the CLI cannot tell them apart. Measured again in 2.2.0: with `--force-write --commit`, a DNS failure returns `sql_error` (4). | The published exit-code table promises a distinction the program cannot make. A script retrying `connection_failed` retries forever against a statement the engine will never accept. |
-| **B2** | The same missing name gets two different answers | `dbqm describe NOME conn` returns `not_found` (2); `dbqm rows NOME conn` returns `sql_error` (4). | An agent branching on `error.code` sees two answers to one question. Each is defensible alone — `rows` genuinely had its statement rejected — but the pair is not. |
-| **B3** | `ddl -f json` writes to disk under `--stdout` | `cli/commands/inspect.py`'s `cmd_ddl` saves the extraction regardless of the flag. | A command whose name and flag both say "read" has a side effect. |
+**Empty.** Three defects in the CLI's error contract (`B1`-`B3`, unreachable
+exit `3`, `rows`/`describe` disagreeing about the same missing name, and
+`ddl --stdout` writing to disk anyway) were found while building 2.0.0
+through 2.2.0, parked in execution logs rather than here, and shipped in
+2.3.0 — see `CHANGELOG.md`. Bugs return to this tier the moment one is
+found; it does not stay empty by policy, only by absence of evidence.
 
 ### Decision pending, not a defect
 
@@ -103,10 +100,7 @@ survive the session.
 
 ## Suggested next slice
 
-**Tier 0 first.** `B1`, `B2` and `B3` touch the same error paths, so they are
-one slice rather than three, and `B1` overlaps what `C4` will touch anyway.
-
-After them, the next item is **C4** (`dbqm
+**Tier 0 is empty**, so the next item is **C4** (`dbqm
 call`) — `execute_routine` already exists and handles IN/OUT binding, return
 values and DBMS_OUTPUT capture. **It is Oracle-only**, though: it takes no
 `db_type` at all and builds an anonymous PL/SQL block, so C4 either ships
