@@ -138,6 +138,16 @@ the release history.
 
 ---
 
+## Known gaps
+
+- **`dbqm sql` ignores `--export` unless the statement is a SELECT.** The
+  export block sits inside `if result.sql_type == "SELECT"`
+  (`cli/commands/query.py`), so a DML, DDL or PL/SQL run accepts the flag and
+  silently writes nothing. It predates the output contract and `html`
+  inherited it, rather than introducing it. The honest options are to export
+  what those statements do return — a row count, DBMS_OUTPUT — or to refuse
+  the flag with `usage`; what it must not keep doing is accept and ignore.
+
 ## Suite hygiene
 
 Not a tier — the four above are the product's bugs, toolchain and features.

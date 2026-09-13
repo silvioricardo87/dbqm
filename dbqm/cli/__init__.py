@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_grp.add_argument("-f", "--format", choices=["table", "json"], default="table",
                        help="Formato de saida")
     p_grp.add_argument("-e", "--export", choices=["csv", "json", "txt", "html"],
-                       help="Exportar resultado para arquivo")
+                       help="Exportar resultado para arquivo. 'html' nao pode ser usado com --flat.")
     p_grp.add_argument("--flat", action="store_true",
                        help="Usar formato flat (um bloco por coluna)")
 
