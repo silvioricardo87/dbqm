@@ -124,10 +124,9 @@ the release history.
 |---|---|---|---|---|---|
 | 1 | **C4** — `dbqm call` (execute a routine) | execution | M | high | `execute_routine` already handles IN/OUT binding, return values and DBMS_OUTPUT capture — but is **Oracle-only** (no `db_type`, builds an anonymous PL/SQL block). Ship Oracle-first with a clean refusal, or pay for three more routine models. This is also the sub-project that would build a server-side read-only session (`SET TRANSACTION READ ONLY` on Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL — SQL Server has no equivalent), deferred here when the client-side guard (`X3`) shipped in 2.2.0. |
 | 2 | **C8** — `dbqm multi` (one ad-hoc SQL across N connections, compared) | execution | M | high | The Multi-Exec tab has no CLI equivalent; `run-group` only runs *saved* groups of *saved* queries. For sustainment work this is the most-used flow. Reuses `build_group_result` as-is. |
-| 3 | **C11** — HTML report from the CLI | evidence | **S** | medium | `core/html_report.py` exists; `-e/--export` just does not offer `html`. The cheapest item on this list. |
-| 4 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
-| 5 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
-| 6 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+| 3 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
+| 4 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
+| 5 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
 
 ### Deliberately not scheduled
 
@@ -139,19 +138,50 @@ the release history.
 
 ---
 
+## Suite hygiene
+
+Not a tier — the four above are the product's bugs, toolchain and features.
+This is the test suite's own upkeep, recorded here because there is nowhere
+else a reader would think to look for it.
+
+- **`TestCmdRunGroup` can write to the real home directory.**
+  `tests/conftest.py` provides `tmp_config_dir`, which redirects every
+  config, export and history path into a temp directory. `tests/test_cli.py`
+  uses it extensively — but not once inside `TestCmdRunGroup`, which relies
+  entirely on per-test `patch("dbqm.cli.deps.X")`. During the html-export
+  sub-project, a deliberate mutation left `record_group_execution` unpatched
+  and the test wrote a junk entry into the developer's real
+  `~/.dbqm/config/history/history.json`. No test in the class is known
+  broken today; the class is structurally exposed. The fix is to make
+  `tmp_config_dir` autouse for that class, not to patch harder. Effort: S.
+
+---
+
 ## Suggested next slice
 
-**Tier 0 is empty**, so the next item is **C4** (`dbqm
-call`) — `execute_routine` already exists and handles IN/OUT binding, return
-values and DBMS_OUTPUT capture. **It is Oracle-only**, though: it takes no
-`db_type` at all and builds an anonymous PL/SQL block, so C4 either ships
-Oracle-first with a clean refusal elsewhere, or pays for three more routine
-models. Measured in 2.1.0, when the same discovery was made about
+**Tier 0 is empty.** Tier 3's own priority order would put **C4** (`dbqm
+call`) next — `execute_routine` already exists and handles IN/OUT binding,
+return values and DBMS_OUTPUT capture. **It is Oracle-only**, though: it
+takes no `db_type` at all and builds an anonymous PL/SQL block, so C4 either
+ships Oracle-first with a clean refusal elsewhere, or pays for three more
+routine models. Measured in 2.1.0, when the same discovery was made about
 `list_package_routines`.
 
-**C11** (HTML report from the CLI) is the only remaining item of effort S with
-real value: `core/html_report.py` exists and `-e/--export` simply does not offer
-`html`.
+The html-export sub-project (2.4.0, see `CHANGELOG.md`) shipped ahead of
+that order: `--export` is shared plumbing that every later Tier 3 command
+touches again, and landing `html` first touched it once instead of twice.
+With that done, **C8** (`dbqm multi`) is next: the Multi-Exec tab has no CLI
+equivalent, `run-group` only runs *saved* groups of *saved* queries, and
+`build_group_result` is reusable as-is.
+
+**A note on estimating, not an apology:** the html item's effort **S** was
+measured against `run-group` alone, where `export_group_html` already
+existed and `-e/--export` simply needed to offer `html`. It undercounted
+`run` and `sql` — `html_report.py` could draw a comparison across named
+queries and nothing else, so a renderer for one result set
+(`export_query_html`) turned out to be new code, not a wiring change. An
+estimate keyed to "the code already exists" is only as good as checking that
+it exists for every caller, not just the first one checked.
 
 One thing to decide when convenient, from the B8 ruling: the design guards and
 parts of the recorded debt are calibrated to **80x24**. If that is not a target

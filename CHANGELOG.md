@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.4.0] — 2026-09-13
+
+A MINOR release: `html` joins `-e/--export` on `run`, `run-group` and `sql`.
+
+### Added
+
+- **`-e/--export html`** on `run`, `run-group` and `sql`. `export_query_html`
+  (`core/html_report.py`) renders one result set as a standalone HTML report
+  meant to be read in a browser, sharing its document shell and CSS
+  (`_BASE_STYLE_RULES`) with the existing group report rather than
+  duplicating it.
+
+### Fixed
+
+- **Every export branch in `cmd_sql` and both arms of `cmd_run_group` is now
+  exhaustive.** Each previously ended in a bare `else` that wrote TXT, so
+  adding a format without naming it in that branch would have written a
+  `.txt` file and printed `Exportado: …` as though the requested format had
+  been honoured. The fall-through is now a `usage` failure instead of a
+  silent wrong file.
+- **`--flat` with `-e html` is refused before any work runs.** The check is
+  the first statement of `cmd_run_group`, exits `2` (`usage`) naming both
+  flags. Placed later, it would have resolved the group, run every query,
+  and written a history record before rejecting what is a pure argument
+  error.
+
 ## [2.3.2] — 2026-09-13
 
 A PATCH. Nothing a user of the published package can observe changed — this

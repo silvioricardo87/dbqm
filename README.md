@@ -225,7 +225,9 @@ offer `table|json|csv|raw`; every other command — `test`, `list`, `ddl`,
 `connection` group — offers `table|json`. `raw` prints plain values with no
 headers/decoration, handy for piping the body of a view, package, or
 procedure to another tool.
-`--export csv|json|txt` writes the result to a file regardless of `-f`.
+`--export csv|json|txt|html` writes the result to a file regardless of `-f`.
+`html` writes a standalone report meant to be read in a browser, and is not
+available together with `--flat`.
 
 `-f json` wraps every command in one envelope: a success prints
 `{"ok": true, "command": "...", "data": {...}}` to stdout; a failure prints
