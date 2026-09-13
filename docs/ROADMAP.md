@@ -60,44 +60,40 @@ carried.
 The output contract (`X1`) shipped in 2.0.0: `-f json` on every command, one
 envelope, errors as structured JSON on stderr, and a stable documented
 exit-code table. **Discovery** (`C2`, `C3`) shipped in 2.1.0 — an agent can
-now see a database's shape without hand-written catalogue SQL. Themes, in the
-order they unlock each other now: **execution** (C4, C8) is what an agent
-does once it can see, **safety** (X3) is what makes that defensible, and
-**curation** (C5-C7) is how findings survive the session.
+now see a database's shape without hand-written catalogue SQL. The read-only
+guard (`X3`) shipped in 2.2.0 — a connection can refuse anything but a query.
+Themes, in the order they unlock each other now: **execution** (C4, C8) is
+what an agent does once it can see, and **curation** (C5-C7) is how findings
+survive the session.
 
 | Order | Item | Theme | Effort | Agent value | Notes |
 |---|---|---|---|---|---|
-| 1 | **X3** — read-only guard | safety | S | high | `DBQM_READONLY=1` / `--read-only` refuse anything but SELECT/EXPLAIN before it reaches the driver, plus a `read_only` field on `Connection`. This is what makes handing an agent the tool defensible. |
-| 2 | **C4** — `dbqm call` (execute a routine) | execution | M | high | `execute_routine` already handles IN/OUT binding, return values and DBMS_OUTPUT capture — but is **Oracle-only** (no `db_type`, builds an anonymous PL/SQL block). Ship Oracle-first with a clean refusal, or pay for three more routine models. |
-| 3 | **C8** — `dbqm multi` (one ad-hoc SQL across N connections, compared) | execution | M | high | The Multi-Exec tab has no CLI equivalent; `run-group` only runs *saved* groups of *saved* queries. For sustainment work this is the most-used flow. Reuses `build_group_result` as-is. |
-| 4 | **C11** — HTML report from the CLI | evidence | **S** | medium | `core/html_report.py` exists; `-e/--export` just does not offer `html`. The cheapest item on this list. |
-| 5 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
-| 6 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
-| 7 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+| 1 | **C4** — `dbqm call` (execute a routine) | execution | M | high | `execute_routine` already handles IN/OUT binding, return values and DBMS_OUTPUT capture — but is **Oracle-only** (no `db_type`, builds an anonymous PL/SQL block). Ship Oracle-first with a clean refusal, or pay for three more routine models. This is also the sub-project that would build a server-side read-only session (`SET TRANSACTION READ ONLY` on Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL — SQL Server has no equivalent), deferred here when the client-side guard (`X3`) shipped in 2.2.0. |
+| 2 | **C8** — `dbqm multi` (one ad-hoc SQL across N connections, compared) | execution | M | high | The Multi-Exec tab has no CLI equivalent; `run-group` only runs *saved* groups of *saved* queries. For sustainment work this is the most-used flow. Reuses `build_group_result` as-is. |
+| 3 | **C11** — HTML report from the CLI | evidence | **S** | medium | `core/html_report.py` exists; `-e/--export` just does not offer `html`. The cheapest item on this list. |
+| 4 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
+| 5 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
+| 6 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
 
 ### Deliberately not scheduled
 
 - **An MCP server** (`dbqm mcp`, operations as MCP tools). It is the native shape
   for agent consumption and would remove the shell round-trip entirely — but it
   should wrap a settled CLI contract, not race it. The contract settled in
-  2.0.0 and discovery landed in 2.1.0; revisit once execution (`C4`, `C8`) and
-  the read-only guard (`X3`) have landed too.
+  2.0.0, discovery landed in 2.1.0, and the read-only guard landed in 2.2.0;
+  revisit once execution (`C4`, `C8`) has landed too.
 
 ---
 
 ## Suggested next slice
 
-Tiers 0 and 1 are empty. Discovery (`C2`, `C3`) shipped in 2.1.0. The next
-item is **X3** (the read-only guard), and it comes **before** `C4` on
-purpose: `dbqm call` lets an agent run a stored routine, which can do anything
-the routine does — DML, DDL, anything. Shipping that first would open the
-widest hole in the tool before building the thing that can refuse it, and the
-guard is effort S against `C4`'s M. After X3, the next item is **C4**
-(`dbqm call`) — `execute_routine` already exists and handles
-IN/OUT binding, return values and DBMS_OUTPUT capture. **It is Oracle-only**,
-though: it takes no `db_type` at all and builds an anonymous PL/SQL block, so
-C4 either ships Oracle-first with a clean refusal elsewhere, or pays for three
-more routine models. Measured in 2.1.0, when the same discovery was made about
+Tiers 0 and 1 are empty. Discovery (`C2`, `C3`) shipped in 2.1.0 and the
+read-only guard (`X3`) shipped in 2.2.0. The next item is **C4** (`dbqm
+call`) — `execute_routine` already exists and handles IN/OUT binding, return
+values and DBMS_OUTPUT capture. **It is Oracle-only**, though: it takes no
+`db_type` at all and builds an anonymous PL/SQL block, so C4 either ships
+Oracle-first with a clean refusal elsewhere, or pays for three more routine
+models. Measured in 2.1.0, when the same discovery was made about
 `list_package_routines`.
 
 **C11** (HTML report from the CLI) is the only remaining item of effort S with

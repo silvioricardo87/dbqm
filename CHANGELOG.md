@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.2.0] — 2026-09-13
+
+A connection can be marked read-only, and dbqm then declines to send it
+anything but a query.
+
+### Added
+
+- **A connection can be marked read-only** —
+  `dbqm connection add|update <name> --read-only` / `--no-read-only`, or the
+  "Somente leitura" checkbox in the TUI connection form. `connection show`
+  and `connection list -f json` report it. Once marked, dbqm refuses
+  anything the connection sends except a `SELECT` or a genuine `EXPLAIN`,
+  across every path that reaches a driver: ad-hoc SQL, explain plans, routine
+  execution and package compilation, in the TUI as well as the CLI. A
+  statement string carrying more than one command is refused outright too,
+  because it cannot be checked as one.
+- **`--force-write` on `dbqm sql`** lifts the refusal for that one
+  invocation. It does **not** imply `--commit` — writing to a protected
+  connection takes both flags, deliberately. `dbqm sql` has always required
+  `--commit` for DML; letting `--force-write` also imply it would leave
+  `DELETE`, `UPDATE` and `INSERT` unprotected on a connection marked
+  read-only for exactly that reason.
+- **A new `read_only` error token**, exit `2`, alongside `usage`,
+  `not_found` and `validation`.
+
+**Two things worth saying plainly, so this is not oversold:**
+
+1. **This is a rail against mistakes, not a security boundary.** Whoever can
+   connect can still write with another client — this only stops the wrong
+   connection name, the generated statement, the careless paste. It is the
+   same distinction DBeaver draws between its client-side "Edit permissions"
+   and its server-side "Read-only connection"; dbqm ships the client-side
+   rail now. A server-side read-only session (`SET TRANSACTION READ ONLY` on
+   Oracle and MySQL, `BEGIN READ ONLY` on PostgreSQL — SQL Server has no
+   equivalent) is deferred to the sub-project that builds `dbqm call`.
+2. **`--force-write` does not imply `--commit`.** See above.
+
+### Fixed
+
+- **An `EXPLAIN` that runs what it explains was treated as a read.** On
+  PostgreSQL and MySQL, `EXPLAIN ANALYZE DELETE FROM t` **executes the
+  delete** — the plan comes from running the statement, not predicting it.
+  The read-only guard now checks what an `EXPLAIN` actually explains before
+  waving it through.
+- **`_is_select_only` inspected only the first statement.** The gate
+  `execute_query` relies on classified only the leading statement in a
+  string, so a saved query ending in a second one passed the check while the
+  whole string still reached the driver. It now refuses any input carrying
+  more than one statement.
+
 ## [2.1.0] — 2026-09-12
 
 Schema discovery on the CLI: three commands to see what is in a database
