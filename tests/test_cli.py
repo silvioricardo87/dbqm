@@ -238,9 +238,10 @@ class TestCmdRun:
              patch("dbqm.cli.deps.log_execution"):
             run_cli(["run", "test_query", "-f", "json"])
             out = capsys.readouterr().out
-            data = json.loads(out)
-            assert data["row_count"] == 2
-            assert data["columns"] == ["id", "name"]
+            corpo = json.loads(out)
+            assert corpo["command"] == "run"
+            assert corpo["data"]["row_count"] == 2
+            assert corpo["data"]["columns"] == ["id", "name"]
 
 
 # ---------------------------------------------------------------------------
@@ -304,8 +305,9 @@ class TestCmdRunGroup:
              patch("dbqm.cli.deps.record_group_execution"):
             run_cli(["run-group", "test_group", "-f", "json"])
             out = capsys.readouterr().out
-            data = json.loads(out)
-            assert data["all_match"] is True
+            corpo = json.loads(out)
+            assert corpo["command"] == "run-group"
+            assert corpo["data"]["all_match"] is True
 
     def test_group_export(self):
         group = _make_group()
@@ -353,8 +355,9 @@ class TestCmdSql:
              patch("dbqm.cli.deps.execute_adhoc", return_value=adhoc):
             run_cli(["sql", "SELECT 1 FROM dual", "test_conn", "-f", "json"])
             out = capsys.readouterr().out
-            data = json.loads(out)
-            assert data["row_count"] == 1
+            corpo = json.loads(out)
+            assert corpo["command"] == "sql"
+            assert corpo["data"]["row_count"] == 1
 
     def test_sql_dml_autocommit(self):
         conn = _make_connection()
@@ -475,9 +478,10 @@ class TestCmdList:
         with patch("dbqm.cli.deps.load_connections", return_value=conns):
             run_cli(["list", "connections", "-f", "json"])
             out = capsys.readouterr().out
-            data = json.loads(out)
-            assert len(data) == 1
-            assert data[0]["name"] == "test_conn"
+            corpo = json.loads(out)
+            assert corpo["command"] == "list.connections"
+            assert len(corpo["data"]) == 1
+            assert corpo["data"][0]["name"] == "test_conn"
 
     def test_list_queries(self):
         queries = [_make_query()]
@@ -489,8 +493,9 @@ class TestCmdList:
         with patch("dbqm.cli.deps.load_queries", return_value=queries):
             run_cli(["list", "queries", "-f", "json"])
             out = capsys.readouterr().out
-            data = json.loads(out)
-            assert len(data) == 1
+            corpo = json.loads(out)
+            assert corpo["command"] == "list.queries"
+            assert len(corpo["data"]) == 1
 
     def test_list_groups(self):
         groups = [_make_group()]
@@ -502,8 +507,9 @@ class TestCmdList:
         with patch("dbqm.cli.deps.load_groups", return_value=groups):
             run_cli(["list", "groups", "-f", "json"])
             out = capsys.readouterr().out
-            data = json.loads(out)
-            assert data[0]["join_key"] == "id"
+            corpo = json.loads(out)
+            assert corpo["command"] == "list.groups"
+            assert corpo["data"][0]["join_key"] == "id"
 
     def test_list_empty_connections(self):
         with patch("dbqm.cli.deps.load_connections", return_value=[]):
@@ -597,9 +603,10 @@ class TestCmdHistory:
         with patch("dbqm.cli.deps.load_history", return_value=entries):
             run_cli(["history", "-f", "json"])
             out = capsys.readouterr().out
-            data = json.loads(out)
-            assert len(data) == 1
-            assert data[0]["name"] == "q1"
+            corpo = json.loads(out)
+            assert corpo["command"] == "history"
+            assert len(corpo["data"]) == 1
+            assert corpo["data"][0]["name"] == "q1"
 
     def test_history_clear(self):
         with patch("dbqm.cli.deps.clear_history") as mock_clear:
@@ -988,6 +995,7 @@ class TestConfigBundlePassword:
         cmd_export_config(Namespace(
             password=None, password_stdin=True,
             no_connections=False, no_queries=False, no_groups=False,
+            format="table",
         ))
         assert captured["password"] == "bundle-pw"
 
@@ -1006,6 +1014,7 @@ class TestConfigBundlePassword:
         cmd_export_config(Namespace(
             password=None, password_stdin=False,
             no_connections=False, no_queries=False, no_groups=False,
+            format="table",
         ))
         assert captured["password"] == "env-pw"
 
@@ -1426,9 +1435,8 @@ class TestConnectionRemoveAndList:
         assert corpo["data"] == {"name": "alvo", "removed": True}
 
     def test_list_matches_list_connections(self, tmp_config_dir, monkeypatch, capsys):
-        """`connection list` now speaks the envelope; `list connections`
-        does not until Task 6 migrates it, so only the wrapped array can be
-        compared against the still-bare one."""
+        """`connection list` and `list connections` both speak the envelope
+        now (Task 6 migrated the latter), so their arrays match directly."""
         from dbqm.cli import run_cli
 
         self._seed(monkeypatch, "a")
@@ -1442,8 +1450,9 @@ class TestConnectionRemoveAndList:
 
         run_cli(["list", "connections", "-f", "json"])
         via_list = json.loads(capsys.readouterr().out)
+        assert via_list["command"] == "list.connections"
 
-        assert via_group["data"] == via_list
+        assert via_group["data"] == via_list["data"]
         assert [item["name"] for item in via_group["data"]] == ["a", "b"]
 
 
@@ -1658,3 +1667,111 @@ class TestConnectionEnvelope:
         saida = capsys.readouterr().out
         assert '"ok"' not in saida
         assert "alvo" in saida
+
+
+class TestEveryCommandSpeaksTheEnvelope:
+    """One test per command: success is an envelope, failure leaves stdout clean.
+
+    The second assertion is the one that did not exist anywhere before this
+    sub-project, and it is the regression that matters — an error on stdout is
+    what breaks a consumer.
+    """
+
+    def test_test_command_reports_each_connection(self, tmp_config_dir, capsys, monkeypatch):
+        import json
+
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "c1", "--type", "mysql", "--no-password"])
+        monkeypatch.setattr("dbqm.cli.deps.test_connection", lambda conn: (True, "OK"))
+        capsys.readouterr()
+        run_cli(["test", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "test"
+        assert corpo["data"][0]["name"] == "c1"
+        assert corpo["data"][0]["ok"] is True
+
+    def test_list_wraps_its_array(self, tmp_config_dir, capsys):
+        import json
+
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "c1", "--type", "mysql", "--no-password"])
+        capsys.readouterr()
+        run_cli(["list", "connections", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "list.connections"
+        assert [c["name"] for c in corpo["data"]] == ["c1"]
+
+    def test_history_wraps_its_array(self, tmp_config_dir, capsys):
+        import json
+
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        run_cli(["history", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "history"
+        assert isinstance(corpo["data"], list)
+
+    def test_run_on_a_missing_query_is_not_found(self, tmp_config_dir, capsys):
+        import json
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["run", "nao-existe", "-f", "json"])
+        assert exc.value.code == 2
+        saida = capsys.readouterr()
+        assert saida.out == ""
+        assert json.loads(saida.err)["error"]["code"] == "not_found"
+
+    def test_sql_failure_is_a_sql_error(self, tmp_config_dir, capsys, monkeypatch):
+        import json
+
+        import pytest
+
+        from dbqm.cli import run_cli
+        from dbqm.core.query_engine import AdhocResult
+
+        run_cli(["connection", "add", "c1", "--type", "mysql", "--no-password"])
+        monkeypatch.setattr(
+            "dbqm.cli.deps.execute_adhoc",
+            lambda *a, **k: AdhocResult(sql_type="SELECT", connection_name="c1",
+                                        success=False, error="ORA-00942"),
+        )
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["sql", "SELECT 1", "c1", "-f", "json"])
+        assert exc.value.code == 4
+        erro = json.loads(capsys.readouterr().err)
+        assert erro["error"]["code"] == "sql_error"
+        assert "ORA-00942" in erro["error"]["message"]
+
+    def test_a_divergent_group_exits_five(self, tmp_config_dir, capsys, sample_group_result, monkeypatch):
+        """Behaviour change: run-group exits 0 today whether it matched or not."""
+        import json
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        # sample_group_result has all_match False (see tests/conftest.py)
+        monkeypatch.setattr("dbqm.cli.deps.build_group_result",
+                            lambda *a, **k: sample_group_result)
+        monkeypatch.setattr("dbqm.cli.deps.find_group", lambda n: _make_group())
+        monkeypatch.setattr("dbqm.cli.deps.find_query", lambda n: _make_query())
+        monkeypatch.setattr("dbqm.cli.deps.find_connection", lambda n: _make_connection())
+        monkeypatch.setattr("dbqm.cli.deps.execute_query",
+                            lambda *a, **k: _make_query_result())
+        monkeypatch.setattr("dbqm.cli.deps.record_group_execution", lambda *a, **k: None)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["run-group", "test_group", "-f", "json"])
+        assert exc.value.code == 5
+        erro = json.loads(capsys.readouterr().err)
+        assert erro["error"]["code"] == "divergent"

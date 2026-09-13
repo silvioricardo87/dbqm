@@ -81,6 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_test = subparsers.add_parser("test", help="Testar conexao com banco de dados")
     p_test.add_argument("connection", nargs="?", default="__all__",
                         help="Nome da conexao (ou omita para testar todas)")
+    p_test.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
 
     # --- list ---
     p_list = subparsers.add_parser("list", help="Listar conexoes, consultas ou grupos")
@@ -95,6 +97,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_ddl.add_argument("connection", help="Nome da conexao")
     p_ddl.add_argument("--stdout", action="store_true",
                        help="Imprimir DDL no stdout em vez de salvar em arquivo")
+    p_ddl.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                       help="Formato de saida")
 
     # --- export-config ---
     p_exp = subparsers.add_parser("export-config", help="Exportar configuracoes para bundle .dbqm")
@@ -106,6 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--no-connections", action="store_true", help="Excluir conexoes")
     p_exp.add_argument("--no-queries", action="store_true", help="Excluir consultas")
     p_exp.add_argument("--no-groups", action="store_true", help="Excluir grupos")
+    p_exp.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                       help="Formato de saida")
 
     # --- import-config ---
     p_imp = subparsers.add_parser("import-config", help="Importar configuracoes de bundle .dbqm")
@@ -115,6 +121,8 @@ def build_parser() -> argparse.ArgumentParser:
                             "e na tabela de processos; prefira --password-stdin)")
     p_imp.add_argument("--password-stdin", action="store_true", dest="password_stdin",
                        help="Ler a senha de uma linha na entrada padrao")
+    p_imp.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                       help="Formato de saida")
 
     # --- history ---
     p_hist = subparsers.add_parser("history", help="Ver historico de execucoes")

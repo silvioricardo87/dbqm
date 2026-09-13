@@ -7,6 +7,7 @@ import sys
 from rich.markup import escape
 
 from dbqm.cli import deps
+from dbqm.cli.envelope import fail, ok
 from dbqm.cli.params import resolve_password
 from dbqm.cli.render import console
 
@@ -22,6 +23,9 @@ def cmd_export_config(args: argparse.Namespace) -> None:
         include_queries=not args.no_queries,
         include_groups=not args.no_groups,
     )
+    if args.format == "json":
+        ok("export-config", {"path": str(path)})
+        return
     console.print(f"Configuracoes exportadas: {path}")
 
 
@@ -33,9 +37,15 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     try:
         summary = deps.import_configs(args.file, password)
     except Exception as e:
-        console.print(f"[ds.op.failure]Erro ao importar: {escape(str(e))}[/ds.op.failure]")
+        message = f"Erro ao importar: {e}"
+        if args.format == "json":
+            fail("import-config", "validation", message)
+        console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
         sys.exit(1)
 
+    if args.format == "json":
+        ok("import-config", summary)
+        return
     console.print(f"Importado: {summary['connections']} conexoes, "
                   f"{summary['queries']} consultas, {summary['groups']} grupos "
                   f"({summary['skipped']} duplicados ignorados)")

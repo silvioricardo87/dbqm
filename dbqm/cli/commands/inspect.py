@@ -2,36 +2,55 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 
 from rich.markup import escape
 from rich.table import Table
 
 from dbqm.cli import deps
+from dbqm.cli.envelope import fail, ok
 from dbqm.cli.render import console
 
 
 def cmd_test(args: argparse.Namespace) -> None:
-    """Test a database connection."""
+    """Test a database connection.
+
+    Under `-f json` a connection that fails to connect is still reported
+    (`{"ok": false}` inside the array) rather than aborting the command: the
+    job of `test` is to say what happened to each connection, not to make the
+    process itself fail because one of them is down. Only a name that does
+    not exist is a `test` failure.
+    """
     if args.connection == "__all__":
         connections = deps.load_connections()
+        if args.format == "json":
+            data = []
+            for conn in connections:
+                succeeded, msg = deps.test_connection(conn)
+                data.append({"name": conn.name, "ok": succeeded, "message": msg})
+            ok("test", data)
+            return
         if not connections:
             console.print("[ds.text.muted]Nenhuma conexao configurada.[/ds.text.muted]")
             return
         for conn in connections:
-            ok, msg = deps.test_connection(conn)
-            icon = "OK" if ok else "[ds.op.failure]FAIL[/ds.op.failure]"
+            succeeded, msg = deps.test_connection(conn)
+            icon = "OK" if succeeded else "[ds.op.failure]FAIL[/ds.op.failure]"
             console.print(f"  {icon}  [ds.identity]{escape(conn.name)}[/]: {escape(msg.splitlines()[0])}")
         return
 
     conn = deps.find_connection(args.connection)
     if not conn:
+        if args.format == "json":
+            fail("test", "not_found", f"Conexao '{args.connection}' nao encontrada.")
         console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
-    ok, msg = deps.test_connection(conn)
-    if ok:
+    succeeded, msg = deps.test_connection(conn)
+    if args.format == "json":
+        ok("test", [{"name": conn.name, "ok": succeeded, "message": msg}])
+        return
+    if succeeded:
         console.print(escape(msg))
     else:
         console.print(f"[ds.op.failure]{escape(msg)}[/ds.op.failure]")
@@ -44,12 +63,12 @@ def cmd_list(args: argparse.Namespace) -> None:
 
     if resource == "connections":
         items = deps.load_connections()
-        if not items:
-            console.print("[ds.text.muted]Nenhuma conexao configurada.[/ds.text.muted]")
-            return
         if args.format == "json":
             data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target()} for c in items]
-            print(json.dumps(data, indent=2, ensure_ascii=False))
+            ok("list.connections", data)
+            return
+        if not items:
+            console.print("[ds.text.muted]Nenhuma conexao configurada.[/ds.text.muted]")
             return
         table = Table(title="Conexoes")
         table.add_column("Nome")
@@ -61,14 +80,14 @@ def cmd_list(args: argparse.Namespace) -> None:
 
     elif resource == "queries":
         items = deps.load_queries()
-        if not items:
-            console.print("[ds.text.muted]Nenhuma consulta configurada.[/ds.text.muted]")
-            return
         if args.format == "json":
             data = [{"name": q.name, "connection": q.connection, "folder": q.folder,
                       "description": q.description,
                       "params": [p.name for p in q.params]} for q in items]
-            print(json.dumps(data, indent=2, ensure_ascii=False))
+            ok("list.queries", data)
+            return
+        if not items:
+            console.print("[ds.text.muted]Nenhuma consulta configurada.[/ds.text.muted]")
             return
         table = Table(title="Consultas")
         table.add_column("Nome")
@@ -86,13 +105,13 @@ def cmd_list(args: argparse.Namespace) -> None:
 
     elif resource == "groups":
         items = deps.load_groups()
-        if not items:
-            console.print("[ds.text.muted]Nenhum grupo configurado.[/ds.text.muted]")
-            return
         if args.format == "json":
             data = [{"name": g.name, "description": g.description, "queries": g.queries,
                       "join_key": g.join_key, "compare_columns": g.compare_columns} for g in items]
-            print(json.dumps(data, indent=2, ensure_ascii=False))
+            ok("list.groups", data)
+            return
+        if not items:
+            console.print("[ds.text.muted]Nenhum grupo configurado.[/ds.text.muted]")
             return
         table = Table(title="Grupos")
         table.add_column("Nome")
@@ -107,21 +126,48 @@ def cmd_list(args: argparse.Namespace) -> None:
         console.print(table)
 
     else:
+        if args.format == "json":
+            fail(f"list.{resource}", "usage", f"Recurso desconhecido: {resource}")
         console.print(f"[ds.op.failure]Recurso desconhecido: {resource}[/ds.op.failure]")
         sys.exit(1)
 
 
 def cmd_ddl(args: argparse.Namespace) -> None:
-    """Extract DDL for a database object."""
+    """Extract DDL for a database object.
+
+    Under `-f json` the per-object progress callback is routed to stderr —
+    under table it stays on stdout as before, dim progress next to the human
+    output. The extraction is always saved to disk under json (regardless of
+    `--stdout`, which only matters when there is no envelope to carry the DDL
+    text back to the caller already): the payload needs a `path` either way,
+    and every object's DDL travels inline in `objects` too.
+    """
     conn = deps.find_connection(args.connection)
     if not conn:
+        if args.format == "json":
+            fail("ddl", "not_found", f"Conexao '{args.connection}' nao encontrada.")
         console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
         sys.exit(1)
 
     def on_progress(current, total, obj_type, obj_name):
-        console.print(f"  [{current}/{total}] {escape(obj_type)}: {escape(obj_name)}", style="dim")
+        if args.format == "json":
+            print(f"  [{current}/{total}] {obj_type}: {obj_name}", file=sys.stderr)
+        else:
+            console.print(f"  [{current}/{total}] {escape(obj_type)}: {escape(obj_name)}", style="dim")
 
     result = deps.extract_ddl(conn, args.object, on_progress=on_progress)
+
+    if args.format == "json":
+        if result.errors and not result.objects:
+            fail("ddl", "sql_error", "; ".join(result.errors))
+        dir_path, _ = deps.save_extraction(result)
+        data = {
+            "objects": [{"name": o.name, "obj_type": o.obj_type, "ddl": o.ddl}
+                        for o in result.objects],
+            "path": str(dir_path),
+        }
+        ok("ddl", data, warnings=result.errors or None)
+        return
 
     if result.errors:
         for err in result.errors:
@@ -143,11 +189,17 @@ def cmd_history(args: argparse.Namespace) -> None:
     """View or clear execution history."""
     if args.clear:
         deps.clear_history()
+        if args.format == "json":
+            ok("history", [])
+            return
         console.print("Historico limpo.")
         return
 
     entries = deps.load_history()
     if not entries:
+        if args.format == "json":
+            ok("history", [])
+            return
         console.print("[ds.text.muted]Historico vazio.[/ds.text.muted]")
         return
 
@@ -156,7 +208,7 @@ def cmd_history(args: argparse.Namespace) -> None:
 
     if args.format == "json":
         data = [e.to_dict() for e in entries]
-        print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
+        ok("history", data)
         return
 
     table = Table(title=f"Historico (ultimos {len(entries)})")
