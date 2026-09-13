@@ -227,6 +227,9 @@ class TestCmdRun:
             mock_exp.assert_called_once()
 
     def test_run_format_json(self, capsys):
+        """`data` is `QueryResult.to_dict()` verbatim: `rows` are parallel
+        arrays (a list per row, indexed by `columns`), not a dict per row —
+        a dict per row silently drops a repeated column name."""
         query = _make_query()
         conn = _make_connection()
         result = _make_query_result()
@@ -242,6 +245,27 @@ class TestCmdRun:
             assert corpo["command"] == "run"
             assert corpo["data"]["row_count"] == 2
             assert corpo["data"]["columns"] == ["id", "name"]
+            assert corpo["data"]["rows"] == [[1, "Alice"], [2, "Bob"]]
+            assert corpo["data"]["query_name"] == "test_query"
+            assert corpo["data"]["connection_name"] == "test_conn"
+
+    def test_run_format_json_keeps_a_repeated_column(self, capsys):
+        """The bug the parallel-array shape fixes: `SELECT a.id, b.id FROM
+        a JOIN b` repeats a column name. `dict(zip(columns, row))` silently
+        drops one of the two `id` values; parallel arrays keep both."""
+        query = _make_query()
+        conn = _make_connection()
+        result = _make_query_result(columns=["id", "id"], rows=[[1, 99]])
+
+        with patch("dbqm.cli.deps.find_query", return_value=query), \
+             patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.execute_query", return_value=result), \
+             patch("dbqm.cli.deps.record_query_execution"), \
+             patch("dbqm.cli.deps.log_execution"):
+            run_cli(["run", "test_query", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["data"]["columns"] == ["id", "id"]
+            assert corpo["data"]["rows"] == [[1, 99]]
 
     def test_run_export_json_format_emits_envelope(self, capsys):
         """CRITICAL fix: `-e` used to print bare prose and return under
@@ -516,10 +540,15 @@ class TestCmdSql:
                 run_cli(["sql", "SELECT 1", "missing_conn"])
 
     def test_sql_select(self, capsys):
+        """`data` is `AdhocResult.to_dict()` verbatim: `rows` are parallel
+        arrays, and the executed text travels under the unambiguous `sql`
+        key — not a `"query"` key that also means the saved-query *name*
+        elsewhere in this same file."""
         conn = _make_connection()
         from dbqm.core.query_engine import AdhocResult
         adhoc = AdhocResult(
             sql_type="SELECT", connection_name="test_conn",
+            sql="SELECT 1 FROM dual",
             columns=["x"], rows=[[1]], row_count=1, elapsed=0.01,
         )
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
@@ -529,6 +558,26 @@ class TestCmdSql:
             corpo = json.loads(out)
             assert corpo["command"] == "sql"
             assert corpo["data"]["row_count"] == 1
+            assert corpo["data"]["rows"] == [[1]]
+            assert corpo["data"]["sql"] == "SELECT 1 FROM dual"
+            assert corpo["data"]["connection_name"] == "test_conn"
+
+    def test_sql_select_keeps_a_repeated_column(self, capsys):
+        """The same fix as `run`'s: `SELECT a.id, b.id FROM a JOIN b` is
+        ordinary ad-hoc usage, and `dict(zip(columns, row))` used to drop
+        one of the two `id` values silently."""
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        adhoc = AdhocResult(
+            sql_type="SELECT", connection_name="test_conn",
+            columns=["id", "id"], rows=[[1, 99]], row_count=1, elapsed=0.01,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=adhoc):
+            run_cli(["sql", "SELECT a.id, b.id FROM a JOIN b", "test_conn", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["data"]["columns"] == ["id", "id"]
+            assert corpo["data"]["rows"] == [[1, 99]]
 
     def test_sql_dml_autocommit(self):
         conn = _make_connection()
@@ -620,7 +669,9 @@ class TestCmdSql:
     def test_sql_unclassified_type_gets_envelope_under_json(self, capsys):
         """CRITICAL fix: a statement `execute_adhoc` runs but doesn't
         special-case (sql_type not SELECT/INSERT/UPDATE/DELETE/DDL/PLSQL)
-        used to fall past every json branch to a bare `print`."""
+        used to fall past every json branch to a bare `print`. `data` is
+        `AdhocResult.to_dict()`: the connection travels under
+        `connection_name`, not a bare `"connection"` key."""
         conn = _make_connection()
         from dbqm.core.query_engine import AdhocResult
         adhoc = AdhocResult(
@@ -637,6 +688,7 @@ class TestCmdSql:
             assert corpo["command"] == "sql"
             assert corpo["data"]["sql_type"] == "MERGE"
             assert corpo["data"]["rows_affected"] == 2
+            assert corpo["data"]["connection_name"] == "test_conn"
 
     def test_sql_unsupported_type_is_usage_not_sql_error(self, capsys):
         """MINOR fix: `core/`'s "Tipo de SQL nao suportado" is bad input,

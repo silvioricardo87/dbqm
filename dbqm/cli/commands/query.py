@@ -121,15 +121,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         return
 
     if args.format == "json":
-        data = {
-            "query": result.query_name,
-            "connection": result.connection_name,
-            "columns": result.columns,
-            "rows": [dict(zip(result.columns, row)) for row in result.rows],
-            "row_count": result.row_count,
-            "elapsed": round(result.elapsed, 3),
-        }
-        ok("run", data)
+        ok("run", result.to_dict())
         return
 
     render._print_query_result(result, args.format)
@@ -294,14 +286,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             _fail_or_print(args, "sql", _sql_error_code(result.error),
                             result.error or "Erro ao executar SQL.")
         if args.format == "json":
-            data = {
-                "connection": conn.name,
-                "sql_type": result.sql_type,
-                "rows_affected": result.rows_affected,
-                "committed": result.committed,
-                "elapsed": round(result.elapsed, 3),
-            }
-            ok("sql", data, warnings=result.output_lines or None)
+            ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
         console.print(f"{result.rows_affected} registros afetados (committed)")
         return
@@ -316,7 +301,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             console.print(f"[ds.op.failure]{result.error}[/ds.op.failure]")
             sys.exit(int(exit_for(code)))
         if args.format == "json":
-            ok("sql", {"connection": conn.name, "sql_type": "DDL", "elapsed": round(result.elapsed, 3)})
+            ok("sql", result.to_dict())
             return
         console.print(f"DDL executado com sucesso ({result.elapsed:.2f}s)")
         return
@@ -327,15 +312,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             _fail_or_print(args, "sql", _sql_error_code(result.error),
                             result.error or "Erro ao executar bloco.")
         if args.format == "json":
-            data = {
-                "connection": conn.name,
-                "sql_type": "PLSQL",
-                "columns": result.columns,
-                "rows": [dict(zip(result.columns, row)) for row in result.rows],
-                "row_count": result.row_count,
-                "elapsed": round(result.elapsed, 3),
-            }
-            ok("sql", data, warnings=result.output_lines or None)
+            ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
         from dbqm.core.query_engine import block_label
 
@@ -388,15 +365,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             return
 
         if args.format == "json":
-            data = {
-                "query": sql,
-                "connection": qr.connection_name,
-                "columns": qr.columns,
-                "rows": [dict(zip(qr.columns, row)) for row in qr.rows],
-                "row_count": qr.row_count,
-                "elapsed": round(qr.elapsed, 3),
-            }
-            ok("sql", data, warnings=result.output_lines or None)
+            ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
 
         render._print_query_result(qr, args.format)
@@ -406,13 +375,6 @@ def cmd_sql(args: argparse.Namespace) -> None:
         # shape as the DML success branch, so json still gets an envelope
         # instead of falling through to a bare `print`.
         if args.format == "json":
-            data = {
-                "connection": conn.name,
-                "sql_type": result.sql_type,
-                "rows_affected": result.rows_affected,
-                "committed": result.committed,
-                "elapsed": round(result.elapsed, 3),
-            }
-            ok("sql", data, warnings=result.output_lines or None)
+            ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
         console.print(f"{result.rows_affected} registros afetados")
