@@ -36,6 +36,7 @@ dbqm/
 │   │                          #   open_connection() is the driver-handle lifetime the CLI's
 │   │                          #   objects/describe/rows commands hold open across calls
 │   ├── query_engine.py        # SQL classification (classify_sql), execution (execute_adhoc/query/explain)
+│   ├── read_only.py           # The read-only guard: check_read_only(sql, conn)
 │   ├── group_engine.py        # Multi-connection comparison runs
 │   ├── object_browser.py      # Metadata browsing (tables/views/routines) per DB
 │   ├── table_browser.py       # Row browsing with FK label resolution + pagination
@@ -52,7 +53,7 @@ dbqm/
 │   ├── oracle_client_installer.py  # Oracle Instant Client bootstrap
 │   └── paths.py               # CONFIG_DIR / SETTINGS_FILE resolution (honors DBQM_HOME)
 ├── models/            # Data models with JSON persistence
-│   ├── connection.py  # db_type ∈ {oracle, sqlserver, postgresql, mysql}
+│   ├── connection.py  # db_type ∈ {oracle, sqlserver, postgresql, mysql}; read_only marks it query-only
 │   ├── query.py  group.py  settings.py  template.py
 └── ui/                # Textual TUI (imports core; core never imports ui)
     ├── app.py         # Main App: single tabbed shell (TabbedContent), routing,
@@ -96,6 +97,34 @@ consumers, none of them importing each other.
   shortcuts are supported; `DBMS_OUTPUT` is captured automatically on Oracle.
 - DDL keeps its final `;` (stripping it would leave objects INVALID); after DDL,
   compilation errors are fetched and surfaced.
+
+### The read-only guard (`core/read_only.py`)
+- `check_read_only(sql, conn)` sits at **classification**, before a
+  statement is sent, and is called from `query_engine.execute_adhoc`/
+  `execute_explain` and from `object_browser`/`package_editor` wherever they
+  build a statement against a connection — the same choke point every
+  caller, TUI and CLI alike, already goes through.
+- It is at classification and deliberately **not** at the `--commit` gate.
+  No driver dbqm uses sets autocommit, so refusing to commit looks like it
+  would be enough — it is not: a stored routine can `COMMIT` internally, and
+  Oracle DDL commits itself, and both bypass a gate placed at commit time.
+  Classifying the statement before it reaches the driver is the only point
+  that covers all of them.
+- `classify_sql` alone is not sufficient for `EXPLAIN`: on PostgreSQL and
+  MySQL, `EXPLAIN ANALYZE DELETE FROM t` executes the delete, so the guard
+  additionally checks what the `EXPLAIN` explains (`_explains_a_query`)
+  before treating it as a read.
+- A statement string carrying more than one command (`statement_count(sql)
+  > 1`) is refused outright, because it cannot be classified as one.
+- The CLI's `--force-write` (`dbqm sql`) resolves at the CLI boundary: it
+  swaps in a transient `Connection` with `read_only=False` before calling
+  `core/`, so `core/` keeps one rule and the stored connection is never
+  modified.
+- This is a rail against mistakes, not a security boundary — whoever can
+  connect can still write with another client. A server-side read-only
+  session (`SET TRANSACTION READ ONLY` on Oracle/MySQL, `BEGIN READ ONLY` on
+  PostgreSQL) is deferred to the `dbqm call` sub-project (`C4` in
+  `docs/ROADMAP.md`).
 
 ### Textual TUI
 - Screens are `Vertical` widgets loaded into `#screen-area`.

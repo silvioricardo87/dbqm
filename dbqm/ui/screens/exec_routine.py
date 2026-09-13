@@ -471,12 +471,24 @@ class ExecRoutineScreen(Vertical):
     @work(thread=True)
     def _run_routine(self, package: str, routine, param_values: dict) -> None:
         from dbqm.core.object_browser import execute_routine
+        from dbqm.core.read_only import ReadOnlyViolation
 
         try:
-            result = execute_routine(self._db, package, routine, param_values)
+            result = execute_routine(
+                self._db, package, routine, param_values, conn=self._current_conn
+            )
             self.app.call_from_thread(self._show_execution_result, result)
+        except ReadOnlyViolation as e:
+            self.app.call_from_thread(self._on_read_only_violation, str(e))
         except Exception as e:
             self.app.call_from_thread(self._on_error, str(e))
+
+    def _on_read_only_violation(self, msg: str) -> None:
+        # A refusal, not a crash: stop the spinner and leave the screen
+        # exactly as it was before the attempt, so the user can pick another
+        # routine or reconnect without a read-only connection.
+        self.query_one(ProgressIndicator).stop()
+        self.notify(msg, severity="warning", timeout=8)
 
     def _show_execution_result(self, result) -> None:
         self.query_one(ProgressIndicator).stop()

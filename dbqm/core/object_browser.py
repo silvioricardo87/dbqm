@@ -1025,11 +1025,11 @@ def execute_routine(
     refuses outright: a routine can write regardless of the text that calls
     it, which is exactly why it is refused rather than classified.
     """
-    if conn is not None and getattr(conn, "read_only", False):
+    if conn is not None and conn.read_only:
         raise ReadOnlyViolation(
             f"Conexao '{conn.name}' e somente leitura e uma rotina pode "
             "escrever independente do texto do comando. "
-            "Use --force-write para executar assim mesmo."
+            "Desmarque 'Somente leitura' na conexao para executar."
         )
     start = time.time()
     cursor = db.cursor()

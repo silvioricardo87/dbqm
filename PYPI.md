@@ -90,6 +90,7 @@ dbqm history -n 20
 - **Execute routines** — packages, procedures and functions, with parameter
   input and output capture.
 - **Package editor** for Oracle PL/SQL, with inline compilation errors.
+- **Read-only connections** — mark a connection so dbqm refuses anything but a query on it, with a one-invocation `--force-write` override for `dbqm sql`.
 - **Exports** — CSV, JSON, TXT, SQL and HTML reports, plus IDE-style execution
   evidence (the SQL, the connection, the timestamp, the outcome) for an audit
   trail you can hand to someone else.
