@@ -464,13 +464,11 @@ what follows: the floor version, the absence of a lockfile, and the flat layout
 are all consequences of shipping a wheel to strangers rather than an image to a
 cluster.
 
-**Where the project stands on the adoption ladder:** four of the five
-migration steps in "Adopting the Guide in an Existing Codebase" have run
-(2.3.1) — 1, 2, 4 and 5. Step 3, mypy, is the one outstanding, deliberately
-not part of that slice — see `docs/ROADMAP.md` Tier 2 for the measurement
-that makes it its own project. Each item below says whether it is a
-deliberate deviation or an unstarted migration, because the two are not the
-same debt.
+**Where the project stands on the adoption ladder:** all five migration steps
+in "Adopting the Guide in an Existing Codebase" have run — 1, 2 and 4 in
+2.3.1, step 3 (mypy) in 2.3.2, step 5 (CI) covering all of them since 2.3.2.
+Each item below says whether it is a deliberate deviation or an unstarted
+migration, because the two are not the same debt.
 
 ### Toolchain — migration status
 
@@ -479,10 +477,20 @@ same debt.
 | uv, `uv.lock`, PEP 735 groups | Done | `uv.lock` and `.python-version` are committed. `requirements.txt` does not exist — it was already gone before this migration started, not deleted by it; dependencies live in `pyproject.toml`, untouched by this migration. |
 | `uv_build` backend | `setuptools>=68` | Not adopted — `pyproject.toml`'s build backend was out of scope for step 1, which was the lockfile only. |
 | ruff (lint + format) | Done | `uvx ruff check .` passes over fifteen rule families, chosen by measuring which the code already passed or nearly passed. This is why `TASK-COMPLETION.md` Step 2 now has a command here (see `AGENTS.md`). `ruff format` is not adopted. |
-| mypy `strict = true` | **Pending — its own slice.** | Adoption step 3. Measured at the branch this table was last updated from: **464 findings at `--strict`, 76 at default**. That gap is why a per-module ratchet, not a flag flip, is the only viable way in — see `docs/ROADMAP.md` Tier 2. |
+| mypy `strict = true` | Done — 2.3.2 | Adoption step 3. `[tool.mypy] strict = true` with a per-module `ignore_errors` override for legacy modules — 55 of 91 modules strict, 36 exempt, each entry carrying the finding count it owes. `tests/design/test_typing_policy.py` asserts the exemption list only shrinks — see "The policy test" below and `docs/ROADMAP.md` Tier 2. The planning figure of **464 findings at `--strict`** this table once carried was wrong: it came from `uvx mypy --ignore-missing-imports`, which resolves in an isolated environment with no project dependencies, so every Textual base class read as `Any` and every subclass produced a phantom finding. Measured correctly (`uv run mypy --strict`), the real figure was 396. |
 | pytest-cov, coverage floor | no coverage measured | Test count is tracked instead (see `AGENTS.md`). A count is not coverage. |
 | pytest strict config | Done | `--strict-markers`, `--strict-config`, `filterwarnings = error`, `xfail_strict` are all set. |
-| CI running lint + type gates | Done for lint and tests | `.github/workflows/checks.yml` runs the lint gate and the test suite on pull requests and pushes to `main`. It will run mypy too once step 3 lands; today it is separate from the release workflow. |
+| CI running lint + type gates | Done — 2.3.2 | `.github/workflows/checks.yml` runs ruff, mypy and the test suite on pull requests and pushes to `main`; mypy joined the Lint step in 2.3.2. Still separate from the release workflow, which is tag-driven. |
+
+**The policy test.** The guide's own prescription for step 3 is `strict =
+true` plus an exemption list (see "Adopting the Guide in an Existing
+Codebase" above) — dbqm follows that exactly. What the guide does **not**
+prescribe, and what dbqm adds as a deviation, is a test that enforces the
+list can only shrink: `tests/design/test_typing_policy.py` fails if a module
+is added to the exemption list, if a listed module no longer exists, or if
+the tracked count drifts from the list. Without it, the list is a
+convention a deadline can quietly violate; with it, growing the list is a
+failing test, not a habit.
 
 ### Deliberate deviations
 

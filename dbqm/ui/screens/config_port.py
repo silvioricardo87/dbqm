@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from textual import work
 from textual.app import ComposeResult
@@ -110,7 +111,7 @@ class ConfigPortScreen(Vertical):
     }
     """
 
-    def __init__(self, initial_mode: str | None = None, **kwargs) -> None:
+    def __init__(self, initial_mode: str | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._initial_mode = initial_mode
 

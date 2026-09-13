@@ -13,8 +13,12 @@ the generated statement, the careless paste.
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 import sqlparse
+
+if TYPE_CHECKING:
+    from dbqm.models.connection import Connection
 
 #: What a query-only connection may carry. `EXPLAIN` is here only as a
 #: prefix — see `_explains_a_query`, which is what decides whether a given
@@ -52,7 +56,10 @@ def statement_count(sql: str) -> int:
     and neither is one inside a string literal -- `sqlparse` handles both,
     which is why the count is not a `str.count(";")`.
     """
-    return len([s for s in sqlparse.parse(sql) if s.token_first() is not None])
+    return len([
+        s for s in sqlparse.parse(sql)
+        if s.token_first() is not None  # type: ignore[no-untyped-call]  # sqlparse ships py.typed, but Statement.token_first() itself is unannotated upstream
+    ])
 
 
 def _explains_a_query(sql: str) -> bool:
@@ -76,7 +83,7 @@ def _explains_a_query(sql: str) -> bool:
     return classify_sql(restante) == "SELECT"
 
 
-def check_read_only(sql: str, conn) -> None:
+def check_read_only(sql: str, conn: "Connection") -> None:
     """Raise `ReadOnlyViolation` if `conn` is read-only and `sql` could write.
 
     Does nothing when the connection is writable, so callers can invoke it

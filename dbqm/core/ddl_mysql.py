@@ -1,10 +1,12 @@
 """MySQL DDL extraction via SHOW CREATE statements."""
 from __future__ import annotations
 
+from typing import Any
+
 from dbqm.core.ddl_extractor import ExtractionResult, ExtractedObject
 
 
-def extract_mysql_ddl(db, object_name: str, result: ExtractionResult, on_progress=None):
+def extract_mysql_ddl(db: Any, object_name: str, result: ExtractionResult, on_progress: Any = None) -> None:
     """Extract DDL for a MySQL object (table, view, procedure, function)."""
     cursor = db.cursor()
     name = object_name.strip()

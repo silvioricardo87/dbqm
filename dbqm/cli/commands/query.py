@@ -321,12 +321,23 @@ def cmd_sql(args: argparse.Namespace) -> None:
         _fail_or_print(args, "sql", "usage", "DML requer --commit para confirmar a operacao.")
 
     try:
-        result = deps.execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
+        outcome = deps.execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
     except deps.ReadOnlyViolation as e:
         _fail_or_print(args, "sql", "read_only", str(e))
 
+    # `execute_adhoc` only returns the `(result, connection)` tuple for a DML
+    # statement left uncommitted (`auto_commit=False`); the --commit guard
+    # above already exits before this call whenever `sql_type` is DML and
+    # `--commit` was not given, and no other `sql_type` ever produces that
+    # tuple. So this call always yields a plain `AdhocResult`.
+    if isinstance(outcome, tuple):  # pragma: no cover - unreachable, see above
+        raise RuntimeError(
+            "execute_adhoc returned a manual-commit tuple despite auto_commit=True"
+        )
+    result = outcome
+
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
-    if not isinstance(result, tuple) and result.sql_type in ("INSERT", "UPDATE", "DELETE"):
+    if result.sql_type in ("INSERT", "UPDATE", "DELETE"):
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                             result.error or "Erro ao executar SQL.")
@@ -337,7 +348,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
         return
 
     # DDL results
-    if not isinstance(result, tuple) and result.sql_type == "DDL":
+    if result.sql_type == "DDL":
         if not result.success:
             code = _sql_error_code(result.error, result.error_kind)
             if args.format == "json":
@@ -352,7 +363,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
         return
 
     # PL/SQL anonymous block results
-    if not isinstance(result, tuple) and result.sql_type == "PLSQL":
+    if result.sql_type == "PLSQL":
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                             result.error or "Erro ao executar bloco.")

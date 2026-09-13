@@ -1,6 +1,8 @@
 """Read-only SQL display widget with syntax highlighting."""
 from __future__ import annotations
 
+from typing import Any
+
 from rich.syntax import Syntax
 from textual.widgets import Static
 
@@ -27,7 +29,7 @@ class SqlViewer(Static):
     }
     """
 
-    def __init__(self, sql: str = "", **kwargs) -> None:
+    def __init__(self, sql: str = "", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._sql = sql
 

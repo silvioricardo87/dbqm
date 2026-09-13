@@ -127,7 +127,7 @@ def render_template(
     values: dict[str, str],
 ) -> str:
     """Render template content by replacing {{field}} placeholders with values."""
-    def _replace(match: re.Match) -> str:
+    def _replace(match: re.Match[str]) -> str:
         field_name = match.group(1)
         return values.get(field_name, match.group(0))
 

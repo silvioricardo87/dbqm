@@ -5,6 +5,7 @@ import argparse
 import getpass
 import os
 import sys
+from typing import Literal, overload
 
 from rich.markup import escape
 
@@ -14,7 +15,7 @@ from dbqm.cli.render import console
 
 
 def _parse_params(param_list: list[str] | None, args: argparse.Namespace | None = None,
-                   command: str = "params") -> dict:
+                   command: str = "params") -> dict[str, str]:
     """Parse key=value parameter pairs from CLI arguments.
 
     `args`/`command` let a malformed `-p` speak the envelope under `-f json`
@@ -77,6 +78,16 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
                         help="Formato de saida")
 
 
+@overload
+def resolve_password(
+    args: argparse.Namespace, env_var: str, prompt: str, *, required: Literal[True],
+    use_env: bool = True, command: str = "password",
+) -> str: ...
+@overload
+def resolve_password(
+    args: argparse.Namespace, env_var: str, prompt: str, *, required: bool,
+    use_env: bool = True, command: str = "password",
+) -> str | None: ...
 def resolve_password(
     args: argparse.Namespace, env_var: str, prompt: str, *, required: bool,
     use_env: bool = True, command: str = "password",
@@ -110,7 +121,11 @@ def resolve_password(
     `table`'s unchanged prose-and-`sys.exit` branch.
     """
     from_stdin = getattr(args, "password_stdin", False)
-    direct = getattr(args, "password", None)
+    # `args.password`, where the parser defines it, is a plain string
+    # argument (argparse's `--password`). `argparse.Namespace` is untyped
+    # so `getattr` returns `Any`; the annotation states what the value
+    # actually is instead of letting that `Any` leak into the return type.
+    direct: str | None = getattr(args, "password", None)
     fmt = getattr(args, "format", "table")
 
     if from_stdin and direct:

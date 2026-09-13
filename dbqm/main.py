@@ -2,7 +2,7 @@
 import sys
 
 
-def main():
+def main() -> None:
     # Version flag
     if len(sys.argv) == 2 and sys.argv[1] in ("--version", "-V"):
         from dbqm._version import __version__

@@ -29,7 +29,7 @@ def _light_theme_block(tokens: dict[str, str]) -> str:
     return f"@media (prefers-color-scheme: light) {{\n  :root {{\n{linhas}\n  }}\n}}"
 
 
-def export_group_html(group_result: GroupResult, params: dict | None = None) -> str:
+def export_group_html(group_result: GroupResult, params: dict[str, str] | None = None) -> str:
     """Export group comparison as a standalone HTML file. Returns file path."""
     query_names = list(group_result.query_results.keys())
     filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="html")
@@ -47,7 +47,7 @@ def _status_label(status: str) -> str:
     return {"OK": "OK", "OK*": "OK*", "DIFF": "DIFERE", "ABSENT": "AUSENTE"}.get(status, status)
 
 
-def _build_html(group_result: GroupResult, query_names: list[str], params: dict | None) -> str:
+def _build_html(group_result: GroupResult, query_names: list[str], params: dict[str, str] | None) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
     overall_class = "ok" if group_result.all_match else "diff"

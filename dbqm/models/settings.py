@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, asdict
+from typing import Any
 
 from dbqm.core.paths import CONFIG_DIR, SETTINGS_FILE
 
@@ -20,11 +21,11 @@ class Settings:
     # tool (e.g. PL/SQL Developer) cannot hijack the 64-bit client dbqm needs.
     oracle_client_dir: str = ""
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> Settings:
+    def from_dict(cls, data: dict[str, Any]) -> Settings:
         return cls(
             audit_log_enabled=data.get("audit_log_enabled", False),
             theme=data.get("theme", "plano-escuro"),

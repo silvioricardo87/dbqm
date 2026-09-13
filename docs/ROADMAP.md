@@ -44,21 +44,50 @@ before anything persists that output to a log.
 
 ## Tier 2 — Toolchain adoption
 
-From the deviations section of [`docs/agents/BACKEND-PYTHON.md`](agents/BACKEND-PYTHON.md).
-**The order is fixed** — that file explains why a type checker before a lockfile
-turns the ratchet into a negotiation.
-
-Steps 1, 2, 4 and 5 shipped in 2.3.1 — see `CHANGELOG.md`. Step 3 (mypy) is the
-only one left, and deliberately its own slice: it does not land alongside the
-others because it is the one gate the code does not already nearly pass.
+**Complete.** All five steps from the deviations section of
+[`docs/agents/BACKEND-PYTHON.md`](agents/BACKEND-PYTHON.md) have shipped.
+**The order was fixed** — that file explains why a type checker before a
+lockfile turns the ratchet into a negotiation.
 
 | Order | Step | Effect | Status |
 |---|---|---|---|
 | 1 | uv + `uv.lock` + `.python-version` | Every later gate runs on a reproducible environment. `requirements.txt` was already gone before this started, not deleted by it. | Done — 2.3.1 |
 | 2 | ruff, starting with the rules the code already passes, widening one family at a time | Fills the empty Lint step of the task-completion cycle | Done — 2.3.1, fifteen rule families |
-| 3 | mypy `strict` with a per-module ratchet for legacy modules | New code is typed from its first line | **Pending.** Measured at `fe3b906`: **464 findings at `--strict`, 76 at default**. The gap between those two numbers is why a per-module ratchet, not a flag flip, is the only viable path in. |
+| 3 | mypy `strict` with a per-module ratchet for legacy modules | New code is typed from its first line | Done — 2.3.2, `.github/workflows/checks.yml` runs `uv run mypy` after `ruff`. |
 | 4 | pytest strict config (`--strict-markers`, `filterwarnings = error`, `xfail_strict`) | Surfaces warnings the suite currently swallows | Done — 2.3.1 |
-| 5 | CI running steps 1-3 on every push | Until it does, the gates are manual and therefore optional | Done for steps 1, 2 and 4 — 2.3.1. Will run step 3 too once it lands. |
+| 5 | CI running steps 1-3 on every push | Until it does, the gates are manual and therefore optional | Done — 2.3.2. All three gates (uv sync, ruff, mypy) plus the test suite run on every push to `main` and every pull request. |
+
+**Where typing stands today:** `[tool.mypy] strict = true` in `pyproject.toml`
+makes every module strict unless it is named in an `[[tool.mypy.overrides]]`
+exemption block. **55 of dbqm's 91 modules are strict**; the remaining **36
+are exempt**, each entry carrying the finding count it owes as a debt
+register, not just a name. `tests/design/test_typing_policy.py` is what
+makes the ratchet real: it fails if the exemption list grows, if an entry
+names a module that no longer exists, or if the tracked count drifts from
+the list — a module is typed by fixing its findings and deleting its entry,
+never by adding one.
+
+Two limits of that gate are worth knowing. It checks `dbqm/` only
+(`files = ["dbqm"]`), so `tests/` is outside it while `ruff` covers the whole
+tree. And `python_version` is pinned while the platform is not, so a
+`sys.platform` branch is only type-checked on a host that takes it —
+`core/oracle_client_installer.py`'s darwin and linux branches are skipped by
+every Windows run and get their first check on CI. Deliberate: between them
+the two hosts cover every branch, which pinning a single platform would not.
+
+The **464 findings at `--strict`, 76 at default** this tier carried in its
+planning figures were wrong, and it is worth recording why rather than
+quietly replacing them: they were measured with `uvx mypy
+--ignore-missing-imports`, and `uvx` runs mypy in an isolated environment
+without the project's own dependencies. mypy could not import Textual,
+`--ignore-missing-imports` turned every Textual base class into `Any`, and
+every class deriving from one produced a phantom "cannot subclass" finding.
+Seven of dbqm's eight dependencies actually ship `py.typed`. Measured inside
+the project's own environment (`uv run mypy --strict`), the real figure was
+**396 findings across 58 modules**; the work in this tier brought that to
+**361 findings across 36 modules**. A tool run outside the environment it is
+meant to check reports on the isolation, not on the code — worth saying
+plainly so the next person does not inherit the wrong number by citation.
 
 ---
 
@@ -82,6 +111,14 @@ guard (`X3`) shipped in 2.2.0 — a connection can refuse anything but a query.
 Themes, in the order they unlock each other now: **execution** (C4, C8) is
 what an agent does once it can see, and **curation** (C5-C7) is how findings
 survive the session.
+
+**2.1.0 and 2.2.0 are deliberately internal versions.** Both exist in
+`CHANGELOG.md` and in the code — discovery and the read-only guard are real,
+shipped, tested features — but neither was ever tagged, and neither will be
+published to PyPI on its own. That was the maintainer's decision, not an
+oversight: whoever installs 2.3.x receives everything 2.1.0 and 2.2.0 added,
+already folded in. Recorded here so it is not rediscovered later as a gap in
+the release history.
 
 | Order | Item | Theme | Effort | Agent value | Notes |
 |---|---|---|---|---|---|

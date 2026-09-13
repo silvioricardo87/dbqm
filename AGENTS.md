@@ -107,7 +107,7 @@ The concrete commands, in dbqm's terms:
 | Step | Command | Note |
 |---|---|---|
 | 1 Build | `python -m build` | `build` is not a declared dependency — `pip install build` on a fresh machine. |
-| 2 Lint | `uvx ruff@0.16.7 check .` | Fifteen rule families, chosen by measuring which the code already passed or nearly passed. mypy is not part of this gate yet — a ROADMAP item. |
+| 2 Lint | `uvx ruff@0.16.7 check .` then `uv run mypy` | Ruff: fifteen rule families, chosen by measuring which the code already passed or nearly passed. mypy: `strict = true` in `pyproject.toml`, with a per-module exemption list that only shrinks (`tests/design/test_typing_policy.py` enforces the direction). Run via `uv run`, not `uvx` — mypy needs the project's own dependencies to resolve types, and an isolated `uvx` environment cannot see them. The two gates do not cover the same ground: ruff checks the whole tree, mypy checks `dbqm/` only (`files = ["dbqm"]`) — `tests/` is deliberately outside the type gate. |
 | 3 Test | `python -m pytest tests/ -x -q` | ~3m10s. Needs `pytest-asyncio` from the `dev` extra, or 327 async tests fail for an unrelated reason. Scope to the change; full run before a release. |
 | 4 Docs | see [README](#readme), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` | The README is the PyPI page. |
 | 5 Version | edit `dbqm/_version.py` | Manual, which `VERSIONING.md` forbids; the tag guard is the compensating control. |
@@ -143,8 +143,8 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
   messages), plus `tests/design/` (the design-system guards), `tests/test_cli.py`,
   `tests/test_cli_markup.py`, `tests/test_cli_tema.py`, and shared fixtures in
   `tests/conftest.py`
-- Run: `python -m pytest tests/ -x -q` (currently **1249** tests, of which
-  36 in `tests/design/` are the color and layout guards)
+- Run: `python -m pytest tests/ -x -q` (currently **1252** tests, of which
+  39 in `tests/design/` are the color, layout and typing-policy guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory
 - Prefer pure, directly-testable functions in `core/` (e.g. `classify_sql`,
