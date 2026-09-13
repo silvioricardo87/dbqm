@@ -6,6 +6,7 @@ from html import escape as h
 from typing import Any
 
 from dbqm.core.group_engine import GroupResult
+from dbqm.core.query_engine import QueryResult
 from dbqm.core.exporter import _build_filepath
 from dbqm.design.tokens import LIGHT_TOKENS, DARK_TOKENS
 
@@ -36,6 +37,18 @@ def export_group_html(group_result: GroupResult, params: dict[str, str] | None =
 
     html = _build_html(group_result, query_names, params)
     filepath.write_text(html, encoding="utf-8")
+    return str(filepath)
+
+
+def export_query_html(
+    result: QueryResult,
+    table: str = "",
+    params: dict[str, str] | None = None,
+) -> str:
+    """Export one result set as a standalone HTML file. Returns file path."""
+    label = table or result.query_name
+    filepath = _build_filepath("consultas", label, result.connection_name, params, "html")
+    filepath.write_text(_build_query_html(result, label, params), encoding="utf-8")
     return str(filepath)
 
 
@@ -180,5 +193,65 @@ function filterSearch(term) {{
     }});
 }}
 </script>
+</body>
+</html>"""
+
+
+def _build_query_html(result: QueryResult, label: str, params: dict[str, str] | None) -> str:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    params_html = ""
+    if params:
+        rows = "".join(
+            f"<tr><td><strong>{h(str(k))}</strong></td><td>{h(str(v))}</td></tr>"
+            for k, v in params.items()
+        )
+        params_html = f'<div class="meta">Parametros:</div><table class="params">{rows}</table>'
+
+    header_cols = "".join(f"<th>{h(str(col))}</th>" for col in result.columns)
+    rows_html = ""
+    for row in result.rows:
+        cells = "".join(f"<td>{'' if v is None else h(str(v))}</td>" for v in row)
+        rows_html += f"<tr>{cells}</tr>"
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatorio - {h(label)}</title>
+<style>
+{css_variables(DARK_TOKENS)}
+{_light_theme_block(LIGHT_TOKENS)}
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--ds-background); color: var(--ds-text); padding: 24px; }}
+    .header {{ background: var(--ds-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }}
+    .header h1 {{ color: var(--ds-identity); font-size: 1.4em; }}
+    .header .meta {{ color: var(--ds-text-muted); font-size: 0.85em; margin-top: 8px; }}
+    .params {{ margin: 12px 0; border-collapse: collapse; }}
+    .params td {{ padding: 4px 16px 4px 0; color: var(--ds-text-muted); font-size: 0.9em; }}
+    table.data {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.9em; }}
+    table.data th {{ background: var(--ds-panel); color: var(--ds-identity); padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--ds-border); }}
+    table.data td {{ padding: 6px 12px; border-bottom: 1px solid var(--ds-border); }}
+    table.data tr:hover {{ background: var(--ds-surface-raised); }}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>DB Query Manager - Relatorio de Consulta</h1>
+    <div class="meta">
+        Consulta: <strong>{h(label)}</strong> |
+        Conexao: <strong>{h(result.connection_name)}</strong> |
+        Data: {now} |
+        Linhas: {result.row_count} |
+        Tempo: {result.elapsed:.3f}s
+    </div>
+    {params_html}
+</div>
+
+<table class="data">
+    <thead><tr>{header_cols}</tr></thead>
+    <tbody>{rows_html}</tbody>
+</table>
 </body>
 </html>"""
