@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from dbqm.core.paths import TEMPLATES_DIR, TEMPLATES_FILE
 
@@ -16,11 +16,11 @@ class Template:
     content: str  # Template text with {{field}} placeholders
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, str]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> Template:
+    def from_dict(cls, data: dict[str, Any]) -> Template:
         return cls(
             name=data["name"],
             description=data.get("description", ""),

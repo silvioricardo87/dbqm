@@ -10,7 +10,7 @@ from textual.widgets import Button, DataTable, Input, Select
 from dbqm.ui.widgets.dialog import Dialog
 
 
-class ColumnMapsModal(ModalScreen[dict | None]):
+class ColumnMapsModal(ModalScreen[dict[str, dict[str, str]] | None]):
     """Configure column value mappings (DE-PARA).
 
     Dismisses with updated maps dict on save, or None on cancel/ESC.

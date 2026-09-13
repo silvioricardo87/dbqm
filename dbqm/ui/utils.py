@@ -7,7 +7,7 @@ from textual.containers import VerticalScroll
 from textual.widgets import Select
 
 
-class NavSelect(Select):
+class NavSelect(Select[str | None]):
     """Select widget that opens only with Enter/Space, not arrows.
 
     This allows arrow keys to navigate between widgets in form screens

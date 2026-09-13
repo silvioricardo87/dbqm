@@ -60,7 +60,7 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
     def __init__(
         self,
         query_name: str,
-        params: list[dict],
+        params: list[dict[str, str]],
         last_values: dict[str, str] | None = None,
         description: str = "",
     ) -> None:

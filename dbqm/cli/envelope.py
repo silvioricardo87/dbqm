@@ -17,12 +17,12 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any, NoReturn
+from typing import Any, NoReturn, TextIO
 
 from dbqm.cli.errors import exit_for
 
 
-def _write(stream, payload: dict) -> None:
+def _write(stream: TextIO, payload: dict[str, Any]) -> None:
     json.dump(payload, stream, indent=2, ensure_ascii=False, default=str)
     stream.write("\n")
 

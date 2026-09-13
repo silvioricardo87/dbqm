@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.theme import Theme as _RichTheme
 
+from dbqm.core.group_engine import ComparisonResult
 from dbqm.design.tokens import DARK_TOKENS
 
 
@@ -68,7 +69,7 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
         console.print(f"[dim]{result.row_count} registros em {result.elapsed:.2f}s[/dim]")
 
 
-def _colored_comparison_lines(comparisons: list) -> list[str]:
+def _colored_comparison_lines(comparisons: list[ComparisonResult]) -> list[str]:
     """Linhas de resumo do grupo, coloridas pelo eixo de veredito.
 
     Reconstroi o texto a partir de `ComparisonResult` (contagens), em vez de

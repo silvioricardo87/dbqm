@@ -16,7 +16,7 @@ def log_execution(
     action: str,
     name: str,
     connection: str = "",
-    params: dict | None = None,
+    params: dict[str, str] | None = None,
     row_count: int = 0,
     success: bool = True,
     error: str = "",

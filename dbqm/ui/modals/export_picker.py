@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from textual.app import ComposeResult
+from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Button
@@ -61,7 +61,7 @@ class ExportPickerModal(ModalScreen[str | None]):
 
 
 def request_export(
-    app,
+    app: App[object],
     callback: Callable[[str | None], None] | None = None,
 ) -> None:
     """Public entry point for the export flow.

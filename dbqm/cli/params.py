@@ -14,7 +14,7 @@ from dbqm.cli.render import console
 
 
 def _parse_params(param_list: list[str] | None, args: argparse.Namespace | None = None,
-                   command: str = "params") -> dict:
+                   command: str = "params") -> dict[str, str]:
     """Parse key=value parameter pairs from CLI arguments.
 
     `args`/`command` let a malformed `-p` speak the envelope under `-f json`

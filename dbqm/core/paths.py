@@ -24,7 +24,7 @@ SETTINGS_FILE = CONFIG_DIR / "settings.json"
 TEMPLATES_DIR = DBQM_HOME / "templates"
 TEMPLATES_FILE = TEMPLATES_DIR / "templates.json"
 
-def ensure_dirs():
+def ensure_dirs() -> None:
     """Create data directories if they don't exist."""
     for d in [CONFIG_DIR, EXPORTS_DIR, HISTORY_DIR, TEMPLATES_DIR]:
         d.mkdir(parents=True, exist_ok=True)

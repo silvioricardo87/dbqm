@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from dbqm.core.paths import CONFIG_DIR, CONNECTIONS_FILE
 
@@ -31,12 +31,12 @@ class Connection:
     read_only: bool = False
     created_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         return {k: v for k, v in d.items() if v is not None}
 
     @classmethod
-    def from_dict(cls, data: dict) -> Connection:
+    def from_dict(cls, data: dict[str, Any]) -> Connection:
         valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in valid_fields}
         return cls(**filtered)
