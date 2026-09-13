@@ -262,8 +262,29 @@ class GroupExecScreen(Vertical):
             execute_across,
         )
 
+        def on_progress(cname: str) -> None:
+            self.app.call_from_thread(
+                self._update_progress,
+                f"Executando em [bold]{escape_markup(cname)}[/]...",
+            )
+
+        def on_result(cname: str, res) -> None:
+            if not res.success:
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Erro em '{cname}': {res.error}",
+                    severity="error",
+                    timeout=8,
+                )
+
         try:
-            conns = []
+            # Resolved one connection at a time (rather than gathered into a
+            # single execute_across call) so a "nao encontrada" warning lands
+            # at the same point in the sequence it always did: interleaved
+            # with the progress/error notifications of the connections
+            # around it, not all upfront -- execute_across only ever sees
+            # already-resolved connections, one per call here.
+            results = {}
             for cname in conn_names:
                 conn = find_connection(cname)
                 if conn is None:
@@ -273,27 +294,13 @@ class GroupExecScreen(Vertical):
                         severity="warning",
                     )
                     continue
-                conns.append(conn)
 
-            def on_progress(cname: str) -> None:
-                self.app.call_from_thread(
-                    self._update_progress,
-                    f"Executando em [bold]{escape_markup(cname)}[/]...",
+                one = execute_across(
+                    sql, [conn], {}, on_progress=on_progress, on_result=on_result
                 )
-
-            all_results = execute_across(sql, conns, {}, on_progress=on_progress)
-
-            results = {}
-            for cname, res in all_results.items():
-                if not res.success:
-                    self.app.call_from_thread(
-                        self.notify,
-                        f"Erro em '{cname}': {res.error}",
-                        severity="error",
-                        timeout=8,
-                    )
-                    continue
-                results[cname] = res
+                res = one[cname]
+                if res.success:
+                    results[cname] = res
 
             if len(results) < 1:
                 self.app.call_from_thread(

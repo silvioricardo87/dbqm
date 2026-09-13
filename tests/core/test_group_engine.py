@@ -3,14 +3,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from dbqm.core.query_engine import QueryResult
+from dbqm.core.query_engine import AdhocResult, QueryResult
 from dbqm.core.group_engine import (
     NoComparableColumns,
     build_adhoc_group_result,
     build_group_result,
     derive_comparison_columns,
+    execute_across,
     run_comparison,
 )
+from dbqm.models.connection import Connection
 
 
 def _make_qr(name, conn, columns, rows):
@@ -139,6 +141,13 @@ class TestDeriveComparisonColumns:
         r = {"a": _Res(["ID", "NOME"])}
         assert derive_comparison_columns(r) == ("ID", ["NOME"])
 
+    def test_no_results_raises_rather_than_crashing_on_next_iter(self):
+        """`next(iter({}))` is a StopIteration, not a comparison error -- an
+        empty dict must raise the same NoComparableColumns as disjoint
+        columns, not leak an unrelated exception to the caller."""
+        with pytest.raises(NoComparableColumns):
+            derive_comparison_columns({})
+
 
 class TestBuildAdhocGroupResult:
     def test_derives_when_not_told(self):
@@ -152,7 +161,88 @@ class TestBuildAdhocGroupResult:
         r = {"a": _Res(["ID", "N"], [[1, "x"]]), "b": _Res(["ID", "N"], [[2, "x"]])}
         gr = build_adhoc_group_result(r, join_key="N", compare_columns=["ID"])
         assert [c.column for c in gr.comparisons] == ["ID"]
+        # Both rows join on N="x" and their IDs (1 vs 2) differ under that
+        # join -- pins that the explicit key actually joined the rows,
+        # rather than silently matching nothing.
+        assert gr.all_match is False
 
     def test_a_difference_is_reported_as_one(self):
         r = {"a": _Res(["ID", "N"], [[1, "x"]]), "b": _Res(["ID", "N"], [[1, "y"]])}
         assert build_adhoc_group_result(r).all_match is False
+
+
+def _make_conn(name):
+    return Connection(name=name, db_type="oracle", user="", password="")
+
+
+class TestExecuteAcross:
+    def test_a_raised_exception_becomes_a_connection_failure_and_the_rest_still_run(
+        self, monkeypatch
+    ):
+        calls: list[str] = []
+
+        def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
+            calls.append(conn.name)
+            if conn.name == "bad":
+                raise RuntimeError("host unreachable")
+            return AdhocResult(
+                sql_type="SELECT", connection_name=conn.name,
+                columns=["ID"], rows=[[1]],
+            )
+
+        monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
+
+        results = execute_across(
+            "SELECT 1", [_make_conn("bad"), _make_conn("good")], {}
+        )
+
+        assert calls == ["bad", "good"]
+        assert results["bad"].success is False
+        assert results["bad"].error_kind == "connection"
+        assert results["good"].success is True
+
+    def test_an_already_unsuccessful_result_keeps_its_own_error_kind(self, monkeypatch):
+        def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
+            return AdhocResult(
+                sql_type="SELECT", connection_name=conn.name,
+                success=False, error="ORA-00904: invalid identifier",
+                error_kind="statement",
+            )
+
+        monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
+
+        results = execute_across("SELECT bogus FROM t", [_make_conn("c1")], {})
+        assert results["c1"].success is False
+        assert results["c1"].error_kind == "statement"
+
+    def test_a_dml_tuple_result_is_unpacked(self, monkeypatch):
+        def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
+            res = AdhocResult(
+                sql_type="UPDATE", connection_name=conn.name, rows_affected=1
+            )
+            return res, object()  # (AdhocResult, db_connection)
+
+        monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
+
+        results = execute_across("UPDATE t SET x = 1", [_make_conn("c1")], {})
+        assert isinstance(results["c1"], AdhocResult)
+        assert results["c1"].rows_affected == 1
+
+    def test_on_result_fires_once_per_connection_in_order_including_failures(
+        self, monkeypatch
+    ):
+        def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
+            if conn.name == "bad":
+                raise RuntimeError("boom")
+            return AdhocResult(sql_type="SELECT", connection_name=conn.name)
+
+        monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
+
+        seen: list[tuple[str, bool]] = []
+        execute_across(
+            "SELECT 1",
+            [_make_conn("a"), _make_conn("bad"), _make_conn("b")],
+            {},
+            on_result=lambda name, res: seen.append((name, res.success)),
+        )
+        assert seen == [("a", True), ("bad", False), ("b", True)]

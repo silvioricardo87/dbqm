@@ -91,8 +91,12 @@ def derive_comparison_columns(
     The first result's column order wins -- not sorted, not any other
     result's order. The join key is the first common column, the compare
     columns are the rest. Raises `NoComparableColumns` when no column is
-    common to every result.
+    common to every result, or when there is no result to derive from at all.
     """
+    if not results:
+        raise NoComparableColumns(
+            "Consultas nao retornaram colunas comparaveis."
+        )
     first = next(iter(results))
     base_cols = list(results[first].columns)
     common = [
@@ -138,6 +142,7 @@ def execute_across(
     conns: list[Connection],
     param_values: dict[str, str],
     on_progress: Callable[[str], None] | None = None,
+    on_result: Callable[[str, AdhocResult], None] | None = None,
 ) -> dict[str, AdhocResult]:
     """Run the same SQL on each connection, in order.
 
@@ -149,6 +154,11 @@ def execute_across(
 
     A raised exception becomes an unsuccessful AdhocResult, so one
     unreachable host cannot end the loop.
+
+    `on_result`, when given, fires once per connection, right after that
+    connection's result is recorded -- so a caller that wants to react to a
+    single failure (notify, log, stop) does not have to wait for every other
+    connection to finish first.
     """
     from dbqm.core.query_engine import execute_adhoc
 
@@ -160,7 +170,7 @@ def execute_across(
         try:
             res = execute_adhoc(sql, conn, param_values)
         except Exception as e:
-            results[conn.name] = AdhocResult(
+            res = AdhocResult(
                 sql_type="",
                 connection_name=conn.name,
                 sql=sql,
@@ -169,13 +179,14 @@ def execute_across(
                 error=str(e),
                 error_kind="connection",
             )
-            continue
-
-        # DML without auto_commit returns (AdhocResult, db_connection).
-        if isinstance(res, tuple):
-            res = res[0]
+        else:
+            # DML without auto_commit returns (AdhocResult, db_connection).
+            if isinstance(res, tuple):
+                res = res[0]
 
         results[conn.name] = res
+        if on_result is not None:
+            on_result(conn.name, res)
 
     return results
 
