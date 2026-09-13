@@ -44,12 +44,18 @@ def _sql_error_code(message: str | None, error_kind: str = "") -> str:
     """The token for a failed result.
 
     `connection` wins over everything: the database never answered, so
-    nothing about the statement is known. Otherwise `usage` for the two
-    known bad-input messages `core/` can return, and `sql_error` for the
-    rest -- the driver rejected or failed on a statement actually sent.
+    nothing about the statement is known. `read_only` is next -- the guard
+    refused to send the statement at all, which `cmd_sql` already reports as
+    `read_only`/exit 2, and `execute_across` (`group_engine.py`) tags the
+    same way so the two commands agree about what the same event is.
+    Otherwise `usage` for the two known bad-input messages `core/` can
+    return, and `sql_error` for the rest -- the driver rejected or failed on
+    a statement actually sent.
     """
     if error_kind == "connection":
         return "connection_failed"
+    if error_kind == "read_only":
+        return "read_only"
     if message in _USAGE_SQL_MESSAGES:
         return "usage"
     if message and message.startswith(_UNSUPPORTED_EXPLAIN_PREFIX):
@@ -315,6 +321,8 @@ def _multi_failure_code(codes: list[str]) -> str:
     """
     if "connection_failed" in codes:
         return "connection_failed"
+    if "read_only" in codes:
+        return "read_only"
     if "usage" in codes:
         return "usage"
     return "sql_error"
@@ -323,13 +331,17 @@ def _multi_failure_code(codes: list[str]) -> str:
 def cmd_multi(args: argparse.Namespace) -> None:
     """Run one ad-hoc SQL across several connections and compare the results.
 
-    Order matters here and is the whole point: `--flat`+`html` and "fewer
-    than two connections" are refused before anything opens; every
-    connection name is resolved before any of them is opened, so a bad name
-    is reported without a single query having run; and once
-    `execute_across` has run every resolved connection, any unsuccessful one
-    fails the whole command -- a comparison over a subset would silently
-    answer a different question than the one asked.
+    Order matters here and is the whole point: `--flat`+`html`, fewer than
+    two *distinct* connections, and any SQL that is not a query are all
+    refused before anything opens -- a comparison has no result set to
+    compare if the statement never returns one, so `multi` refuses DML, DDL
+    and PL/SQL outright rather than running them across every connection
+    first and discovering that after the fact. Every connection name is then
+    resolved before any of them is opened, so a bad name is reported without
+    a single query having run; and once `execute_across` has run every
+    resolved connection, any unsuccessful one fails the whole command -- a
+    comparison over a subset would silently answer a different question
+    than the one asked.
     """
     if args.export == "html" and args.flat:
         _fail_or_print(args, "multi", "usage",
@@ -337,9 +349,46 @@ def cmd_multi(args: argparse.Namespace) -> None:
                        "ou --flat com csv, json ou txt.")
 
     names = args.connection or []
-    if len(names) < 2:
+    # Order-preserving de-duplication: `-c prod -c prod` collapses to one
+    # entry once `execute_across` keys its result dict by connection name,
+    # so a comparison would run over a single result and could only ever
+    # report OK -- the same class of silent wrong answer as the other
+    # refusals below, reached through dict collapse instead of `all([])`.
+    seen: dict[str, int] = {}
+    for name in names:
+        seen[name] = seen.get(name, 0) + 1
+    distinct_names = list(seen)
+    if len(distinct_names) < 2:
+        repeated = [name for name, count in seen.items() if count > 1]
+        if repeated:
+            _fail_or_print(
+                args, "multi", "usage",
+                f"Conexao '{repeated[0]}' repetida. Informe pelo menos duas "
+                "conexoes distintas com -c/--connection.",
+            )
         _fail_or_print(args, "multi", "usage",
                        "Informe pelo menos duas conexoes com -c/--connection.")
+    names = distinct_names
+
+    sql = args.sql
+    sql_path = Path(sql)
+    if sql_path.is_file():
+        sql = sql_path.read_text(encoding="utf-8")
+
+    # A comparison needs a result set to compare, and only SELECT/EXPLAIN
+    # produce one. Refusing here -- before any connection is even resolved,
+    # let alone opened -- is what keeps `multi "DELETE FROM t"` from running
+    # the delete on every connection and only then discovering there is
+    # nothing to compare: `execute_adhoc` has no `--commit` gate to lean on
+    # here the way `cmd_sql` does, because there is no sense in which a
+    # comparison of DML output could ever be meaningful.
+    sql_type = deps.classify_sql(sql)
+    if sql_type not in ("SELECT", "EXPLAIN"):
+        _fail_or_print(
+            args, "multi", "usage",
+            f"multi compara resultados de consultas (SELECT ou EXPLAIN); "
+            f"recebido: {sql_type}.",
+        )
 
     resolved: list[tuple[str, Connection | None]] = []
     for name in names:
@@ -350,29 +399,29 @@ def cmd_multi(args: argparse.Namespace) -> None:
 
     param_values = _parse_params(args.param, args, "multi")
 
-    sql = args.sql
-    sql_path = Path(sql)
-    if sql_path.is_file():
-        sql = sql_path.read_text(encoding="utf-8")
-
     results = deps.execute_across(sql, resolved, param_values)
 
     failing = [(name, result) for name, result in results.items() if not result.success]
     if failing:
         # Named per connection with what actually happened -- a statement
-        # error is the database answering, not the connection failing, and
-        # `_sql_error_code` is what tells them apart (it also catches the
-        # messages `core/` returns for a statement never sent to any driver,
-        # which the earlier connection/sql_error dichotomy mislabelled as
-        # `sql_error`). The aggregate exit code does not depend on which
-        # failing connection happens to come first -- see
-        # `_multi_failure_code` -- and every failing connection is named,
-        # not just one.
+        # error is the database answering, not the connection failing, a
+        # read-only refusal is neither (the guard never sent the statement
+        # at all -- `cmd_sql` reports the identical condition as `read_only`,
+        # exit 2, and the two commands must not disagree about what the same
+        # event is), and `_sql_error_code` is what tells all of these apart
+        # (it also catches the messages `core/` returns for a statement
+        # never sent to any driver, which a plain connection/sql_error
+        # dichotomy mislabelled as `sql_error`). The aggregate exit code
+        # does not depend on which failing connection happens to come first
+        # -- see `_multi_failure_code` -- and every failing connection is
+        # named, not just one.
         codes = [_sql_error_code(result.error, result.error_kind) for _, result in failing]
         parts = []
         for (name, result), code in zip(failing, codes, strict=True):
             if code == "connection_failed":
                 parts.append(f"Falha na conexao '{name}': {result.error}")
+            elif code == "read_only":
+                parts.append(f"Somente leitura em '{name}': {result.error}")
             elif code == "usage":
                 parts.append(f"Erro de uso em '{name}': {result.error}")
             else:

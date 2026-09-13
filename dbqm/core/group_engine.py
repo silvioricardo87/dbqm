@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from dbqm.core.query_engine import AdhocResult, QueryResult
+from dbqm.core.read_only import ReadOnlyViolation
 from dbqm.models.connection import Connection
 
 
@@ -164,8 +165,15 @@ def execute_across(
     because a comparison over a subset answers a different question. A core
     that picked one policy would force the other to work around it.
 
-    A raised exception becomes an unsuccessful AdhocResult with
-    `error_kind="connection"`, so one unreachable host cannot end the loop.
+    A raised exception becomes an unsuccessful AdhocResult, so one
+    unreachable host cannot end the loop. `error_kind` says which: a
+    `ReadOnlyViolation` is caught first and tagged `"read_only"` -- the
+    guard refused to send the statement at all, which is a different fact
+    from the database never answering, and conflating the two would make a
+    caller report a healthy connection as failed. Anything else becomes
+    `error_kind="connection"`. Deciding what those tokens *mean* -- which
+    exit code, which message -- stays the caller's job; this only records
+    what happened.
 
     `on_progress`, `on_result` and `on_missing` each fire once per pair, in
     the same sequential order as `conns` -- a caller that wants to react
@@ -186,6 +194,16 @@ def execute_across(
 
         try:
             res = execute_adhoc(sql, conn, param_values)
+        except ReadOnlyViolation as e:
+            res = AdhocResult(
+                sql_type="",
+                connection_name=name,
+                sql=sql,
+                db_type=conn.db_type,
+                success=False,
+                error=str(e),
+                error_kind="read_only",
+            )
         except Exception as e:
             res = AdhocResult(
                 sql_type="",

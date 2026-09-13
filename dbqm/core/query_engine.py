@@ -281,10 +281,14 @@ class AdhocResult:
     elapsed: float = 0.0
     success: bool = True
     error: str = ""
-    #: Which failure this was: "connection" when the database never answered,
-    #: "statement" when it answered and rejected what we sent, "" on success.
-    #: Decided by the call site, not the exception class -- `oracledb` raises
-    #: the same type for a bad password and a missing table.
+    #: Which failure this was: "connection" when the database never
+    #: answered, "statement" when it answered and rejected what we sent,
+    #: "read_only" when the guard refused to send it at all (set only by
+    #: `execute_across`, which is the one caller that can observe a
+    #: `ReadOnlyViolation` raised before any connection attempt), "" on
+    #: success. Decided by the call site, not the exception class --
+    #: `oracledb` raises the same type for a bad password and a missing
+    #: table.
     error_kind: str = ""
     committed: bool = False
     output_lines: list[str] = field(default_factory=list)

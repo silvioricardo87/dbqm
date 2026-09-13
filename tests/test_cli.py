@@ -796,6 +796,37 @@ class TestCmdMulti:
             saida = capsys.readouterr().out
             assert "c1" in saida
 
+    def test_a_read_only_refusal_exits_two_not_three(self, tmp_config_dir, capsys):
+        """`execute_across` tags a `ReadOnlyViolation` `error_kind="read_only"`
+        (core/group_engine.py). `cmd_sql` reports the identical condition as
+        `read_only`/exit 2 -- the two commands must not disagree about what
+        the same event is, so this must not fall through to
+        `connection_failed` (3) just because the guard raised before any
+        driver call."""
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result(
+                "c1", success=False,
+                error="Conexao 'c1' e somente leitura. Use --force-write para enviar assim mesmo.",
+                error_kind="read_only",
+            ),
+            "c2": _make_multi_result("c2"),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-f", "json"])
+            assert exc.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "read_only"
+            assert "c1" in corpo["error"]["message"]
+
     def test_nothing_is_exported_when_a_connection_failed(self, tmp_config_dir):
         """-e given, a connection down: no exporter is called."""
         c1, c2 = _make_connection("c1"), _make_connection("c2")
@@ -1102,6 +1133,43 @@ class TestCmdMulti:
             assert exc.value.code == 2
             mock_find.assert_not_called()
             mock_exec.assert_not_called()
+
+    @pytest.mark.parametrize("sql", [
+        "DELETE FROM t",
+        "DROP TABLE t",
+        "BEGIN NULL; END;",
+    ])
+    def test_non_query_sql_is_refused_before_any_connection_opens(self, tmp_config_dir, sql):
+        """A comparison has no result set to compare when the statement
+        never returns one. `multi` has no `--commit` gate the way `cmd_sql`
+        does -- there is no sense in which comparing DML/DDL/PL/SQL output
+        could ever be meaningful, so it refuses outright, before a single
+        connection is even resolved (never mind opened)."""
+        with patch("dbqm.cli.deps.find_connection") as mock_find, \
+             patch("dbqm.cli.deps.execute_across") as mock_exec:
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", sql, "-c", "c1", "-c", "c2", "-f", "json"])
+            assert exc.value.code == 2
+            mock_find.assert_not_called()
+            mock_exec.assert_not_called()
+
+    def test_duplicate_connection_is_a_usage_error(self, tmp_config_dir, capsys):
+        """`-c prod -c prod` passes the `len(names) >= 2` check but collapses
+        to one entry once `execute_across` keys its result dict by
+        connection name -- a comparison over a single result can only ever
+        report OK. Refused before either connection is resolved."""
+        with patch("dbqm.cli.deps.find_connection") as mock_find, \
+             patch("dbqm.cli.deps.execute_across") as mock_exec:
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "prod", "-c", "prod", "-f", "json"])
+            assert exc.value.code == 2
+            mock_find.assert_not_called()
+            mock_exec.assert_not_called()
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "usage"
+            assert "prod" in corpo["error"]["message"]
 
 
 # ---------------------------------------------------------------------------
