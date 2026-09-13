@@ -151,8 +151,10 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
             # The label is picked by dialect now — a T-SQL batch is not PL/SQL
             # — so what is pinned is the markup, which is what this guard is
             # about, not the wording.
-            'return f"[bold]{block_label(result.db_type)} executado[/]'
-            ' ({result.elapsed:.2f}s)"',
+            (
+                'return f"[bold]{block_label(result.db_type)} executado[/]'
+                ' ({result.elapsed:.2f}s)"'
+            ),
             'f"[bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"',
         ],
         "exec_routine.py": [
@@ -1676,11 +1678,11 @@ def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
     begins."""
     from dbqm.ui.widgets.hierarchical_list import _INDENT, hierarchical_item
 
-    contexto = "\n".join([
-        "Portal ASDADM em ATSSUS ambiente",
-        "da sustentacao Mapfre com",
-        "replicacao",
-    ])
+    contexto = (
+        "Portal ASDADM em ATSSUS ambiente\n"
+        "da sustentacao Mapfre com\n"
+        "replicacao"
+    )
     c = hierarchical_item("ASDADM (ASD)", "Oracle/TNS - ATSSUS", contexto)
     linhas = str(c).split("\n")
     assert len(linhas) == 5

@@ -78,7 +78,7 @@ def common_folder_prefix(folders: list[str]) -> str:
         return ""
     segmentos = [p.split("/") for p in folders]
     comuns: list[str] = []
-    for grupo in zip(*segmentos):
+    for grupo in zip(*segmentos, strict=False):
         if len(set(grupo)) == 1:
             comuns.append(grupo[0])
         else:

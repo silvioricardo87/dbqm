@@ -122,7 +122,7 @@ async def test_param_modal_label_format():
     modal = ParamModal("test", params)
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
-        labels = [l for l in app.screen.query(Label) if "param-label" in l.classes]
+        labels = [w for w in app.screen.query(Label) if "param-label" in w.classes]
         assert len(labels) == 1
         text = labels[0].render().plain
         assert ":apolice" in text

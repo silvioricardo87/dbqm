@@ -208,7 +208,7 @@ class ResultTable(Vertical, can_focus=False):
             # what makes a stacked record scannable.
             cabecalho = escape_markup(f"Registro {base + i + 1}")
             lines = [f"[bold $ds-text-strong]{cabecalho}[/]"]
-            for col, val in zip(str_columns, row):
+            for col, val in zip(str_columns, row, strict=True):
                 display_val = str(val) if val is not None else ""
                 rotulo = f"{escape_markup(col):>{max_col_len}}"
                 valor = escape_markup(display_val)

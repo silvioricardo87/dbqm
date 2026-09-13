@@ -464,22 +464,25 @@ what follows: the floor version, the absence of a lockfile, and the flat layout
 are all consequences of shipping a wheel to strangers rather than an image to a
 cluster.
 
-**Where the project stands on the adoption ladder:** step 0. None of the five
-migration steps in "Adopting the Guide in an Existing Codebase" has run. The
-order in that section is the order to follow — lockfile first, mypy never
-before it. Each item below says whether it is a deliberate deviation or an
-unstarted migration, because the two are not the same debt.
+**Where the project stands on the adoption ladder:** four of the five
+migration steps in "Adopting the Guide in an Existing Codebase" have run
+(2.3.1) — 1, 2, 4 and 5. Step 3, mypy, is the one outstanding, deliberately
+not part of that slice — see `docs/ROADMAP.md` Tier 2 for the measurement
+that makes it its own project. Each item below says whether it is a
+deliberate deviation or an unstarted migration, because the two are not the
+same debt.
 
-### Toolchain — unstarted migration
+### Toolchain — migration status
 
 | Guide | dbqm today | Note |
 |---|---|---|
-| uv, `uv.lock`, PEP 735 groups | pip + `pyproject.toml`, no lockfile | Adoption step 1. `requirements.txt` exists and is **intentionally empty** — dependencies live in `pyproject.toml`; delete it when uv lands. |
-| `uv_build` backend | `setuptools>=68` | Would change with step 1. |
-| ruff (lint + format) | **nothing** | Adoption step 2. This is why `TASK-COMPLETION.md` Step 2 has no command here. |
-| mypy `strict = true` | **nothing** | Adoption step 3. Most of `dbqm/` is unannotated; a strict run would report thousands of findings, which is exactly the failure mode that section warns about. |
+| uv, `uv.lock`, PEP 735 groups | Done | `uv.lock` and `.python-version` are committed. `requirements.txt` does not exist — it was already gone before this migration started, not deleted by it; dependencies live in `pyproject.toml`, untouched by this migration. |
+| `uv_build` backend | `setuptools>=68` | Not adopted — `pyproject.toml`'s build backend was out of scope for step 1, which was the lockfile only. |
+| ruff (lint + format) | Done | `uvx ruff check .` passes over fifteen rule families, chosen by measuring which the code already passed or nearly passed. This is why `TASK-COMPLETION.md` Step 2 now has a command here (see `AGENTS.md`). `ruff format` is not adopted. |
+| mypy `strict = true` | **Pending — its own slice.** | Adoption step 3. Measured at the branch this table was last updated from: **464 findings at `--strict`, 76 at default**. That gap is why a per-module ratchet, not a flag flip, is the only viable way in — see `docs/ROADMAP.md` Tier 2. |
 | pytest-cov, coverage floor | no coverage measured | Test count is tracked instead (see `AGENTS.md`). A count is not coverage. |
-| CI running lint + type gates | only the release workflow | Adoption step 5. Until it exists the gates are manual, therefore optional. |
+| pytest strict config | Done | `--strict-markers`, `--strict-config`, `filterwarnings = error`, `xfail_strict` are all set. |
+| CI running lint + type gates | Done for lint and tests | `.github/workflows/checks.yml` runs the lint gate and the test suite on pull requests and pushes to `main`. It will run mypy too once step 3 lands; today it is separate from the release workflow. |
 
 ### Deliberate deviations
 
@@ -499,11 +502,16 @@ unstarted migration, because the two are not the same debt.
   for another reason.
 - **A hand-maintained `__version__`.** `dbqm/_version.py` holds it and
   `pyproject.toml` reads it via `[tool.setuptools.dynamic]`, which the guide
-  forbids in favour of `importlib.metadata`. The release workflow
-  (`.github/workflows/publish.yml`) guards that the pushed tag equals this file,
-  so the two cannot silently diverge. `VERSIONING.md`'s "never edit version files
-  manually" is therefore **not** satisfied: there is no bump command, the edit is
-  manual, and the tag guard is the only thing catching a mistake.
+  forbids in favour of `[project] version` read through `importlib.metadata`.
+  The release workflow (`.github/workflows/publish.yml`) guards that the
+  pushed tag equals this file, so the two cannot silently diverge.
+  `VERSIONING.md`'s "never edit version files manually" is therefore **not**
+  satisfied: there is no bump command, the edit is manual, and the tag guard
+  is the only thing catching a mistake. This stayed a deliberate deviation
+  through the 2.3.1 toolchain slice: that guard mechanism has already
+  published 2.0.0 and 2.3.0 without incident, so changing the version source
+  now would mean editing a working release pipeline to adopt a convention,
+  not fixing a defect.
 - **Configuration is JSON files plus plain dataclasses** under `~/.dbqm/`
   (`DBQM_HOME` overrides), not pydantic-settings. There is no `Settings` object
   in the guide's sense, and the domain dataclasses (`Connection`, `Query`,

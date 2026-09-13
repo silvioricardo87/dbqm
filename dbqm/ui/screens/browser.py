@@ -207,7 +207,7 @@ class BrowserScreen(Vertical):
         return find_connection(conn_name)
 
     # ------------------------------------------------------------------
-    # Reactions: connection / type / filter
+    # Reacts to changes on the connection, type and filter selectors.
     # ------------------------------------------------------------------
 
     def on_select_changed(self, event: Select.Changed) -> None:

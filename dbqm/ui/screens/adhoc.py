@@ -397,7 +397,7 @@ class AdhocScreen(Vertical):
         if sql_type == "SELECT":
             parsed = parse_sql(sql)
             return parsed.get("table", "")
-        elif sql_type == "DDL":
+        if sql_type == "DDL":
             # Extract object name from DDL (CREATE/ALTER/DROP ... TYPE NAME)
             m = re.search(
                 r"(?:CREATE\s+(?:OR\s+REPLACE\s+)?|ALTER\s+|DROP\s+)"
@@ -406,12 +406,11 @@ class AdhocScreen(Vertical):
                 sql, re.IGNORECASE,
             )
             return m.group(1) if m else ""
-        else:
-            tbl_match = re.search(
-                r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\S+)",
-                sql, re.IGNORECASE,
-            )
-            return tbl_match.group(1) if tbl_match else ""
+        tbl_match = re.search(
+            r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\S+)",
+            sql, re.IGNORECASE,
+        )
+        return tbl_match.group(1) if tbl_match else ""
 
     def _push_param_modal_for_execution(self, param_names: list[str]) -> None:
         """Push ParamModal for detected parameters."""

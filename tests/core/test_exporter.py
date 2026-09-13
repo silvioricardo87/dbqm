@@ -45,8 +45,8 @@ class TestHelpers:
 
     def test_build_query_txt_lines(self, sample_query_result):
         lines = _build_query_txt_lines(sample_query_result)
-        assert any("test_query" in l for l in lines)
-        assert any("Alice" in l for l in lines)
+        assert any("test_query" in line for line in lines)
+        assert any("Alice" in line for line in lines)
 
     def test_build_query_txt_lines_empty(self):
         from dbqm.core.query_engine import QueryResult
@@ -59,7 +59,7 @@ class TestQueryExports:
     def test_csv(self, tmp_config_dir, sample_query_result):
         path = export_query_csv(sample_query_result, "employees")
         assert Path(path).exists()
-        with open(path) as f:
+        with Path(path).open() as f:
             reader = csv.reader(f)
             rows = list(reader)
         assert rows[0] == ["id", "name", "value"]

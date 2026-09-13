@@ -92,7 +92,7 @@ class TestConfigPortabilityTemplates:
 
         path = export_configs("pass")
 
-        # Clear and reimport
+        # reset local state before importing the exported file back in
         save_templates([])
         save_connections([])
 

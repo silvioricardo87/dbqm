@@ -480,7 +480,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 elapsed=elapsed,
                 output_lines=output_lines,
             )
-        elif sql_type == "DDL":
+        if sql_type == "DDL":
             cursor.close()
             # For DDL on Oracle, check compilation errors if applicable
             compilation_errors = _fetch_ddl_errors(db, sql, conn.db_type)
@@ -496,7 +496,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 error=compilation_errors,
                 success=not compilation_errors,
             )
-        elif sql_type == "PLSQL":
+        if sql_type == "PLSQL":
             output_lines = _read_dbms_output(cursor) if capture_dbms_output else []
             columns: list[str] = []
             rows: list[list[Any]] = []
@@ -523,7 +523,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 success=True,
                 output_lines=output_lines,
             )
-        elif sql_type == "EXPLAIN":
+        if sql_type == "EXPLAIN":
             # Oracle EXPLAIN PLAN inserts into PLAN_TABLE — no result set.
             # PostgreSQL/MySQL EXPLAIN returns the plan as rows.
             if cursor.description:
@@ -554,35 +554,33 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 committed=True,
                 success=True,
             )
-        else:
-            rows_affected = cursor.rowcount
-            output_lines = _read_dbms_output(cursor) if capture_dbms_output else []
-            if auto_commit:
-                db.commit()
-                cursor.close()
-                return AdhocResult(
-                    sql_type=sql_type,
-                    connection_name=conn.name,
-                    sql=original_sql,
-                    db_type=conn.db_type,
-                    rows_affected=rows_affected,
-                    elapsed=elapsed,
-                    committed=True,
-                    output_lines=output_lines,
-                )
-            else:
-                # Caller owns the connection for commit/rollback
-                owned_db = db
-                db = None  # prevent finally from closing it
-                return AdhocResult(
-                    sql_type=sql_type,
-                    connection_name=conn.name,
-                    sql=original_sql,
-                    db_type=conn.db_type,
-                    rows_affected=rows_affected,
-                    elapsed=elapsed,
-                    output_lines=output_lines,
-                ), owned_db
+        rows_affected = cursor.rowcount
+        output_lines = _read_dbms_output(cursor) if capture_dbms_output else []
+        if auto_commit:
+            db.commit()
+            cursor.close()
+            return AdhocResult(
+                sql_type=sql_type,
+                connection_name=conn.name,
+                sql=original_sql,
+                db_type=conn.db_type,
+                rows_affected=rows_affected,
+                elapsed=elapsed,
+                committed=True,
+                output_lines=output_lines,
+            )
+        # Caller owns the connection for commit/rollback
+        owned_db = db
+        db = None  # prevent finally from closing it
+        return AdhocResult(
+            sql_type=sql_type,
+            connection_name=conn.name,
+            sql=original_sql,
+            db_type=conn.db_type,
+            rows_affected=rows_affected,
+            elapsed=elapsed,
+            output_lines=output_lines,
+        ), owned_db
 
     except Exception as e:
         return AdhocResult(
@@ -816,7 +814,7 @@ def parse_dml_literals(sql: str) -> dict[str, str]:
             cols = [c.strip() for c in col_match.group(1).split(",")]
             raw_vals = re.findall(r"'([^']*)'|(\d+(?:\.\d+)?)", val_match.group(1))
             vals = [v[0] if v[0] else v[1] for v in raw_vals]
-            for col, val in zip(cols, vals):
+            for col, val in zip(cols, vals, strict=False):
                 literals[col.lower()] = val
 
     elif sql_type == "UPDATE":

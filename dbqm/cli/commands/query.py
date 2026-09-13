@@ -23,8 +23,10 @@ from dbqm.cli.render import console
 # by text and remaps it here; anything else really is `sql_error`.
 _USAGE_SQL_MESSAGES = (
     "Apenas comandos SELECT sao permitidos.",
-    "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL "
-    "(CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+    (
+        "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL "
+        "(CREATE/ALTER/DROP...) ou EXPLAIN PLAN."
+    ),
     "Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
 )
 

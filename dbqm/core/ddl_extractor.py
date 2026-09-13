@@ -245,9 +245,9 @@ def _build_constraint_ddl_fallback(
 
     if c_type == "P":
         return f"ALTER TABLE {owner}.{table_name} ADD CONSTRAINT {c_name} PRIMARY KEY ({col_list});"
-    elif c_type == "U":
+    if c_type == "U":
         return f"ALTER TABLE {owner}.{table_name} ADD CONSTRAINT {c_name} UNIQUE ({col_list});"
-    elif c_type == "R":
+    if c_type == "R":
         ref = ""
         if r_owner and r_cname:
             ref_cols = _query_all(cursor, """
@@ -260,7 +260,7 @@ def _build_constraint_ddl_fallback(
                 ref_col_list = ", ".join(c[1] for c in ref_cols)
                 ref = f" REFERENCES {r_owner}.{ref_table} ({ref_col_list})"
         return f"ALTER TABLE {owner}.{table_name} ADD CONSTRAINT {c_name} FOREIGN KEY ({col_list}){ref};"
-    elif c_type == "C":
+    if c_type == "C":
         cond = search_cond.strip() if search_cond else ""
         return f"ALTER TABLE {owner}.{table_name} ADD CONSTRAINT {c_name} CHECK ({cond});"
     return f"-- Constraint {c_name} type={c_type}"
@@ -399,7 +399,7 @@ def _parse_routines(source: str) -> dict[str, dict]:
     if not matches:
         return routines
 
-    for i, m in enumerate(matches):
+    for _i, m in enumerate(matches):
         rtype = m.group(1).upper()
         rname = m.group(2)
         start = m.start()
@@ -447,7 +447,7 @@ def _find_routine_end(source: str, offset: int, routine_name: str) -> int:
 
     for tok in token_pattern.finditer(source, pos):
         g = tok.group(0).upper()
-        if g.startswith("'") or g.startswith("--") or g.startswith("/*"):
+        if g.startswith(("'", "--", "/*")):
             continue
         if g in ("BEGIN", "CASE"):
             depth += 1
