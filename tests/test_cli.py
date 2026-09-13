@@ -88,7 +88,7 @@ class TestBuildParser:
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "sql", "test", "list", "ddl",
                     "export-config", "import-config", "history", "connection",
-                    "objects", "describe"}
+                    "objects", "describe", "rows"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -2426,3 +2426,108 @@ class TestCmdDescribe:
         assert "IX_PED_CLI" in saida, "and so do the indexes"
         assert "TABLE" in saida
         assert "VIEW" not in saida, "a table with no definition is not a view"
+
+
+class TestCmdRows:
+    def test_json_carries_rows_as_parallel_arrays(self, capsys):
+        """Same rule 2.0.0 settled for `run`/`sql`: arrays, not objects keyed
+        by column, because a repeated column name drops a value."""
+        import json
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="PEDIDOS", connection_name="conexao",
+            columns=["ID", "VALOR"], rows=[[1, "10.50"], [2, "20.00"]],
+            row_count=2, total_count=1284, elapsed=0.12, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "PEDIDOS", "conexao", "-f", "json"])
+
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "rows"
+        assert corpo["data"]["rows"] == [[1, "10.50"], [2, "20.00"]]
+        assert corpo["data"]["total_count"] == 1284
+
+    def test_limit_and_offset_reach_the_core_call(self):
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        vazio = BrowseResult(table="T", connection_name="c", columns=[], rows=[],
+                             row_count=0, total_count=0, elapsed=0.0,
+                             limit=10, offset=50)
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=vazio) as mock_browse:
+            run_cli(["rows", "PEDIDOS", "conexao", "--limit", "10",
+                     "--offset", "50", "-f", "json"])
+
+        assert mock_browse.call_args.kwargs["limit"] == 10
+        assert mock_browse.call_args.kwargs["offset"] == 50
+
+    def test_a_negative_limit_is_usage_not_a_database_call(self, capsys):
+        """Validation happens before the connection opens: a bad flag should
+        not cost a round trip."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection") as mock_open:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "PEDIDOS", "conexao", "--limit", "-5", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 2
+        mock_open.assert_not_called()
+
+    def test_a_rejected_table_name_is_sql_error(self, capsys):
+        """`browse_table` validates the identifier and raises; that is the
+        statement failing, not the connection."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table",
+                   side_effect=ValueError("Identificador invalido")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["rows", "PEDIDOS; DROP TABLE X", "conexao", "-f", "json"])
+
+        assert capsys.readouterr().out == ""
+        assert saiu.value.code == 4
+
+    def test_raw_format_prints_values_with_no_decoration(self, capsys):
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="T", connection_name="c", columns=["TEXTO"],
+            rows=[["linha um"], ["linha dois"]],
+            row_count=2, total_count=2, elapsed=0.0, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "T", "conexao", "-f", "raw"])
+
+        saida = capsys.readouterr().out
+        # Exact equality, not a substring check: Rich renders `table` format
+        # with unicode box-drawing characters here (no ASCII "|"), so a
+        # "|" not in saida" check cannot tell raw apart from table -- it
+        # would pass even if `args.format` were hardcoded to "table" below.
+        assert saida == "linha um\nlinha dois\n"

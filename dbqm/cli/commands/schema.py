@@ -8,7 +8,7 @@ from typing import NoReturn
 from rich.markup import escape
 from rich.table import Table
 
-from dbqm.cli import deps
+from dbqm.cli import deps, render
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
@@ -152,3 +152,44 @@ def cmd_describe(args: argparse.Namespace) -> None:
     if definicao:
         console.print("\nDEFINICAO")
         console.print(definicao, markup=False, highlight=False)
+
+
+def cmd_rows(args: argparse.Namespace) -> None:
+    """Browse a table's rows, paged.
+
+    No `--where`: `dbqm sql` already takes a predicate, and a filter
+    expression here would be injection surface bought for nothing.
+    """
+    if args.limit < 1:
+        _fail_or_print(args, "rows", "usage", "--limit deve ser maior que zero.")
+    if args.offset < 0:
+        _fail_or_print(args, "rows", "usage", "--offset nao pode ser negativo.")
+
+    conn = deps.find_connection(args.connection)
+    if not conn:
+        _fail_or_print(args, "rows", "not_found",
+                       f"Conexao '{args.connection}' nao encontrada.")
+
+    resultado = _with_open_connection(
+        args, "rows", conn,
+        lambda db: deps.browse_table(
+            db, conn.db_type, args.table, conn.name,
+            limit=args.limit, offset=args.offset,
+        ),
+    )
+
+    if args.format == "json":
+        ok("rows", resultado.to_dict())
+        return
+
+    render._print_query_result(
+        deps.QueryResult(
+            query_name=resultado.table,
+            connection_name=conn.name,
+            columns=resultado.columns,
+            rows=resultado.rows,
+            row_count=resultado.row_count,
+            elapsed=resultado.elapsed,
+        ),
+        args.format,
+    )

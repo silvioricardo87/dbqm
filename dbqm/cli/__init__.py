@@ -9,7 +9,7 @@ from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_run, cmd_run_group, cmd_sql
-from dbqm.cli.commands.schema import cmd_describe, cmd_objects
+from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
 from dbqm.cli.params import _add_connection_fields, _parse_params, resolve_password
 from dbqm.cli.render import _print_query_result, console, rich_theme
 
@@ -117,6 +117,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_describe.add_argument("-f", "--format", choices=["table", "json"],
                             default="table", help="Formato de saida")
 
+    # --- rows ---
+    p_rows = subparsers.add_parser("rows", help="Listar linhas de uma tabela")
+    p_rows.add_argument("table", help="Nome da tabela")
+    p_rows.add_argument("connection", help="Nome da conexao")
+    p_rows.add_argument("--limit", type=int, default=100,
+                        help="Quantas linhas trazer (padrao: 100)")
+    p_rows.add_argument("--offset", type=int, default=0,
+                        help="A partir de qual linha (padrao: 0)")
+    p_rows.add_argument("-f", "--format", choices=["table", "json", "csv", "raw"],
+                        default="table", help="Formato de saida")
+
     # --- export-config ---
     p_exp = subparsers.add_parser("export-config", help="Exportar configuracoes para bundle .dbqm")
     p_exp.add_argument("--password",
@@ -198,6 +209,7 @@ COMMAND_MAP = {
     "connection": cmd_connection,
     "objects": cmd_objects,
     "describe": cmd_describe,
+    "rows": cmd_rows,
 }
 
 
