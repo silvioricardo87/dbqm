@@ -205,6 +205,36 @@ class TestExecuteAcross:
         assert results["bad"].error_kind == "connection"
         assert results["good"].success is True
 
+    def test_a_read_only_violation_is_tagged_distinctly_from_a_connection_failure(
+        self, monkeypatch
+    ):
+        """`ReadOnlyViolation` is a `RuntimeError` (the same base the generic
+        `except Exception` below it would also catch), and `check_read_only`
+        raises it before any connection attempt -- the guard refused to send
+        the statement, which is not the same fact as the database never
+        answering. Caught first and tagged its own `error_kind` so a caller
+        does not report a healthy, refused-on-purpose connection as failed."""
+        from dbqm.core.read_only import ReadOnlyViolation
+
+        def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
+            if conn.name == "prod":
+                raise ReadOnlyViolation(
+                    "Conexao 'prod' e somente leitura. Use --force-write para "
+                    "enviar assim mesmo."
+                )
+            return AdhocResult(
+                sql_type="SELECT", connection_name=conn.name,
+                columns=["ID"], rows=[[1]],
+            )
+
+        monkeypatch.setattr("dbqm.core.query_engine.execute_adhoc", fake_execute_adhoc)
+
+        results = execute_across("DELETE FROM t", _resolved("prod", "homolog"), {})
+
+        assert results["prod"].success is False
+        assert results["prod"].error_kind == "read_only"
+        assert results["homolog"].success is True
+
     def test_an_already_unsuccessful_result_keeps_its_own_error_kind(self, monkeypatch):
         def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
             return AdhocResult(

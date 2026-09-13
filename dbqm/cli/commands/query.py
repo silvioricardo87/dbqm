@@ -15,6 +15,8 @@ from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
+from dbqm.core.group_engine import GroupResult
+from dbqm.models.connection import Connection
 
 # `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
 # error string — the statement was never sent to the driver, so calling it
@@ -42,12 +44,18 @@ def _sql_error_code(message: str | None, error_kind: str = "") -> str:
     """The token for a failed result.
 
     `connection` wins over everything: the database never answered, so
-    nothing about the statement is known. Otherwise `usage` for the two
-    known bad-input messages `core/` can return, and `sql_error` for the
-    rest -- the driver rejected or failed on a statement actually sent.
+    nothing about the statement is known. `read_only` is next -- the guard
+    refused to send the statement at all, which `cmd_sql` already reports as
+    `read_only`/exit 2, and `execute_across` (`group_engine.py`) tags the
+    same way so the two commands agree about what the same event is.
+    Otherwise `usage` for the two known bad-input messages `core/` can
+    return, and `sql_error` for the rest -- the driver rejected or failed on
+    a statement actually sent.
     """
     if error_kind == "connection":
         return "connection_failed"
+    if error_kind == "read_only":
+        return "read_only"
     if message in _USAGE_SQL_MESSAGES:
         return "usage"
     if message and message.startswith(_UNSUPPORTED_EXPLAIN_PREFIX):
@@ -73,6 +81,46 @@ def _fail_or_print(
     if extra:
         console.print(extra)
     sys.exit(int(exit_for(code)))
+
+
+def _export_group(
+    args: argparse.Namespace,
+    command: str,
+    group_result: GroupResult,
+    param_values: dict[str, str],
+) -> str:
+    """Both export arms (flat and full) for a `GroupResult`, and both
+    `usage` fall-throughs, shared by every command that exports one.
+
+    `command` names the caller in the failure envelope — `run-group` and
+    `multi` are different commands, and a hard-coded name here would make
+    one of them lie about which command produced the failure.
+
+    Does not include the `--flat`-with-`html` refusal: that fires as the
+    caller's first statement, before any query runs, so it stays there.
+    """
+    fmt = args.export
+    if args.flat:
+        if fmt == "csv":
+            path = deps.export_group_flat_csv(group_result, param_values)
+        elif fmt == "json":
+            path = deps.export_group_flat_json(group_result, param_values)
+        elif fmt == "txt":
+            path = deps.export_group_flat_txt(group_result, param_values)
+        else:
+            _fail_or_print(args, command, "usage", f"Formato de export invalido: {fmt}")
+    else:
+        if fmt == "csv":
+            path = deps.export_group_csv(group_result, param_values)
+        elif fmt == "json":
+            path = deps.export_group_json(group_result, param_values)
+        elif fmt == "txt":
+            path = deps.export_group_txt(group_result, param_values)
+        elif fmt == "html":
+            path = deps.export_group_html(group_result, param_values)
+        else:
+            _fail_or_print(args, command, "usage", f"Formato de export invalido: {fmt}")
+    return path
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -223,27 +271,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # headline behaviour of this release out with a flag.
     if args.export:
         fmt = args.export
-        flat = args.flat
-        if flat:
-            if fmt == "csv":
-                path = deps.export_group_flat_csv(group_result, param_values)
-            elif fmt == "json":
-                path = deps.export_group_flat_json(group_result, param_values)
-            elif fmt == "txt":
-                path = deps.export_group_flat_txt(group_result, param_values)
-            else:
-                _fail_or_print(args, "run-group", "usage", f"Formato de export invalido: {fmt}")
-        else:
-            if fmt == "csv":
-                path = deps.export_group_csv(group_result, param_values)
-            elif fmt == "json":
-                path = deps.export_group_json(group_result, param_values)
-            elif fmt == "txt":
-                path = deps.export_group_txt(group_result, param_values)
-            elif fmt == "html":
-                path = deps.export_group_html(group_result, param_values)
-            else:
-                _fail_or_print(args, "run-group", "usage", f"Formato de export invalido: {fmt}")
+        path = _export_group(args, "run-group", group_result, param_values)
         if args.format == "json":
             ok("run-group", {"exported": str(path), "format": fmt})
         else:
@@ -275,6 +303,213 @@ def cmd_run_group(args: argparse.Namespace) -> None:
 
     status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
     console.print(f"Grupo: {group_result.group_name} — {status}")
+    for line in render._colored_comparison_lines(group_result.comparisons):
+        console.print(f"  {line}")
+    if not group_result.all_match:
+        sys.exit(int(exit_for("divergent")))
+
+
+def _multi_failure_code(codes: list[str]) -> str:
+    """The one exit token for a set of failing connections.
+
+    Order-independent on purpose: `-c a -c b` and `-c b -c a` over the same
+    failures must exit the same way, so this looks at the whole set rather
+    than the first entry. `connection_failed` outranks everything else --
+    the database never answered, which is the more urgent fact to report --
+    and `usage` outranks `sql_error` so a statement that never reached any
+    driver is not reported as one the driver rejected.
+    """
+    if "connection_failed" in codes:
+        return "connection_failed"
+    if "read_only" in codes:
+        return "read_only"
+    if "usage" in codes:
+        return "usage"
+    return "sql_error"
+
+
+def cmd_multi(args: argparse.Namespace) -> None:
+    """Run one ad-hoc SQL across several connections and compare the results.
+
+    Order matters here and is the whole point: `--flat`+`html`, fewer than
+    two *distinct* connections, and any SQL that is not a query are all
+    refused before anything opens -- a comparison has no result set to
+    compare if the statement never returns one, so `multi` refuses DML, DDL
+    and PL/SQL outright rather than running them across every connection
+    first and discovering that after the fact. Every connection name is then
+    resolved before any of them is opened, so a bad name is reported without
+    a single query having run; and once `execute_across` has run every
+    resolved connection, any unsuccessful one fails the whole command -- a
+    comparison over a subset would silently answer a different question
+    than the one asked.
+    """
+    if args.export == "html" and args.flat:
+        _fail_or_print(args, "multi", "usage",
+                       "--flat nao tem versao HTML. Use --export html sem --flat, "
+                       "ou --flat com csv, json ou txt.")
+
+    names = args.connection or []
+    # Order-preserving de-duplication: `-c prod -c prod` collapses to one
+    # entry once `execute_across` keys its result dict by connection name,
+    # so a comparison would run over a single result and could only ever
+    # report OK -- the same class of silent wrong answer as the other
+    # refusals below, reached through dict collapse instead of `all([])`.
+    seen: dict[str, int] = {}
+    for name in names:
+        seen[name] = seen.get(name, 0) + 1
+    distinct_names = list(seen)
+    if len(distinct_names) < 2:
+        repeated = [name for name, count in seen.items() if count > 1]
+        if repeated:
+            _fail_or_print(
+                args, "multi", "usage",
+                f"Conexao '{repeated[0]}' repetida. Informe pelo menos duas "
+                "conexoes distintas com -c/--connection.",
+            )
+        _fail_or_print(args, "multi", "usage",
+                       "Informe pelo menos duas conexoes com -c/--connection.")
+    names = distinct_names
+
+    sql = args.sql
+    sql_path = Path(sql)
+    if sql_path.is_file():
+        sql = sql_path.read_text(encoding="utf-8")
+
+    # A comparison needs a result set to compare, and only SELECT/EXPLAIN
+    # produce one. Refusing here -- before any connection is even resolved,
+    # let alone opened -- is what keeps `multi "DELETE FROM t"` from running
+    # the delete on every connection and only then discovering there is
+    # nothing to compare: `execute_adhoc` has no `--commit` gate to lean on
+    # here the way `cmd_sql` does, because there is no sense in which a
+    # comparison of DML output could ever be meaningful.
+    sql_type = deps.classify_sql(sql)
+    if sql_type not in ("SELECT", "EXPLAIN"):
+        _fail_or_print(
+            args, "multi", "usage",
+            f"multi compara resultados de consultas (SELECT ou EXPLAIN); "
+            f"recebido: {sql_type}.",
+        )
+
+    resolved: list[tuple[str, Connection | None]] = []
+    for name in names:
+        conn = deps.find_connection(name)
+        if not conn:
+            _fail_or_print(args, "multi", "not_found", f"Conexao '{name}' nao encontrada.")
+        resolved.append((name, conn))
+
+    param_values = _parse_params(args.param, args, "multi")
+
+    results = deps.execute_across(sql, resolved, param_values)
+
+    failing = [(name, result) for name, result in results.items() if not result.success]
+    if failing:
+        # Named per connection with what actually happened -- a statement
+        # error is the database answering, not the connection failing, a
+        # read-only refusal is neither (the guard never sent the statement
+        # at all -- `cmd_sql` reports the identical condition as `read_only`,
+        # exit 2, and the two commands must not disagree about what the same
+        # event is), and `_sql_error_code` is what tells all of these apart
+        # (it also catches the messages `core/` returns for a statement
+        # never sent to any driver, which a plain connection/sql_error
+        # dichotomy mislabelled as `sql_error`). The aggregate exit code
+        # does not depend on which failing connection happens to come first
+        # -- see `_multi_failure_code` -- and every failing connection is
+        # named, not just one.
+        codes = [_sql_error_code(result.error, result.error_kind) for _, result in failing]
+        parts = []
+        for (name, result), code in zip(failing, codes, strict=True):
+            if code == "connection_failed":
+                parts.append(f"Falha na conexao '{name}': {result.error}")
+            elif code == "read_only":
+                parts.append(f"Somente leitura em '{name}': {result.error}")
+            elif code == "usage":
+                parts.append(f"Erro de uso em '{name}': {result.error}")
+            else:
+                parts.append(f"Erro na consulta em '{name}': {result.error}")
+        _fail_or_print(args, "multi", _multi_failure_code(codes), "; ".join(parts))
+
+    try:
+        join_key, compare_columns = deps.derive_comparison_columns(results)
+    except deps.NoComparableColumns as e:
+        _fail_or_print(args, "multi", "validation", str(e))
+
+    common = [join_key, *compare_columns]
+
+    if args.key:
+        # A key that is not common to every result is the same trap as
+        # passing no `compare_columns` at all: `run_comparison` would index
+        # it to `None` in every result, every key set would come back empty,
+        # and `all([])` is `True` over rows it never actually looked at.
+        # Refused here rather than left to that indexing, naming the column.
+        if args.key not in common:
+            _fail_or_print(
+                args, "multi", "validation",
+                f"Coluna de chave '{args.key}' nao e comum a todas as conexoes.",
+            )
+        # Re-deriving instead of trusting `build_adhoc_group_result`'s own
+        # `join_key`-given branch to leave `compare_columns` alone: that
+        # branch defaults `compare_columns` to `[]` when none is passed,
+        # which silently compares nothing -- `--key` would report
+        # CONSISTENTE over data it never looked at. Removing the requested
+        # key from the derived common-column list keeps every other common
+        # column in the comparison instead.
+        compare_columns = [c for c in common if c != args.key]
+        join_key = args.key
+
+    if not compare_columns:
+        # Reachable with or without `--key`: when the only column common to
+        # every result is the join key itself, `derive_comparison_columns`
+        # deliberately returns `(key, [])` -- core decides nothing about
+        # whether that is enough, on purpose (see
+        # `test_one_common_column_compares_nothing_but_still_has_a_key`).
+        # `cmd_multi` decides for itself: a comparison of zero columns would
+        # report CONSISTENTE regardless of what the rows actually say, so it
+        # refuses instead of running one.
+        _fail_or_print(
+            args, "multi", "validation",
+            f"Coluna '{join_key}' e a unica comum a todas as conexoes; "
+            "nao ha coluna para comparar.",
+        )
+
+    group_result = deps.build_adhoc_group_result(
+        results, join_key=join_key, compare_columns=compare_columns,
+    )
+
+    if args.export:
+        fmt = args.export
+        path = _export_group(args, "multi", group_result, param_values)
+        if args.format == "json":
+            ok("multi", {"exported": str(path), "format": fmt, "join_key": join_key})
+        else:
+            console.print(f"Exportado: {path}")
+        if not group_result.all_match:
+            sys.exit(int(exit_for("divergent")))
+        return
+
+    if args.format == "json":
+        data = {
+            "join_key": join_key,
+            "all_match": group_result.all_match,
+            "comparisons": [
+                {
+                    "column": c.column,
+                    "total_keys": c.total_keys,
+                    "equal_count": c.equal_count,
+                    "diff_count": c.diff_count,
+                    "absent_count": c.absent_count,
+                    "normalized_count": c.normalized_count,
+                }
+                for c in group_result.comparisons
+            ],
+        }
+        ok("multi", data)
+        if not group_result.all_match:
+            sys.exit(int(exit_for("divergent")))
+        return
+
+    status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
+    conexoes = ", ".join(results)
+    console.print(f"Multi ({conexoes}) — chave: {join_key} — {status}")
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
     if not group_result.all_match:

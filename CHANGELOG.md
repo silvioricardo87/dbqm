@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.5.0] — 2026-09-13
+
+A MINOR release: a new command.
+
+### Added
+
+- **`dbqm multi "<sql>" -c prod -c homolog [-c ...]`** — runs one ad-hoc SQL
+  across several connections and compares the results. This is the flow the
+  TUI's Multi-Exec tab has always had and the CLI never did; `run-group`
+  only ever ran *saved* groups of *saved* queries. At least two connections
+  are required. `--key` overrides the join column, and the key actually
+  used is reported — in the `-f json` envelope and in the `-f table`
+  header — because a key derived by a rule the caller cannot see turns
+  every number downstream into a guess. Exits `5` on divergence like
+  `run-group`, `3` when a database never answered, `4` when one answered
+  and rejected the statement, `2` for a usage, not-found or validation
+  failure. A failed connection stops the command and exports nothing: a
+  comparison over a subset silently answers a different question than the
+  one asked. (The ad-hoc comparison itself moved out of
+  `ui/screens/group_exec.py` and into `core/` in 2.4.1, precisely so a
+  second front end could reach it — this is that front end.)
+- **`_export_group`** (`cli/commands/query.py`) — the group export is now
+  one code path shared by `run-group` and `multi`, rather than a branch
+  copied per command.
+
+### Fixed
+
+- **`multi` refuses, rather than answers, three shapes of comparison that
+  would compare nothing:** an explicit `--key` naming a column not common
+  to every result; a set of results sharing exactly one column; and `--key`
+  naming that sole column. All three previously produced "everything
+  matches" over data never compared.
+- **`multi` refuses SQL that is not a query, before opening a single
+  connection.** It had no `--commit` gate the way `cmd_sql` does, so
+  `multi "DELETE FROM t" -c prod -c homolog` ran the delete on every
+  connection (uncommitted) and only then failed with "no comparable
+  columns" — a comparison has no result set to compare when the statement
+  never returns one. Refuses DML, DDL and PL/SQL with `usage` up front;
+  allows only `SELECT` and `EXPLAIN`.
+- **A read-only connection is reported as `read_only`/exit 2, not
+  `connection_failed`/exit 3.** `execute_across` (`core/group_engine.py`)
+  tagged a `ReadOnlyViolation` the same as an unreachable host, so the
+  message read "Falha na conexao" for a connection that was never
+  unreachable — it was refused on purpose, the same condition `cmd_sql`
+  already reports as `read_only`. The two commands now agree about what
+  the same event is.
+- **`-c prod -c prod` no longer compares a database with itself.**
+  `execute_across` keys its result dict by connection name, so a repeated
+  `-c` collapsed to one entry and a comparison over a single result could
+  only ever report CONSISTENTE. `multi` now de-duplicates its connection
+  names and refuses with `usage`, naming the repeated one, unless at least
+  two *distinct* connections remain.
+
+The TUI's Multi-Exec tab is unchanged; its tests were the check.
+
 ## [2.4.1] — 2026-09-13
 
 A PATCH release, and a pure refactor: nothing a user runs behaves
