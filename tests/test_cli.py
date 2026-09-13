@@ -1155,7 +1155,9 @@ class TestConnectionAdd:
             "connection", "add", "j", "--type", "mysql", "--no-password",
             "-f", "json",
         ], monkeypatch)
-        assert json.loads(capsys.readouterr().out) == {"name": "j", "created": True}
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "connection.add"
+        assert corpo["data"] == {"name": "j", "created": True}
 
     def test_bare_connection_command_exits_2(self, tmp_config_dir, monkeypatch):
         with pytest.raises(SystemExit) as exc:
@@ -1339,7 +1341,9 @@ class TestConnectionUpdate:
         self._seed(monkeypatch)
         capsys.readouterr()
         run_cli(["connection", "update", "alvo", "--host", "h", "-f", "json"])
-        assert json.loads(capsys.readouterr().out) == {"name": "alvo", "updated": True}
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "connection.update"
+        assert corpo["data"] == {"name": "alvo", "updated": True}
 
 
 class TestConnectionRemoveAndList:
@@ -1406,7 +1410,9 @@ class TestConnectionRemoveAndList:
         monkeypatch.setattr("builtins.input", lambda prompt="": "n")
         capsys.readouterr()
         run_cli(["connection", "rm", "alvo", "-f", "json"])
-        assert json.loads(capsys.readouterr().out) == {"name": "alvo", "removed": False}
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "connection.rm"
+        assert corpo["data"] == {"name": "alvo", "removed": False}
         assert find_connection("alvo") is not None
 
     def test_rm_json_format_reports_the_outcome(self, tmp_config_dir, monkeypatch, capsys):
@@ -1415,9 +1421,14 @@ class TestConnectionRemoveAndList:
         self._seed(monkeypatch)
         capsys.readouterr()
         run_cli(["connection", "rm", "alvo", "--yes", "-f", "json"])
-        assert json.loads(capsys.readouterr().out) == {"name": "alvo", "removed": True}
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "connection.rm"
+        assert corpo["data"] == {"name": "alvo", "removed": True}
 
     def test_list_matches_list_connections(self, tmp_config_dir, monkeypatch, capsys):
+        """`connection list` now speaks the envelope; `list connections`
+        does not until Task 6 migrates it, so only the wrapped array can be
+        compared against the still-bare one."""
         from dbqm.cli import run_cli
 
         self._seed(monkeypatch, "a")
@@ -1426,12 +1437,14 @@ class TestConnectionRemoveAndList:
         capsys.readouterr()
         run_cli(["connection", "list", "-f", "json"])
         via_group = json.loads(capsys.readouterr().out)
+        assert via_group["ok"] is True
+        assert via_group["command"] == "connection.list"
 
         run_cli(["list", "connections", "-f", "json"])
         via_list = json.loads(capsys.readouterr().out)
 
-        assert via_group == via_list
-        assert [item["name"] for item in via_group] == ["a", "b"]
+        assert via_group["data"] == via_list
+        assert [item["name"] for item in via_group["data"]] == ["a", "b"]
 
 
 class TestConnectionShow:
@@ -1445,10 +1458,11 @@ class TestConnectionShow:
 
         capsys.readouterr()
         run_cli(["connection", "show", "alvo", "-f", "json"])
-        data = json.loads(capsys.readouterr().out)
+        corpo = json.loads(capsys.readouterr().out)
+        data = corpo["data"]
 
         assert data["password"] == "***"
-        assert "s3cret" not in json.dumps(data)
+        assert "s3cret" not in json.dumps(corpo)
         assert data["host"] == "h"
 
     def test_show_reports_an_empty_password_as_empty(self, tmp_config_dir,
@@ -1458,7 +1472,7 @@ class TestConnectionShow:
         run_cli(["connection", "add", "sem", "--type", "mysql", "--no-password"])
         capsys.readouterr()
         run_cli(["connection", "show", "sem", "-f", "json"])
-        assert json.loads(capsys.readouterr().out)["password"] == ""
+        assert json.loads(capsys.readouterr().out)["data"]["password"] == ""
 
     def test_show_unknown_name_exits_2(self, tmp_config_dir, monkeypatch):
         from dbqm.cli import run_cli
@@ -1550,3 +1564,97 @@ class TestEmptyStdinHint:
         assert getattr(args_conn, "no_password", None) is not None
         args_bundle = parser.parse_args(["export-config"])
         assert getattr(args_bundle, "no_password", None) is None
+
+
+class TestConnectionEnvelope:
+    """The contract, proved on the group that already spoke JSON."""
+
+    def _seed(self):
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "alvo", "--type", "mysql",
+                 "--host", "h", "--no-password"])
+
+    def test_show_wraps_the_connection_in_data(self, tmp_config_dir, capsys):
+        import json
+
+        from dbqm.cli import run_cli
+
+        self._seed()
+        capsys.readouterr()
+        run_cli(["connection", "show", "alvo", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+
+        assert corpo["ok"] is True
+        assert corpo["command"] == "connection.show"
+        assert corpo["data"]["name"] == "alvo"
+        assert corpo["data"]["password"] == "", "redaction survives the envelope"
+
+    def test_list_wraps_the_array_in_data(self, tmp_config_dir, capsys):
+        import json
+
+        from dbqm.cli import run_cli
+
+        self._seed()
+        capsys.readouterr()
+        run_cli(["connection", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert [c["name"] for c in corpo["data"]] == ["alvo"]
+
+    def test_a_missing_name_leaves_stdout_parseable(self, tmp_config_dir, capsys):
+        """The defect this whole sub-project exists for."""
+        import json
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "show", "inexistente", "-f", "json"])
+        assert exc.value.code == 2
+
+        saida = capsys.readouterr()
+        assert saida.out == "", "stdout must be empty, not prose"
+        erro = json.loads(saida.err)
+        assert erro["ok"] is False
+        assert erro["error"]["code"] == "not_found"
+
+    def test_add_reports_the_outcome_in_the_envelope(self, tmp_config_dir, capsys):
+        import json
+
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", "novo", "--type", "mysql",
+                 "--no-password", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "connection.add"
+        assert corpo["data"] == {"name": "novo", "created": True}
+
+    def test_a_failing_test_flag_reports_connection_failed(self, tmp_config_dir, capsys, monkeypatch):
+        import json
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        monkeypatch.setattr("dbqm.cli.deps.test_connection",
+                            lambda conn: (False, "ORA-12154"))
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["connection", "add", "x", "--type", "mysql",
+                     "--no-password", "--test", "-f", "json"])
+        assert exc.value.code == 3
+        erro = json.loads(capsys.readouterr().err)
+        assert erro["error"]["code"] == "connection_failed"
+
+    def test_table_format_gets_no_envelope(self, tmp_config_dir, capsys):
+        """`table` is for a human; the envelope belongs to `json` alone."""
+        from dbqm.cli import run_cli
+
+        self._seed()
+        capsys.readouterr()
+        run_cli(["connection", "show", "alvo"])
+        saida = capsys.readouterr().out
+        assert '"ok"' not in saida
+        assert "alvo" in saida

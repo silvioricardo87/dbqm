@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
+from typing import NoReturn
 
 from rich.markup import escape
 from rich.table import Table
 
 from dbqm.cli import deps
 from dbqm.cli.commands.inspect import cmd_list
+from dbqm.cli.envelope import fail, ok
+from dbqm.cli.errors import exit_for
 from dbqm.cli.params import resolve_password
 from dbqm.cli.render import console
 
@@ -26,12 +28,45 @@ _CONNECTION_OUTCOME_TEXT = {
     "removed": "removida",
 }
 
+# `outcome` (past participle, used in the Rich sentence) to the verb the
+# envelope's `command` field uses instead (`connection.add`, not
+# `connection.created`).
+_CONNECTION_OUTCOME_VERB = {
+    "created": "add",
+    "updated": "update",
+    "removed": "rm",
+}
+
 
 def _print_connection_outcome(output_format: str, name: str, outcome: str) -> None:
     if output_format == "json":
-        print(json.dumps({"name": name, outcome: True}, ensure_ascii=False))
+        verbo = _CONNECTION_OUTCOME_VERB[outcome]
+        ok(f"connection.{verbo}", {"name": name, outcome: True})
         return
     console.print(f'Conexao "{escape(name)}" {_CONNECTION_OUTCOME_TEXT[outcome]}.')
+
+
+def _fail_or_print(
+    args: argparse.Namespace,
+    command: str,
+    code: str,
+    message: str,
+    *,
+    extra: str | None = None,
+) -> NoReturn:
+    """The one place this module branches between the envelope and Rich text.
+
+    Under `-f json` this is `fail()` and nothing has reached stdout yet;
+    under `table` it prints the same Rich failure message as always (plus an
+    optional dim follow-up line) and exits with the exit code the same
+    `code` token maps to, so the two branches never drift apart.
+    """
+    if args.format == "json":
+        fail(command, code, message)
+    console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
+    if extra:
+        console.print(extra)
+    sys.exit(int(exit_for(code)))
 
 
 def _connection_values(args: argparse.Namespace, password: str | None) -> dict:
@@ -58,7 +93,9 @@ def _connection_values(args: argparse.Namespace, password: str | None) -> dict:
     return {key: value for key, value in values.items() if value is not None}
 
 
-def _exit_with_errors(errors: list[str]) -> None:
+def _exit_with_errors(args: argparse.Namespace, command: str, errors: list[str]) -> NoReturn:
+    if args.format == "json":
+        fail(command, "validation", "; ".join(errors))
     for error in errors:
         console.print(f"[ds.op.failure]{escape(error)}[/ds.op.failure]")
     sys.exit(2)
@@ -69,8 +106,8 @@ def _connection_add(args: argparse.Namespace) -> None:
     from dbqm.models.connection import save_connections
 
     if deps.find_connection(args.name) is not None:
-        console.print(f'[ds.op.failure]Conexao "{escape(args.name)}" ja existe.[/ds.op.failure]')
-        sys.exit(2)
+        _fail_or_print(args, "connection.add", "usage",
+                        f'Conexao "{args.name}" ja existe.')
 
     # Validate everything but the password first: a terminal user should
     # learn about a bad --type before being asked to type a secret that
@@ -78,7 +115,7 @@ def _connection_add(args: argparse.Namespace) -> None:
     values = _connection_values(args, None)
     errors = validate(values)
     if errors:
-        _exit_with_errors(errors)
+        _exit_with_errors(args, "connection.add", errors)
 
     if args.no_password:
         password = ""
@@ -91,11 +128,10 @@ def _connection_add(args: argparse.Namespace) -> None:
     conn = build(values)
 
     if args.test_before_save:
-        ok, msg = deps.test_connection(conn)
-        if not ok:
-            console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
-            console.print("[dim]Conexao nao gravada.[/dim]")
-            sys.exit(3)
+        succeeded, msg = deps.test_connection(conn)
+        if not succeeded:
+            _fail_or_print(args, "connection.add", "connection_failed", msg,
+                            extra="[dim]Conexao nao gravada.[/dim]")
 
     connections = deps.load_connections()
     connections.append(conn)
@@ -109,10 +145,8 @@ def _connection_update(args: argparse.Namespace) -> None:
 
     existing = deps.find_connection(args.name)
     if existing is None:
-        console.print(
-            f'[ds.op.failure]Conexao "{escape(args.name)}" nao encontrada.[/ds.op.failure]'
-        )
-        sys.exit(2)
+        _fail_or_print(args, "connection.update", "not_found",
+                        f'Conexao "{args.name}" nao encontrada.')
 
     if args.no_password:
         password = ""  # an explicit empty value clears the stored password
@@ -137,16 +171,15 @@ def _connection_update(args: argparse.Namespace) -> None:
 
     errors = validate(merged)
     if errors:
-        _exit_with_errors(errors)
+        _exit_with_errors(args, "connection.update", errors)
 
     conn = build(merged, existing)
 
     if args.test_before_save:
-        ok, msg = deps.test_connection(conn)
-        if not ok:
-            console.print(f"[ds.op.failure]{msg}[/ds.op.failure]")
-            console.print("[dim]Conexao nao alterada.[/dim]")
-            sys.exit(3)
+        succeeded, msg = deps.test_connection(conn)
+        if not succeeded:
+            _fail_or_print(args, "connection.update", "connection_failed", msg,
+                            extra="[dim]Conexao nao alterada.[/dim]")
 
     connections = deps.load_connections()
     index = next(i for i, c in enumerate(connections) if c.name == conn.name)
@@ -158,10 +191,8 @@ def _connection_update(args: argparse.Namespace) -> None:
 def _connection_show(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.name)
     if conn is None:
-        console.print(
-            f'[ds.op.failure]Conexao "{escape(args.name)}" nao encontrada.[/ds.op.failure]'
-        )
-        sys.exit(2)
+        _fail_or_print(args, "connection.show", "not_found",
+                        f'Conexao "{args.name}" nao encontrada.')
 
     data = conn.to_dict()
     # Never the ciphertext: the Fernet key lives next to the config, so
@@ -169,7 +200,7 @@ def _connection_show(args: argparse.Namespace) -> None:
     data["password"] = "***" if conn.password else ""
 
     if args.format == "json":
-        print(json.dumps(data, indent=2, ensure_ascii=False))
+        ok("connection.show", data)
         return
 
     table = Table(title=f"Conexao: {escape(conn.name)}")
@@ -184,24 +215,19 @@ def _connection_rm(args: argparse.Namespace) -> None:
     from dbqm.models.connection import delete_connection
 
     if deps.find_connection(args.name) is None:
-        console.print(
-            f'[ds.op.failure]Conexao "{escape(args.name)}" nao encontrada.[/ds.op.failure]'
-        )
-        sys.exit(2)
+        _fail_or_print(args, "connection.rm", "not_found",
+                        f'Conexao "{args.name}" nao encontrada.')
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
         # hangs on an unanswerable question is worse than one that fails.
         if not sys.stdin.isatty():
-            console.print(
-                "[ds.op.failure]Use --yes para remover sem confirmacao."
-                "[/ds.op.failure]"
-            )
-            sys.exit(2)
+            _fail_or_print(args, "connection.rm", "usage",
+                            "Use --yes para remover sem confirmacao.")
         resposta = input(f'Remover a conexao "{args.name}"? [s/N] ').strip().lower()
         if resposta not in ("s", "sim"):
             if args.format == "json":
-                print(json.dumps({"name": args.name, "removed": False}, ensure_ascii=False))
+                ok("connection.rm", {"name": args.name, "removed": False})
             else:
                 console.print("Cancelado.")
             return
@@ -213,9 +239,17 @@ def _connection_rm(args: argparse.Namespace) -> None:
 def _connection_list(args: argparse.Namespace) -> None:
     """The same listing as `dbqm list connections`.
 
-    Three lines of delegation so that `dbqm connection --help` shows a whole
-    CRUD; without it, whoever reads that help cannot find the listing verb.
+    The table branch still delegates to `cmd_list` so `dbqm connection
+    --help` shows a whole CRUD; the json branch builds the envelope itself
+    instead of delegating, because `cmd_list` is migrated separately in
+    Task 6 and the two must not half-migrate each other.
     """
+    if args.format == "json":
+        items = deps.load_connections()
+        data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target()}
+                 for c in items]
+        ok("connection.list", data)
+        return
     cmd_list(argparse.Namespace(resource="connections", format=args.format))
 
 
