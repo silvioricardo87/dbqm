@@ -256,51 +256,44 @@ class GroupExecScreen(Vertical):
     def _run(self, sql: str, conn_names: list[str]) -> None:
         """Run the same SQL on each connection and compare the results."""
         from dbqm.models.connection import find_connection
-        from dbqm.core.query_engine import execute_adhoc
-        from dbqm.core.group_engine import run_comparison, GroupResult
+        from dbqm.core.group_engine import (
+            NoComparableColumns,
+            build_adhoc_group_result,
+            execute_across,
+        )
+        from dbqm.core.query_engine import AdhocResult
 
-        try:
-            results = {}
-            for cname in conn_names:
-                conn = find_connection(cname)
-                if conn is None:
-                    self.app.call_from_thread(
-                        self.notify,
-                        f"Conexao '{cname}' nao encontrada.",
-                        severity="warning",
-                    )
-                    continue
+        def on_progress(cname: str) -> None:
+            self.app.call_from_thread(
+                self._update_progress,
+                f"Executando em [bold]{escape_markup(cname)}[/]...",
+            )
 
+        def on_result(cname: str, res: AdhocResult) -> None:
+            if not res.success:
                 self.app.call_from_thread(
-                    self._update_progress,
-                    f"Executando em [bold]{escape_markup(cname)}[/]...",
+                    self.notify,
+                    f"Erro em '{cname}': {res.error}",
+                    severity="error",
+                    timeout=8,
                 )
 
-                try:
-                    res = execute_adhoc(sql, conn, {})
-                except Exception as e:
-                    self.app.call_from_thread(
-                        self.notify,
-                        f"Erro em '{cname}': {e}",
-                        severity="error",
-                        timeout=8,
-                    )
-                    continue
+        def on_missing(cname: str) -> None:
+            self.app.call_from_thread(
+                self.notify,
+                f"Conexao '{cname}' nao encontrada.",
+                severity="warning",
+            )
 
-                # DML without auto_commit returns (AdhocResult, db_connection).
-                if isinstance(res, tuple):
-                    res = res[0]
-
-                if not res.success:
-                    self.app.call_from_thread(
-                        self.notify,
-                        f"Erro em '{cname}': {res.error}",
-                        severity="error",
-                        timeout=8,
-                    )
-                    continue
-
-                results[cname] = res
+        try:
+            conns = [(cname, find_connection(cname)) for cname in conn_names]
+            all_results = execute_across(
+                sql, conns, {},
+                on_progress=on_progress, on_result=on_result, on_missing=on_missing,
+            )
+            results = {
+                cname: res for cname, res in all_results.items() if res.success
+            }
 
             if len(results) < 1:
                 self.app.call_from_thread(
@@ -308,33 +301,13 @@ class GroupExecScreen(Vertical):
                 )
                 return
 
-            # Auto-derive the join key + compare columns from the columns that
-            # are common to every result (defensive intersection).
-            first = next(iter(results))
-            base_cols = list(results[first].columns)
-            common = [
-                c for c in base_cols
-                if all(c in r.columns for r in results.values())
-            ]
-            if not common:
+            try:
+                group_result = build_adhoc_group_result(results)
+            except NoComparableColumns:
                 self.app.call_from_thread(
                     self._on_error, "Consultas nao retornaram colunas comparaveis."
                 )
                 return
-
-            join_key = common[0]
-            compare_columns = common[1:]
-
-            comparisons = run_comparison(results, join_key, compare_columns)
-            all_match = all(
-                c.diff_count == 0 and c.absent_count == 0 for c in comparisons
-            )
-            group_result = GroupResult(
-                group_name="(ad-hoc)",
-                query_results=results,
-                comparisons=comparisons,
-                all_match=all_match,
-            )
 
             self.app.call_from_thread(self._show_result, group_result)
         except Exception as e:

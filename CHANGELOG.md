@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.4.1] — 2026-09-13
+
+A PATCH release, and a pure refactor: nothing a user runs behaves
+differently. It moves the ad-hoc comparison out of the TUI so that a second
+front end can reach it.
+
+### Changed
+
+- **The ad-hoc cross-connection comparison moved from
+  `ui/screens/group_exec.py` into `core/group_engine.py`**, as
+  `derive_comparison_columns`, `build_adhoc_group_result`, `execute_across`
+  and `NoComparableColumns`. The Multi-Exec screen has always intersected the
+  columns common to every result, taken the first as the join key and the
+  rest as the compared columns, and built its `GroupResult` by hand — all of
+  it inside the screen, where only the TUI could use it. The logic is
+  unchanged; only its address is.
+- **`execute_across` takes no view on what a failure means.** It returns one
+  entry per connection that ran, successful or not, and reports a connection
+  it could not resolve through a callback instead. The two front ends need
+  opposite policies — the TUI carries on so a dead connection does not
+  discard the comparison on screen, and a command-line caller should stop,
+  because a comparison over a subset silently answers a different question
+  than the one asked — so the choice belongs to the caller.
+
+### Fixed
+
+- **`derive_comparison_columns` raised `StopIteration` on an empty set of
+  results.** The screen guarded against it; nothing else would have, and a
+  `StopIteration` escaping into a command line is an exit code this project
+  reserves for a bug in dbqm. It now raises `NoComparableColumns`.
+
+The TUI's behaviour is unchanged, including *when* it reports a failed or
+missing connection: that is per-connection and in sequence, as before. Its
+Multi-Exec tests were the check and none of them needed editing.
+
 ## [2.4.0] — 2026-09-13
 
 A MINOR release: `html` joins `-e/--export` on `run`, `run-group` and `sql`.

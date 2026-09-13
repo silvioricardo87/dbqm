@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Protocol
 
-from dbqm.core.query_engine import QueryResult
+from dbqm.core.query_engine import AdhocResult, QueryResult
+from dbqm.models.connection import Connection
 
 
 @dataclass
@@ -66,6 +67,144 @@ class GroupResult:
             "comparisons": [c.to_dict() for c in self.comparisons],
             "all_match": self.all_match,
         }
+
+
+class NoComparableColumns(Exception):
+    """The results have no column in common, so there is nothing to compare."""
+
+
+class ResultLike(Protocol):
+    """What the comparison actually reads. `run_comparison` has always been
+    annotated `QueryResult` while the Multi-Exec screen passed it
+    `AdhocResult`; naming the real requirement retires that mismatch for new
+    code without touching the old signature."""
+    columns: list[str]
+    rows: list[list[Any]]
+
+
+def derive_comparison_columns(
+    results: dict[str, ResultLike],
+) -> tuple[str, list[str]]:
+    """Derive the join key and compare columns from the columns common to
+    every result.
+
+    The first result's column order wins -- not sorted, not any other
+    result's order. The join key is the first common column, the compare
+    columns are the rest. Raises `NoComparableColumns` when no column is
+    common to every result, or when there is no result to derive from at all.
+    """
+    if not results:
+        raise NoComparableColumns(
+            "Consultas nao retornaram colunas comparaveis."
+        )
+    first = next(iter(results))
+    base_cols = list(results[first].columns)
+    common = [
+        c for c in base_cols
+        if all(c in r.columns for r in results.values())
+    ]
+    if not common:
+        raise NoComparableColumns(
+            "Consultas nao retornaram colunas comparaveis."
+        )
+    return common[0], common[1:]
+
+
+def build_adhoc_group_result(
+    results: dict[str, ResultLike],
+    join_key: str = "",
+    compare_columns: list[str] | None = None,
+) -> GroupResult:
+    """Build a `GroupResult` for an ad-hoc, group-name-less comparison.
+
+    When `join_key` is not given, both it and `compare_columns` are derived
+    from the columns common to every result (see `derive_comparison_columns`).
+    """
+    if not join_key:
+        join_key, compare_columns = derive_comparison_columns(results)
+    elif compare_columns is None:
+        compare_columns = []
+
+    comparisons = run_comparison(results, join_key, compare_columns)
+    all_match = all(
+        c.diff_count == 0 and c.absent_count == 0 for c in comparisons
+    )
+    return GroupResult(
+        group_name="(ad-hoc)",
+        query_results=results,
+        comparisons=comparisons,
+        all_match=all_match,
+    )
+
+
+def execute_across(
+    sql: str,
+    conns: list[tuple[str, Connection | None]],
+    param_values: dict[str, str],
+    on_progress: Callable[[str], None] | None = None,
+    on_result: Callable[[str, AdhocResult], None] | None = None,
+    on_missing: Callable[[str], None] | None = None,
+) -> dict[str, AdhocResult]:
+    """Run the same SQL on each resolved connection, in order.
+
+    `conns` is a list of `(name, connection)` pairs, already resolved by the
+    caller -- core does not look connections up itself. `dbqm/cli/deps.py`
+    exists precisely so the CLI's connection lookup can be rebound in tests;
+    a lookup done here would route around that seam. A pair whose connection
+    is `None` fires `on_missing(name)`, in sequence with the pairs around it,
+    and contributes **no entry** to the returned dict -- it was never run,
+    so there is nothing to report. A pair that *did* run, successfully or
+    not, always gets an entry; Task 3 tells the two apart by entry
+    membership (`not_found`) versus `AdhocResult.error_kind` (`connection_failed`
+    vs `sql_error`).
+
+    Decides nothing about what a failure means -- the TUI carries on so a
+    dead connection does not discard the comparison on screen, the CLI stops
+    because a comparison over a subset answers a different question. A core
+    that picked one policy would force the other to work around it.
+
+    A raised exception becomes an unsuccessful AdhocResult with
+    `error_kind="connection"`, so one unreachable host cannot end the loop.
+
+    `on_progress`, `on_result` and `on_missing` each fire once per pair, in
+    the same sequential order as `conns` -- a caller that wants to react
+    per-connection (notify, log, stop) does not have to wait for every other
+    connection to finish first.
+    """
+    from dbqm.core.query_engine import execute_adhoc
+
+    results: dict[str, AdhocResult] = {}
+    for name, conn in conns:
+        if conn is None:
+            if on_missing is not None:
+                on_missing(name)
+            continue
+
+        if on_progress is not None:
+            on_progress(name)
+
+        try:
+            res = execute_adhoc(sql, conn, param_values)
+        except Exception as e:
+            res = AdhocResult(
+                sql_type="",
+                connection_name=name,
+                sql=sql,
+                db_type=conn.db_type,
+                success=False,
+                error=str(e),
+                error_kind="connection",
+            )
+        else:
+            # DML without auto_commit returns (AdhocResult, db_connection).
+            if isinstance(res, tuple):
+                res = res[0]
+
+        results[name] = res
+        if on_result is not None:
+            on_result(name, res)
+
+    return results
 
 
 def run_comparison(
