@@ -29,6 +29,11 @@ class QueryResult:
     elapsed: float
     success: bool = True
     error: str = ""
+    #: Which failure this was: "connection" when the database never answered,
+    #: "statement" when it answered and rejected what we sent, "" on success.
+    #: Decided by the call site, not the exception class -- `oracledb` raises
+    #: the same type for a bad password and a missing table.
+    error_kind: str = ""
 
     def to_dict(self) -> dict:
         """Wire shape. `rows` holds raw driver values (`datetime`, `Decimal`,
@@ -43,6 +48,7 @@ class QueryResult:
             "elapsed": self.elapsed,
             "success": self.success,
             "error": self.error,
+            "error_kind": self.error_kind,
         }
 
 
@@ -194,7 +200,20 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
     db = None
     try:
         start = time.time()
-        db = get_connection(conn)
+        try:
+            db = get_connection(conn)
+        except Exception as e:
+            return QueryResult(
+                query_name=query.name,
+                connection_name=conn.name,
+                columns=[],
+                rows=[],
+                row_count=0,
+                elapsed=0,
+                success=False,
+                error=str(e).split('\n')[0][:500],
+                error_kind="connection",
+            )
         cursor = db.cursor()
         try:
             if conn.db_type == "oracle":
@@ -231,6 +250,7 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
             elapsed=0,
             success=False,
             error=str(e).split('\n')[0][:500],
+            error_kind="statement",
         )
     finally:
         if db is not None:
@@ -261,6 +281,11 @@ class AdhocResult:
     elapsed: float = 0.0
     success: bool = True
     error: str = ""
+    #: Which failure this was: "connection" when the database never answered,
+    #: "statement" when it answered and rejected what we sent, "" on success.
+    #: Decided by the call site, not the exception class -- `oracledb` raises
+    #: the same type for a bad password and a missing table.
+    error_kind: str = ""
     committed: bool = False
     output_lines: list[str] = field(default_factory=list)
 
@@ -280,6 +305,7 @@ class AdhocResult:
             "elapsed": self.elapsed,
             "success": self.success,
             "error": self.error,
+            "error_kind": self.error_kind,
             "committed": self.committed,
             "output_lines": list(self.output_lines),
         }
@@ -405,7 +431,18 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
     db = None
     try:
         start = time.time()
-        db = get_connection(conn)
+        try:
+            db = get_connection(conn)
+        except Exception as e:
+            return AdhocResult(
+                sql_type=sql_type,
+                connection_name=conn.name,
+                sql=original_sql,
+                db_type=conn.db_type,
+                success=False,
+                error=str(e).split('\n')[0][:500],
+                error_kind="connection",
+            )
         cursor = db.cursor()
 
         if conn.db_type == "oracle":
@@ -555,6 +592,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             db_type=conn.db_type,
             success=False,
             error=str(e).split('\n')[0][:500],
+            error_kind="statement",
         )
     finally:
         if db is not None:
@@ -601,7 +639,18 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
         db = None
         try:
             start = time.time()
-            db = get_connection(conn)
+            try:
+                db = get_connection(conn)
+            except Exception as e:
+                return AdhocResult(
+                    sql_type="EXPLAIN",
+                    connection_name=conn.name,
+                    sql=sql,
+                    db_type=conn.db_type,
+                    success=False,
+                    error=str(e).split("\n")[0][:500],
+                    error_kind="connection",
+                )
             cursor = db.cursor()
             if param_values:
                 cursor.execute(explain_sql, param_values)
@@ -629,6 +678,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
                 db_type=conn.db_type,
                 success=False,
                 error=str(e).split("\n")[0][:500],
+                error_kind="statement",
             )
         finally:
             if db is not None:
