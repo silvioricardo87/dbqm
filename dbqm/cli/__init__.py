@@ -9,7 +9,7 @@ from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_run, cmd_run_group, cmd_sql
-from dbqm.cli.commands.schema import cmd_objects
+from dbqm.cli.commands.schema import cmd_describe, cmd_objects
 from dbqm.cli.params import _add_connection_fields, _parse_params, resolve_password
 from dbqm.cli.render import _print_query_result, console, rich_theme
 
@@ -110,6 +110,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_objects.add_argument("-f", "--format", choices=["table", "json"],
                            default="table", help="Formato de saida")
 
+    # --- describe ---
+    p_describe = subparsers.add_parser("describe", help="Ver a estrutura de um objeto")
+    p_describe.add_argument("object", help="Nome do objeto")
+    p_describe.add_argument("connection", help="Nome da conexao")
+    p_describe.add_argument("-f", "--format", choices=["table", "json"],
+                            default="table", help="Formato de saida")
+
     # --- export-config ---
     p_exp = subparsers.add_parser("export-config", help="Exportar configuracoes para bundle .dbqm")
     p_exp.add_argument("--password",
@@ -190,6 +197,7 @@ COMMAND_MAP = {
     "history": cmd_history,
     "connection": cmd_connection,
     "objects": cmd_objects,
+    "describe": cmd_describe,
 }
 
 

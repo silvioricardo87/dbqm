@@ -81,3 +81,62 @@ def cmd_objects(args: argparse.Namespace) -> None:
         tabela.add_row(escape(nome))
     console.print(tabela)
     console.print(f"{len(nomes)} objeto(s).")
+
+
+def cmd_describe(args: argparse.Namespace) -> None:
+    """Show one object's shape: columns, keys and indexes.
+
+    Dispatches on what the object turns out to be rather than asking the user
+    to say table or view. No row count in either format: a COUNT(*) is a full
+    scan, which is why `psql \\d` does not show one either. `-f table` and
+    `-f json` carry the same content -- one shape for the command, not two.
+    """
+    conn = deps.find_connection(args.connection)
+    if not conn:
+        _fail_or_print(args, "describe", "not_found",
+                       f"Conexao '{args.connection}' nao encontrada.")
+
+    def acao(db):
+        estrutura = deps.get_table_structure(db, conn.db_type, args.object)
+        view = deps.get_view_definition(db, conn.db_type, args.object)
+        return estrutura, view
+
+    estrutura, view = _with_open_connection(args, "describe", conn, acao)
+
+    definicao = view.sql_definition or ""
+    if not estrutura.columns and not definicao:
+        _fail_or_print(args, "describe", "not_found",
+                       f"Objeto '{args.object}' nao encontrado em {conn.name}.")
+
+    data = estrutura.to_dict()
+    data["connection_name"] = conn.name
+    if definicao:
+        data["sql_definition"] = definicao
+
+    if args.format == "json":
+        ok("describe", data)
+        return
+
+    rotulo = "VIEW" if definicao else "TABLE"
+    console.print(f"{escape(estrutura.table)} ({rotulo})")
+
+    colunas = Table(show_header=True)
+    colunas.add_column("Coluna")
+    colunas.add_column("Tipo")
+    colunas.add_column("Nulo")
+    colunas.add_column("Chave")
+    for c in estrutura.columns:
+        chave = "PK" if c.is_pk else (f"-> {c.fk_ref}" if c.fk_ref else "")
+        colunas.add_row(escape(c.name), escape(c.data_type),
+                        "SIM" if c.nullable else "NAO", escape(chave))
+    console.print(colunas)
+
+    if estrutura.indexes:
+        console.print("\nINDICES")
+        for i in estrutura.indexes:
+            marca = "UNIQUE " if i.is_unique else ""
+            console.print(f"  {escape(i.name)}  {marca}({', '.join(i.columns)})")
+
+    if definicao:
+        console.print("\nDEFINICAO")
+        console.print(definicao, markup=False, highlight=False)
