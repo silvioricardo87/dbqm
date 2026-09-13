@@ -112,8 +112,12 @@ def cmd_describe(args: argparse.Namespace) -> None:
     # definition alone reports such a view as a table.
     e_view = bool(view.owner or definicao)
     if not estrutura.columns and not e_view:
+        # "nao encontrado" would be a claim dbqm cannot make: a package or a
+        # routine of that name may well exist. All this call establishes is
+        # that it is not a table and not a view.
         _fail_or_print(args, "describe", "not_found",
-                       f"Objeto '{args.object}' nao encontrado em {conn.name}.")
+                       f"'{args.object}' nao e uma tabela nem uma view em "
+                       f"{conn.name}.")
 
     tipo = "VIEW" if e_view else "TABLE"
     data = estrutura.to_dict()

@@ -246,7 +246,7 @@ class BrowserScreen(Vertical):
     def _reload_objects(self):
         """Fetch the object list for the current connection + type."""
         from dbqm.core.db_manager import get_connection
-        from dbqm.core.object_browser import list_objects
+        from dbqm.core.object_browser import UnsupportedEngine, list_objects
 
         conn = self._current_conn
         obj_type = self._obj_type
@@ -258,6 +258,12 @@ class BrowserScreen(Vertical):
                 self._db = get_connection(conn)
             objects = list_objects(self._db, conn.db_type, obj_type)
             self.app.call_from_thread(self._on_objects_loaded, objects)
+        except UnsupportedEngine as e:
+            # The engine has no such object type at all. That is an empty
+            # list with an explanation, not an error state: `_on_error`
+            # leaves `self._objects` untouched, so the previous type's
+            # objects would stay on screen under the new type's label.
+            self.app.call_from_thread(self._on_unsupported_type, str(e))
         except Exception as e:  # pragma: no cover - depends on live DB
             self.app.call_from_thread(self._on_error, str(e))
 
@@ -267,6 +273,17 @@ class BrowserScreen(Vertical):
         self._populate_list()
         if not objects:
             self.notify("Nenhum objeto encontrado.", severity="warning")
+
+    def _on_unsupported_type(self, mensagem: str) -> None:
+        """Clear the list, then say why it is empty.
+
+        `core` raises for a type the engine does not have, where it used to
+        return an empty list. Clearing first is what keeps the screen honest.
+        """
+        self._objects = []
+        self._update_obj_list_visibility()
+        self._populate_list()
+        self.notify(mensagem, severity="warning", timeout=8)
 
     def _populate_list(self) -> None:
         """Render the cached object list, applying the current text filter."""

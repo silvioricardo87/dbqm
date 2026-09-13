@@ -151,6 +151,13 @@ class TestListObjectsProcedureFunction:
 
         assert list_objects(mock_db, "sqlserver", "SEQUENCE") == []
         assert list_objects(mock_db, "oracle", "SEQUENCE") == []
+        # The `else: return []` guards are what make that true. Without them
+        # control reaches the trailing `return [row[0] for row in
+        # cursor.fetchall()]` with no statement ever executed -- which a
+        # MagicMock answers with `[]` just the same, hiding the bug that a
+        # real driver would raise on. Asserting nothing was executed is what
+        # tells the two apart.
+        mock_db.cursor.return_value.execute.assert_not_called()
 
     def test_package_still_works_on_oracle(self):
         mock_db = MagicMock()

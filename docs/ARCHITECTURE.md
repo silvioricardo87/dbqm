@@ -130,8 +130,9 @@ consumers, none of them importing each other.
   `history`, `export-config`, `import-config`, `objects`, `describe`, `rows`,
   and the `connection` group.
 - `-f/--format`: `table | json | csv | raw` (`raw` prints values without
-  decoration — for extracting CLOB/LONG sources cleanly). `test`, `ddl`,
-  `export-config` and `import-config` offer `table | json`.
+  decoration — for extracting CLOB/LONG sources cleanly). `rows` offers all
+  four; `test`, `ddl`, `export-config`, `import-config`, `objects` and
+  `describe` offer `table | json`.
 - **Under `-f json`, stdout carries one envelope and nothing else** — no error,
   no progress line, no warning. `envelope.ok()` writes
   `{"ok":true,"command":...,"data":...}` to stdout; `envelope.fail()` writes

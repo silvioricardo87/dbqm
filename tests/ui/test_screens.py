@@ -2069,6 +2069,54 @@ async def test_browser_reload_populates_object_list(tmp_config_dir, monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_browser_clears_the_list_when_the_engine_lacks_the_type(
+    tmp_config_dir, monkeypatch
+):
+    """`list_objects` raises for a type the engine does not have, where it
+    used to return an empty list. The generic error handler notifies but
+    leaves `self._objects` untouched, so the previous type's objects would
+    stay on screen under the new type's label -- worse than the empty list
+    it replaced. The list must be cleared before the explanation."""
+    from textual.widgets import OptionList
+
+    from dbqm.core.object_browser import UnsupportedEngine
+
+    class _FakeConn:
+        name = "c1"
+        db_type = "sqlserver"
+
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        screen._current_conn = _FakeConn()
+        screen._db = object()
+
+        # First load a type the engine does have.
+        monkeypatch.setattr(
+            "dbqm.core.object_browser.list_objects",
+            lambda db, db_type, obj_type: ["CLIENTE", "PEDIDO", "PRODUTO"],
+        )
+        screen._obj_type = "TABLE"
+        await screen._reload_objects().wait()
+        await pilot.pause()
+        assert screen.query_one("#obj-list", OptionList).option_count == 3
+
+        # Then one it does not.
+        def _recusa(db, db_type, obj_type):
+            raise UnsupportedEngine(
+                f"Packages so existem no Oracle. Conexao e {db_type}."
+            )
+
+        monkeypatch.setattr("dbqm.core.object_browser.list_objects", _recusa)
+        screen._obj_type = "PACKAGE"
+        await screen._reload_objects().wait()
+        await pilot.pause()
+
+        assert screen._objects == []
+        assert screen.query_one("#obj-list", OptionList).option_count == 0
+
+
+@pytest.mark.asyncio
 async def test_mounted_browser_object_list_is_identity_only(tmp_config_dir, monkeypatch):
     """The object list uses `hierarchical_item` with the identity only — the
     type filter (`#obj-type`) is `allow_blank=False`, so every visible row
