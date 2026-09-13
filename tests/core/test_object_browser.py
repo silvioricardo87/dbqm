@@ -321,13 +321,20 @@ class TestGetTableStructure:
 
         from dbqm.core.object_browser import get_table_structure
 
-        db = _db_com_colunas([("ID", "int", 4, 10, 0, "NO")])
+        db = _db_com_colunas([
+            ("ID", "int", 4, 10, 0, "NO"),
+            ("VALOR", "decimal", 9, 12, 2, "YES"),
+        ])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
             estrutura = get_table_structure(db, "sqlserver", "PEDIDOS")
 
         assert estrutura.columns[0].nullable is False
+        # The load-bearing half. "NO" is False against both "Y" and "YES", so
+        # a NOT NULL column alone cannot tell the right comparison from the
+        # wrong one; only a nullable column can.
+        assert estrutura.columns[1].nullable is True
 
     def test_a_primary_key_column_is_marked(self):
         """`is_pk` is how `describe` shows the key without a second call."""
