@@ -1,7 +1,6 @@
 """Rendering helpers shared by the CLI commands: theme, console, output formatting."""
 from __future__ import annotations
 
-import json
 import sys
 from typing import Any
 
@@ -47,17 +46,7 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
         console.print(f"[ds.op.failure]Erro: {result.error}[/ds.op.failure]")
         sys.exit(1)
 
-    if output_format == "json":
-        data = {
-            "query": result.query_name,
-            "connection": result.connection_name,
-            "columns": result.columns,
-            "row_count": result.row_count,
-            "elapsed": round(result.elapsed, 3),
-            "rows": [dict(zip(result.columns, row)) for row in result.rows],
-        }
-        print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
-    elif output_format == "csv":
+    if output_format == "csv":
         import csv
         import io
         out = io.StringIO()

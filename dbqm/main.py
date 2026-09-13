@@ -17,7 +17,7 @@ def main():
             if handled:
                 return
         except KeyboardInterrupt:
-            print("\nInterrompido.")
+            print("\nInterrompido.", file=sys.stderr)
             sys.exit(130)
         except SystemExit:
             raise

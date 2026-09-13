@@ -8,6 +8,7 @@ from rich.markup import escape
 
 from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
+from dbqm.cli.errors import exit_for
 from dbqm.cli.params import resolve_password
 from dbqm.cli.render import console
 
@@ -15,7 +16,8 @@ from dbqm.cli.render import console
 def cmd_export_config(args: argparse.Namespace) -> None:
     """Export configurations to a .dbqm bundle."""
     password = resolve_password(
-        args, "DBQM_BUNDLE_PASSWORD", "Senha para o bundle: ", required=True
+        args, "DBQM_BUNDLE_PASSWORD", "Senha para o bundle: ", required=True,
+        command="export-config",
     )
     path = deps.export_configs(
         password,
@@ -32,7 +34,8 @@ def cmd_export_config(args: argparse.Namespace) -> None:
 def cmd_import_config(args: argparse.Namespace) -> None:
     """Import configurations from a .dbqm bundle."""
     password = resolve_password(
-        args, "DBQM_BUNDLE_PASSWORD", "Senha do bundle: ", required=True
+        args, "DBQM_BUNDLE_PASSWORD", "Senha do bundle: ", required=True,
+        command="import-config",
     )
     try:
         summary = deps.import_configs(args.file, password)
@@ -41,7 +44,7 @@ def cmd_import_config(args: argparse.Namespace) -> None:
         if args.format == "json":
             fail("import-config", "validation", message)
         console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
-        sys.exit(1)
+        sys.exit(int(exit_for("validation")))
 
     if args.format == "json":
         ok("import-config", summary)

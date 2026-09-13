@@ -15,6 +15,24 @@ from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
 
+# `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
+# error string — the statement was never sent to the driver, so calling it
+# `sql_error` (the database rejected something) would be a lie. `core/` stays
+# free of `errors.py`'s vocabulary, so the CLI recognizes the exact wording
+# by text and remaps it here; anything else really is `sql_error`.
+_USAGE_SQL_MESSAGES = (
+    "Apenas comandos SELECT sao permitidos.",
+    "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL "
+    "(CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+)
+
+
+def _sql_error_code(message: str | None) -> str:
+    """`usage` for the two known bad-input messages `core/` can return,
+    `sql_error` for everything else (the driver rejected or failed on a
+    statement that was actually sent)."""
+    return "usage" if message in _USAGE_SQL_MESSAGES else "sql_error"
+
 
 def _fail_or_print(
     args: argparse.Namespace,
@@ -47,7 +65,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     if not conn:
         _fail_or_print(args, "run", "not_found", f"Conexao '{conn_name}' nao encontrada.")
 
-    param_values = _parse_params(args.param)
+    param_values = _parse_params(args.param, args, "run")
 
     # Fill missing params with defaults
     for p in query.params:
@@ -77,6 +95,13 @@ def cmd_run(args: argparse.Namespace) -> None:
     deps.log_execution("query", query.name, conn.name, param_values,
                   row_count=result.row_count, success=result.success, error=result.error)
 
+    # A failed query is a failure regardless of `--export`/`-f`: check it
+    # once here, before either branch, instead of leaving `table`/`csv`/`raw`
+    # to fall through to `render._print_query_result`'s own bare `exit(1)`.
+    if not result.success:
+        _fail_or_print(args, "run", _sql_error_code(result.error),
+                        result.error or "Erro ao executar consulta.")
+
     # Export if requested
     if args.export:
         fmt = args.export
@@ -88,14 +113,14 @@ def cmd_run(args: argparse.Namespace) -> None:
         elif fmt == "txt":
             path = deps.export_query_txt(result, table_name, param_values)
         else:
-            console.print(f"[ds.op.failure]Formato de export invalido: {fmt}[/ds.op.failure]")
-            sys.exit(1)
+            _fail_or_print(args, "run", "usage", f"Formato de export invalido: {fmt}")
+        if args.format == "json":
+            ok("run", {"exported": str(path), "format": fmt})
+            return
         console.print(f"Exportado: {path}")
         return
 
     if args.format == "json":
-        if not result.success:
-            fail("run", "sql_error", result.error or "Erro ao executar consulta.")
         data = {
             "query": result.query_name,
             "connection": result.connection_name,
@@ -113,16 +138,22 @@ def cmd_run(args: argparse.Namespace) -> None:
 def cmd_run_group(args: argparse.Namespace) -> None:
     """Execute a group comparison.
 
-    A divergent comparison still writes its history record before it fails —
-    a divergence is a completed run, not an aborted one — and it exits 5
-    either way, `table` included: the exit code is part of the contract, not
-    a JSON-only convenience.
+    A divergent comparison still writes its history record — a divergence is
+    a completed run, not an aborted one — and it always exits 5, `--export`
+    and `table` included: the exit code is part of the contract, not a
+    JSON-only or no-flags-given convenience.
+
+    Divergence itself is `ok()`, not `fail()`: the command did its job and
+    the answer is "no", and that answer — the full comparison counts — is
+    exactly what an agent runs this command to get, so it belongs in `data`
+    on stdout. The exit code alone is what lets a shell branch on the verdict
+    without parsing anything.
     """
     group = deps.find_group(args.group)
     if not group:
         _fail_or_print(args, "run-group", "not_found", f"Grupo '{args.group}' nao encontrado.")
 
-    param_values = _parse_params(args.param)
+    param_values = _parse_params(args.param, args, "run-group")
 
     # Fill from shared_params defaults
     for pname, pdef in group.shared_params.items():
@@ -144,7 +175,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
 
         result = deps.execute_query(query, conn, param_values)
         if not result.success:
-            _fail_or_print(args, "run-group", "sql_error",
+            _fail_or_print(args, "run-group", _sql_error_code(result.error),
                             f"Erro na consulta '{qname}': {result.error}")
 
         # Apply column maps
@@ -164,7 +195,9 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     summary = "\n".join(group_result.summary_lines)
     deps.record_group_execution(group.name, param_values, group_result.all_match, summary, total_elapsed)
 
-    # Export if requested
+    # Export if requested — this must still fall through to the same
+    # divergence exit as every other path; it does not get to opt the
+    # headline behaviour of this release out with a flag.
     if args.export:
         fmt = args.export
         flat = args.flat
@@ -182,7 +215,12 @@ def cmd_run_group(args: argparse.Namespace) -> None:
                 path = deps.export_group_json(group_result, param_values)
             else:
                 path = deps.export_group_txt(group_result, param_values)
-        console.print(f"Exportado: {path}")
+        if args.format == "json":
+            ok("run-group", {"exported": str(path), "format": fmt})
+        else:
+            console.print(f"Exportado: {path}")
+        if not group_result.all_match:
+            sys.exit(int(exit_for("divergent")))
         return
 
     if args.format == "json":
@@ -201,9 +239,9 @@ def cmd_run_group(args: argparse.Namespace) -> None:
                 for c in group_result.comparisons
             ],
         }
-        if not group_result.all_match:
-            fail("run-group", "divergent", f"Grupo '{group_result.group_name}' divergente.")
         ok("run-group", data)
+        if not group_result.all_match:
+            sys.exit(int(exit_for("divergent")))
         return
 
     status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
@@ -226,12 +264,13 @@ def cmd_sql(args: argparse.Namespace) -> None:
     if sql_path.is_file():
         sql = sql_path.read_text(encoding="utf-8")
 
-    param_values = _parse_params(args.param)
+    param_values = _parse_params(args.param, args, "sql")
 
     if args.explain:
         result = deps.execute_explain(sql, conn, param_values)
         if not result.success:
-            _fail_or_print(args, "sql", "sql_error", result.error or "Erro ao gerar plano de execucao.")
+            _fail_or_print(args, "sql", _sql_error_code(result.error),
+                            result.error or "Erro ao gerar plano de execucao.")
         if args.format == "json":
             plano = [row[0] if row else "" for row in result.rows]
             ok("sql", {"connection": conn.name, "elapsed": round(result.elapsed, 3), "plan": plano})
@@ -252,7 +291,8 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
     if not isinstance(result, tuple) and result.sql_type in ("INSERT", "UPDATE", "DELETE"):
         if not result.success:
-            _fail_or_print(args, "sql", "sql_error", result.error or "Erro ao executar SQL.")
+            _fail_or_print(args, "sql", _sql_error_code(result.error),
+                            result.error or "Erro ao executar SQL.")
         if args.format == "json":
             data = {
                 "connection": conn.name,
@@ -269,11 +309,12 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # DDL results
     if not isinstance(result, tuple) and result.sql_type == "DDL":
         if not result.success:
+            code = _sql_error_code(result.error)
             if args.format == "json":
-                fail("sql", "sql_error", result.error or "Erro ao executar DDL.")
+                fail("sql", code, result.error or "Erro ao executar DDL.")
             console.print(f"[ds.op.failure]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/ds.op.failure]")
             console.print(f"[ds.op.failure]{result.error}[/ds.op.failure]")
-            sys.exit(1)
+            sys.exit(int(exit_for(code)))
         if args.format == "json":
             ok("sql", {"connection": conn.name, "sql_type": "DDL", "elapsed": round(result.elapsed, 3)})
             return
@@ -283,7 +324,8 @@ def cmd_sql(args: argparse.Namespace) -> None:
     # PL/SQL anonymous block results
     if not isinstance(result, tuple) and result.sql_type == "PLSQL":
         if not result.success:
-            _fail_or_print(args, "sql", "sql_error", result.error or "Erro ao executar bloco.")
+            _fail_or_print(args, "sql", _sql_error_code(result.error),
+                            result.error or "Erro ao executar bloco.")
         if args.format == "json":
             data = {
                 "connection": conn.name,
@@ -317,7 +359,8 @@ def cmd_sql(args: argparse.Namespace) -> None:
         return
 
     if not result.success:
-        _fail_or_print(args, "sql", "sql_error", result.error or "Erro ao executar SQL.")
+        _fail_or_print(args, "sql", _sql_error_code(result.error),
+                        result.error or "Erro ao executar SQL.")
 
     if result.sql_type == "SELECT":
         # Convert AdhocResult to QueryResult for display/export
@@ -338,6 +381,9 @@ def cmd_sql(args: argparse.Namespace) -> None:
                 path = deps.export_query_json(qr, "adhoc", param_values)
             else:
                 path = deps.export_query_txt(qr, "adhoc", param_values)
+            if args.format == "json":
+                ok("sql", {"exported": str(path), "format": fmt})
+                return
             console.print(f"Exportado: {path}")
             return
 
@@ -355,4 +401,18 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
         render._print_query_result(qr, args.format)
     else:
+        # Statement types `execute_adhoc` doesn't special-case above but
+        # still ran successfully (e.g. a type sqlparse can't name) — same
+        # shape as the DML success branch, so json still gets an envelope
+        # instead of falling through to a bare `print`.
+        if args.format == "json":
+            data = {
+                "connection": conn.name,
+                "sql_type": result.sql_type,
+                "rows_affected": result.rows_affected,
+                "committed": result.committed,
+                "elapsed": round(result.elapsed, 3),
+            }
+            ok("sql", data, warnings=result.output_lines or None)
+            return
         console.print(f"{result.rows_affected} registros afetados")

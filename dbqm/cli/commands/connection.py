@@ -121,7 +121,8 @@ def _connection_add(args: argparse.Namespace) -> None:
         password = ""
     else:
         password = resolve_password(
-            args, "DBQM_PASSWORD", "Senha da conexao: ", required=True
+            args, "DBQM_PASSWORD", "Senha da conexao: ", required=True,
+            command="connection.add",
         )
     values["password"] = password
 
@@ -157,7 +158,7 @@ def _connection_update(args: argparse.Namespace) -> None:
         # are the only ways to change the stored password here.
         password = resolve_password(
             args, "DBQM_PASSWORD", "Senha da conexao: ", required=False,
-            use_env=False,
+            use_env=False, command="connection.update",
         )
 
     # Start from what is stored and lay the given flags on top: on a command

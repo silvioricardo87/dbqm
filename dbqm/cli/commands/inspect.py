@@ -9,6 +9,7 @@ from rich.table import Table
 
 from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
+from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
 
 
@@ -44,7 +45,7 @@ def cmd_test(args: argparse.Namespace) -> None:
         if args.format == "json":
             fail("test", "not_found", f"Conexao '{args.connection}' nao encontrada.")
         console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
-        sys.exit(1)
+        sys.exit(int(exit_for("not_found")))
 
     succeeded, msg = deps.test_connection(conn)
     if args.format == "json":
@@ -53,8 +54,10 @@ def cmd_test(args: argparse.Namespace) -> None:
     if succeeded:
         console.print(escape(msg))
     else:
+        # json never fails on this — see the docstring — but table's exit
+        # code still names the condition: a connection that did not answer.
         console.print(f"[ds.op.failure]{escape(msg)}[/ds.op.failure]")
-        sys.exit(1)
+        sys.exit(int(exit_for("connection_failed")))
 
 
 def cmd_list(args: argparse.Namespace) -> None:
@@ -129,7 +132,7 @@ def cmd_list(args: argparse.Namespace) -> None:
         if args.format == "json":
             fail(f"list.{resource}", "usage", f"Recurso desconhecido: {resource}")
         console.print(f"[ds.op.failure]Recurso desconhecido: {resource}[/ds.op.failure]")
-        sys.exit(1)
+        sys.exit(int(exit_for("usage")))
 
 
 def cmd_ddl(args: argparse.Namespace) -> None:
@@ -147,7 +150,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
         if args.format == "json":
             fail("ddl", "not_found", f"Conexao '{args.connection}' nao encontrada.")
         console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
-        sys.exit(1)
+        sys.exit(int(exit_for("not_found")))
 
     def on_progress(current, total, obj_type, obj_name):
         if args.format == "json":
@@ -173,7 +176,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
         for err in result.errors:
             console.print(f"[ds.op.failure]{escape(err)}[/ds.op.failure]")
         if not result.objects:
-            sys.exit(1)
+            sys.exit(int(exit_for("sql_error")))
 
     if args.stdout:
         for obj in result.objects:

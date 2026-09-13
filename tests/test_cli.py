@@ -243,6 +243,42 @@ class TestCmdRun:
             assert corpo["data"]["row_count"] == 2
             assert corpo["data"]["columns"] == ["id", "name"]
 
+    def test_run_export_json_format_emits_envelope(self, capsys):
+        """CRITICAL fix: `-e` used to print bare prose and return under
+        `-f json`, exiting 0 with no envelope on stdout at all."""
+        query = _make_query()
+        conn = _make_connection()
+        result = _make_query_result()
+
+        with patch("dbqm.cli.deps.find_query", return_value=query), \
+             patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.execute_query", return_value=result), \
+             patch("dbqm.cli.deps.record_query_execution"), \
+             patch("dbqm.cli.deps.log_execution"), \
+             patch("dbqm.cli.deps.export_query_csv", return_value="/tmp/out.csv"):
+            run_cli(["run", "test_query", "-e", "csv", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "run"
+            assert corpo["data"] == {"exported": "/tmp/out.csv", "format": "csv"}
+
+    def test_run_failed_query_table_format_exits_via_fail_or_print(self):
+        """IMPORTANT fix: `table`/`csv`/`raw` used to fall through to
+        `render._print_query_result`'s own bare `exit(1)` instead of
+        `_fail_or_print`'s mapped exit code."""
+        query = _make_query()
+        conn = _make_connection()
+        result = _make_query_result(success=False)
+
+        with patch("dbqm.cli.deps.find_query", return_value=query), \
+             patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.execute_query", return_value=result), \
+             patch("dbqm.cli.deps.record_query_execution"), \
+             patch("dbqm.cli.deps.log_execution"):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["run", "test_query"])
+            assert exc.value.code == 4
+
 
 # ---------------------------------------------------------------------------
 # run-group subcommand
@@ -332,6 +368,141 @@ class TestCmdRunGroup:
              patch("dbqm.cli.deps.export_group_csv", return_value="/tmp/g.csv") as mock_exp:
             run_cli(["run-group", "test_group", "-e", "csv"])
             mock_exp.assert_called_once()
+
+    def test_group_export_json_format_emits_envelope(self, capsys):
+        """CRITICAL fix: `-e` used to print bare prose and return under
+        `-f json`."""
+        group = _make_group()
+        q1 = _make_query("q1", "c1")
+        q2 = _make_query("q2", "c2")
+        c1 = _make_connection("c1")
+        c2 = _make_connection("c2")
+        gr = _make_group_result()  # all_match True
+
+        def find_query_side(name):
+            return {"q1": q1, "q2": q2}.get(name)
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        with patch("dbqm.cli.deps.find_group", return_value=group), \
+             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
+             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
+             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
+             patch("dbqm.cli.deps.record_group_execution"), \
+             patch("dbqm.cli.deps.export_group_csv", return_value="/tmp/g.csv"):
+            run_cli(["run-group", "test_group", "-e", "csv", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "run-group"
+            assert corpo["data"] == {"exported": "/tmp/g.csv", "format": "csv"}
+
+    def test_export_json_with_divergence_exits_five_after_the_envelope(self, capsys):
+        """CRITICAL fix, json side: the export envelope still prints, but
+        the process exits 5 — `--export` doesn't opt json out either."""
+        group = _make_group()
+        q1 = _make_query("q1", "c1")
+        q2 = _make_query("q2", "c2")
+        c1 = _make_connection("c1")
+        c2 = _make_connection("c2")
+        gr = _make_group_result()
+        gr.all_match = False
+
+        def find_query_side(name):
+            return {"q1": q1, "q2": q2}.get(name)
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        with patch("dbqm.cli.deps.find_group", return_value=group), \
+             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
+             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
+             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
+             patch("dbqm.cli.deps.record_group_execution"), \
+             patch("dbqm.cli.deps.export_group_csv", return_value="/tmp/g.csv"):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["run-group", "test_group", "-e", "csv", "-f", "json"])
+            assert exc.value.code == 5
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["data"] == {"exported": "/tmp/g.csv", "format": "csv"}
+
+    def test_export_with_divergence_still_exits_five(self):
+        """CRITICAL fix: `--export` must not opt run-group out of the
+        divergence exit (it did, silently, before this fix)."""
+        group = _make_group()
+        q1 = _make_query("q1", "c1")
+        q2 = _make_query("q2", "c2")
+        c1 = _make_connection("c1")
+        c2 = _make_connection("c2")
+        gr = _make_group_result()
+        gr.all_match = False
+
+        def find_query_side(name):
+            return {"q1": q1, "q2": q2}.get(name)
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        with patch("dbqm.cli.deps.find_group", return_value=group), \
+             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
+             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
+             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
+             patch("dbqm.cli.deps.record_group_execution"), \
+             patch("dbqm.cli.deps.export_group_csv", return_value="/tmp/g.csv") as mock_exp:
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["run-group", "test_group", "-e", "csv"])
+            assert exc.value.code == 5
+            mock_exp.assert_called_once()
+
+    def test_matching_group_exits_zero_under_table(self):
+        group = _make_group()
+        q1 = _make_query("q1", "c1")
+        q2 = _make_query("q2", "c2")
+        c1 = _make_connection("c1")
+        c2 = _make_connection("c2")
+        gr = _make_group_result()  # all_match True
+
+        def find_query_side(name):
+            return {"q1": q1, "q2": q2}.get(name)
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        with patch("dbqm.cli.deps.find_group", return_value=group), \
+             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
+             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
+             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
+             patch("dbqm.cli.deps.record_group_execution"):
+            run_cli(["run-group", "test_group"])  # must not raise
+
+    def test_divergent_group_exits_five_under_table(self):
+        group = _make_group()
+        q1 = _make_query("q1", "c1")
+        q2 = _make_query("q2", "c2")
+        c1 = _make_connection("c1")
+        c2 = _make_connection("c2")
+        gr = _make_group_result()
+        gr.all_match = False
+
+        def find_query_side(name):
+            return {"q1": q1, "q2": q2}.get(name)
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        with patch("dbqm.cli.deps.find_group", return_value=group), \
+             patch("dbqm.cli.deps.find_query", side_effect=find_query_side), \
+             patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_query", return_value=_make_query_result()), \
+             patch("dbqm.cli.deps.build_group_result", return_value=gr), \
+             patch("dbqm.cli.deps.record_group_execution"):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["run-group", "test_group"])
+            assert exc.value.code == 5
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +598,66 @@ class TestCmdSql:
              patch("dbqm.cli.deps.export_query_csv", return_value="/tmp/out.csv") as mock_exp:
             run_cli(["sql", "SELECT 1", "test_conn", "-e", "csv"])
             mock_exp.assert_called_once()
+
+    def test_sql_export_json_format_emits_envelope(self, capsys):
+        """CRITICAL fix: `-e` used to print bare prose and return under
+        `-f json`."""
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        adhoc = AdhocResult(
+            sql_type="SELECT", connection_name="test_conn",
+            columns=["x"], rows=[[1]], row_count=1, elapsed=0.01,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=adhoc), \
+             patch("dbqm.cli.deps.export_query_csv", return_value="/tmp/out.csv"):
+            run_cli(["sql", "SELECT 1", "test_conn", "-e", "csv", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "sql"
+            assert corpo["data"] == {"exported": "/tmp/out.csv", "format": "csv"}
+
+    def test_sql_unclassified_type_gets_envelope_under_json(self, capsys):
+        """CRITICAL fix: a statement `execute_adhoc` runs but doesn't
+        special-case (sql_type not SELECT/INSERT/UPDATE/DELETE/DDL/PLSQL)
+        used to fall past every json branch to a bare `print`."""
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        adhoc = AdhocResult(
+            sql_type="MERGE", connection_name="test_conn",
+            rows_affected=2, elapsed=0.02, committed=True,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.classify_sql", return_value="MERGE"), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=adhoc):
+            run_cli(["sql", "MERGE INTO t ...", "test_conn", "-f", "json"])
+            saida = capsys.readouterr()
+            corpo = json.loads(saida.out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "sql"
+            assert corpo["data"]["sql_type"] == "MERGE"
+            assert corpo["data"]["rows_affected"] == 2
+
+    def test_sql_unsupported_type_is_usage_not_sql_error(self, capsys):
+        """MINOR fix: `core/`'s "Tipo de SQL nao suportado" is bad input,
+        not the driver rejecting a statement it actually received."""
+        conn = _make_connection()
+        from dbqm.core.query_engine import AdhocResult
+        adhoc = AdhocResult(
+            sql_type="UNKNOWN", connection_name="test_conn",
+            success=False,
+            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, "
+                  "DELETE, DDL (CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.classify_sql", return_value="UNKNOWN"), \
+             patch("dbqm.cli.deps.execute_adhoc", return_value=adhoc):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["sql", "??? nonsense ???", "test_conn", "-f", "json"])
+            assert exc.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            assert json.loads(saida.err)["error"]["code"] == "usage"
 
 
 # ---------------------------------------------------------------------------
@@ -572,8 +803,37 @@ class TestCmdDdl:
         )
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.extract_ddl", return_value=result):
-            with pytest.raises(SystemExit):
+            with pytest.raises(SystemExit) as exc:
                 run_cli(["ddl", "MISSING", "test_conn"])
+            assert exc.value.code == 4
+
+    def test_ddl_json_envelope(self, capsys):
+        conn = _make_connection()
+        from dbqm.core.ddl_extractor import ExtractionResult, ExtractedObject
+        result = ExtractionResult(
+            object_name="MY_TABLE", object_type="TABLE",
+            owner="OWNER", connection_name="test_conn",
+            objects=[ExtractedObject("MY_TABLE", "TABLE", "CREATE TABLE MY_TABLE (id NUMBER);")],
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.extract_ddl", return_value=result), \
+             patch("dbqm.cli.deps.save_extraction", return_value=("/tmp/ddl", 1)):
+            run_cli(["ddl", "MY_TABLE", "test_conn", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "ddl"
+            assert corpo["data"]["path"] == "/tmp/ddl"
+            assert corpo["data"]["objects"][0]["name"] == "MY_TABLE"
+            assert corpo["data"]["objects"][0]["ddl"] == "CREATE TABLE MY_TABLE (id NUMBER);"
+
+    def test_ddl_json_failure_leaves_stdout_clean(self, capsys):
+        with patch("dbqm.cli.deps.find_connection", return_value=None):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["ddl", "MY_TABLE", "missing", "-f", "json"])
+            assert exc.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            assert json.loads(saida.err)["error"]["code"] == "not_found"
 
 
 # ---------------------------------------------------------------------------
@@ -657,6 +917,26 @@ class TestCmdExportConfig:
             run_cli(["export-config"])
             mock_gp.assert_called_once()
 
+    def test_export_config_json_envelope(self, capsys):
+        with patch("dbqm.cli.deps.export_configs", return_value="/tmp/cfg.dbqm"):
+            run_cli(["export-config", "--password", "s3cret", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "export-config"
+            assert corpo["data"] == {"path": "/tmp/cfg.dbqm"}
+
+    def test_export_config_json_failure_leaves_stdout_clean(self, monkeypatch, capsys):
+        """No password source and no tty — `resolve_password`'s own failure,
+        now threaded through the envelope too."""
+        monkeypatch.delenv("DBQM_BUNDLE_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["export-config", "-f", "json"])
+        assert exc.value.code == 2
+        saida = capsys.readouterr()
+        assert saida.out == ""
+        assert json.loads(saida.err)["error"]["code"] == "usage"
+
 
 class TestCmdImportConfig:
     def test_import_success(self):
@@ -666,8 +946,27 @@ class TestCmdImportConfig:
 
     def test_import_error(self):
         with patch("dbqm.cli.deps.import_configs", side_effect=ValueError("bad password")):
-            with pytest.raises(SystemExit):
+            with pytest.raises(SystemExit) as exc:
                 run_cli(["import-config", "file.dbqm", "--password", "wrong"])
+            assert exc.value.code == 2
+
+    def test_import_config_json_envelope(self, capsys):
+        summary = {"connections": 2, "queries": 3, "groups": 1, "skipped": 0}
+        with patch("dbqm.cli.deps.import_configs", return_value=summary):
+            run_cli(["import-config", "file.dbqm", "--password", "pw", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "import-config"
+            assert corpo["data"] == summary
+
+    def test_import_config_json_failure_leaves_stdout_clean(self, capsys):
+        with patch("dbqm.cli.deps.import_configs", side_effect=ValueError("bad password")):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["import-config", "file.dbqm", "--password", "wrong", "-f", "json"])
+            assert exc.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            assert json.loads(saida.err)["error"]["code"] == "validation"
 
 
 # ---------------------------------------------------------------------------
@@ -675,14 +974,10 @@ class TestCmdImportConfig:
 # ---------------------------------------------------------------------------
 
 class TestPrintQueryResult:
-    def test_json_format(self, capsys):
-        from dbqm.cli import _print_query_result
-        result = _make_query_result()
-        _print_query_result(result, "json")
-        out = capsys.readouterr().out
-        data = json.loads(out)
-        assert data["row_count"] == 2
-        assert len(data["rows"]) == 2
+    """`_print_query_result` no longer has a `json` branch: every caller now
+    builds the envelope itself (`ok()`) before ever reaching this function,
+    so a bare unwrapped dict on stdout under `-f json` can't reappear here
+    for the next caller to trip over."""
 
     def test_csv_format(self, capsys):
         from dbqm.cli import _print_query_result
@@ -1748,12 +2043,34 @@ class TestEveryCommandSpeaksTheEnvelope:
         with pytest.raises(SystemExit) as exc:
             run_cli(["sql", "SELECT 1", "c1", "-f", "json"])
         assert exc.value.code == 4
-        erro = json.loads(capsys.readouterr().err)
+        saida = capsys.readouterr()
+        assert saida.out == ""
+        erro = json.loads(saida.err)
         assert erro["error"]["code"] == "sql_error"
         assert "ORA-00942" in erro["error"]["message"]
 
+    def test_run_group_missing_group_leaves_stdout_clean(self, tmp_config_dir, capsys):
+        import json
+
+        import pytest
+
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["run-group", "nao-existe", "-f", "json"])
+        assert exc.value.code == 2
+        saida = capsys.readouterr()
+        assert saida.out == ""
+        assert json.loads(saida.err)["error"]["code"] == "not_found"
+
     def test_a_divergent_group_exits_five(self, tmp_config_dir, capsys, sample_group_result, monkeypatch):
-        """Behaviour change: run-group exits 0 today whether it matched or not."""
+        """RULING: divergence is `ok`, not `fail` — the command did its job
+        and the comparison counts are exactly what an agent runs it for, so
+        they ride in `data` on stdout; the exit code alone (still 5, still
+        under `table` too — see TestCmdRunGroup) is what lets a shell branch
+        without parsing. Behaviour change either way: run-group exited 0
+        before this task whether it matched or not."""
         import json
 
         import pytest
@@ -1773,5 +2090,10 @@ class TestEveryCommandSpeaksTheEnvelope:
         with pytest.raises(SystemExit) as exc:
             run_cli(["run-group", "test_group", "-f", "json"])
         assert exc.value.code == 5
-        erro = json.loads(capsys.readouterr().err)
-        assert erro["error"]["code"] == "divergent"
+        saida = capsys.readouterr()
+        assert saida.err == "", "divergence is ok(), not fail() — nothing on stderr"
+        corpo = json.loads(saida.out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "run-group"
+        assert corpo["data"]["all_match"] is False
+        assert corpo["data"]["comparisons"][0]["column"] == "status"

@@ -8,18 +8,31 @@ import sys
 
 from rich.markup import escape
 
+from dbqm.cli.envelope import fail
+from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
 
 
-def _parse_params(param_list: list[str] | None) -> dict:
-    """Parse key=value parameter pairs from CLI arguments."""
+def _parse_params(param_list: list[str] | None, args: argparse.Namespace | None = None,
+                   command: str = "params") -> dict:
+    """Parse key=value parameter pairs from CLI arguments.
+
+    `args`/`command` let a malformed `-p` speak the envelope under `-f json`
+    the same way every other bad-input path does. Both are optional so the
+    direct unit tests (which pass neither) keep exercising `table`'s branch
+    unchanged.
+    """
     if not param_list:
         return {}
+    fmt = getattr(args, "format", "table")
     params = {}
     for p in param_list:
         if "=" not in p:
-            console.print(f"[ds.op.failure]Parametro invalido (use chave=valor): {escape(p)}[/ds.op.failure]")
-            sys.exit(1)
+            message = f"Parametro invalido (use chave=valor): {p}"
+            if fmt == "json":
+                fail(command, "usage", message)
+            console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
+            sys.exit(int(exit_for("usage")))
         key, value = p.split("=", 1)
         params[key.strip()] = value.strip()
     return params
@@ -59,7 +72,7 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
 
 def resolve_password(
     args: argparse.Namespace, env_var: str, prompt: str, *, required: bool,
-    use_env: bool = True,
+    use_env: bool = True, command: str = "password",
 ) -> str | None:
     """The password for this command, from the first source that has one.
 
@@ -82,16 +95,23 @@ def resolve_password(
     `required`: a closed/empty pipe is far more often a broken script than an
     intended empty password, and silently falling through would mean `update`
     clears a stored password without `--no-password` ever being said.
+
+    `command` names the caller for the envelope (`connection.add`,
+    `export-config`, ...) so a source-of-password failure under `-f json`
+    speaks it too, the same way `_fail_or_print` does elsewhere — `args`
+    without a `format` attribute (the direct unit tests) falls back to
+    `table`'s unchanged prose-and-`sys.exit` branch.
     """
     from_stdin = getattr(args, "password_stdin", False)
     direct = getattr(args, "password", None)
+    fmt = getattr(args, "format", "table")
 
     if from_stdin and direct:
-        console.print(
-            "[ds.op.failure]Use --password-stdin ou --password, nao os dois."
-            "[/ds.op.failure]"
-        )
-        sys.exit(2)
+        message = "Use --password-stdin ou --password, nao os dois."
+        if fmt == "json":
+            fail(command, "usage", message)
+        console.print(f"[ds.op.failure]{message}[/ds.op.failure]")
+        sys.exit(int(exit_for("usage")))
 
     if from_stdin:
         # Only the line terminator comes off: a password may end in a space.
@@ -107,11 +127,11 @@ def resolve_password(
                 if getattr(args, "no_password", None) is not None
                 else ""
             )
-            console.print(
-                f"[ds.op.failure]Senha vazia na entrada padrao.{dica}"
-                "[/ds.op.failure]"
-            )
-            sys.exit(2)
+            message = f"Senha vazia na entrada padrao.{dica}"
+            if fmt == "json":
+                fail(command, "usage", message)
+            console.print(f"[ds.op.failure]{message}[/ds.op.failure]")
+            sys.exit(int(exit_for("usage")))
         return value
     if direct:
         return direct
@@ -127,8 +147,8 @@ def resolve_password(
     if sys.stdin.isatty():
         return getpass.getpass(prompt)
 
-    console.print(
-        f"[ds.op.failure]Senha nao informada. Use --password-stdin ou "
-        f"defina {env_var}.[/ds.op.failure]"
-    )
-    sys.exit(2)
+    message = f"Senha nao informada. Use --password-stdin ou defina {env_var}."
+    if fmt == "json":
+        fail(command, "usage", message)
+    console.print(f"[ds.op.failure]{message}[/ds.op.failure]")
+    sys.exit(int(exit_for("usage")))
