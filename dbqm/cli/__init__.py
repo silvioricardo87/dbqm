@@ -8,7 +8,7 @@ from dbqm.cli.commands import schema as _schema_commands
 from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
-from dbqm.cli.commands.query import cmd_run, cmd_run_group, cmd_sql
+from dbqm.cli.commands.query import cmd_multi, cmd_run, cmd_run_group, cmd_sql
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
 from dbqm.cli.params import _add_connection_fields, _parse_params, resolve_password
 from dbqm.cli.render import _print_query_result, console, rich_theme
@@ -47,6 +47,22 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Exportar resultado para arquivo. 'html' nao pode ser usado com --flat.")
     p_grp.add_argument("--flat", action="store_true",
                        help="Usar formato flat (um bloco por coluna)")
+
+    # --- multi ---
+    p_multi = subparsers.add_parser(
+        "multi", help="Executar um SQL ad-hoc em varias conexoes e comparar")
+    p_multi.add_argument("sql", help="SQL a executar (ou caminho para arquivo .sql)")
+    p_multi.add_argument("-c", "--connection", action="append", metavar="NOME",
+                         help="Conexao (repita para cada uma; minimo 2)")
+    p_multi.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
+                         help="Parametro (pode repetir)")
+    p_multi.add_argument("--key", help="Coluna de juncao (padrao: a primeira coluna comum)")
+    p_multi.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                         help="Formato de saida")
+    p_multi.add_argument("-e", "--export", choices=["csv", "json", "txt", "html"],
+                         help="Exportar resultado para arquivo. 'html' nao pode ser usado com --flat.")
+    p_multi.add_argument("--flat", action="store_true",
+                         help="Usar formato flat (um bloco por coluna)")
 
     # --- sql ---
     p_sql = subparsers.add_parser(
@@ -201,6 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMAND_MAP = {
     "run": cmd_run,
     "run-group": cmd_run_group,
+    "multi": cmd_multi,
     "sql": cmd_sql,
     "test": cmd_test,
     "list": cmd_list,

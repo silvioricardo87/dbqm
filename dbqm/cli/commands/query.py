@@ -6,7 +6,7 @@ import sys
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn, cast
 
 from rich.markup import escape
 
@@ -16,6 +16,8 @@ from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
 from dbqm.core.group_engine import GroupResult
+from dbqm.core.query_engine import AdhocResult
+from dbqm.models.connection import Connection
 
 # `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
 # error string — the statement was never sent to the driver, so calling it
@@ -296,6 +298,118 @@ def cmd_run_group(args: argparse.Namespace) -> None:
 
     status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
     console.print(f"Grupo: {group_result.group_name} — {status}")
+    for line in render._colored_comparison_lines(group_result.comparisons):
+        console.print(f"  {line}")
+    if not group_result.all_match:
+        sys.exit(int(exit_for("divergent")))
+
+
+def _derive_join_key(results: dict[str, AdhocResult]) -> str:
+    """The join key `build_adhoc_group_result` would derive on its own, for
+    reporting purposes.
+
+    Mirrors `derive_comparison_columns`'s rule -- the first column common to
+    every result, in the first result's own column order -- so the value
+    shown to the caller always agrees with the one `build_adhoc_group_result`
+    actually used. Both are pure functions of the same `results`, so
+    computing it twice never disagrees; it just needs computing once more
+    here because `GroupResult` does not carry the key it was built with.
+    """
+    first = next(iter(results.values()))
+    common = [c for c in first.columns if all(c in r.columns for r in results.values())]
+    return common[0] if common else ""
+
+
+def cmd_multi(args: argparse.Namespace) -> None:
+    """Run one ad-hoc SQL across several connections and compare the results.
+
+    Order matters here and is the whole point: `--flat`+`html` and "fewer
+    than two connections" are refused before anything opens; every
+    connection name is resolved before any of them is opened, so a bad name
+    is reported without a single query having run; and once
+    `execute_across` has run every resolved connection, any unsuccessful one
+    fails the whole command -- a comparison over a subset would silently
+    answer a different question than the one asked.
+    """
+    if args.export == "html" and args.flat:
+        _fail_or_print(args, "multi", "usage",
+                       "--flat nao tem versao HTML. Use --export html sem --flat, "
+                       "ou --flat com csv, json ou txt.")
+
+    names = args.connection or []
+    if len(names) < 2:
+        _fail_or_print(args, "multi", "usage",
+                       "Informe pelo menos duas conexoes com -c/--connection.")
+
+    resolved: list[tuple[str, Connection | None]] = []
+    for name in names:
+        conn = deps.find_connection(name)
+        if not conn:
+            _fail_or_print(args, "multi", "not_found", f"Conexao '{name}' nao encontrada.")
+        resolved.append((name, conn))
+
+    param_values = _parse_params(args.param, args, "multi")
+
+    sql = args.sql
+    sql_path = Path(sql)
+    if sql_path.is_file():
+        sql = sql_path.read_text(encoding="utf-8")
+
+    results = deps.execute_across(sql, resolved, param_values)
+
+    for name, result in results.items():
+        if not result.success:
+            code = "connection_failed" if result.error_kind == "connection" else "sql_error"
+            _fail_or_print(args, "multi", code, f"Falha na conexao '{name}': {result.error}")
+
+    try:
+        # `build_adhoc_group_result` takes `dict[str, ResultLike]` (a
+        # Protocol) and dict value types are invariant to mypy, so a plain
+        # `dict[str, AdhocResult]` needs the cast even though `AdhocResult`
+        # satisfies the Protocol structurally at runtime.
+        group_result = deps.build_adhoc_group_result(
+            cast(dict[str, Any], results), join_key=args.key or "",
+        )
+    except deps.NoComparableColumns as e:
+        _fail_or_print(args, "multi", "validation", str(e))
+
+    join_key = args.key or _derive_join_key(results)
+
+    if args.export:
+        fmt = args.export
+        path = _export_group(args, "multi", group_result, param_values)
+        if args.format == "json":
+            ok("multi", {"exported": str(path), "format": fmt, "join_key": join_key})
+        else:
+            console.print(f"Exportado: {path}")
+        if not group_result.all_match:
+            sys.exit(int(exit_for("divergent")))
+        return
+
+    if args.format == "json":
+        data = {
+            "join_key": join_key,
+            "all_match": group_result.all_match,
+            "comparisons": [
+                {
+                    "column": c.column,
+                    "total_keys": c.total_keys,
+                    "equal_count": c.equal_count,
+                    "diff_count": c.diff_count,
+                    "absent_count": c.absent_count,
+                    "normalized_count": c.normalized_count,
+                }
+                for c in group_result.comparisons
+            ],
+        }
+        ok("multi", data)
+        if not group_result.all_match:
+            sys.exit(int(exit_for("divergent")))
+        return
+
+    status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
+    conexoes = ", ".join(results)
+    console.print(f"Multi ({conexoes}) — chave: {join_key} — {status}")
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
     if not group_result.all_match:

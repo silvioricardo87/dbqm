@@ -38,7 +38,12 @@ from dbqm.core.exporter import (
     export_query_json,
     export_query_txt,
 )
-from dbqm.core.group_engine import build_group_result
+from dbqm.core.group_engine import (
+    NoComparableColumns,
+    build_adhoc_group_result,
+    build_group_result,
+    execute_across,
+)
 from dbqm.core.html_report import export_group_html, export_query_html
 from dbqm.core.history import (
     clear_history,
@@ -67,15 +72,18 @@ from dbqm.models.group import find_group, load_groups
 from dbqm.models.query import find_query, load_queries
 
 __all__ = [
+    "NoComparableColumns",
     "ObjectNotFound",
     "QueryResult",
     "ReadOnlyViolation",
     "UnsupportedEngine",
     "browse_table",
+    "build_adhoc_group_result",
     "build_group_result",
     "check_read_only",
     "classify_sql",
     "clear_history",
+    "execute_across",
     "execute_adhoc",
     "execute_explain",
     "execute_query",

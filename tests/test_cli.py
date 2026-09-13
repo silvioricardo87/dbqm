@@ -120,7 +120,7 @@ class TestBuildParser:
         assert parser.prog == "dbqm"
 
     def test_all_commands_have_handlers(self):
-        expected = {"run", "run-group", "sql", "test", "list", "ddl",
+        expected = {"run", "run-group", "multi", "sql", "test", "list", "ddl",
                     "export-config", "import-config", "history", "connection",
                     "objects", "describe", "rows"}
         assert set(COMMAND_MAP.keys()) == expected
@@ -670,6 +670,213 @@ class TestCmdRunGroup:
         fonte = inspect.getsource(q.cmd_run_group)
         assert "_export_group(" in fonte
         assert "export_group_flat_csv" not in fonte
+
+
+# ---------------------------------------------------------------------------
+# multi subcommand
+# ---------------------------------------------------------------------------
+
+def _make_multi_result(name, columns=None, rows=None, success=True, error="", error_kind=""):
+    return AdhocResult(
+        sql_type="SELECT",
+        connection_name=name,
+        columns=columns if columns is not None else ["ID", "NAME"],
+        rows=rows if rows is not None else [[1, "Alice"]],
+        row_count=1 if rows is None else len(rows),
+        success=success,
+        error=error,
+        error_kind=error_kind,
+    )
+
+
+class TestCmdMulti:
+    def test_two_connections_that_agree_exit_zero(self, tmp_config_dir):
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1"),
+            "c2": _make_multi_result("c2"),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side) as mock_find, \
+             patch("dbqm.cli.deps.execute_across", return_value=results) as mock_exec:
+            run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2"])  # must not raise
+            mock_exec.assert_called_once()
+            assert mock_find.call_count == 2
+
+    def test_two_connections_that_differ_exit_five(self, tmp_config_dir):
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1", rows=[[1, "Alice"]]),
+            "c2": _make_multi_result("c2", rows=[[1, "Bob"]]),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2"])
+            assert exc.value.code == 5
+
+    def test_one_connection_is_a_usage_error(self, tmp_config_dir, capsys):
+        """Comparing one result against nothing is not a comparison."""
+        with patch("dbqm.cli.deps.find_connection") as mock_find, \
+             patch("dbqm.cli.deps.execute_across") as mock_exec:
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1"])
+            assert exc.value.code == 2
+            mock_find.assert_not_called()
+            mock_exec.assert_not_called()
+
+    def test_an_unknown_connection_is_not_found(self, tmp_config_dir, capsys):
+        c1 = _make_connection("c1")
+
+        def find_conn_side(name):
+            return {"c1": c1}.get(name)
+
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across") as mock_exec:
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "ghost"])
+            assert exc.value.code == 2
+            mock_exec.assert_not_called()
+            saida = capsys.readouterr().out
+            assert "ghost" in saida
+
+    def test_a_dead_connection_stops_the_command(self, tmp_config_dir, capsys):
+        """error_kind 'connection' maps to 3, and the message must name which
+        connection failed -- 'Falha na conexao' across three databases costs a
+        human a second run to interpret."""
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result(
+                "c1", success=False, error="ORA-12541: TNS:no listener",
+                error_kind="connection",
+            ),
+            "c2": _make_multi_result("c2"),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2"])
+            assert exc.value.code == 3
+            saida = capsys.readouterr().out
+            assert "c1" in saida
+
+    def test_a_rejected_statement_exits_four(self, tmp_config_dir, capsys):
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result(
+                "c1", success=False, error="ORA-00904: invalid identifier",
+                error_kind="statement",
+            ),
+            "c2": _make_multi_result("c2"),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2"])
+            assert exc.value.code == 4
+            saida = capsys.readouterr().out
+            assert "c1" in saida
+
+    def test_nothing_is_exported_when_a_connection_failed(self, tmp_config_dir):
+        """-e given, a connection down: no exporter is called."""
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result(
+                "c1", success=False, error="host unreachable", error_kind="connection",
+            ),
+            "c2": _make_multi_result("c2"),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results), \
+             patch("dbqm.cli.deps.export_group_csv") as mock_csv, \
+             patch("dbqm.cli.deps.export_group_json") as mock_json, \
+             patch("dbqm.cli.deps.export_group_txt") as mock_txt, \
+             patch("dbqm.cli.deps.export_group_html") as mock_html:
+            with pytest.raises(SystemExit):
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-e", "csv"])
+            mock_csv.assert_not_called()
+            mock_json.assert_not_called()
+            mock_txt.assert_not_called()
+            mock_html.assert_not_called()
+
+    def test_no_common_columns_is_a_validation_error(self, tmp_config_dir, capsys):
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1", columns=["A"], rows=[[1]]),
+            "c2": _make_multi_result("c2", columns=["B"], rows=[[1]]),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2"])
+            assert exc.value.code == 2
+
+    def test_the_join_key_is_reported(self, tmp_config_dir, capsys):
+        """A derived key the caller cannot see is a number produced by a rule
+        they are guessing at."""
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1", columns=["ID", "NAME"], rows=[[1, "Alice"]]),
+            "c2": _make_multi_result("c2", columns=["ID", "NAME"], rows=[[1, "Alice"]]),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["data"]["join_key"] == "ID"
+
+    def test_key_overrides_the_derived_join_key(self, tmp_config_dir, capsys):
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1", columns=["ID", "NAME"], rows=[[1, "Alice"]]),
+            "c2": _make_multi_result("c2", columns=["ID", "NAME"], rows=[[1, "Alice"]]),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "--key", "NAME", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["data"]["join_key"] == "NAME"
+
+    def test_flat_with_html_is_refused_before_any_connection_opens(self, tmp_config_dir):
+        """exit 2, and execute_across never called."""
+        with patch("dbqm.cli.deps.find_connection") as mock_find, \
+             patch("dbqm.cli.deps.execute_across") as mock_exec:
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "--flat", "-e", "html"])
+            assert exc.value.code == 2
+            mock_find.assert_not_called()
+            mock_exec.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
