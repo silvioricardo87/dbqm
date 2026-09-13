@@ -2509,6 +2509,46 @@ class TestCmdRows:
         assert capsys.readouterr().out == ""
         assert saiu.value.code == 4
 
+    def test_table_format_says_there_is_more_beyond_the_page(self, capsys):
+        """`QueryResult` has no `total_count`, so the renderer cannot report
+        it: without this line a human sees 3 rows of six hundred and nothing
+        to suggest a second page exists. The JSON payload has always carried
+        the number; this is the same fact for the reader."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="PEDIDOS", connection_name="conexao",
+            columns=["ID"], rows=[[1], [2], [3]],
+            row_count=3, total_count=636, elapsed=0.1, limit=3, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "PEDIDOS", "conexao", "--limit", "3"])
+
+        saida = capsys.readouterr().out
+        assert "636" in saida, "the total must reach the human, not only the JSON"
+        assert "--offset 3" in saida, "and it must say how to get the next page"
+
+    def test_the_last_page_says_nothing_extra(self, capsys):
+        """The counterpart: when the page is the whole table, a line about
+        more rows would be a lie."""
+        from unittest.mock import patch
+
+        from dbqm.cli import run_cli
+        from dbqm.core.table_browser import BrowseResult
+
+        resultado = BrowseResult(
+            table="PEQUENA", connection_name="conexao",
+            columns=["ID"], rows=[[1], [2]],
+            row_count=2, total_count=2, elapsed=0.1, limit=100, offset=0,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table", return_value=resultado):
+            run_cli(["rows", "PEQUENA", "conexao"])
+
+        assert "--offset" not in capsys.readouterr().out
+
     def test_raw_format_prints_values_with_no_decoration(self, capsys):
         from unittest.mock import patch
 

@@ -193,3 +193,15 @@ def cmd_rows(args: argparse.Namespace) -> None:
         ),
         args.format,
     )
+
+    # `QueryResult` has no `total_count`, so the renderer cannot say it: a
+    # human would see 100 rows of sixteen million and nothing to suggest there
+    # is a second page. The JSON payload carries `total_count`; this is the
+    # same fact for the reader. Only for `table` -- `csv` and `raw` are text
+    # pipes, and a trailing sentence in them is corruption, not information.
+    vistas = resultado.offset + resultado.row_count
+    if args.format == "table" and resultado.total_count > vistas:
+        console.print(
+            f"Mostrando {vistas} de {resultado.total_count} linhas. "
+            f"Use --offset {vistas} para as proximas."
+        )
