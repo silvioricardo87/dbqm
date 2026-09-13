@@ -1,4 +1,4 @@
-"""Every Rich markup tag in cli.py must point at a real style.
+"""Every Rich markup tag in the `dbqm/cli/` package must point at a real style.
 
 The sibling of this test on the TUI side is `tests/ui/_helpers.py::ThemedTestApp`:
 there, an orphan `$token` (e.g. `$border` with no match in the theme dict)
@@ -36,7 +36,11 @@ from rich.style import Style
 
 from dbqm.cli import rich_theme
 
-CLI_PATH = Path(__file__).resolve().parents[1] / "dbqm" / "cli.py"
+CLI_DIR = Path(__file__).resolve().parents[1] / "dbqm" / "cli"
+# Every module of the package, so a command group added later is covered
+# the day it lands. `cli.py` became this package in 2.0.0; a path pinned
+# to one file went stale the moment it was split.
+CLI_PATHS = sorted(CLI_DIR.rglob("*.py"))
 
 # A valid tag only contains identifier-words (letters/digits/./-), possibly
 # several of them separated by spaces (e.g. "bold red"). That is what
@@ -87,9 +91,11 @@ def test_every_cli_markup_name_resolves_in_the_theme_or_is_native_to_rich():
     nativos = set(Style.STYLE_ATTRIBUTES) | _MODIFIERS
 
     desconhecidos = sorted(
-        nome for nome in _markup_names_in(CLI_PATH)
+        nome
+        for caminho in CLI_PATHS
+        for nome in _markup_names_in(caminho)
         if nome not in estilos and nome not in nativos
     )
     assert not desconhecidos, (
-        f"tag/kwarg de estilo em cli.py referencia estilo inexistente: {desconhecidos}"
+        f"tag/kwarg de estilo em dbqm/cli/ referencia estilo inexistente: {desconhecidos}"
     )
