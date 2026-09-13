@@ -179,14 +179,50 @@ dbqm connection list -f json
 dbqm connection rm prod --yes
 ```
 
-Exit codes for `connection`: `0` success, `2` usage / not found / validation,
-`3` `--test` failed.
+### Output format and exit codes
+
+Every command accepts `-f/--format`. `run`, `run-group` and `sql` offer
+`table|json|csv|raw`; every other command — `test`, `list`, `ddl`, `history`,
+`export-config`, `import-config`, and the `connection` group — offers
+`table|json`. `raw` prints plain values with no headers/decoration, handy for
+piping the body of a view, package, or procedure to another tool.
+`--export csv|json|txt` writes the result to a file regardless of `-f`.
+
+`-f json` wraps every command in one envelope: a success prints
+`{"ok": true, "command": "...", "data": {...}}` to stdout; a failure prints
+`{"ok": false, "command": "...", "error": {"code", "message", "exit"}}` to
+**stderr**, with stdout left completely empty on failure. Pipe `data`, not
+the top level:
+
+```bash
+dbqm list connections -f json | jq '.data[].name'
+
+dbqm connection show nada -f json    # nothing on stdout; the error goes to
+                                      # stderr; the process exits 2
+```
+
+Exit codes are stable across every command:
+
+| Code | Meaning |
+|---|---|
+| `0` | success |
+| `1` | a bug in dbqm — not the input, not the database |
+| `2` | usage error, name not found, or a value that fails validation |
+| `3` | connection failed |
+| `4` | SQL error — the statement reached the driver and was rejected |
+| `5` | comparison ran to completion and diverged (`run-group`) |
+| `130` | interrupted (Ctrl+C) |
+
+**`run-group` exits `5` when the comparison does not match**, in `-f json`
+and in the default `-f table` output alike. Before 2.0.0 it always exited `0`
+regardless of the result, so a script chaining `dbqm run-group ... &&
+next-step` ran `next-step` unconditionally. It now stops on divergence, which
+is the point of running a comparison in a script — see [CHANGELOG.md](./CHANGELOG.md)
+for the full migration notes if you scripted against the pre-2.0 shapes.
 
 `export-config` and `import-config` accept `--password-stdin` and the
 `DBQM_BUNDLE_PASSWORD` environment variable too, so neither blocks without a
 terminal.
-
-Output format options: `--format table|json|csv|raw` and `--export csv|json|txt`. Use `raw` to print plain values (CLOB/LONG materialized, no headers/decoration) — handy for piping the body of a view, package, or procedure to another tool.
 
 ### Export destination
 
