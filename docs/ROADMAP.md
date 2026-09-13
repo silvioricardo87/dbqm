@@ -19,7 +19,23 @@ not be retried lives in `docs/ARCHITECTURE.md` under the known debt.
 
 ## Tier 0 — Bugs
 
-**Empty.** Bugs return here the moment one is found, above every feature.
+Three defects in the CLI's error contract, found while building 2.0.0 through
+2.2.0 and parked in execution logs rather than here — which was the wrong
+place for them. They share the same paths, so they are one slice.
+
+| # | Bug | Evidence | What goes wrong for a user |
+|---|---|---|---|
+| **B1** | Exit code `3` is unreachable from `run` and `sql` | `core/query_engine.py` collapses a connection failure and a rejected statement into one `error` string, so the CLI cannot tell them apart. Measured again in 2.2.0: with `--force-write --commit`, a DNS failure returns `sql_error` (4). | The published exit-code table promises a distinction the program cannot make. A script retrying `connection_failed` retries forever against a statement the engine will never accept. |
+| **B2** | The same missing name gets two different answers | `dbqm describe NOME conn` returns `not_found` (2); `dbqm rows NOME conn` returns `sql_error` (4). | An agent branching on `error.code` sees two answers to one question. Each is defensible alone — `rows` genuinely had its statement rejected — but the pair is not. |
+| **B3** | `ddl -f json` writes to disk under `--stdout` | `cli/commands/inspect.py`'s `cmd_ddl` saves the extraction regardless of the flag. | A command whose name and flag both say "read" has a side effect. |
+
+### Decision pending, not a defect
+
+`to_dict()` on the `core/` dataclasses publishes `error` and `output_lines`.
+Driver error text can echo a DSN or a host, and `output_lines` carries whatever
+DBMS_OUTPUT produced. Nothing is redacted, deliberately — redaction here is a
+policy call for the maintainer, not an implementation detail. Worth settling
+before anything persists that output to a log.
 
 ---
 
@@ -87,8 +103,10 @@ survive the session.
 
 ## Suggested next slice
 
-Tiers 0 and 1 are empty. Discovery (`C2`, `C3`) shipped in 2.1.0 and the
-read-only guard (`X3`) shipped in 2.2.0. The next item is **C4** (`dbqm
+**Tier 0 first.** `B1`, `B2` and `B3` touch the same error paths, so they are
+one slice rather than three, and `B1` overlaps what `C4` will touch anyway.
+
+After them, the next item is **C4** (`dbqm
 call`) — `execute_routine` already exists and handles IN/OUT binding, return
 values and DBMS_OUTPUT capture. **It is Oracle-only**, though: it takes no
 `db_type` at all and builds an anonymous PL/SQL block, so C4 either ships
