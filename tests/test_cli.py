@@ -842,6 +842,82 @@ class TestCmdMulti:
             corpo = json.loads(saida.err)
             assert corpo["error"]["code"] == "validation"
 
+    def test_key_not_a_common_column_is_a_validation_error(self, tmp_config_dir, capsys):
+        """`--key FOO` where FOO is not one of the columns common to every
+        result is the same class of silent wrong answer as comparing zero
+        columns: `run_comparison` would index FOO to `None` in every result,
+        every key set would come back empty, and `all([])` is `True` over
+        rows that were never actually looked at."""
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1", columns=["ID", "NOME"], rows=[[1, "Alice"]]),
+            "c2": _make_multi_result("c2", columns=["ID", "NOME"], rows=[[2, "Bob"]]),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "--key", "FOO", "-f", "json"])
+            assert exc.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "validation"
+            assert "FOO" in corpo["error"]["message"]
+
+    def test_only_a_key_and_nothing_to_compare_is_a_validation_error_without_key(
+        self, tmp_config_dir, capsys,
+    ):
+        """Reachable without `--key`: when the only column common to every
+        result is the derived join key, `derive_comparison_columns` returns
+        `(key, [])` on purpose (core allows this) -- but `cmd_multi` running
+        a comparison of zero columns over genuinely divergent rows would
+        still say CONSISTENTE. `cmd_multi` refuses it instead of core."""
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1", columns=["ID"], rows=[[1]]),
+            "c2": _make_multi_result("c2", columns=["ID"], rows=[[2]]),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-f", "json"])
+            assert exc.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "validation"
+
+    def test_only_a_key_and_nothing_to_compare_is_a_validation_error_with_key(
+        self, tmp_config_dir, capsys,
+    ):
+        """Same trap, reached via `--key` naming the only common column."""
+        c1, c2 = _make_connection("c1"), _make_connection("c2")
+
+        def find_conn_side(name):
+            return {"c1": c1, "c2": c2}.get(name)
+
+        results = {
+            "c1": _make_multi_result("c1", columns=["ID", "NOME"], rows=[[1, "Alice"]]),
+            "c2": _make_multi_result("c2", columns=["ID"], rows=[[2]]),
+        }
+        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+             patch("dbqm.cli.deps.execute_across", return_value=results):
+            with pytest.raises(SystemExit) as exc:
+                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "--key", "ID", "-f", "json"])
+            assert exc.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "validation"
+
     def test_the_join_key_is_reported(self, tmp_config_dir, capsys):
         """A derived key the caller cannot see is a number produced by a rule
         they are guessing at."""
@@ -950,31 +1026,46 @@ class TestCmdMulti:
     def test_multiple_failures_report_every_connection_deterministically(self, tmp_config_dir, capsys):
         """The exit code must not depend on which failing connection happens
         to be listed (or run) first: a connection failure outranks a
-        statement failure regardless of dict/CLI order, and every failing
-        connection is named, not just one."""
+        statement failure regardless of order, and every failing connection
+        is named, not just one.
+
+        Runs the *same* failing state twice, with the two failures in
+        opposite positions of `results`' iteration order. Checking only one
+        order kills a `return codes[-1]` mutant (the connection failure
+        happens to be last there) but lets it slip past the other order,
+        where the connection failure is first and the statement failure is
+        last -- a `codes[-1]`-shaped bug would report `sql_error`/4 there.
+        Both orders must report `connection_failed`/3 and name both
+        connections, which is the claim `_multi_failure_code`'s docstring
+        actually makes.
+        """
         c1, c2, c3 = _make_connection("c1"), _make_connection("c2"), _make_connection("c3")
 
         def find_conn_side(name):
             return {"c1": c1, "c2": c2, "c3": c3}.get(name)
 
-        results = {
-            "c1": _make_multi_result(
-                "c1", success=False, error="ORA-00904: invalid identifier",
-                error_kind="statement",
-            ),
-            "c2": _make_multi_result(
-                "c2", success=False, error="host unreachable", error_kind="connection",
-            ),
-            "c3": _make_multi_result("c3"),
-        }
-        with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
-             patch("dbqm.cli.deps.execute_across", return_value=results):
-            with pytest.raises(SystemExit) as exc:
-                run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-c", "c3"])
-            assert exc.value.code == 3
-            saida = capsys.readouterr().out
-            assert "c1" in saida
-            assert "c2" in saida
+        statement_failure = _make_multi_result(
+            "c1", success=False, error="ORA-00904: invalid identifier",
+            error_kind="statement",
+        )
+        connection_failure = _make_multi_result(
+            "c2", success=False, error="host unreachable", error_kind="connection",
+        )
+        success = _make_multi_result("c3")
+
+        orderings = [
+            {"c1": statement_failure, "c2": connection_failure, "c3": success},
+            {"c2": connection_failure, "c1": statement_failure, "c3": success},
+        ]
+        for results in orderings:
+            with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
+                 patch("dbqm.cli.deps.execute_across", return_value=results):
+                with pytest.raises(SystemExit) as exc:
+                    run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-c", "c3"])
+                assert exc.value.code == 3, f"order {list(results)} must still exit 3"
+                saida = capsys.readouterr().out
+                assert "c1" in saida
+                assert "c2" in saida
 
     def test_a_statement_never_sent_is_a_usage_error_not_sql_error(self, tmp_config_dir, capsys):
         """`_sql_error_code` remaps the known 'never reached the driver'

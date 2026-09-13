@@ -384,7 +384,19 @@ def cmd_multi(args: argparse.Namespace) -> None:
     except deps.NoComparableColumns as e:
         _fail_or_print(args, "multi", "validation", str(e))
 
+    common = [join_key, *compare_columns]
+
     if args.key:
+        # A key that is not common to every result is the same trap as
+        # passing no `compare_columns` at all: `run_comparison` would index
+        # it to `None` in every result, every key set would come back empty,
+        # and `all([])` is `True` over rows it never actually looked at.
+        # Refused here rather than left to that indexing, naming the column.
+        if args.key not in common:
+            _fail_or_print(
+                args, "multi", "validation",
+                f"Coluna de chave '{args.key}' nao e comum a todas as conexoes.",
+            )
         # Re-deriving instead of trusting `build_adhoc_group_result`'s own
         # `join_key`-given branch to leave `compare_columns` alone: that
         # branch defaults `compare_columns` to `[]` when none is passed,
@@ -392,8 +404,23 @@ def cmd_multi(args: argparse.Namespace) -> None:
         # CONSISTENTE over data it never looked at. Removing the requested
         # key from the derived common-column list keeps every other common
         # column in the comparison instead.
-        compare_columns = [c for c in [join_key, *compare_columns] if c != args.key]
+        compare_columns = [c for c in common if c != args.key]
         join_key = args.key
+
+    if not compare_columns:
+        # Reachable with or without `--key`: when the only column common to
+        # every result is the join key itself, `derive_comparison_columns`
+        # deliberately returns `(key, [])` -- core decides nothing about
+        # whether that is enough, on purpose (see
+        # `test_one_common_column_compares_nothing_but_still_has_a_key`).
+        # `cmd_multi` decides for itself: a comparison of zero columns would
+        # report CONSISTENTE regardless of what the rows actually say, so it
+        # refuses instead of running one.
+        _fail_or_print(
+            args, "multi", "validation",
+            f"Coluna '{join_key}' e a unica comum a todas as conexoes; "
+            "nao ha coluna para comparar.",
+        )
 
     group_result = deps.build_adhoc_group_result(
         results, join_key=join_key, compare_columns=compare_columns,
