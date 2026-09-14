@@ -1788,7 +1788,7 @@ class TestCmdCall:
             corpo = json.loads(capsys.readouterr().out)
             assert corpo["ok"] is True
             assert corpo["command"] == "call"
-            assert corpo["data"] == exec_result.to_dict()
+            assert corpo["data"] == {**exec_result.to_dict(), "committed": False}
             assert corpo["warnings"] == ["linha 1", "linha 2"]
 
     def test_table_shows_the_return_value_and_the_output_lines(self, tmp_config_dir, capsys):
@@ -1828,6 +1828,103 @@ class TestCmdCall:
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
             run_cli(["call", "PKG.ROTINA", "test_conn"])
             assert "[x]" in capsys.readouterr().out
+
+    def test_without_commit_the_transaction_is_rolled_back(self, tmp_config_dir):
+        """Assert the rollback actually happened -- a test that only checked
+        the wording would pass over the very bug this exists for."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection", return_value=cm), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+        db_handle.rollback.assert_called_once()
+        db_handle.commit.assert_not_called()
+
+    def test_with_commit_the_transaction_is_committed(self, tmp_config_dir):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection", return_value=cm), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+        db_handle.commit.assert_called_once()
+        db_handle.rollback.assert_not_called()
+
+    def test_the_table_output_says_which_happened(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            sem_commit = capsys.readouterr().out
+            assert "desfeita" in sem_commit
+
+            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+            com_commit = capsys.readouterr().out
+            assert "confirmada" in com_commit
+
+    def test_the_json_envelope_carries_the_commit_state(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            sem_commit = json.loads(capsys.readouterr().out)
+            assert sem_commit["data"]["committed"] is False
+
+            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit", "-f", "json"])
+            com_commit = json.loads(capsys.readouterr().out)
+            assert com_commit["data"]["committed"] is True
+
+    def test_a_failed_routine_is_rolled_back_even_with_commit(self, tmp_config_dir):
+        """--commit is not a promise to keep a failure."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=False, error="ORA-06502: numeric or value error")
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection", return_value=cm), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+            assert saiu.value.code == 4
+        db_handle.rollback.assert_called_once()
+        db_handle.commit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

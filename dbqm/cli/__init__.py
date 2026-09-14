@@ -106,6 +106,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Parametro de entrada (pode repetir)")
     p_call.add_argument("-f", "--format", choices=["table", "json"], default="table",
                         help="Formato de saida")
+    p_call.add_argument("--commit", action="store_true",
+                        help="Confirmar a transacao. Sem isso, a rotina roda e e desfeita.")
 
     # --- test ---
     p_test = subparsers.add_parser("test", help="Testar conexao com banco de dados")

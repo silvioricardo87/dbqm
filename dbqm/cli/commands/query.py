@@ -834,6 +834,21 @@ def cmd_call(args: argparse.Namespace) -> None:
                 _fail_or_print(args, "call", "read_only", str(e))
             except Exception as e:
                 _fail_or_print(args, "call", "sql_error", str(e))
+
+            # `execute_routine`'s own comment says the caller handles commit;
+            # until now no caller did (see the module-level docstring on
+            # `cmd_call`). A CLI process opens, runs and exits -- there is no
+            # later moment in which anything could commit -- so the decision
+            # is made here, explicitly, on the still-open handle, while `db`
+            # is still in scope. Relying on the driver's close-time behaviour
+            # would be a rollback nobody could see in a test. `--commit` is
+            # not a promise to keep a failure: an unsuccessful routine is
+            # rolled back regardless of the flag.
+            committed = bool(args.commit and result.success)
+            if committed:
+                db.commit()
+            else:
+                db.rollback()
     except Exception as e:
         _fail_or_print(args, "call", "connection_failed", str(e))
 
@@ -841,11 +856,16 @@ def cmd_call(args: argparse.Namespace) -> None:
         _fail_or_print(args, "call", "sql_error", result.error or "Erro ao executar rotina.")
 
     if args.format == "json":
-        ok("call", result.to_dict(), warnings=result.output_lines or None)
+        data = {**result.to_dict(), "committed": committed}
+        ok("call", data, warnings=result.output_lines or None)
         return
 
     if result.return_value is not None:
         console.print(f"Retorno: {result.return_value}", markup=False, highlight=False)
     for line in result.output_lines:
         console.print(line, markup=False, highlight=False)
+    if committed:
+        console.print("[dim]Transacao confirmada (commit).[/dim]")
+    else:
+        console.print("[dim]Transacao desfeita (rollback) -- nada foi gravado.[/dim]")
     console.print(f"[dim]({result.elapsed:.2f}s)[/dim]")
