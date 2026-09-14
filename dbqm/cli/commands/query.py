@@ -6,7 +6,7 @@ import sys
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from rich.markup import escape
 
@@ -773,6 +773,20 @@ def _validate_call_params(routine: RoutineInfo, param_values: dict[str, str]) ->
     return folded
 
 
+def _rollback_quietly(db: Any) -> None:
+    """Roll back, and never let the rollback's own failure replace the error
+    that caused it.
+
+    A driver that cannot roll back has usually already lost the connection,
+    which is the condition the caller is about to be told about anyway. The
+    original diagnosis is the useful one.
+    """
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+
 def cmd_call(args: argparse.Namespace) -> None:
     """Execute a stored procedure or function (Oracle only).
 
@@ -833,6 +847,11 @@ def cmd_call(args: argparse.Namespace) -> None:
             except deps.ReadOnlyViolation as e:
                 _fail_or_print(args, "call", "read_only", str(e))
             except Exception as e:
+                # The block may have executed in part before raising. Undo it
+                # here rather than leaving it to the driver's close-time
+                # behaviour -- that behaviour is exactly what `--commit`
+                # exists to stop anyone from having to trust.
+                _rollback_quietly(db)
                 _fail_or_print(args, "call", "sql_error", str(e))
 
             # `execute_routine`'s own comment says the caller handles commit;
@@ -846,7 +865,18 @@ def cmd_call(args: argparse.Namespace) -> None:
             # rolled back regardless of the flag.
             committed = bool(args.commit and result.success)
             if committed:
-                db.commit()
+                try:
+                    db.commit()
+                except Exception as e:
+                    # A commit that failed is the one outcome a caller must
+                    # not have to guess at: the routine ran, and nothing was
+                    # kept. Saying so beats letting the outer handler call it
+                    # a connection failure.
+                    _rollback_quietly(db)
+                    _fail_or_print(
+                        args, "call", "sql_error",
+                        f"A rotina executou mas o commit falhou, nada foi gravado: {e}",
+                    )
             else:
                 db.rollback()
     except Exception as e:

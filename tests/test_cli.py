@@ -1926,6 +1926,48 @@ class TestCmdCall:
         db_handle.rollback.assert_called_once()
         db_handle.commit.assert_not_called()
 
+    def test_a_routine_that_raised_is_rolled_back_too(self, tmp_config_dir):
+        """A raise, not a `success=False` result: the block may have run in
+        part before it blew up. Undoing it must not be left to the driver's
+        close-time behaviour -- that is what --commit exists to stop anyone
+        from having to trust."""
+        from dbqm.core.object_browser import PackageInfo, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", side_effect=RuntimeError("ORA-03113")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+            assert saiu.value.code == 4
+        db_handle.rollback.assert_called_once()
+        db_handle.commit.assert_not_called()
+
+    def test_a_commit_that_fails_says_nothing_was_written(self, tmp_config_dir, capsys):
+        """The one outcome a caller must not have to guess at: the routine
+        ran and nothing was kept."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True)
+        db_handle = MagicMock()
+        db_handle.commit.side_effect = RuntimeError("ORA-01536: space quota exceeded")
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit", "-f", "json"])
+            assert saiu.value.code == 4
+        db_handle.rollback.assert_called_once()
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "sql_error"
+        assert "nada foi gravado" in corpo["error"]["message"]
+
 
 # ---------------------------------------------------------------------------
 # test subcommand
