@@ -26,27 +26,35 @@ A MINOR release: a new command.
   says which, in both the table and the `-f json` renderers. A routine that
   raises is rolled back regardless of the flag.
 
-### Fixed
+### Notes on `dbqm call`'s design
 
-Found while building `dbqm call`, not from a report — worth recording
-because a reader would want to know they were there:
+These are properties the command has from its first release, not fixes to
+anything a user of 2.5.0 could have run. They are recorded because each was
+a trap found and closed while building it, and the next person reading this
+code will want to know why it is shaped this way.
 
-- **A standalone function could never have run.**
-  `get_standalone_routine_info` always defaulted `routine_type` to
-  `PROCEDURE`, so `execute_routine` never declared a return variable for
-  one and Oracle answered PLS-00221.
-- **A procedure with no arguments was reported as not found.** An empty
-  `ALL_ARGUMENTS` result is indistinguishable from a routine that does not
-  exist, and the standalone lookup used exactly that heuristic. It is gone;
-  a name that truly does not exist now comes back as Oracle's own
-  PLS-00201 (`sql_error`, exit 4), not a client-side guess.
-- **Parameter names were matched case-sensitively.** A mismatched key would
-  have run the routine silently on its default rather than the value given.
-- **A routine that raises, and a commit that fails, are both rolled back
-  explicitly** rather than left to the driver's close-time behaviour — the
-  routine may have executed in part before either happened, and a caller
-  who called without `--commit` is told plainly that the transaction was
-  undone.
+- **A standalone function is re-tagged before it runs.**
+  `get_standalone_routine_info` takes a `routine_type` argument and honours
+  it, but `dbqm call` has no way to know which it is before looking, so it
+  calls the lookup with the default and re-tags from the `return_type` the
+  lookup fills in. Without that, `execute_routine` would declare no return
+  variable and Oracle would answer PLS-00221. The TUI was never affected —
+  it passes the real type, because the user picked it from a list.
+- **A routine that cannot be found is not guessed at.** An empty
+  `ALL_ARGUMENTS` result is indistinguishable from a procedure that simply
+  takes no arguments, so `dbqm call` does not treat it as "does not exist":
+  a name that truly does not exist comes back as Oracle's own PLS-00201
+  (`sql_error`, exit 4) rather than a client-side guess that would have
+  refused every zero-argument procedure.
+- **Parameter names are folded to the routine's declared spelling** before
+  they reach `execute_routine`, which looks them up by exact name and falls
+  back to the parameter's default. Without the fold, `-p p_id=7` against a
+  declared `P_ID` would have run the routine on its default instead of the
+  value given.
+- **A routine that raises, and a commit that fails, are rolled back
+  explicitly** rather than left to the driver's close-time behaviour. The
+  block may have executed in part before either happened, and a caller who
+  omitted `--commit` is told plainly that the transaction was undone.
 
 ## [2.5.0] — 2026-09-13
 

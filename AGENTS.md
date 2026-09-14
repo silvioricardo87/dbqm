@@ -143,7 +143,7 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
   messages), plus `tests/design/` (the design-system guards), `tests/test_cli.py`,
   `tests/test_cli_markup.py`, `tests/test_cli_tema.py`, and shared fixtures in
   `tests/conftest.py`
-- Run: `python -m pytest tests/ -x -q` (currently **1337** tests, of which
+- Run: `python -m pytest tests/ -x -q` (currently **1338** tests, of which
   39 in `tests/design/` are the color, layout and typing-policy guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory

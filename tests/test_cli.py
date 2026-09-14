@@ -1946,6 +1946,30 @@ class TestCmdCall:
         db_handle.rollback.assert_called_once()
         db_handle.commit.assert_not_called()
 
+    def test_a_rollback_that_fails_is_not_called_a_connection_failure(
+        self, tmp_config_dir, capsys
+    ):
+        """Symmetric with the commit arm: nothing was kept either way, but
+        letting it reach the outer handler would report a successful routine
+        as a connection failure."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True)
+        db_handle = MagicMock()
+        db_handle.rollback.side_effect = RuntimeError("ORA-03113")
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 4
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "sql_error"
+        assert "nada foi gravado" in corpo["error"]["message"]
+
     def test_a_commit_that_fails_says_nothing_was_written(self, tmp_config_dir, capsys):
         """The one outcome a caller must not have to guess at: the routine
         ran and nothing was kept."""

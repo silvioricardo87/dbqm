@@ -714,12 +714,14 @@ def _resolve_call_routine(db: object, conn: Connection, routine_name: str) -> tu
     Verifying existence up front belongs in `core/get_standalone_routine_info`
     itself, not in a CLI-side guess.
 
-    `get_standalone_routine_info` always defaults `routine_type` to
-    PROCEDURE, regardless of what it actually found; a non-empty
-    `return_type` is the tell that it is really a FUNCTION, and
-    `execute_routine` needs to be told that explicitly or it emits the call
-    as a bare statement (`FN(args);`) instead of an assignment into a return
-    variable, which Oracle rejects with `PLS-00221`.
+    `get_standalone_routine_info` takes a `routine_type` argument and honours
+    it -- the TUI passes the real type, because the user picked it from a
+    list. A command line has no such list, so this calls the lookup with its
+    default of PROCEDURE and re-tags afterwards: a non-empty `return_type` is
+    the tell that it is really a FUNCTION. `execute_routine` has to be told
+    explicitly, or it emits the call as a bare statement (`FN(args);`)
+    instead of an assignment into a return variable, and Oracle rejects that
+    with `PLS-00221`.
     """
     if "." in routine_name:
         package, _, short_name = routine_name.partition(".")
@@ -878,7 +880,19 @@ def cmd_call(args: argparse.Namespace) -> None:
                         f"A rotina executou mas o commit falhou, nada foi gravado: {e}",
                     )
             else:
-                db.rollback()
+                try:
+                    db.rollback()
+                except Exception as e:
+                    # Symmetric with the commit arm above. Nothing was kept
+                    # either way, so the outcome is unchanged -- but letting
+                    # this reach the outer handler would report a successful
+                    # routine as a connection failure, which is the wrong
+                    # thing to tell someone reading an exit code.
+                    _fail_or_print(
+                        args, "call", "sql_error",
+                        f"A rotina executou e nada foi gravado, mas o rollback "
+                        f"falhou: {e}",
+                    )
     except Exception as e:
         _fail_or_print(args, "call", "connection_failed", str(e))
 
