@@ -1622,6 +1622,27 @@ class TestCmdCall:
             run_cli(["call", "PKG.ROTINA", "test_conn"])
             mock_exec.assert_called_once()
 
+    def test_an_unknown_bare_name_with_a_param_says_the_routine_may_not_exist(
+        self, tmp_config_dir, capsys
+    ):
+        """A standalone routine with no params and no return type is
+        indistinguishable from one that does not exist -- both give zero
+        ALL_ARGUMENTS rows. Blaming the parameter would send the reader to
+        fix the wrong thing."""
+        from dbqm.core.object_browser import RoutineInfo
+
+        conn = _make_connection()
+        vazia = RoutineInfo(name="NAOEXISTE", routine_type="PROCEDURE", params=[])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_standalone_routine_info", return_value=vazia),              patch("dbqm.cli.deps.execute_routine") as mock_exec:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "NAOEXISTE", "test_conn", "-p", "id=7", "-f", "json"])
+            assert saiu.value.code == 2
+            mock_exec.assert_not_called()
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert "nao existe" in corpo["error"]["message"]
+        assert "NAOEXISTE" in corpo["error"]["message"]
+
     def test_an_undeclared_parameter_is_a_validation_error(self, tmp_config_dir, capsys):
         """Almost always a typo. Ignoring it would run the routine with a
         default the caller did not intend."""

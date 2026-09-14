@@ -756,6 +756,15 @@ def _validate_call_params(routine: RoutineInfo, param_values: dict[str, str]) ->
     for name, value in param_values.items():
         real_name = declared.get(name.upper())
         if real_name is None:
+            # A standalone routine with neither parameters nor a return type
+            # is indistinguishable from one that does not exist: both produce
+            # no ALL_ARGUMENTS rows. Blaming the parameter would send the
+            # reader to fix the wrong thing, so say what is actually known.
+            if not routine.params and not routine.return_type:
+                raise ValueError(
+                    f"Rotina '{routine.name}' nao declara o parametro "
+                    f"'{name}' (ou a rotina nao existe)."
+                )
             raise ValueError(f"Parametro '{name}' nao existe na rotina '{routine.name}'.")
         folded[real_name] = value
     for p in routine.params:
