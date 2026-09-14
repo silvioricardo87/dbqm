@@ -697,12 +697,29 @@ def _resolve_call_routine(db: object, conn: Connection, routine_name: str) -> tu
 
     A `.` in the name means a package routine: `list_package_routines`
     parses the package spec and the routine is picked out of
-    `PackageInfo.routines` by name. No dot means a standalone routine, via
-    `get_standalone_routine_info` -- which never raises for a name that
-    does not exist, since ALL_ARGUMENTS simply returns no rows for it, so an
-    empty `params` and no `return_type` together are read as "not found",
-    the same class of heuristic `cmd_describe` (schema.py) already uses for
-    a name that is neither a table nor a view.
+    `PackageInfo.routines` by name -- a name that spec does not list is a
+    definite `not_found`, since the source names every routine the package
+    declares.
+
+    No dot means a standalone routine, via `get_standalone_routine_info`.
+    That function never raises for a name that does not exist -- ALL_ARGUMENTS
+    simply returns no rows for it -- but an empty `params` and no
+    `return_type` is indistinguishable from a real, callable procedure
+    declared with no arguments and no return value (`PROCEDURE P IS BEGIN
+    ... END;`). Refusing that as "not found" would be wrong far more often
+    than it would catch an actual typo, so existence is not second-guessed
+    here at all: a name that truly does not exist reaches `execute_routine`,
+    which sends it to Oracle and gets back `PLS-00201: identifier ... must
+    be declared`, reported as any other rejected statement (`sql_error`, 4).
+    Verifying existence up front belongs in `core/get_standalone_routine_info`
+    itself, not in a CLI-side guess.
+
+    `get_standalone_routine_info` always defaults `routine_type` to
+    PROCEDURE, regardless of what it actually found; a non-empty
+    `return_type` is the tell that it is really a FUNCTION, and
+    `execute_routine` needs to be told that explicitly or it emits the call
+    as a bare statement (`FN(args);`) instead of an assignment into a return
+    variable, which Oracle rejects with `PLS-00221`.
     """
     if "." in routine_name:
         package, _, short_name = routine_name.partition(".")
@@ -712,25 +729,39 @@ def _resolve_call_routine(db: object, conn: Connection, routine_name: str) -> tu
                 return pkg_info.name, r
         raise deps.ObjectNotFound(f"Rotina '{routine_name}' nao encontrada.")
     routine = deps.get_standalone_routine_info(db, routine_name)
-    if not routine.params and not routine.return_type:
-        raise deps.ObjectNotFound(f"Rotina '{routine_name}' nao encontrada.")
+    if routine.return_type:
+        routine = replace(routine, routine_type="FUNCTION")
     return "", routine
 
 
-def _validate_call_params(routine: RoutineInfo, param_values: dict[str, str]) -> None:
-    """Every `IN`/`IN OUT` parameter with no default must be supplied; a
+def _validate_call_params(routine: RoutineInfo, param_values: dict[str, str]) -> dict[str, str]:
+    """Validate `param_values` against `routine.params` and return them
+    re-keyed to the routine's own spelling.
+
+    Oracle declares parameter names in upper case; a caller typing
+    `-p p_id=...` is not making a mistake. Matching is case-insensitive
+    against `routine.params`, and what is returned uses the DECLARED
+    spelling -- `execute_routine` looks values up by exact `p.name`, so a
+    value left lower-case would not fail loudly there, it would silently be
+    dropped in favour of the parameter's default instead.
+
+    Every `IN`/`IN OUT` parameter with no default must be supplied; a
     supplied name the routine does not declare is almost always a typo, so
     it is refused rather than silently running with a default the caller
     did not intend. An `OUT` parameter is written by the routine, not
     required from the caller.
     """
-    declared = {p.name for p in routine.params}
-    for name in param_values:
-        if name not in declared:
+    declared = {p.name.upper(): p.name for p in routine.params}
+    folded: dict[str, str] = {}
+    for name, value in param_values.items():
+        real_name = declared.get(name.upper())
+        if real_name is None:
             raise ValueError(f"Parametro '{name}' nao existe na rotina '{routine.name}'.")
+        folded[real_name] = value
     for p in routine.params:
-        if p.direction in ("IN", "IN OUT") and not p.default and p.name not in param_values:
+        if p.direction in ("IN", "IN OUT") and not p.default and p.name not in folded:
             raise ValueError(f"Parametro obrigatorio faltando: {p.name}.")
+    return folded
 
 
 def cmd_call(args: argparse.Namespace) -> None:
@@ -743,10 +774,18 @@ def cmd_call(args: argparse.Namespace) -> None:
     for free. Only then does the connection actually open, following the
     same nesting `_with_open_connection` (schema.py) uses to keep a failure
     to connect (`connection_failed`, 3) apart from everything that can go
-    wrong once it is open -- though `call` has its own vocabulary
-    (`not_found` for a routine that does not resolve, `validation` for a
-    parameter problem, `read_only` for `ReadOnlyViolation`), so the helper
-    itself is not reused here, only its shape.
+    wrong once it is open.
+
+    From there, three separately scoped `try` blocks -- resolve, validate,
+    execute -- each own just the exception vocabulary they were written
+    for, rather than one handler shared across all three. That matters
+    concretely: a bare `except ValueError` around all three would also
+    catch anything `execute_routine` itself might raise and report it as
+    `validation` (a caller mistake) when it is actually a statement
+    failure (`sql_error`). Each block still ends in a catch-all mapped to
+    the statement-failure token it would otherwise fall through to, so
+    nothing unexpected leaks out to the outer handler and gets misreported
+    as a connection failure.
     """
     conn = deps.find_connection(args.connection)
     if not conn:
@@ -764,12 +803,24 @@ def cmd_call(args: argparse.Namespace) -> None:
         with deps.open_connection(conn) as db:
             try:
                 package, routine = _resolve_call_routine(db, conn, args.routine)
-                _validate_call_params(routine, param_values)
-                result = deps.execute_routine(db, package, routine, param_values, conn=conn)
             except deps.ObjectNotFound as e:
                 _fail_or_print(args, "call", "not_found", str(e))
+            except deps.UnsupportedEngine as e:
+                # Unreachable today: the Oracle-only refusal above already
+                # guarantees `conn.db_type == "oracle"` by this point. Kept
+                # so this vocabulary does not silently drift to `sql_error`
+                # if that pre-check ever moves.
+                _fail_or_print(args, "call", "usage", str(e))
+            except Exception as e:
+                _fail_or_print(args, "call", "sql_error", str(e))
+
+            try:
+                param_values = _validate_call_params(routine, param_values)
             except ValueError as e:
                 _fail_or_print(args, "call", "validation", str(e))
+
+            try:
+                result = deps.execute_routine(db, package, routine, param_values, conn=conn)
             except deps.ReadOnlyViolation as e:
                 _fail_or_print(args, "call", "read_only", str(e))
             except Exception as e:
@@ -785,7 +836,7 @@ def cmd_call(args: argparse.Namespace) -> None:
         return
 
     if result.return_value is not None:
-        console.print(f"Retorno: {result.return_value}")
+        console.print(f"Retorno: {result.return_value}", markup=False, highlight=False)
     for line in result.output_lines:
         console.print(line, markup=False, highlight=False)
     console.print(f"[dim]({result.elapsed:.2f}s)[/dim]")
