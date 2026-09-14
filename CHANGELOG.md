@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.6.0] — 2026-09-13
+
+A MINOR release: a new command.
+
+### Added
+
+- **`dbqm call PACOTE.ROTINA <conexao> [-p nome=valor] [--commit]`** — calls
+  a stored procedure or function from the command line. A name with a dot
+  is `PACOTE.ROTINA`; a bare name is a standalone routine. Parameters are
+  bound by name and **case-insensitively** — Oracle declares `P_ID`, and
+  `-p p_id=7` is not a mistake. **Oracle only**, refused with `usage` (exit
+  2) before any connection is opened: `db_type` is known from configuration
+  alone, and an anonymous PL/SQL block — what `execute_routine` builds — has
+  no equivalent on the other three engines.
+- **`--commit`**, meaning what it means on `dbqm sql`: without it the
+  transaction is explicitly rolled back, with it committed — and the output
+  says which, in both the table and the `-f json` renderers. A routine that
+  raises is rolled back regardless of the flag.
+
+### Notes on `dbqm call`'s design
+
+These are properties the command has from its first release, not fixes to
+anything a user of 2.5.0 could have run. They are recorded because each was
+a trap found and closed while building it, and the next person reading this
+code will want to know why it is shaped this way.
+
+- **A standalone function is re-tagged before it runs.**
+  `get_standalone_routine_info` takes a `routine_type` argument and honours
+  it, but `dbqm call` has no way to know which it is before looking, so it
+  calls the lookup with the default and re-tags from the `return_type` the
+  lookup fills in. Without that, `execute_routine` would declare no return
+  variable and Oracle would answer PLS-00221. The TUI was never affected —
+  it passes the real type, because the user picked it from a list.
+- **A routine that cannot be found is not guessed at.** An empty
+  `ALL_ARGUMENTS` result is indistinguishable from a procedure that simply
+  takes no arguments, so `dbqm call` does not treat it as "does not exist":
+  a name that truly does not exist comes back as Oracle's own PLS-00201
+  (`sql_error`, exit 4) rather than a client-side guess that would have
+  refused every zero-argument procedure.
+- **Parameter names are folded to the routine's declared spelling** before
+  they reach `execute_routine`, which looks them up by exact name and falls
+  back to the parameter's default. Without the fold, `-p p_id=7` against a
+  declared `P_ID` would have run the routine on its default instead of the
+  value given.
+- **A routine that raises, and a commit that fails, are rolled back
+  explicitly** rather than left to the driver's close-time behaviour. The
+  block may have executed in part before either happened, and a caller who
+  omitted `--commit` is told plainly that the transaction was undone.
+
 ## [2.5.0] — 2026-09-13
 
 A MINOR release: a new command.

@@ -55,9 +55,12 @@ from dbqm.core.history import (
 from dbqm.core.object_browser import (
     ObjectNotFound,
     UnsupportedEngine,
+    execute_routine,
+    get_standalone_routine_info,
     get_table_structure,
     get_view_definition,
     list_objects,
+    list_package_routines,
 )
 from dbqm.core.query_engine import (
     QueryResult,
@@ -89,6 +92,7 @@ __all__ = [
     "execute_adhoc",
     "execute_explain",
     "execute_query",
+    "execute_routine",
     "export_configs",
     "export_group_csv",
     "export_group_flat_csv",
@@ -105,10 +109,12 @@ __all__ = [
     "find_connection",
     "find_group",
     "find_query",
+    "get_standalone_routine_info",
     "get_table_structure",
     "get_view_definition",
     "import_configs",
     "list_objects",
+    "list_package_routines",
     "load_connections",
     "load_groups",
     "load_history",

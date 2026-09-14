@@ -6,7 +6,7 @@ import sys
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from rich.markup import escape
 
@@ -16,6 +16,7 @@ from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
 from dbqm.core.group_engine import GroupResult
+from dbqm.core.object_browser import RoutineInfo
 from dbqm.models.connection import Connection
 
 # `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
@@ -689,3 +690,226 @@ def cmd_sql(args: argparse.Namespace) -> None:
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
         console.print(f"{result.rows_affected} registros afetados")
+
+
+def _resolve_call_routine(db: object, conn: Connection, routine_name: str) -> tuple[str, RoutineInfo]:
+    """Resolve `routine_name` to `(package, RoutineInfo)`.
+
+    A `.` in the name means a package routine: `list_package_routines`
+    parses the package spec and the routine is picked out of
+    `PackageInfo.routines` by name -- a name that spec does not list is a
+    definite `not_found`, since the source names every routine the package
+    declares.
+
+    No dot means a standalone routine, via `get_standalone_routine_info`.
+    That function never raises for a name that does not exist -- ALL_ARGUMENTS
+    simply returns no rows for it -- but an empty `params` and no
+    `return_type` is indistinguishable from a real, callable procedure
+    declared with no arguments and no return value (`PROCEDURE P IS BEGIN
+    ... END;`). Refusing that as "not found" would be wrong far more often
+    than it would catch an actual typo, so existence is not second-guessed
+    here at all: a name that truly does not exist reaches `execute_routine`,
+    which sends it to Oracle and gets back `PLS-00201: identifier ... must
+    be declared`, reported as any other rejected statement (`sql_error`, 4).
+    Verifying existence up front belongs in `core/get_standalone_routine_info`
+    itself, not in a CLI-side guess.
+
+    `get_standalone_routine_info` takes a `routine_type` argument and honours
+    it -- the TUI passes the real type, because the user picked it from a
+    list. A command line has no such list, so this calls the lookup with its
+    default of PROCEDURE and re-tags afterwards: a non-empty `return_type` is
+    the tell that it is really a FUNCTION. `execute_routine` has to be told
+    explicitly, or it emits the call as a bare statement (`FN(args);`)
+    instead of an assignment into a return variable, and Oracle rejects that
+    with `PLS-00221`.
+    """
+    if "." in routine_name:
+        package, _, short_name = routine_name.partition(".")
+        pkg_info = deps.list_package_routines(db, conn.db_type, package)
+        for r in pkg_info.routines:
+            if r.name.upper() == short_name.upper():
+                return pkg_info.name, r
+        raise deps.ObjectNotFound(f"Rotina '{routine_name}' nao encontrada.")
+    routine = deps.get_standalone_routine_info(db, routine_name)
+    if routine.return_type:
+        routine = replace(routine, routine_type="FUNCTION")
+    return "", routine
+
+
+def _validate_call_params(routine: RoutineInfo, param_values: dict[str, str]) -> dict[str, str]:
+    """Validate `param_values` against `routine.params` and return them
+    re-keyed to the routine's own spelling.
+
+    Oracle declares parameter names in upper case; a caller typing
+    `-p p_id=...` is not making a mistake. Matching is case-insensitive
+    against `routine.params`, and what is returned uses the DECLARED
+    spelling -- `execute_routine` looks values up by exact `p.name`, so a
+    value left lower-case would not fail loudly there, it would silently be
+    dropped in favour of the parameter's default instead.
+
+    Every `IN`/`IN OUT` parameter with no default must be supplied; a
+    supplied name the routine does not declare is almost always a typo, so
+    it is refused rather than silently running with a default the caller
+    did not intend. An `OUT` parameter is written by the routine, not
+    required from the caller.
+    """
+    declared = {p.name.upper(): p.name for p in routine.params}
+    folded: dict[str, str] = {}
+    for name, value in param_values.items():
+        real_name = declared.get(name.upper())
+        if real_name is None:
+            # A standalone routine with neither parameters nor a return type
+            # is indistinguishable from one that does not exist: both produce
+            # no ALL_ARGUMENTS rows. Blaming the parameter would send the
+            # reader to fix the wrong thing, so say what is actually known.
+            if not routine.params and not routine.return_type:
+                raise ValueError(
+                    f"Rotina '{routine.name}' nao declara o parametro "
+                    f"'{name}' (ou a rotina nao existe)."
+                )
+            raise ValueError(f"Parametro '{name}' nao existe na rotina '{routine.name}'.")
+        folded[real_name] = value
+    for p in routine.params:
+        if p.direction in ("IN", "IN OUT") and not p.default and p.name not in folded:
+            raise ValueError(f"Parametro obrigatorio faltando: {p.name}.")
+    return folded
+
+
+def _rollback_quietly(db: Any) -> None:
+    """Roll back, and never let the rollback's own failure replace the error
+    that caused it.
+
+    A driver that cannot roll back has usually already lost the connection,
+    which is the condition the caller is about to be told about anyway. The
+    original diagnosis is the useful one.
+    """
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+
+def cmd_call(args: argparse.Namespace) -> None:
+    """Execute a stored procedure or function (Oracle only).
+
+    Order is the design. The connection is resolved first, and then, while
+    it is still just configuration and nothing has opened, the Oracle-only
+    refusal: `execute_routine` builds an anonymous PL/SQL block, which the
+    other three engines have no equivalent of, and `conn.db_type` is known
+    for free. Only then does the connection actually open, following the
+    same nesting `_with_open_connection` (schema.py) uses to keep a failure
+    to connect (`connection_failed`, 3) apart from everything that can go
+    wrong once it is open.
+
+    From there, three separately scoped `try` blocks -- resolve, validate,
+    execute -- each own just the exception vocabulary they were written
+    for, rather than one handler shared across all three. That matters
+    concretely: a bare `except ValueError` around all three would also
+    catch anything `execute_routine` itself might raise and report it as
+    `validation` (a caller mistake) when it is actually a statement
+    failure (`sql_error`). Each block still ends in a catch-all mapped to
+    the statement-failure token it would otherwise fall through to, so
+    nothing unexpected leaks out to the outer handler and gets misreported
+    as a connection failure.
+    """
+    conn = deps.find_connection(args.connection)
+    if not conn:
+        _fail_or_print(args, "call", "not_found", f"Conexao '{args.connection}' nao encontrada.")
+
+    if conn.db_type != "oracle":
+        _fail_or_print(
+            args, "call", "usage",
+            f"call so funciona em Oracle. Conexao '{conn.name}' e {conn.db_type}.",
+        )
+
+    param_values = _parse_params(args.param, args, "call")
+
+    try:
+        with deps.open_connection(conn) as db:
+            try:
+                package, routine = _resolve_call_routine(db, conn, args.routine)
+            except deps.ObjectNotFound as e:
+                _fail_or_print(args, "call", "not_found", str(e))
+            except deps.UnsupportedEngine as e:
+                # Unreachable today: the Oracle-only refusal above already
+                # guarantees `conn.db_type == "oracle"` by this point. Kept
+                # so this vocabulary does not silently drift to `sql_error`
+                # if that pre-check ever moves.
+                _fail_or_print(args, "call", "usage", str(e))
+            except Exception as e:
+                _fail_or_print(args, "call", "sql_error", str(e))
+
+            try:
+                param_values = _validate_call_params(routine, param_values)
+            except ValueError as e:
+                _fail_or_print(args, "call", "validation", str(e))
+
+            try:
+                result = deps.execute_routine(db, package, routine, param_values, conn=conn)
+            except deps.ReadOnlyViolation as e:
+                _fail_or_print(args, "call", "read_only", str(e))
+            except Exception as e:
+                # The block may have executed in part before raising. Undo it
+                # here rather than leaving it to the driver's close-time
+                # behaviour -- that behaviour is exactly what `--commit`
+                # exists to stop anyone from having to trust.
+                _rollback_quietly(db)
+                _fail_or_print(args, "call", "sql_error", str(e))
+
+            # `execute_routine`'s own comment says the caller handles commit;
+            # until now no caller did (see the module-level docstring on
+            # `cmd_call`). A CLI process opens, runs and exits -- there is no
+            # later moment in which anything could commit -- so the decision
+            # is made here, explicitly, on the still-open handle, while `db`
+            # is still in scope. Relying on the driver's close-time behaviour
+            # would be a rollback nobody could see in a test. `--commit` is
+            # not a promise to keep a failure: an unsuccessful routine is
+            # rolled back regardless of the flag.
+            committed = bool(args.commit and result.success)
+            if committed:
+                try:
+                    db.commit()
+                except Exception as e:
+                    # A commit that failed is the one outcome a caller must
+                    # not have to guess at: the routine ran, and nothing was
+                    # kept. Saying so beats letting the outer handler call it
+                    # a connection failure.
+                    _rollback_quietly(db)
+                    _fail_or_print(
+                        args, "call", "sql_error",
+                        f"A rotina executou mas o commit falhou, nada foi gravado: {e}",
+                    )
+            else:
+                try:
+                    db.rollback()
+                except Exception as e:
+                    # Symmetric with the commit arm above. Nothing was kept
+                    # either way, so the outcome is unchanged -- but letting
+                    # this reach the outer handler would report a successful
+                    # routine as a connection failure, which is the wrong
+                    # thing to tell someone reading an exit code.
+                    _fail_or_print(
+                        args, "call", "sql_error",
+                        f"A rotina executou e nada foi gravado, mas o rollback "
+                        f"falhou: {e}",
+                    )
+    except Exception as e:
+        _fail_or_print(args, "call", "connection_failed", str(e))
+
+    if not result.success:
+        _fail_or_print(args, "call", "sql_error", result.error or "Erro ao executar rotina.")
+
+    if args.format == "json":
+        data = {**result.to_dict(), "committed": committed}
+        ok("call", data, warnings=result.output_lines or None)
+        return
+
+    if result.return_value is not None:
+        console.print(f"Retorno: {result.return_value}", markup=False, highlight=False)
+    for line in result.output_lines:
+        console.print(line, markup=False, highlight=False)
+    if committed:
+        console.print("[dim]Transacao confirmada (commit).[/dim]")
+    else:
+        console.print("[dim]Transacao desfeita (rollback) -- nada foi gravado.[/dim]")
+    console.print(f"[dim]({result.elapsed:.2f}s)[/dim]")

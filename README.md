@@ -23,7 +23,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Data export** — Export results to CSV, JSON, TXT, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
 - **Connections from the CLI** — `dbqm connection add|update|rm|show|list` creates and edits connections without the TUI, for scripts, CI and AI agents. `--password-stdin` and the `DBQM_PASSWORD` environment variable keep secrets off the command line and out of shell history; `--test` refuses to save a connection that does not answer. `update` changes only the flags you pass — including the password: it is changed only via `--password-stdin` or `--no-password` on that command, never by an ambient `DBQM_PASSWORD` left over from another command. `show` never prints the password. The rules are shared with the TUI (`core/connection_builder.py`), so both front ends validate and default identically.
-- **Read-only connections** — mark a connection with `--read-only` (or the "Somente leitura" checkbox in the TUI) and dbqm declines to send it anything but a `SELECT` or a genuine `EXPLAIN`: ad-hoc SQL, explain plans, routine execution and package compilation all refuse, in the TUI as well as the CLI, with a `read_only` error (exit `2`). `--force-write` on `dbqm sql` lifts the refusal for one invocation; it does not imply `--commit`, so writing to a protected connection still takes both flags. Routine execution and package compilation are TUI-only and have no override — clear the mark on the connection instead. This is a rail against mistakes, not a security boundary — see [CHANGELOG.md](./CHANGELOG.md) for what that means and what is deferred.
+- **Read-only connections** — mark a connection with `--read-only` (or the "Somente leitura" checkbox in the TUI) and dbqm declines to send it anything but a `SELECT` or a genuine `EXPLAIN`: ad-hoc SQL, explain plans, routine execution (`dbqm call` and the TUI alike) and package compilation all refuse, with a `read_only` error (exit `2`). `--force-write` on `dbqm sql` lifts the refusal for one invocation; it does not imply `--commit`, so writing to a protected connection still takes both flags. Routine execution and package compilation have no such override — clear the mark on the connection instead; package compilation stays TUI-only. This is a rail against mistakes, not a security boundary — see [CHANGELOG.md](./CHANGELOG.md) for what that means and what is deferred.
 - **Connection descriptions** — Attach free-form notes to each connection (purpose, schema, contacts); a one-line preview is shown alongside type and destination in the connections list
 - **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
 - **Favorites & folders** — Organize queries in folders, star favorites for quick access
@@ -150,6 +150,12 @@ dbqm sql "WITH x AS (SELECT 1 FROM dual) SELECT * FROM x" <connection>
 # Show execution plan (Oracle: EXPLAIN PLAN + DBMS_XPLAN.DISPLAY; PostgreSQL/MySQL: native EXPLAIN)
 dbqm sql "SELECT * FROM table WHERE col = :v" <connection> --explain -p v=42
 
+# Call a stored procedure or function (Oracle only). A name with a dot is
+# PACOTE.ROTINA; a bare name is a standalone routine. Parameters bind by
+# name, case-insensitively. Without --commit the run is rolled back.
+dbqm call PACOTE.ROTINA <connection> -p p_id=7
+dbqm call ROTINA_AVULSA <connection> -p p_id=7 --commit
+
 # Test connections
 dbqm test [connection]
 
@@ -225,10 +231,10 @@ every DML statement is subject to, protected connection or not.
 ### Output format and exit codes
 
 Every command accepts `-f/--format`. `run`, `run-group`, `sql` and `rows`
-offer `table|json|csv|raw`; every other command — `test`, `list`, `ddl`,
-`history`, `export-config`, `import-config`, `objects`, `describe`, and the
-`connection` group — offers `table|json`. `raw` prints plain values with no
-headers/decoration, handy for piping the body of a view, package, or
+offer `table|json|csv|raw`; every other command — `call`, `test`, `list`,
+`ddl`, `history`, `export-config`, `import-config`, `objects`, `describe`,
+and the `connection` group — offers `table|json`. `raw` prints plain values
+with no headers/decoration, handy for piping the body of a view, package, or
 procedure to another tool.
 `--export csv|json|txt|html` writes the result to a file regardless of `-f`.
 `html` writes a standalone report meant to be read in a browser, and is not

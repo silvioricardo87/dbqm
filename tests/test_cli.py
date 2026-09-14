@@ -120,7 +120,7 @@ class TestBuildParser:
         assert parser.prog == "dbqm"
 
     def test_all_commands_have_handlers(self):
-        expected = {"run", "run-group", "multi", "sql", "test", "list", "ddl",
+        expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
                     "export-config", "import-config", "history", "connection",
                     "objects", "describe", "rows"}
         assert set(COMMAND_MAP.keys()) == expected
@@ -1380,6 +1380,617 @@ class TestCmdSql:
             saida = capsys.readouterr()
             assert saida.out == ""
             assert json.loads(saida.err)["error"]["code"] == "usage"
+
+
+# ---------------------------------------------------------------------------
+# call subcommand
+# ---------------------------------------------------------------------------
+
+class TestCmdCall:
+    def test_a_non_oracle_connection_is_refused_before_anything_opens(self, tmp_config_dir, capsys):
+        """`execute_routine` builds an anonymous PL/SQL block; the other three
+        engines have no such thing. `db_type` is known from configuration, so
+        the refusal costs no connection."""
+        conn = Connection(name="c1", db_type="postgresql", user="usr", password="enc_pw")
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection") as mock_open:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "c1", "-f", "json"])
+            assert saiu.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "usage"
+            assert "postgresql" in corpo["error"]["message"]
+            mock_open.assert_not_called()
+
+    def test_a_package_routine_resolves_through_list_package_routines(self, tmp_config_dir):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg) as mock_pkg, \
+             patch("dbqm.cli.deps.get_standalone_routine_info") as mock_standalone, \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            mock_pkg.assert_called_once()
+            mock_standalone.assert_not_called()
+
+    def test_a_bare_name_resolves_through_get_standalone_routine_info(self, tmp_config_dir):
+        from dbqm.core.object_browser import RoutineExecutionResult, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_ID", data_type="NUMBER", direction="IN", default="0")],
+        )
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_standalone_routine_info", return_value=rotina) as mock_standalone, \
+             patch("dbqm.cli.deps.list_package_routines") as mock_pkg, \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "ROTINA", "test_conn"])
+            mock_standalone.assert_called_once()
+            mock_pkg.assert_not_called()
+
+    def test_a_standalone_function_is_re_tagged_before_execute_routine(self, tmp_config_dir):
+        """`get_standalone_routine_info` always defaults `routine_type` to
+        PROCEDURE, whatever it actually found. A non-empty `return_type` is
+        the only tell that it is really a FUNCTION, and `execute_routine`
+        (core/object_browser.py) only emits a return-variable assignment
+        when `routine_type == "FUNCTION"` -- otherwise it emits the call as
+        a bare statement, which Oracle rejects with PLS-00221."""
+        from dbqm.core.object_browser import RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="FN_CALC", routine_type="PROCEDURE", params=[], return_type="NUMBER")
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value="42", elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_standalone_routine_info", return_value=rotina), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
+            run_cli(["call", "FN_CALC", "test_conn"])
+            called_routine = mock_exec.call_args[0][2]
+            assert called_routine.routine_type == "FUNCTION"
+
+    def test_a_zero_argument_standalone_procedure_still_runs(self, tmp_config_dir):
+        """The regression this guards: a real procedure declared with no
+        arguments (`PROCEDURE P IS BEGIN ... END;`) has zero rows in
+        ALL_ARGUMENTS too, exactly like a name that does not exist at all --
+        it must not be refused as `not_found`."""
+        from dbqm.core.object_browser import RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="PROC_SEM_ARGUMENTOS", routine_type="PROCEDURE", params=[])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_standalone_routine_info", return_value=rotina), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
+            run_cli(["call", "PROC_SEM_ARGUMENTOS", "test_conn"])
+            mock_exec.assert_called_once()
+
+    def test_a_bare_name_that_does_not_exist_exits_four(self, tmp_config_dir, capsys):
+        """`get_standalone_routine_info` cannot tell "does not exist" apart
+        from "exists with no arguments", so existence is not guessed
+        CLI-side: the call is let through to `execute_routine`, and a name
+        Oracle does not recognise comes back as a failed result
+        (PLS-00201), reported the same as any other rejected statement."""
+        from dbqm.core.object_browser import RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="NAO_EXISTE", routine_type="PROCEDURE", params=[])
+        exec_result = RoutineExecutionResult(
+            success=False, error="PLS-00201: identifier 'NAO_EXISTE' must be declared",
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.get_standalone_routine_info", return_value=rotina), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "NAO_EXISTE", "test_conn", "-f", "json"])
+            assert saiu.value.code == 4
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "sql_error"
+            assert "PLS-00201" in corpo["error"]["message"]
+
+    def test_a_routine_that_does_not_exist_is_not_found(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo
+
+        conn = _make_connection()
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "not_found"
+            assert "PKG.ROTINA" in corpo["error"]["message"]
+
+    def test_a_missing_required_parameter_is_a_validation_error(self, tmp_config_dir, capsys):
+        """A parameter with no default that the caller did not supply."""
+        from dbqm.core.object_browser import PackageInfo, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_ID", data_type="NUMBER", direction="IN", default="")],
+        )
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine") as mock_exec:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "validation"
+            assert "P_ID" in corpo["error"]["message"]
+            mock_exec.assert_not_called()
+
+    def test_a_parameter_with_a_default_may_be_omitted(self, tmp_config_dir):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_FLAG", data_type="NUMBER", direction="IN", default="0")],
+        )
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            mock_exec.assert_called_once()
+
+    def test_a_parameter_name_is_matched_case_insensitively(self, tmp_config_dir):
+        """Oracle declares `P_ID` upper case; `-p p_id=7` is not a typo and
+        must not be refused. The value must also reach `execute_routine`
+        keyed the way it looks values up -- exact `p.name` -- or it would
+        silently run with the parameter's default instead of the value the
+        caller gave, rather than failing loudly."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_ID", data_type="NUMBER", direction="IN", default="")],
+        )
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
+            run_cli(["call", "PKG.ROTINA", "test_conn", "-p", "p_id=7"])
+            called_params = mock_exec.call_args[0][3]
+            assert called_params == {"P_ID": "7"}
+
+    def test_an_in_out_parameter_without_a_default_is_required(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_VAL", data_type="NUMBER", direction="IN OUT", default="")],
+        )
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine") as mock_exec:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "validation"
+            assert "P_VAL" in corpo["error"]["message"]
+            mock_exec.assert_not_called()
+
+    def test_an_in_out_parameter_with_a_default_may_be_omitted(self, tmp_config_dir):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_VAL", data_type="NUMBER", direction="IN OUT", default="0")],
+        )
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            mock_exec.assert_called_once()
+
+    def test_an_unknown_bare_name_with_a_param_says_the_routine_may_not_exist(
+        self, tmp_config_dir, capsys
+    ):
+        """A standalone routine with no params and no return type is
+        indistinguishable from one that does not exist -- both give zero
+        ALL_ARGUMENTS rows. Blaming the parameter would send the reader to
+        fix the wrong thing."""
+        from dbqm.core.object_browser import RoutineInfo
+
+        conn = _make_connection()
+        vazia = RoutineInfo(name="NAOEXISTE", routine_type="PROCEDURE", params=[])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_standalone_routine_info", return_value=vazia),              patch("dbqm.cli.deps.execute_routine") as mock_exec:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "NAOEXISTE", "test_conn", "-p", "id=7", "-f", "json"])
+            assert saiu.value.code == 2
+            mock_exec.assert_not_called()
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert "nao existe" in corpo["error"]["message"]
+        assert "NAOEXISTE" in corpo["error"]["message"]
+
+    def test_an_undeclared_parameter_is_a_validation_error(self, tmp_config_dir, capsys):
+        """Almost always a typo. Ignoring it would run the routine with a
+        default the caller did not intend."""
+        from dbqm.core.object_browser import PackageInfo, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_FLAG", data_type="NUMBER", direction="IN", default="0")],
+        )
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine") as mock_exec:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-p", "naoexiste=1", "-f", "json"])
+            assert saiu.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "validation"
+            assert "naoexiste" in corpo["error"]["message"]
+            mock_exec.assert_not_called()
+
+    def test_an_out_parameter_is_not_required_from_the_caller(self, tmp_config_dir):
+        """An OUT parameter is written by the routine, not supplied to it."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo, RoutineParam
+
+        conn = _make_connection()
+        rotina = RoutineInfo(
+            name="ROTINA", routine_type="PROCEDURE",
+            params=[RoutineParam(name="P_OUT", data_type="NUMBER", direction="OUT")],
+        )
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=["P_OUT=5"], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            mock_exec.assert_called_once()
+
+    def test_a_read_only_connection_is_refused(self, tmp_config_dir, capsys):
+        """`execute_routine` raises ReadOnlyViolation: a routine can write
+        regardless of the text that calls it."""
+        from dbqm.core.object_browser import PackageInfo, RoutineInfo
+        from dbqm.core.read_only import ReadOnlyViolation
+
+        conn = Connection(name="test_conn", db_type="oracle", user="usr",
+                          password="enc_pw", read_only=True)
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine",
+                   side_effect=ReadOnlyViolation("Conexao 'test_conn' e somente leitura")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 2
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            assert json.loads(saida.err)["error"]["code"] == "read_only"
+
+    def test_a_database_that_never_answered_exits_three(self, tmp_config_dir, capsys):
+        """`open_connection` is a `@contextmanager`: the real one dials out
+        (and can fail) inside `__enter__`, not when it is merely called. A
+        fake that raises on the call itself would pass this test even
+        without the nesting that keeps a connection failure (3) apart from
+        a statement failure (4), so the fake here fails the same way the
+        real one does -- at `__enter__`."""
+        conn = _make_connection()
+        cm = MagicMock()
+        cm.__enter__.side_effect = RuntimeError("ORA-12541: TNS:no listener")
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection", return_value=cm):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 3
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            assert json.loads(saida.err)["error"]["code"] == "connection_failed"
+
+    def test_a_routine_that_raised_exits_four(self, tmp_config_dir, capsys):
+        """RoutineExecutionResult(success=False) -- the database answered."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=False, error="ORA-06502: numeric or value error")
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 4
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            corpo = json.loads(saida.err)
+            assert corpo["error"]["code"] == "sql_error"
+            assert "ORA-06502" in corpo["error"]["message"]
+
+    def test_a_value_error_from_execute_routine_is_sql_error_not_validation(self, tmp_config_dir, capsys):
+        """The `ValueError` -> `validation` mapping exists for
+        `_validate_call_params`'s own parameter checks. A `ValueError`
+        surfacing from `execute_routine` itself is a statement failure, not
+        a caller mistake, and must not be caught by that same handler."""
+        from dbqm.core.object_browser import PackageInfo, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine",
+                   side_effect=ValueError("invalid literal for int()")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 4
+            saida = capsys.readouterr()
+            assert saida.out == ""
+            assert json.loads(saida.err)["error"]["code"] == "sql_error"
+
+    def test_json_carries_the_result_shape(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="FUNCTION", params=[], return_type="NUMBER")
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(
+            success=True, output_lines=["linha 1", "linha 2"],
+            return_value="42", elapsed=0.03,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            corpo = json.loads(capsys.readouterr().out)
+            assert corpo["ok"] is True
+            assert corpo["command"] == "call"
+            assert corpo["data"] == {**exec_result.to_dict(), "committed": False}
+            assert corpo["warnings"] == ["linha 1", "linha 2"]
+
+    def test_table_shows_the_return_value_and_the_output_lines(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="FUNCTION", params=[], return_type="NUMBER")
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(
+            success=True, output_lines=["processando linha"],
+            return_value="42", elapsed=0.03,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            out = capsys.readouterr().out
+            assert "42" in out
+            assert "processando linha" in out
+
+    def test_table_format_return_value_with_markup_characters_does_not_raise(self, tmp_config_dir, capsys):
+        """`output_lines` already prints with `markup=False`; the return
+        value must be just as safe -- a value containing `[algo]` must not
+        be swallowed as Rich markup or raise `MarkupError`."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="FUNCTION", params=[], return_type="VARCHAR2")
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(
+            success=True, output_lines=[], return_value="[x]", elapsed=0.01,
+        )
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            assert "[x]" in capsys.readouterr().out
+
+    def test_without_commit_the_transaction_is_rolled_back(self, tmp_config_dir):
+        """Assert the rollback actually happened -- a test that only checked
+        the wording would pass over the very bug this exists for."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection", return_value=cm), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+        db_handle.rollback.assert_called_once()
+        db_handle.commit.assert_not_called()
+
+    def test_with_commit_the_transaction_is_committed(self, tmp_config_dir):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection", return_value=cm), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+        db_handle.commit.assert_called_once()
+        db_handle.rollback.assert_not_called()
+
+    def test_the_table_output_says_which_happened(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            sem_commit = capsys.readouterr().out
+            assert "desfeita" in sem_commit
+
+            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+            com_commit = capsys.readouterr().out
+            assert "confirmada" in com_commit
+
+    def test_the_json_envelope_carries_the_commit_state(self, tmp_config_dir, capsys):
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection"), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            sem_commit = json.loads(capsys.readouterr().out)
+            assert sem_commit["data"]["committed"] is False
+
+            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit", "-f", "json"])
+            com_commit = json.loads(capsys.readouterr().out)
+            assert com_commit["data"]["committed"] is True
+
+    def test_a_failed_routine_is_rolled_back_even_with_commit(self, tmp_config_dir):
+        """--commit is not a promise to keep a failure."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=False, error="ORA-06502: numeric or value error")
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection", return_value=cm), \
+             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+            assert saiu.value.code == 4
+        db_handle.rollback.assert_called_once()
+        db_handle.commit.assert_not_called()
+
+    def test_a_routine_that_raised_is_rolled_back_too(self, tmp_config_dir):
+        """A raise, not a `success=False` result: the block may have run in
+        part before it blew up. Undoing it must not be left to the driver's
+        close-time behaviour -- that is what --commit exists to stop anyone
+        from having to trust."""
+        from dbqm.core.object_browser import PackageInfo, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        db_handle = MagicMock()
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", side_effect=RuntimeError("ORA-03113")):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+            assert saiu.value.code == 4
+        db_handle.rollback.assert_called_once()
+        db_handle.commit.assert_not_called()
+
+    def test_a_rollback_that_fails_is_not_called_a_connection_failure(
+        self, tmp_config_dir, capsys
+    ):
+        """Symmetric with the commit arm: nothing was kept either way, but
+        letting it reach the outer handler would report a successful routine
+        as a connection failure."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True)
+        db_handle = MagicMock()
+        db_handle.rollback.side_effect = RuntimeError("ORA-03113")
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            assert saiu.value.code == 4
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "sql_error"
+        assert "nada foi gravado" in corpo["error"]["message"]
+
+    def test_a_commit_that_fails_says_nothing_was_written(self, tmp_config_dir, capsys):
+        """The one outcome a caller must not have to guess at: the routine
+        ran and nothing was kept."""
+        from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+
+        conn = _make_connection()
+        rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
+        exec_result = RoutineExecutionResult(success=True)
+        db_handle = MagicMock()
+        db_handle.commit.side_effect = RuntimeError("ORA-01536: space quota exceeded")
+        cm = MagicMock()
+        cm.__enter__.return_value = db_handle
+        with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit", "-f", "json"])
+            assert saiu.value.code == 4
+        db_handle.rollback.assert_called_once()
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "sql_error"
+        assert "nada foi gravado" in corpo["error"]["message"]
 
 
 # ---------------------------------------------------------------------------

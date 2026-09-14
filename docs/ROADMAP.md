@@ -34,6 +34,14 @@ DBMS_OUTPUT produced. Nothing is redacted, deliberately — redaction here is a
 policy call for the maintainer, not an implementation detail. Worth settling
 before anything persists that output to a log.
 
+A **server-side read-only session** (`SET TRANSACTION READ ONLY` on
+Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL) is still deferred, as it was
+when the client-side guard (`X3`) shipped in 2.2.0, and `dbqm call` (2.6.0)
+did not settle it either. It is a decision, not a task: it would change what
+"read-only" means product-wide — a database-side guarantee on Oracle, still
+only a dbqm-side promise on SQL Server, which has no server-side equivalent
+to reach for.
+
 ---
 
 ## Tier 1 — Pending
@@ -109,10 +117,11 @@ exit-code table. **Discovery** (`C2`, `C3`) shipped in 2.1.0 — an agent can
 now see a database's shape without hand-written catalogue SQL. The read-only
 guard (`X3`) shipped in 2.2.0 — a connection can refuse anything but a query.
 Comparison across connections (`C8`) shipped in 2.5.0 — `dbqm multi` runs one
-ad-hoc SQL against several databases and reports whether they agree. Themes,
-in the order they unlock each other now: **execution** (`C4`) is what an agent
-does once it can see, and **curation** (C5-C7) is how findings survive the
-session.
+ad-hoc SQL against several databases and reports whether they agree.
+**Execution** (`C4`) shipped in 2.6.0 — `dbqm call` runs a stored procedure
+or function, Oracle-only, refused before any connection opens on any other
+engine. The remaining theme is **curation** (C5-C7), how findings survive
+the session.
 
 **2.1.0 and 2.2.0 are deliberately internal versions.** Both exist in
 `CHANGELOG.md` and in the code — discovery and the read-only guard are real,
@@ -124,18 +133,17 @@ the release history.
 
 | Order | Item | Theme | Effort | Agent value | Notes |
 |---|---|---|---|---|---|
-| 1 | **C4** — `dbqm call` (execute a routine) | execution | M | high | `execute_routine` already handles IN/OUT binding, return values and DBMS_OUTPUT capture — but is **Oracle-only** (no `db_type`, builds an anonymous PL/SQL block). Ship Oracle-first with a clean refusal, or pay for three more routine models. This is also the sub-project that would build a server-side read-only session (`SET TRANSACTION READ ONLY` on Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL — SQL Server has no equivalent), deferred here when the client-side guard (`X3`) shipped in 2.2.0. |
-| 2 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
-| 3 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
-| 4 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+| 1 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
+| 2 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
+| 3 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
 
 ### Deliberately not scheduled
 
 - **An MCP server** (`dbqm mcp`, operations as MCP tools). It is the native shape
   for agent consumption and would remove the shell round-trip entirely — but it
   should wrap a settled CLI contract, not race it. The contract settled in
-  2.0.0, discovery landed in 2.1.0, and the read-only guard landed in 2.2.0;
-  revisit once execution (`C4`) has landed too.
+  2.0.0, discovery landed in 2.1.0, the read-only guard landed in 2.2.0, and
+  execution (`C4`) landed in 2.6.0; revisit now.
 
 ---
 
@@ -171,6 +179,22 @@ the release history.
   for that specific group, while `multi` derives one from whatever columns
   happen to be common to the connections given — which is what turns this
   from a theoretical gap into one worth hitting in practice.
+- **Nothing commits a routine in the TUI.** `execute_routine`'s comment says
+  the caller handles commit and, before 2.6.0, no caller did — the TUI
+  still does not, so a procedure run from the Executar Rotina screen shows
+  "Executado com sucesso" and has its work discarded when the connection
+  closes. `dbqm call` handles it with `--commit`; the screen is deliberately
+  untouched, because changing a screen from inside a CLI slice is how a
+  refactor hides a behaviour change.
+- **OUT parameter values are not structured data.** `execute_routine` emits
+  them as `DBMS_OUTPUT.PUT_LINE('NOME=' || var)`, so they arrive as ordinary
+  text lines, indistinguishable from a line the routine printed itself.
+- **The function return value is matched by a `RETURN=` prefix**, which a
+  routine printing its own `RETURN=` line would shadow.
+- **A standalone routine is only found in the caller's own schema** —
+  `get_standalone_routine_info` filters `owner = USER`, while `_detect_owner`
+  exists and is used elsewhere. Verifying a routine's existence properly
+  belongs here too.
 
 ## Suite hygiene
 
@@ -193,21 +217,15 @@ else a reader would think to look for it.
 
 ## Suggested next slice
 
-**Tier 0 is empty.** Tier 3's own priority order would put **C4** (`dbqm
-call`) next — `execute_routine` already exists and handles IN/OUT binding,
-return values and DBMS_OUTPUT capture. **It is Oracle-only**, though: it
-takes no `db_type` at all and builds an anonymous PL/SQL block, so C4 either
-ships Oracle-first with a clean refusal elsewhere, or pays for three more
-routine models. Measured in 2.1.0, when the same discovery was made about
-`list_package_routines`.
-
-The html-export sub-project (2.4.0) and `dbqm multi` (2.5.0, see
-`CHANGELOG.md` for both) shipped ahead of that order: `--export` is shared
-plumbing that every later Tier 3 command touches again, and the Multi-Exec
-tab's flow was the most-used one missing from the CLI. With both done,
-**C4** (`dbqm call`) is next in the controller's ordering, and carries the
-server-side read-only session deferred when the client-side guard (`X3`)
-shipped in 2.2.0.
+**Tier 0 is empty.** The html-export sub-project (2.4.0), `dbqm multi`
+(2.5.0) and `dbqm call` (2.6.0, see `CHANGELOG.md` for all three) have now
+shipped, in that order, ahead of Tier 3's original priority order:
+`--export` is shared plumbing that every later Tier 3 command touches
+again, the Multi-Exec tab's flow was the most-used one missing from the
+CLI, and execution (`C4`) is what an agent does once it can see. **C5 /
+C6** (saved query and group CRUD) is next — it follows the
+`connection_builder` pattern already proven for connections: rules in
+`core`/`models`, both front ends calling them.
 
 **A note on estimating, not an apology:** the html item's effort **S** was
 measured against `run-group` alone, where `export_group_html` already
