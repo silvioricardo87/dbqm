@@ -8,7 +8,7 @@ from dbqm.cli.commands import schema as _schema_commands
 from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
-from dbqm.cli.commands.query import cmd_multi, cmd_run, cmd_run_group, cmd_sql
+from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
 from dbqm.cli.params import _add_connection_fields, _parse_params, resolve_password
 from dbqm.cli.render import _print_query_result, console, rich_theme
@@ -96,6 +96,16 @@ def build_parser() -> argparse.ArgumentParser:
                            "Mostra o plano de execucao da query (EXPLAIN PLAN + DBMS_XPLAN.DISPLAY no Oracle, "
                            "EXPLAIN nativo em PostgreSQL/MySQL). Passe apenas a query, sem EXPLAIN PLAN FOR."
                        ))
+
+    # --- call ---
+    p_call = subparsers.add_parser(
+        "call", help="Executar uma procedure ou function (somente Oracle)")
+    p_call.add_argument("routine", help="Nome da rotina: PACOTE.ROTINA ou ROTINA avulsa")
+    p_call.add_argument("connection", help="Nome da conexao")
+    p_call.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
+                        help="Parametro de entrada (pode repetir)")
+    p_call.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
 
     # --- test ---
     p_test = subparsers.add_parser("test", help="Testar conexao com banco de dados")
@@ -219,6 +229,7 @@ COMMAND_MAP = {
     "run-group": cmd_run_group,
     "multi": cmd_multi,
     "sql": cmd_sql,
+    "call": cmd_call,
     "test": cmd_test,
     "list": cmd_list,
     "ddl": cmd_ddl,

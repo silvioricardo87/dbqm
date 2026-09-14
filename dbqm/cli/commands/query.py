@@ -16,6 +16,7 @@ from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
 from dbqm.core.group_engine import GroupResult
+from dbqm.core.object_browser import RoutineInfo
 from dbqm.models.connection import Connection
 
 # `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
@@ -689,3 +690,102 @@ def cmd_sql(args: argparse.Namespace) -> None:
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
         console.print(f"{result.rows_affected} registros afetados")
+
+
+def _resolve_call_routine(db: object, conn: Connection, routine_name: str) -> tuple[str, RoutineInfo]:
+    """Resolve `routine_name` to `(package, RoutineInfo)`.
+
+    A `.` in the name means a package routine: `list_package_routines`
+    parses the package spec and the routine is picked out of
+    `PackageInfo.routines` by name. No dot means a standalone routine, via
+    `get_standalone_routine_info` -- which never raises for a name that
+    does not exist, since ALL_ARGUMENTS simply returns no rows for it, so an
+    empty `params` and no `return_type` together are read as "not found",
+    the same class of heuristic `cmd_describe` (schema.py) already uses for
+    a name that is neither a table nor a view.
+    """
+    if "." in routine_name:
+        package, _, short_name = routine_name.partition(".")
+        pkg_info = deps.list_package_routines(db, conn.db_type, package)
+        for r in pkg_info.routines:
+            if r.name.upper() == short_name.upper():
+                return pkg_info.name, r
+        raise deps.ObjectNotFound(f"Rotina '{routine_name}' nao encontrada.")
+    routine = deps.get_standalone_routine_info(db, routine_name)
+    if not routine.params and not routine.return_type:
+        raise deps.ObjectNotFound(f"Rotina '{routine_name}' nao encontrada.")
+    return "", routine
+
+
+def _validate_call_params(routine: RoutineInfo, param_values: dict[str, str]) -> None:
+    """Every `IN`/`IN OUT` parameter with no default must be supplied; a
+    supplied name the routine does not declare is almost always a typo, so
+    it is refused rather than silently running with a default the caller
+    did not intend. An `OUT` parameter is written by the routine, not
+    required from the caller.
+    """
+    declared = {p.name for p in routine.params}
+    for name in param_values:
+        if name not in declared:
+            raise ValueError(f"Parametro '{name}' nao existe na rotina '{routine.name}'.")
+    for p in routine.params:
+        if p.direction in ("IN", "IN OUT") and not p.default and p.name not in param_values:
+            raise ValueError(f"Parametro obrigatorio faltando: {p.name}.")
+
+
+def cmd_call(args: argparse.Namespace) -> None:
+    """Execute a stored procedure or function (Oracle only).
+
+    Order is the design. The connection is resolved first, and then, while
+    it is still just configuration and nothing has opened, the Oracle-only
+    refusal: `execute_routine` builds an anonymous PL/SQL block, which the
+    other three engines have no equivalent of, and `conn.db_type` is known
+    for free. Only then does the connection actually open, following the
+    same nesting `_with_open_connection` (schema.py) uses to keep a failure
+    to connect (`connection_failed`, 3) apart from everything that can go
+    wrong once it is open -- though `call` has its own vocabulary
+    (`not_found` for a routine that does not resolve, `validation` for a
+    parameter problem, `read_only` for `ReadOnlyViolation`), so the helper
+    itself is not reused here, only its shape.
+    """
+    conn = deps.find_connection(args.connection)
+    if not conn:
+        _fail_or_print(args, "call", "not_found", f"Conexao '{args.connection}' nao encontrada.")
+
+    if conn.db_type != "oracle":
+        _fail_or_print(
+            args, "call", "usage",
+            f"call so funciona em Oracle. Conexao '{conn.name}' e {conn.db_type}.",
+        )
+
+    param_values = _parse_params(args.param, args, "call")
+
+    try:
+        with deps.open_connection(conn) as db:
+            try:
+                package, routine = _resolve_call_routine(db, conn, args.routine)
+                _validate_call_params(routine, param_values)
+                result = deps.execute_routine(db, package, routine, param_values, conn=conn)
+            except deps.ObjectNotFound as e:
+                _fail_or_print(args, "call", "not_found", str(e))
+            except ValueError as e:
+                _fail_or_print(args, "call", "validation", str(e))
+            except deps.ReadOnlyViolation as e:
+                _fail_or_print(args, "call", "read_only", str(e))
+            except Exception as e:
+                _fail_or_print(args, "call", "sql_error", str(e))
+    except Exception as e:
+        _fail_or_print(args, "call", "connection_failed", str(e))
+
+    if not result.success:
+        _fail_or_print(args, "call", "sql_error", result.error or "Erro ao executar rotina.")
+
+    if args.format == "json":
+        ok("call", result.to_dict(), warnings=result.output_lines or None)
+        return
+
+    if result.return_value is not None:
+        console.print(f"Retorno: {result.return_value}")
+    for line in result.output_lines:
+        console.print(line, markup=False, highlight=False)
+    console.print(f"[dim]({result.elapsed:.2f}s)[/dim]")
