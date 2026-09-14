@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.6.0] — 2026-09-13
+
+A MINOR release: a new command.
+
+### Added
+
+- **`dbqm call PACOTE.ROTINA <conexao> [-p nome=valor] [--commit]`** — calls
+  a stored procedure or function from the command line. A name with a dot
+  is `PACOTE.ROTINA`; a bare name is a standalone routine. Parameters are
+  bound by name and **case-insensitively** — Oracle declares `P_ID`, and
+  `-p p_id=7` is not a mistake. **Oracle only**, refused with `usage` (exit
+  2) before any connection is opened: `db_type` is known from configuration
+  alone, and an anonymous PL/SQL block — what `execute_routine` builds — has
+  no equivalent on the other three engines.
+- **`--commit`**, meaning what it means on `dbqm sql`: without it the
+  transaction is explicitly rolled back, with it committed — and the output
+  says which, in both the table and the `-f json` renderers. A routine that
+  raises is rolled back regardless of the flag.
+
+### Fixed
+
+Found while building `dbqm call`, not from a report — worth recording
+because a reader would want to know they were there:
+
+- **A standalone function could never have run.**
+  `get_standalone_routine_info` always defaulted `routine_type` to
+  `PROCEDURE`, so `execute_routine` never declared a return variable for
+  one and Oracle answered PLS-00221.
+- **A procedure with no arguments was reported as not found.** An empty
+  `ALL_ARGUMENTS` result is indistinguishable from a routine that does not
+  exist, and the standalone lookup used exactly that heuristic. It is gone;
+  a name that truly does not exist now comes back as Oracle's own
+  PLS-00201 (`sql_error`, exit 4), not a client-side guess.
+- **Parameter names were matched case-sensitively.** A mismatched key would
+  have run the routine silently on its default rather than the value given.
+- **A routine that raises, and a commit that fails, are both rolled back
+  explicitly** rather than left to the driver's close-time behaviour — the
+  routine may have executed in part before either happened, and a caller
+  who called without `--commit` is told plainly that the transaction was
+  undone.
+
 ## [2.5.0] — 2026-09-13
 
 A MINOR release: a new command.
