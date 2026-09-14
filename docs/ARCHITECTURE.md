@@ -136,8 +136,12 @@ consumers, none of them importing each other.
 - This is a rail against mistakes, not a security boundary — whoever can
   connect can still write with another client. A server-side read-only
   session (`SET TRANSACTION READ ONLY` on Oracle/MySQL, `BEGIN READ ONLY` on
-  PostgreSQL) is deferred to the `dbqm call` sub-project (`C4` in
-  `docs/ROADMAP.md`).
+  PostgreSQL) would make it one, and remains **an open decision** rather than
+  scheduled work: it would change what read-only *means* depending on the
+  engine — a database-side guarantee on Oracle, PostgreSQL and MySQL, and
+  still only a dbqm-side promise on SQL Server, which has no equivalent.
+  `C4` shipped in 2.6.0 without settling it; the open decisions are listed in
+  `docs/ROADMAP.md`.
 
 ### Textual TUI
 - Screens are `Vertical` widgets loaded into `#screen-area`.
