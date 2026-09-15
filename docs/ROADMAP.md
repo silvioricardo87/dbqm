@@ -123,7 +123,10 @@ or function, Oracle-only, refused before any connection opens on any other
 engine. **Curation** (`C5`/`C6`) shipped in 2.7.0 — `dbqm query` and
 `dbqm group` create and curate saved queries and comparison groups from the
 command line, over the same `core/` rules the TUI screens now call instead
-of owning. The remaining piece of curation is `C7`.
+of owning. **`C7` was closed without being built** -- the investigation for
+it found both halves already shipped, in commands that do the job for more
+object types than a dedicated pair would. See "C7, closed on the evidence"
+below.
 
 **2.1.0 and 2.2.0 are deliberately internal versions.** Both exist in
 `CHANGELOG.md` and in the code — discovery and the read-only guard are real,
@@ -135,8 +138,32 @@ the release history.
 
 | Order | Item | Theme | Effort | Agent value | Notes |
 |---|---|---|---|---|---|
-| 1 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
-| 2 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+| 1 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+
+### C7, closed on the evidence
+
+`C7` proposed `dbqm source` and `dbqm compile`. Its own note asked for the
+overlap with `ddl` to be confirmed before building. It was, and both halves
+already exist:
+
+- **Reading current source is `dbqm ddl`.** `core/ddl_extractor.py` fetches
+  `PACKAGE SPEC` and `PACKAGE BODY` through `DBMS_METADATA.GET_DDL`, falling
+  back to `ALL_SOURCE`, and covers nine object types -- `TABLE`, `VIEW`,
+  `PACKAGE`, `PROCEDURE`, `FUNCTION`, `TRIGGER`, `SEQUENCE`, `TYPE` and
+  `SYNONYM`. `dbqm ddl PKG conn --stdout` already prints the source. A
+  `dbqm source` would do less, for fewer types.
+- **Compiling with error detection is `dbqm sql`.** `execute_adhoc` runs DDL
+  and then calls `_fetch_ddl_errors`, which reads `all_errors` and sets
+  `success = not compilation_errors` (`core/query_engine.py:487-502`). This
+  matters more than it sounds: Oracle accepts `CREATE OR REPLACE PACKAGE
+  BODY` even when the body compiles with errors, leaving the object INVALID,
+  so a client that only checked the driver's result would report success.
+  dbqm does not. And `dbqm sql` already accepts a path to a `.sql` file, so
+  compiling a package from disk works today.
+
+Building the pair would have added a second way to do what one command
+already does, and two ways are how they start to disagree -- the failure this
+tier spent five sub-projects removing. The id is retired and not reused.
 
 ### Deliberately not scheduled
 
@@ -246,10 +273,11 @@ Tier 3's original priority order: `--export` is shared plumbing that every
 later Tier 3 command touches again, the Multi-Exec tab's flow was the
 most-used one missing from the CLI, execution (`C4`) is what an agent does
 once it can see, and curation (`C5`/`C6`) is what lets it keep what it
-found. **C7** (`dbqm source` / `dbqm compile`) is next — narrower than it
-looks, since `dbqm sql` already compiles and surfaces errors; what is
-genuinely missing is *reading* current source. Confirm the overlap with
-`ddl` and `sql -f raw` first.
+found. **C7 was closed without being built**, on the evidence above: `dbqm ddl`
+already reads package source and `dbqm sql` already compiles and detects
+`all_errors`. **C9 / C10 / C12 / X4** are what remain -- templates,
+`config get|set`, oracle-client and self-description -- of which
+`config set audit_log_enabled true` is the one an agent flow cares about.
 
 **A note on estimating, not an apology:** the html item's effort **S** was
 measured against `run-group` alone, where `export_group_html` already
