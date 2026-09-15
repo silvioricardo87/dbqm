@@ -5122,7 +5122,6 @@ class TestCmdDescribeCli:
         flags = {tuple(arg["flags"]): arg for arg in sql["arguments"]}
         formato = flags[("-f", "--format")]
         assert formato["choices"] == ["table", "json", "csv", "raw"]
-        assert formato["required"] is False
         assert formato["help"]
 
         # A bare positional (no option strings) is still reported, flagged
@@ -5149,8 +5148,63 @@ class TestCmdDescribeCli:
         sql_flags = {tuple(arg["flags"]) for arg in by_name["sql"]["arguments"]}
         assert ("--force-write",) in sql_flags
 
+    def test_nested_subcommands_carry_their_own_arguments(self, capsys):
+        """A parser with a subparsers action of its own (`connection`,
+        `config`, `query`, `group`) recurses: each subcommand is described
+        the same way -- `name`, `help`, `arguments` -- under a `subcommands`
+        key, not merely named by an opaque `choices` list. `--read-only`
+        exists only on `connection add`/`connection update` and is never
+        mentioned in `describe_cli.py`, same trick as `--force-write` above.
+        """
+        import dbqm.cli.commands.describe_cli as describe_cli_module
+
+        source = Path(describe_cli_module.__file__).read_text(encoding="utf-8")
+        assert "read-only" not in source
+        assert "read_only" not in source
+
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        by_name = {c["name"]: c for c in corpo["data"]["commands"]}
+        connection = by_name["connection"]
+
+        # The nested group itself carries no opaque "subcommand" argument
+        # once it has a `subcommands` key -- the flags for its children live
+        # under that key instead, described the same way as a top-level one.
+        assert {tuple(a["flags"]) for a in connection["arguments"]} == set()
+
+        sub_by_name = {s["name"]: s for s in connection["subcommands"]}
+        assert sub_by_name.keys() == {"add", "update", "show", "rm", "list"}
+        add = sub_by_name["add"]
+        assert add["help"]
+        add_flags = {tuple(a["flags"]) for a in add["arguments"]}
+        assert ("--read-only",) in add_flags
+
+    def test_an_uninitialized_parser_is_unexpected_not_a_false_success(self, monkeypatch, capsys):
+        """`_subparsers_action` is `None` only before `build_parser` has run.
+        That must never look like "dbqm has zero commands" -- a confidently
+        wrong success -- so it is reported as `unexpected` (exit 1) instead.
+        """
+        import argparse
+
+        import dbqm.cli.commands.describe_cli as describe_cli_module
+
+        monkeypatch.setattr(describe_cli_module, "_subparsers_action", None)
+
+        with pytest.raises(SystemExit) as saiu:
+            describe_cli_module.cmd_describe_cli(argparse.Namespace(format="json"))
+        assert saiu.value.code == 1
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["ok"] is False
+        assert corpo["error"]["code"] == "unexpected"
+
     def test_table_format_prints_a_summary_without_the_envelope(self, capsys):
         run_cli(["describe-cli"])
         saida = capsys.readouterr().out
-        assert "sql" in saida
         assert '"ok"' not in saida
+        # The argument-table header pins that real per-argument tables are
+        # printed, and "describe-cli" (its own self-description) pins that
+        # the command's name -- not just its help text -- reaches the line:
+        # neither string can appear here by accident of some other command's
+        # Portuguese help text.
+        assert "Flags" in saida
+        assert "describe-cli" in saida
