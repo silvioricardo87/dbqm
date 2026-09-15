@@ -23,6 +23,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Data export** — Export results to CSV, JSON, TXT, HTML reports, and SQL files. Destination is configurable in Settings (defaults to the current working directory); query exports are written flat (no subfolders), while groups/DDL/SQL keep category subfolders by default (togglable). On first export you are prompted to pick a default location.
 - **Encrypted credentials** — Passwords stored with Fernet symmetric encryption
 - **Connections from the CLI** — `dbqm connection add|update|rm|show|list` creates and edits connections without the TUI, for scripts, CI and AI agents. `--password-stdin` and the `DBQM_PASSWORD` environment variable keep secrets off the command line and out of shell history; `--test` refuses to save a connection that does not answer. `update` changes only the flags you pass — including the password: it is changed only via `--password-stdin` or `--no-password` on that command, never by an ambient `DBQM_PASSWORD` left over from another command. `show` never prints the password. The rules are shared with the TUI (`core/connection_builder.py`), so both front ends validate and default identically.
+- **Saved queries and groups from the CLI** — `dbqm query add|update|show|rm|list` and `dbqm group add|update|show|rm|list` curate what `dbqm run` and `dbqm run-group` execute, without the TUI. A query needs a name, SQL (`--sql` or `--sql-file`) and a connection that exists; a group needs at least two `--query` and a join key, and every query it names must exist. Modelled on `dbqm connection`: `-f json` everywhere, `update` changes only the flags passed, `rm` confirms unless `--yes` and refuses outright rather than prompting when stdin is not a terminal. The rules are shared with the TUI (`core/query_builder.py`, `core/group_builder.py`), so both front ends validate and default identically. Out of scope by design: TUI-only fields like `column_maps` or `template` have no flag but survive an `update` untouched, and an ad-hoc (Multi-Exec) group — see `dbqm multi` below — cannot be saved this way.
 - **Read-only connections** — mark a connection with `--read-only` (or the "Somente leitura" checkbox in the TUI) and dbqm declines to send it anything but a `SELECT` or a genuine `EXPLAIN`: ad-hoc SQL, explain plans, routine execution (`dbqm call` and the TUI alike) and package compilation all refuse, with a `read_only` error (exit `2`). `--force-write` on `dbqm sql` lifts the refusal for one invocation; it does not imply `--commit`, so writing to a protected connection still takes both flags. Routine execution and package compilation have no such override — clear the mark on the connection instead; package compilation stays TUI-only. This is a rail against mistakes, not a security boundary — see [CHANGELOG.md](./CHANGELOG.md) for what that means and what is deferred.
 - **Connection descriptions** — Attach free-form notes to each connection (purpose, schema, contacts); a one-line preview is shown alongside type and destination in the connections list
 - **Portable configurations** — Export/import configs as encrypted `.dbqm` bundles
@@ -155,6 +156,22 @@ dbqm sql "SELECT * FROM table WHERE col = :v" <connection> --explain -p v=42
 # name, case-insensitively. Without --commit the run is rolled back.
 dbqm call PACOTE.ROTINA <connection> -p p_id=7
 dbqm call ROTINA_AVULSA <connection> -p p_id=7 --commit
+
+# Curate a saved query (SQL from --sql or --sql-file; --connection must exist)
+dbqm query add faturas-pagas --sql "SELECT * FROM faturas WHERE situacao = :situacao" \
+    --connection prod --description "Faturas pagas"
+dbqm query update faturas-pagas --folder financeiro
+dbqm query show faturas-pagas -f json
+dbqm query list --connection prod -f json
+dbqm query rm faturas-pagas --yes
+
+# Curate a comparison group (at least two --query, every one must exist)
+dbqm group add prod-vs-homolog --query faturas-pagas --query faturas-pagas-homolog \
+    --join-key id --compare-column valor
+dbqm group update prod-vs-homolog --description "Conferencia mensal"
+dbqm group show prod-vs-homolog -f json
+dbqm group list -f json
+dbqm group rm prod-vs-homolog --yes
 
 # Test connections
 dbqm test [connection]
