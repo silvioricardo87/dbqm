@@ -116,6 +116,8 @@ envelope, errors as structured JSON on stderr, and a stable documented
 exit-code table. **Discovery** (`C2`, `C3`) shipped in 2.1.0 — an agent can
 now see a database's shape without hand-written catalogue SQL. The read-only
 guard (`X3`) shipped in 2.2.0 — a connection can refuse anything but a query.
+**Evidence** (`C11`) shipped in 2.4.0 — `--export html` on `run`, `run-group`
+and `sql`, a standalone report a human reads without a tool.
 Comparison across connections (`C8`) shipped in 2.5.0 — `dbqm multi` runs one
 ad-hoc SQL against several databases and reports whether they agree.
 **Execution** (`C4`) shipped in 2.6.0 — `dbqm call` runs a stored procedure
@@ -139,8 +141,12 @@ oversight: whoever installs 2.3.x receives everything 2.1.0 and 2.2.0 added,
 already folded in. Recorded here so it is not rediscovered later as a gap in
 the release history.
 
-**Empty.** Every item shipped or was closed on the evidence (see "C7, closed
-on the evidence" below).
+### Tier 3 — the table
+
+**Empty.** All ten items are accounted for: `X1` in 2.0.0, `C2`/`C3` in
+2.1.0, `X3` in 2.2.0, `C11` in 2.4.0, `C8` in 2.5.0, `C4` in 2.6.0,
+`C5`/`C6` in 2.7.0, and `C9`/`C10`/`C12`/`X4` in 2.8.0. `C7` was closed
+without being built — see "C7, closed on the evidence" below.
 
 ### C7, closed on the evidence
 
@@ -182,9 +188,9 @@ tier spent five sub-projects removing. The id is retired and not reused.
 
 ## Known gaps
 
-- **The three CRUD command groups disagree on one token.** `dbqm connection
-  add` on a name that already exists reports `usage`; `dbqm query add` and
-  `dbqm group add` report `validation`. The exit code is 2 either way, and
+- **The four CRUD command groups disagree on one token.** `dbqm connection
+  add` on a name that already exists reports `usage`; `dbqm query add`,
+  `dbqm group add` and `dbqm template add` report `validation`. The exit code is 2 either way, and
   `validation` is the more accurate of the two — a name collision is not a
   malformed invocation. `connection` is published and an agent may already
   branch on its token, so aligning it is a breaking change and belongs in a

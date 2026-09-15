@@ -5431,8 +5431,8 @@ class TestCmdDescribeCli:
         assert ("--force-write",) in sql_flags
 
     def test_nested_subcommands_carry_their_own_arguments(self, capsys):
-        """A parser with a subparsers action of its own (`connection`,
-        `config`, `query`, `group`) recurses: each subcommand is described
+        """A parser with a subparsers action of its own recurses: each
+        subcommand is described
         the same way -- `name`, `help`, `arguments` -- under a `subcommands`
         key, not merely named by an opaque `choices` list. `--read-only`
         exists only on `connection add`/`connection update` and is never

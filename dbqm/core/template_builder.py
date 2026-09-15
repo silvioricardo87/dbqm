@@ -92,7 +92,9 @@ def build(values: dict[str, Any], existing: Template | None = None) -> Template:
 def upsert(values: dict[str, Any]) -> tuple[Template, bool]:
     """Save `values`, creating or replacing by name. Returns (template, created).
 
-    This is what the TUI's Salvar means. The CLI does NOT use it: there,
+    Kept for symmetry with `connection_builder`, where the TUI's Salvar
+    button really does mean "save this, new or not". Nothing calls it here --
+    the screen builds directly, and the CLI must not: there,
     `add` on an existing name and `update` on a missing one have to be
     errors, so the command checks first and calls `build` itself.
     """

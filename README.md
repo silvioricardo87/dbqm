@@ -214,14 +214,14 @@ dbqm history
 dbqm config list -f json
 dbqm config get theme
 dbqm config set audit_log_enabled true
-dbqm config set theme escuro
+dbqm config set theme plano-escuro
 
 # Manage Oracle Instant Client installations (the only command that reaches
 # the internet)
 dbqm oracle-client available
-dbqm oracle-client install 21.13
+dbqm oracle-client install 23.26.1.0.0
 dbqm oracle-client list -f json
-dbqm oracle-client rm instantclient_21_13 --yes
+dbqm oracle-client rm instantclient_23_x64 --yes
 
 # Describe dbqm's own CLI surface: every command, recursing into subcommands
 # and their arguments -- read live from the parser, nothing hand-typed
@@ -276,8 +276,8 @@ every DML statement is subject to, protected connection or not.
 
 ### Output format and exit codes
 
-Every command accepts `-f/--format`. `run`, `run-group`, `sql` and `rows`
-offer `table|json|csv|raw`; **every other command offers `table|json`** —
+Every command accepts `-f/--format`. `run`, `sql` and `rows` offer
+`table|json|csv|raw`; **every other command offers `table|json`** —
 rather than list them here, where the list has already gone stale twice, ask
 the program: `dbqm describe-cli -f json` reports every command, every
 subcommand and every flag, read from the parser itself. `raw` prints plain values

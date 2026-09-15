@@ -15,12 +15,13 @@ from (a circular import).
 Every command's `_actions` is read the same way argparse reads it to print
 `--help`: nothing here is per-command logic, so a flag added to an existing
 command, or an entire command added next year, appears without anyone
-touching this file. Several commands hold a subparsers action of their own --
-`add`, `update`, `show`, `rm`, `list`, and so on -- so the walk recurses: a
-command that itself has subcommands reports
-them under `subcommands`, described the same way, arguments included, rather
-than as a bare `choices` list that names a subcommand without saying how to
-call it.
+touching this file. Several commands hold a subparsers action of their own,
+so the walk recurses: a command that itself has subcommands reports them
+under `subcommands`, described the same way, arguments included, rather than
+as a bare `choices` list that names a subcommand without saying how to call
+it. No name -- of a command, a subcommand or a flag -- appears anywhere in
+this module. That is the whole premise: a list written here is a list that
+goes stale, and the parser already holds the truth.
 """
 from __future__ import annotations
 
