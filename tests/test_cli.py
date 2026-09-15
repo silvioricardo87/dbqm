@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -122,7 +123,7 @@ class TestBuildParser:
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
                     "export-config", "import-config", "history", "config", "connection",
-                    "query", "group", "objects", "describe", "rows"}
+                    "query", "group", "objects", "describe", "rows", "describe-cli"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -5078,3 +5079,68 @@ class TestDdlStdout:
 
         mock_save.assert_called_once()
         assert json.loads(capsys.readouterr().out)["data"]["path"] is not None
+
+
+# ---------------------------------------------------------------------------
+# describe-cli
+# ---------------------------------------------------------------------------
+
+class TestCmdDescribeCli:
+    """`describe-cli` must never hand-maintain a list of its own: every
+    assertion here reads `COMMAND_MAP` or the live parser, not a list typed
+    into this test file.
+    """
+
+    def test_describe_lists_every_command_in_the_dispatch_map(self, capsys):
+        """Set equality, not containment: a command added later without a
+        doc entry must fail this test rather than go silently undescribed.
+        """
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "describe-cli"
+        nomes = {c["name"] for c in corpo["data"]["commands"]}
+        assert nomes == set(COMMAND_MAP)
+
+    def test_each_command_carries_its_help_and_arguments(self, capsys):
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        by_name = {c["name"]: c for c in corpo["data"]["commands"]}
+
+        sql = by_name["sql"]
+        assert sql["help"]
+        flags = {tuple(arg["flags"]): arg for arg in sql["arguments"]}
+        formato = flags[("-f", "--format")]
+        assert formato["choices"] == ["table", "json", "csv", "raw"]
+        assert formato["required"] is False
+        assert formato["help"]
+
+        # A bare positional (no option strings) is still reported, flagged
+        # by its dest, and required.
+        positional = flags[("sql",)]
+        assert positional["required"] is True
+        assert positional["choices"] is None
+
+    def test_nothing_is_hand_written(self, capsys):
+        """The payload must come from the parser, so a flag added to an
+        existing command appears without anyone editing `describe_cli.py`.
+        `--force-write` exists only in the `sql` subparser -- it is never
+        mentioned by name in `dbqm/cli/commands/describe_cli.py`.
+        """
+        import dbqm.cli.commands.describe_cli as describe_cli_module
+
+        source = Path(describe_cli_module.__file__).read_text(encoding="utf-8")
+        assert "force-write" not in source
+        assert "force_write" not in source
+
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        by_name = {c["name"]: c for c in corpo["data"]["commands"]}
+        sql_flags = {tuple(arg["flags"]) for arg in by_name["sql"]["arguments"]}
+        assert ("--force-write",) in sql_flags
+
+    def test_table_format_prints_a_summary_without_the_envelope(self, capsys):
+        run_cli(["describe-cli"])
+        saida = capsys.readouterr().out
+        assert "sql" in saida
+        assert '"ok"' not in saida

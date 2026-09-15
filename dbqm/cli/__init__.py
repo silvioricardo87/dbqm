@@ -5,11 +5,13 @@ import argparse
 
 from dbqm.cli.commands import config_cmd as _config_commands
 from dbqm.cli.commands import connection as _connection_commands
+from dbqm.cli.commands import describe_cli as _describe_cli_commands
 from dbqm.cli.commands import saved as _saved_commands
 from dbqm.cli.commands import schema as _schema_commands
 from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.config_cmd import cmd_config
 from dbqm.cli.commands.connection import cmd_connection
+from dbqm.cli.commands.describe_cli import cmd_describe_cli
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
 from dbqm.cli.commands.saved import cmd_group, cmd_query
@@ -34,6 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="DB Query Manager — ferramenta CLI para consultas em banco de dados",
     )
     subparsers = parser.add_subparsers(dest="command")
+    # `cmd_describe_cli` (in `dbqm.cli.commands.describe_cli`) walks this same
+    # action to describe every command below -- the same reference, so every
+    # `add_parser` call from here on is visible to it without a second list.
+    _describe_cli_commands._subparsers_action = subparsers
 
     # --- run ---
     p_run = subparsers.add_parser("run", help="Executar uma consulta salva")
@@ -327,6 +333,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_group_list.add_argument("-f", "--format", choices=["table", "json"],
                               default="table", help="Formato de saida")
 
+    # --- describe-cli ---
+    p_describe_cli = subparsers.add_parser(
+        "describe-cli",
+        help="Descrever os comandos do CLI (nome, ajuda e argumentos de cada um)",
+    )
+    p_describe_cli.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                                help="Formato de saida")
+
     return parser
 
 
@@ -349,6 +363,7 @@ COMMAND_MAP = {
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,
+    "describe-cli": cmd_describe_cli,
 }
 
 
