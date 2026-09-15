@@ -123,7 +123,8 @@ class TestBuildParser:
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
                     "export-config", "import-config", "history", "config", "connection",
-                    "query", "group", "template", "objects", "describe", "rows", "describe-cli"}
+                    "query", "group", "template", "oracle-client", "objects", "describe",
+                    "rows", "describe-cli"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -5475,3 +5476,105 @@ class TestCmdDescribeCli:
         # Portuguese help text.
         assert "Flags" in saida
         assert "describe-cli" in saida
+
+
+# ---------------------------------------------------------------------------
+# oracle-client subcommand
+# ---------------------------------------------------------------------------
+
+class TestCmdOracleClient:
+    """`install` is the only dbqm command that reaches the internet, so every
+    test here patches `deps.install_client` instead of letting it run — a
+    real download would be slow, flaky, and dependent on Oracle's CDN
+    staying up. `list`/`rm` patch `oracle_client_installer.CLIENTS_DIR`
+    itself (same trick as `tests/core/test_oracle_client_installer.py`) so
+    nothing touches a real install location either.
+    """
+
+    def test_list_on_a_machine_with_none_installed(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        run_cli(["oracle-client", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "oracle-client.list"
+        assert corpo["data"] == []
+
+    def test_available_on_an_unsupported_host_is_usage_naming_the_platform(
+        self, monkeypatch, capsys,
+    ):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("plan9", "riscv"))
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "available", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert "plan9/riscv" in corpo["error"]["message"]
+
+    def test_install_calls_through_with_the_named_version(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        dest = tmp_path / "instantclient_23_x64"
+        spy = MagicMock(return_value=dest)
+        monkeypatch.setattr("dbqm.cli.deps.install_client", spy)
+
+        run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+
+        spy.assert_called_once()
+        called_pkg = spy.call_args.args[0]
+        assert called_pkg.version == "23.26.1.0.0"
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "oracle-client.install"
+        assert corpo["data"]["version"] == "23.26.1.0.0"
+        assert corpo["data"]["path"] == str(dest)
+
+    def test_install_on_an_unknown_version_is_usage(self, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        spy = MagicMock()
+        monkeypatch.setattr("dbqm.cli.deps.install_client", spy)
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "install", "9.9.9.9.9", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        spy.assert_not_called()
+
+    def test_install_whose_underlying_call_raises_is_unexpected(self, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        monkeypatch.setattr(
+            "dbqm.cli.deps.install_client",
+            MagicMock(side_effect=RuntimeError("arquivo truncado")),
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+        assert exc.value.code == 1
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "unexpected"
+        assert "arquivo truncado" in corpo["error"]["message"]
+
+    def test_rm_with_yes_removes(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "oci.dll").write_text("stub")
+
+        run_cli(["oracle-client", "rm", "instantclient_23_x64", "--yes"])
+
+        assert not target.exists()
+
+    def test_rm_without_yes_and_without_a_tty_is_usage_and_deletes_nothing(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "oci.dll").write_text("stub")
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "rm", "instantclient_23_x64", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert target.exists(), "a refusal must not remove"
