@@ -2206,15 +2206,25 @@ class TestCmdConfig:
         assert load_settings().audit_log_enabled is True
 
     def test_a_bad_boolean_is_refused_not_coerced(self, tmp_config_dir, capsys):
-        """`set audit_log_enabled talvez` must not quietly become False."""
+        """`set audit_log_enabled talvez` must not quietly become False.
+
+        The stored value is driven to True first, on purpose. `False` is the
+        field's own default, so asserting it stayed False would be satisfied
+        just as well by an implementation that coerced the bad input and
+        wrote it -- the two states are indistinguishable from the outside.
+        """
         from dbqm.models.settings import load_settings
+
+        run_cli(["config", "set", "audit_log_enabled", "true", "-f", "json"])
+        capsys.readouterr()
+        assert load_settings().audit_log_enabled is True
 
         with pytest.raises(SystemExit) as exc:
             run_cli(["config", "set", "audit_log_enabled", "talvez", "-f", "json"])
         assert exc.value.code == 2
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "validation"
-        assert load_settings().audit_log_enabled is False
+        assert load_settings().audit_log_enabled is True
 
     def test_an_unknown_theme_is_refused_and_names_what_exists(self, tmp_config_dir, capsys):
         with pytest.raises(SystemExit) as exc:
