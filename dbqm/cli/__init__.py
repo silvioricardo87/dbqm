@@ -4,13 +4,20 @@ from __future__ import annotations
 import argparse
 
 from dbqm.cli.commands import connection as _connection_commands
+from dbqm.cli.commands import saved as _saved_commands
 from dbqm.cli.commands import schema as _schema_commands
 from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
+from dbqm.cli.commands.saved import cmd_query
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
-from dbqm.cli.params import _add_connection_fields, _parse_params, resolve_password
+from dbqm.cli.params import (
+    _add_connection_fields,
+    _add_query_fields,
+    _parse_params,
+    resolve_password,
+)
 from dbqm.cli.render import _print_query_result, console, rich_theme
 
 # ---------------------------------------------------------------------------
@@ -223,6 +230,41 @@ def build_parser() -> argparse.ArgumentParser:
     p_conn_list.add_argument("-f", "--format", choices=["table", "json"],
                              default="table", help="Formato de saida")
 
+    # --- query ---
+    p_query = subparsers.add_parser(
+        "query",
+        help="Gerenciar consultas salvas (criar, alterar, remover, ver, listar)",
+    )
+    # `cmd_query` (in `dbqm.cli.commands.saved`) reads this back to print the
+    # group's own help on a bare `dbqm query`.
+    _saved_commands._query_parser = p_query
+    query_sub = p_query.add_subparsers(dest="subcommand")
+
+    p_query_add = query_sub.add_parser("add", help="Criar uma consulta")
+    p_query_add.add_argument("name", help="Nome da consulta")
+    _add_query_fields(p_query_add)
+
+    p_query_update = query_sub.add_parser("update", help="Alterar uma consulta existente")
+    p_query_update.add_argument("name", help="Nome da consulta")
+    _add_query_fields(p_query_update)
+
+    p_query_show = query_sub.add_parser("show", help="Ver uma consulta")
+    p_query_show.add_argument("name", help="Nome da consulta")
+    p_query_show.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
+    p_query_rm = query_sub.add_parser("rm", help="Remover uma consulta")
+    p_query_rm.add_argument("name", help="Nome da consulta")
+    p_query_rm.add_argument("--yes", action="store_true",
+                            help="Remover sem confirmacao (obrigatorio fora do terminal)")
+    p_query_rm.add_argument("-f", "--format", choices=["table", "json"],
+                            default="table", help="Formato de saida")
+
+    p_query_list = query_sub.add_parser("list", help="Listar consultas")
+    p_query_list.add_argument("--connection", help="Filtrar por conexao")
+    p_query_list.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
     return parser
 
 
@@ -239,6 +281,7 @@ COMMAND_MAP = {
     "import-config": cmd_import_config,
     "history": cmd_history,
     "connection": cmd_connection,
+    "query": cmd_query,
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,

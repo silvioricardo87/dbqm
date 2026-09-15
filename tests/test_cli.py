@@ -121,7 +121,7 @@ class TestBuildParser:
 
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
-                    "export-config", "import-config", "history", "connection",
+                    "export-config", "import-config", "history", "connection", "query",
                     "objects", "describe", "rows"}
         assert set(COMMAND_MAP.keys()) == expected
 
@@ -3122,6 +3122,177 @@ class TestConnectionShow:
         with pytest.raises(SystemExit) as exc:
             run_cli(["connection", "show", "inexistente"])
         assert exc.value.code == 2
+
+
+class TestCmdQuery:
+    """`dbqm query add|update|show|rm|list`, mirroring TestConnection*.
+
+    No command here opens a database: there is no `connection_failed` and no
+    `sql_error` in this class, only `usage`/`not_found`/`validation`. Every
+    failure asserts the machine token from the `-f json` envelope, not just
+    the exit code — exit 2 is also argparse's own code for a bad argument.
+    """
+
+    def _add_connection(self, monkeypatch, name="db1"):
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", name, "--type", "mysql", "--host", "h",
+                 "--no-password"])
+
+    def test_add_creates(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        run_cli([
+            "query", "add", "minha", "--connection", "db1",
+            "--sql", "SELECT id, nome FROM t", "--description", "nota",
+        ])
+
+        q = find_query("minha")
+        assert q is not None
+        assert q.connection == "db1"
+        assert q.sql == "SELECT id, nome FROM t"
+        assert q.description == "nota"
+        assert q.table == "t", "table must be derived from the SQL"
+
+    def test_add_on_an_existing_name_is_a_validation_error(self, tmp_config_dir,
+                                                            monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        run_cli(["query", "add", "dup", "--connection", "db1", "--sql", "SELECT 1"])
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "query", "add", "dup", "--connection", "db1", "--sql", "SELECT 2",
+                "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_query("dup").sql == "SELECT 1", "a rejected add must change nothing"
+
+    def test_update_on_a_missing_name_is_not_found(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "query", "update", "inexistente", "--description", "x", "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_update_preserves_column_maps_and_is_favorite(self, tmp_config_dir, monkeypatch):
+        """The trap: an update must overlay only the flags actually given.
+        `column_maps` has no CLI flag at all, so this also proves `build`
+        (never `upsert`) is being called with a sparse dict, not a fully
+        populated one that would wipe it back to empty."""
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query, load_queries, save_queries
+
+        self._add_connection(monkeypatch)
+        run_cli([
+            "query", "add", "alvo", "--connection", "db1",
+            "--sql", "SELECT id, nome FROM t", "--favorite", "--folder", "pasta1",
+        ])
+
+        queries = load_queries()
+        queries[0].column_maps = {"nome": {"1": "um"}}
+        save_queries(queries)
+
+        run_cli(["query", "update", "alvo", "--description", "so a descricao"])
+
+        q = find_query("alvo")
+        assert q.description == "so a descricao"
+        assert q.column_maps == {"nome": {"1": "um"}}, "column_maps must survive"
+        assert q.is_favorite is True, "is_favorite must survive"
+        assert q.folder == "pasta1", "folder must survive"
+        assert q.sql == "SELECT id, nome FROM t", "sql must survive"
+        assert q.table == "t", "sql-derived table must survive unrederived"
+
+    def test_show_returns_to_dict(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        run_cli(["query", "add", "alvo", "--connection", "db1", "--sql", "SELECT 1"])
+        capsys.readouterr()
+        run_cli(["query", "show", "alvo", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "query.show"
+        assert corpo["data"] == find_query("alvo").to_dict()
+
+    def test_rm_with_yes_removes(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        run_cli(["query", "add", "alvo", "--connection", "db1", "--sql", "SELECT 1"])
+        run_cli(["query", "rm", "alvo", "--yes"])
+        assert find_query("alvo") is None
+
+    def test_rm_without_yes_and_without_a_tty_is_usage(self, tmp_config_dir,
+                                                        monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        run_cli(["query", "add", "alvo", "--connection", "db1", "--sql", "SELECT 1"])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["query", "rm", "alvo", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_query("alvo") is not None, "a refusal must not remove"
+
+    def test_list_filtered_by_connection(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        self._add_connection(monkeypatch, "db1")
+        self._add_connection(monkeypatch, "db2")
+        run_cli(["query", "add", "q1", "--connection", "db1", "--sql", "SELECT 1"])
+        run_cli(["query", "add", "q2", "--connection", "db2", "--sql", "SELECT 2"])
+
+        capsys.readouterr()
+        run_cli(["query", "list", "--connection", "db1", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "query.list"
+        assert [item["name"] for item in corpo["data"]] == ["q1"]
+
+    def test_sql_file_reads_the_file(self, tmp_config_dir, monkeypatch, tmp_path):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        sql_path = tmp_path / "consulta.sql"
+        sql_path.write_text("SELECT * FROM t WHERE 1=1", encoding="utf-8")
+        run_cli([
+            "query", "add", "arq", "--connection", "db1",
+            "--sql-file", str(sql_path),
+        ])
+        assert find_query("arq").sql == "SELECT * FROM t WHERE 1=1"
+
+    def test_unreadable_sql_file_is_usage(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "query", "add", "arq", "--connection", "db1",
+                "--sql-file", "caminho/que/nao/existe.sql", "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_query("arq") is None, "a failed read must not create the query"
 
 
 class TestConnectionMarkupSafety:

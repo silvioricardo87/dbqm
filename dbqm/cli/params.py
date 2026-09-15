@@ -78,6 +78,30 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
                         help="Formato de saida")
 
 
+def _add_query_fields(parser: argparse.ArgumentParser) -> None:
+    """The query fields, shared by `query add` and `query update`.
+
+    Nothing here is `required`: a missing `--sql`/`--connection` is reported
+    by `query_builder.validate`, the same way `_add_connection_fields` defers
+    to `connection_builder.validate`. `--sql` and `--sql-file` are mutually
+    exclusive -- only one way to say what the query runs.
+    """
+    parser.add_argument("--connection", help="Nome da conexao associada")
+    sql_grupo = parser.add_mutually_exclusive_group()
+    sql_grupo.add_argument("--sql", help="SQL da consulta")
+    sql_grupo.add_argument("--sql-file", dest="sql_file",
+                           help="Arquivo contendo o SQL da consulta")
+    parser.add_argument("--description", help="Anotacao livre sobre a consulta")
+    parser.add_argument("--folder", help="Pasta da consulta")
+    fav_grupo = parser.add_mutually_exclusive_group()
+    fav_grupo.add_argument("--favorite", dest="is_favorite", action="store_true",
+                           default=None, help="Marcar como favorita")
+    fav_grupo.add_argument("--no-favorite", dest="is_favorite", action="store_false",
+                           help="Desmarcar como favorita")
+    parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
+
+
 @overload
 def resolve_password(
     args: argparse.Namespace, env_var: str, prompt: str, *, required: Literal[True],
