@@ -78,6 +78,53 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
                         help="Formato de saida")
 
 
+def _add_query_fields(parser: argparse.ArgumentParser) -> None:
+    """The query fields, shared by `query add` and `query update`.
+
+    Nothing here is `required`: a missing `--sql`/`--connection` is reported
+    by `query_builder.validate`, the same way `_add_connection_fields` defers
+    to `connection_builder.validate`. `--sql` and `--sql-file` are mutually
+    exclusive -- only one way to say what the query runs.
+    """
+    parser.add_argument("--connection", help="Nome da conexao associada")
+    sql_grupo = parser.add_mutually_exclusive_group()
+    sql_grupo.add_argument("--sql", help="SQL da consulta")
+    sql_grupo.add_argument("--sql-file", dest="sql_file",
+                           help="Arquivo contendo o SQL da consulta")
+    parser.add_argument("--description", help="Anotacao livre sobre a consulta")
+    parser.add_argument("--folder", help="Pasta da consulta")
+    fav_grupo = parser.add_mutually_exclusive_group()
+    fav_grupo.add_argument("--favorite", dest="is_favorite", action="store_true",
+                           default=None, help="Marcar como favorita")
+    fav_grupo.add_argument("--no-favorite", dest="is_favorite", action="store_false",
+                           help="Desmarcar como favorita")
+    parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
+
+
+def _add_group_fields(parser: argparse.ArgumentParser) -> None:
+    """The group fields, shared by `group add` and `group update`.
+
+    Nothing here is `required`: a missing name/queries/join-key is reported
+    by `group_builder.validate`, the same way `_add_query_fields` defers to
+    `query_builder.validate`. `--query` and `--compare-column` repeat (a
+    group needs at least two queries to compare); `--join-key` takes a
+    single value -- there is only one join column. Ad-hoc (Multi-Exec)
+    groups are out of scope here: `adhoc_sql`/`connections` have no flag,
+    but `group_builder.build` still preserves them on an `update` of a
+    group that already has them.
+    """
+    parser.add_argument("--query", dest="query", action="append", metavar="NOME",
+                        help="Consulta do grupo (repita; minimo 2)")
+    parser.add_argument("--compare-column", dest="compare_column", action="append",
+                        metavar="COLUNA", help="Coluna a comparar (pode repetir)")
+    parser.add_argument("--join-key", dest="join_key", help="Coluna de juncao")
+    parser.add_argument("--description", help="Anotacao livre sobre o grupo")
+    parser.add_argument("--folder", help="Pasta do grupo")
+    parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
+
+
 @overload
 def resolve_password(
     args: argparse.Namespace, env_var: str, prompt: str, *, required: Literal[True],

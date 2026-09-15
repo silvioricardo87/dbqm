@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.7.0] — 2026-09-15
+
+A MINOR release: two new command groups.
+
+### Added
+
+- **`dbqm query add|update|show|rm|list`** — creates and curates saved
+  queries from the command line. `add NOME --sql "..." --connection prod`
+  (or `--sql-file`, mutually exclusive with `--sql`) needs a name, SQL and a
+  connection that exists; `update` changes only the flags given, `show`
+  prints one query, `rm` removes one (confirms unless `--yes`, refuses
+  outright rather than prompting when stdin is not a terminal), `list`
+  lists them, optionally filtered by `--connection`.
+- **`dbqm group add|update|show|rm|list`** — creates and curates comparison
+  groups from the command line. `add NOME --query q1 --query q2 --join-key id`
+  needs a name, at least two `--query` and a join key; every query named
+  must exist. `--compare-column` repeats to narrow which columns are
+  compared. Same `update`/`show`/`rm`/`list` shape as `query`.
+- Both groups are modelled on `dbqm connection`: `-f json` everywhere, the
+  same `add`/`update`/`show`/`rm`/`list` verbs, `rm` confirming unless
+  `--yes`, and a non-terminal stdin refusing rather than hanging on a
+  prompt.
+- **Two new `core/` modules**, `query_builder.py` and `group_builder.py`,
+  mirroring `connection_builder.py`'s `validate`/`build`/`upsert` split.
+  Until now this validation and assembly lived inside the TUI's
+  `query_manage.py` and `group_manage.py` screens, so a second front end
+  could only reach it by copying the rules and risking them drifting apart.
+  The screens now call the same `core/` functions the CLI calls, with no
+  observable change to either one. They do gain one refusal apiece — a group
+  naming a query that no longer exists — which is the point of sharing the
+  rule rather than copying it, and which is unreachable through the widgets,
+  since those only ever offer records that exist.
+
+### Notes on the CLI surface's design
+
+These are properties the two command groups have from their first release,
+not fixes to anything a user of 2.6.0 could have run — nothing in this
+branch shipped before.
+
+- **The CLI deliberately exposes no flag for `column_maps`, `normalize`,
+  `column_mapping`, `template`, `template_fields`, `validation_rule`,
+  `is_favorite` or an `order_by` override.** They are TUI-authored, several
+  are nested maps with no sane flag shape, and none is needed to create a
+  query or group an agent will run. `update` **preserves** them rather than
+  dropping them on a record that already has them — the property
+  `query_builder.build`/`group_builder.build` exist to guarantee, the same
+  way `connection_builder.build` already guarantees it for connections.
+- **An ad-hoc (Multi-Exec) group cannot be created from the CLI.**
+  `Group.adhoc_sql` and `Group.connections` describe a connection
+  selection, not a comparison of saved queries — `dbqm multi` runs that
+  flow directly and never saves it. `group_builder.build` preserves both
+  fields on an `update` of a group that already has them, for the same
+  reason it preserves the TUI-only fields above.
+
 ## [2.6.0] — 2026-09-13
 
 A MINOR release: a new command.

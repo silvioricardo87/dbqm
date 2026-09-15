@@ -85,26 +85,24 @@ class GroupCreateModal(ModalScreen[dict | None]):
 
     def _save(self) -> None:
         name = self.query_one("#name-input", Input).value.strip()
-        if not name:
-            self.notify("Informe o nome do grupo.", severity="warning")
-            return
-
         selection_list = self.query_one("#query-select", SelectionList)
         selected_queries = list(selection_list.selected)
-        if len(selected_queries) < 2:
-            self.notify("Selecione pelo menos 2 consultas.", severity="warning")
-            return
-
         join_key = self.query_one("#join-key-input", Input).value.strip()
-        if not join_key:
-            self.notify("Informe a coluna de juncao.", severity="warning")
-            return
-
         description = self.query_one("#desc-input", Input).value.strip()
         compare_cols_raw = self.query_one("#compare-cols-input", Input).value.strip()
         compare_columns = [
             c.strip() for c in compare_cols_raw.split(",") if c.strip()
         ]
+
+        from dbqm.core.group_builder import validate
+
+        errors = validate({
+            "name": name, "queries": selected_queries, "join_key": join_key,
+            "description": description, "compare_columns": compare_columns,
+        })
+        if errors:
+            self.notify(errors[0], severity="warning")
+            return
 
         self.dismiss({
             "name": name,

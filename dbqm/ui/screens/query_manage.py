@@ -84,18 +84,17 @@ class SqlPasteModal(ModalScreen[dict | None]):
         name = self.query_one("#name-input", Input).value.strip()
         conn_select = self.query_one("#conn-select", Select)
         connection = str(conn_select.value) if conn_select.value is not Select.BLANK else ""
-
-        if not sql:
-            self.notify("Informe o SQL.", severity="warning")
-            return
-        if not name:
-            self.notify("Informe o nome da consulta.", severity="warning")
-            return
-        if not connection:
-            self.notify("Selecione uma conexao.", severity="warning")
-            return
-
         description = self.query_one("#desc-input", Input).value.strip()
+
+        from dbqm.core.query_builder import validate
+
+        errors = validate({
+            "name": name, "connection": connection, "sql": sql,
+            "description": description,
+        })
+        if errors:
+            self.notify(errors[0], severity="warning")
+            return
 
         # Parse SQL to extract table, columns, params
         from dbqm.core.query_engine import parse_sql, detect_params

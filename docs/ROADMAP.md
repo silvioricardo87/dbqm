@@ -120,8 +120,10 @@ Comparison across connections (`C8`) shipped in 2.5.0 — `dbqm multi` runs one
 ad-hoc SQL against several databases and reports whether they agree.
 **Execution** (`C4`) shipped in 2.6.0 — `dbqm call` runs a stored procedure
 or function, Oracle-only, refused before any connection opens on any other
-engine. The remaining theme is **curation** (C5-C7), how findings survive
-the session.
+engine. **Curation** (`C5`/`C6`) shipped in 2.7.0 — `dbqm query` and
+`dbqm group` create and curate saved queries and comparison groups from the
+command line, over the same `core/` rules the TUI screens now call instead
+of owning. The remaining piece of curation is `C7`.
 
 **2.1.0 and 2.2.0 are deliberately internal versions.** Both exist in
 `CHANGELOG.md` and in the code — discovery and the read-only guard are real,
@@ -133,9 +135,8 @@ the release history.
 
 | Order | Item | Theme | Effort | Agent value | Notes |
 |---|---|---|---|---|---|
-| 1 | **C5 / C6** — saved query and group CRUD | curation | M | medium | Follows the `connection_builder` pattern: rules in `core`/`models`, both front ends calling them. |
-| 2 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
-| 3 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+| 1 | **C7** — `dbqm source` / `dbqm compile` (PL/SQL packages) | curation | S-M | medium | Narrower than it looks — `dbqm sql` already compiles and surfaces errors. What is genuinely missing is *reading* current source. Confirm the overlap with `ddl` and `sql -f raw` first. |
+| 2 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
 
 ### Deliberately not scheduled
 
@@ -148,6 +149,14 @@ the release history.
 ---
 
 ## Known gaps
+
+- **The three CRUD command groups disagree on one token.** `dbqm connection
+  add` on a name that already exists reports `usage`; `dbqm query add` and
+  `dbqm group add` report `validation`. The exit code is 2 either way, and
+  `validation` is the more accurate of the two — a name collision is not a
+  malformed invocation. `connection` is published and an agent may already
+  branch on its token, so aligning it is a breaking change and belongs in a
+  MAJOR, not in the release that noticed it.
 
 - **`dbqm sql` ignores `--export` unless the statement is a SELECT.** The
   export block sits inside `if result.sql_type == "SELECT"`
@@ -195,6 +204,19 @@ the release history.
   `get_standalone_routine_info` filters `owner = USER`, while `_detect_owner`
   exists and is used elsewhere. Verifying a routine's existence properly
   belongs here too.
+- **The CLI deliberately exposes no flag for `column_maps`, `normalize`,
+  `column_mapping`, `template`, `template_fields`, `validation_rule`,
+  `is_favorite` or an `order_by` override.** They are TUI-authored, several
+  are nested maps with no sane flag shape, and none of them is needed to
+  create a query or group an agent will run — but `dbqm query update` and
+  `dbqm group update` **preserve** them rather than dropping them, which is
+  the property `query_builder.build`/`group_builder.build` exist to
+  guarantee.
+- **An ad-hoc (Multi-Exec) group cannot be created from the CLI.**
+  `Group.adhoc_sql` and `Group.connections` describe a connection
+  selection, not a comparison of saved queries; `dbqm multi` runs that flow
+  directly and never saves it. `dbqm group update` preserves both fields on
+  a group that already has them.
 
 ## Suite hygiene
 
@@ -218,14 +240,16 @@ else a reader would think to look for it.
 ## Suggested next slice
 
 **Tier 0 is empty.** The html-export sub-project (2.4.0), `dbqm multi`
-(2.5.0) and `dbqm call` (2.6.0, see `CHANGELOG.md` for all three) have now
-shipped, in that order, ahead of Tier 3's original priority order:
-`--export` is shared plumbing that every later Tier 3 command touches
-again, the Multi-Exec tab's flow was the most-used one missing from the
-CLI, and execution (`C4`) is what an agent does once it can see. **C5 /
-C6** (saved query and group CRUD) is next — it follows the
-`connection_builder` pattern already proven for connections: rules in
-`core`/`models`, both front ends calling them.
+(2.5.0), `dbqm call` (2.6.0) and saved query/group curation (2.7.0, see
+`CHANGELOG.md` for all four) have now shipped, in that order, ahead of
+Tier 3's original priority order: `--export` is shared plumbing that every
+later Tier 3 command touches again, the Multi-Exec tab's flow was the
+most-used one missing from the CLI, execution (`C4`) is what an agent does
+once it can see, and curation (`C5`/`C6`) is what lets it keep what it
+found. **C7** (`dbqm source` / `dbqm compile`) is next — narrower than it
+looks, since `dbqm sql` already compiles and surfaces errors; what is
+genuinely missing is *reading* current source. Confirm the overlap with
+`ddl` and `sql -f raw` first.
 
 **A note on estimating, not an apology:** the html item's effort **S** was
 measured against `run-group` alone, where `export_group_html` already
