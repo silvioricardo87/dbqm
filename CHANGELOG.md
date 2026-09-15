@@ -34,10 +34,11 @@ A MINOR release: two new command groups.
   Until now this validation and assembly lived inside the TUI's
   `query_manage.py` and `group_manage.py` screens, so a second front end
   could only reach it by copying the rules and risking them drifting apart.
-  The screens now call the same `core/` functions the CLI calls, and behave
-  identically to before this moved — `tests/ui` stays at the same count as
-  a result, the evidence that moving the logic did not change what either
-  screen does.
+  The screens now call the same `core/` functions the CLI calls, with no
+  observable change to either one. They do gain one refusal apiece — a group
+  naming a query that no longer exists — which is the point of sharing the
+  rule rather than copying it, and which is unreachable through the widgets,
+  since those only ever offer records that exist.
 
 ### Notes on the CLI surface's design
 

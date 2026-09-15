@@ -7,9 +7,10 @@ ends call them.
 
 The messages `validate` returns are read by a user, so they are Portuguese
 without accents, like every other label in the program. They are *returned*
-rather than raised: the TUI shows them with `notify(severity="error")` and
-the CLI prints them and picks an exit code, and that choice is not this
-module's business.
+rather than raised: the TUI shows the first with
+`notify(severity="warning")` -- asking someone to fill a field in is not a
+failure -- and the CLI prints them and picks an exit code. Neither choice is
+this module's business, which is why they are returned rather than raised.
 """
 from __future__ import annotations
 

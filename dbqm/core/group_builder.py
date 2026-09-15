@@ -41,9 +41,13 @@ def validate(values: dict[str, Any]) -> list[str]:
     queries = values.get("queries") or []
     if len(queries) < 2:
         errors.append("Selecione pelo menos 2 consultas.")
-    for qname in queries:
-        if qname and find_query(qname) is None:
-            errors.append(f'Consulta "{qname}" nao encontrada.')
+    else:
+        # Only when the count is right: "needs two queries" and "this one does
+        # not exist" are one mistake reported twice otherwise, and `-f json`
+        # joins them with "; ". `query_builder` chains the same way.
+        for qname in queries:
+            if qname and find_query(qname) is None:
+                errors.append(f'Consulta "{qname}" nao encontrada.')
 
     if not _text(values, "join_key"):
         errors.append("Informe a coluna de juncao.")

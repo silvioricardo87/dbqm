@@ -150,6 +150,14 @@ the release history.
 
 ## Known gaps
 
+- **The three CRUD command groups disagree on one token.** `dbqm connection
+  add` on a name that already exists reports `usage`; `dbqm query add` and
+  `dbqm group add` report `validation`. The exit code is 2 either way, and
+  `validation` is the more accurate of the two — a name collision is not a
+  malformed invocation. `connection` is published and an agent may already
+  branch on its token, so aligning it is a breaking change and belongs in a
+  MAJOR, not in the release that noticed it.
+
 - **`dbqm sql` ignores `--export` unless the statement is a SELECT.** The
   export block sits inside `if result.sql_type == "SELECT"`
   (`cli/commands/query.py`), so a DML, DDL or PL/SQL run accepts the flag and
