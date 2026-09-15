@@ -3202,6 +3202,14 @@ class TestCmdQuery:
 
         queries = load_queries()
         queries[0].column_maps = {"nome": {"1": "um"}}
+        # `parse_sql("SELECT id, nome FROM t")` can only ever produce "t" --
+        # so a plain "table survives" assertion against that value would
+        # pass whether or not `table` was actually left alone. A value
+        # `parse_sql` could never derive from this SQL is what tells the two
+        # cases apart: it survives only if `build` never re-runs `parse_sql`
+        # at all, which is the whole point of passing it the sparse
+        # `values` dict instead of `merged`.
+        queries[0].table = "tabela_editada"
         save_queries(queries)
 
         run_cli(["query", "update", "alvo", "--description", "so a descricao"])
@@ -3212,7 +3220,108 @@ class TestCmdQuery:
         assert q.is_favorite is True, "is_favorite must survive"
         assert q.folder == "pasta1", "folder must survive"
         assert q.sql == "SELECT id, nome FROM t", "sql must survive"
-        assert q.table == "t", "sql-derived table must survive unrederived"
+        assert q.table == "tabela_editada", \
+            "a manually edited table must survive an unrelated update, not be re-derived"
+
+    def test_update_empty_description_clears_it_without_touching_other_fields(
+        self, tmp_config_dir, monkeypatch
+    ):
+        """`--description ""` is a deliberate empty value, not "not given" --
+        argparse hands the two cases different Python values (`""` vs
+        `None`), and `_query_values` must keep them apart. If `_query_values`
+        and its "effective state" merge in `_query_update` were ever
+        collapsed into one dict, this would still pass by accident for most
+        fields; the description assertion is what actually distinguishes
+        "cleared" from "unmentioned"."""
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        run_cli([
+            "query", "add", "alvo", "--connection", "db1",
+            "--sql", "SELECT 1", "--description", "nota original",
+            "--folder", "pasta1", "--favorite",
+        ])
+
+        run_cli(["query", "update", "alvo", "--description", ""])
+
+        q = find_query("alvo")
+        assert q.description == "", "an explicit empty value must clear the field"
+        assert q.folder == "pasta1", "an unmentioned field must not change"
+        assert q.is_favorite is True, "an unmentioned field must not change"
+
+    def test_update_with_sql_re_derives_table_columns_and_order_by(
+        self, tmp_config_dir, monkeypatch
+    ):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        run_cli([
+            "query", "add", "alvo", "--connection", "db1",
+            "--sql", "SELECT id FROM velha",
+        ])
+
+        run_cli([
+            "query", "update", "alvo",
+            "--sql", "SELECT id, nome FROM nova ORDER BY nome",
+        ])
+
+        q = find_query("alvo")
+        assert q.sql == "SELECT id, nome FROM nova ORDER BY nome"
+        assert q.table == "nova", "an explicit --sql must re-derive table"
+        assert q.columns == ["id", "nome"], "an explicit --sql must re-derive columns"
+        assert q.order_by, "an explicit --sql must re-derive order_by"
+
+    def test_show_unknown_name_is_not_found(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["query", "show", "inexistente", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_rm_unknown_name_is_not_found(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["query", "rm", "inexistente", "--yes", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_sql_and_sql_file_are_mutually_exclusive(self, tmp_config_dir, monkeypatch, tmp_path):
+        from dbqm.cli import run_cli
+
+        self._add_connection(monkeypatch)
+        sql_path = tmp_path / "consulta.sql"
+        sql_path.write_text("SELECT 1", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "query", "add", "alvo", "--connection", "db1",
+                "--sql", "SELECT 1", "--sql-file", str(sql_path),
+            ])
+        assert exc.value.code == 2
+
+    def test_sql_file_pointing_at_a_directory_is_usage(self, tmp_config_dir, monkeypatch,
+                                                        tmp_path, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.query import find_query
+
+        self._add_connection(monkeypatch)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "query", "add", "arq", "--connection", "db1",
+                "--sql-file", str(tmp_path), "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_query("arq") is None
 
     def test_show_returns_to_dict(self, tmp_config_dir, monkeypatch, capsys):
         from dbqm.cli import run_cli
