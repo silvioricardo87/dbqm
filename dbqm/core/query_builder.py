@@ -13,6 +13,7 @@ module's business.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from dbqm.core.query_engine import detect_params, parse_sql
@@ -103,10 +104,13 @@ def build(values: dict[str, Any], existing: Query | None = None) -> Query:
     else:
         is_favorite = False
 
+    # Deep, not shallow: `column_maps` is a dict of dicts, and a shallow
+    # `dict(...)` copies the outer mapping while still aliasing every inner
+    # one -- a write through the built `Query` would then reach `existing`.
     if "column_maps" in values:
-        column_maps = dict(values["column_maps"] or {})
+        column_maps = deepcopy(values["column_maps"]) if values["column_maps"] else {}
     elif existing is not None:
-        column_maps = dict(existing.column_maps)
+        column_maps = deepcopy(existing.column_maps)
     else:
         column_maps = {}
 

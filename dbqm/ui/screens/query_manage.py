@@ -93,7 +93,7 @@ class SqlPasteModal(ModalScreen[dict | None]):
             "description": description,
         })
         if errors:
-            self.notify(errors[0], severity="error")
+            self.notify(errors[0], severity="warning")
             return
 
         # Parse SQL to extract table, columns, params
