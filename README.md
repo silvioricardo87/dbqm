@@ -277,9 +277,10 @@ every DML statement is subject to, protected connection or not.
 ### Output format and exit codes
 
 Every command accepts `-f/--format`. `run`, `run-group`, `sql` and `rows`
-offer `table|json|csv|raw`; every other command — `call`, `test`, `list`,
-`ddl`, `history`, `export-config`, `import-config`, `objects`, `describe`,
-and the `connection` group — offers `table|json`. `raw` prints plain values
+offer `table|json|csv|raw`; **every other command offers `table|json`** —
+rather than list them here, where the list has already gone stale twice, ask
+the program: `dbqm describe-cli -f json` reports every command, every
+subcommand and every flag, read from the parser itself. `raw` prints plain values
 with no headers/decoration, handy for piping the body of a view, package, or
 procedure to another tool.
 `--export csv|json|txt|html` writes the result to a file regardless of `-f`.
