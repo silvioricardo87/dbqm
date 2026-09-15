@@ -3415,7 +3415,7 @@ class TestCmdGroup:
     No command here opens a database: there is no `connection_failed` and no
     `sql_error` in this class, only `usage`/`not_found`/`validation`. Every
     failure asserts the machine token from the `-f json` envelope, not just
-    the exit code — exit 2 is also argparse's own code for a bad argument.
+    the exit code -- exit 2 is also argparse's own code for a bad argument.
     """
 
     def _add_connection(self, monkeypatch, name="db1"):
@@ -3522,20 +3522,31 @@ class TestCmdGroup:
 
     def test_update_preserves_fields_not_mentioned(self, tmp_config_dir, monkeypatch):
         """The trap: an update must overlay only the flags actually given.
-        `column_mapping` has no CLI flag at all, so this also proves `build`
-        (never `upsert`) is called with a sparse dict, not the validation-only
-        merged one.
+        None of these ten fields has a CLI flag, so this also proves `build`
+        (never `upsert`) is called with a sparse dict, not the
+        validation-only merged one. Each is set to a non-default value
+        before the update -- `adhoc_sql=""`/`connections=[]` would still
+        "survive" even if `build` dropped the field entirely, since those
+        are also the field's own defaults (Task 3 shipped exactly that
+        inert assertion and had to fix it), so every value used here is one
+        the field would not otherwise hold.
 
-        `folder` is the field that actually tells the two dicts apart: the
-        sparse path's "key not in values" branch (`_carry` in
-        `group_builder.build`) returns `getattr(existing, key)` untouched,
-        while its "key in values" branch runs the value through `_text`,
-        which strips whitespace. Most fields round-trip to the same value
-        whichever dict `build` receives — that is exactly why a plain
-        "did it survive" assertion on its own would pass even with the bug,
-        the same trap Task 2 hit with `table`. A folder value with leading
-        and trailing spaces is a value the merged path can never reproduce
-        byte for byte, so it is what actually separates the two.
+        `folder` carries the one value-level discriminator this module has:
+        leading/trailing whitespace. `_carry` (in `group_builder.build`) is
+        asymmetric on purpose -- "key not in values" returns
+        `getattr(existing, key)` untouched, "key in values" runs the value
+        through `_text`, which strips. That is `build`'s actual contract
+        (overlay only the keys `values` sets; normalise what the caller
+        supplied, leave everything else byte-identical), not a defect, and
+        every other field round-trips to an `==`-equal value whichever dict
+        `build` receives -- `_carry_list`/`_carry_dict`/`template_fields`'s
+        shallow copy all produce equal results either way, and `created_at`
+        ignores `values` entirely. So the `folder` assertion below is the
+        only one that can fail on its own from a sparse-vs-merged swap; the
+        white-box guard in
+        `test_update_calls_build_with_only_the_given_flags` (below) is what
+        catches a regression that reuses `existing`'s exact values, since
+        that swap alone is invisible to every other assertion here.
         """
         from dbqm.cli import run_cli
         from dbqm.models.group import find_group, load_groups, save_groups
@@ -3551,6 +3562,14 @@ class TestCmdGroup:
         groups = load_groups()
         groups[0].column_mapping = {"col": {"q1": "c1"}}
         groups[0].folder = "  pasta com espacos  "
+        groups[0].normalize = {"col": {"1": "um"}}
+        groups[0].template = "tpl1"
+        groups[0].template_fields = {"titulo": "literal:Teste"}
+        groups[0].validation_rule = "custom_rule"
+        groups[0].created_at = "2020-01-01T00:00:00"
+        groups[0].adhoc_sql = "SELECT 1"
+        groups[0].connections = ["c1", "c2"]
+        groups[0].shared_params = {"param1": {"description": "d", "default": "x"}}
         save_groups(groups)
 
         run_cli(["group", "update", "alvo", "--description", "nova descricao"])
@@ -3560,8 +3579,48 @@ class TestCmdGroup:
         assert g.column_mapping == {"col": {"q1": "c1"}}, "column_mapping must survive"
         assert g.folder == "  pasta com espacos  ", \
             "an unmentioned field must survive byte for byte, not be re-stripped"
+        assert g.normalize == {"col": {"1": "um"}}, "normalize must survive"
+        assert g.template == "tpl1", "template must survive"
+        assert g.template_fields == {"titulo": "literal:Teste"}, \
+            "template_fields must survive"
+        assert g.validation_rule == "custom_rule", "validation_rule must survive"
+        assert g.created_at == "2020-01-01T00:00:00", "created_at must survive"
+        assert g.adhoc_sql == "SELECT 1", \
+            "adhoc_sql must survive an update -- no CLI flag can even set it"
+        assert g.connections == ["c1", "c2"], \
+            "connections must survive an update -- no CLI flag can even set it"
+        assert g.shared_params == {"param1": {"description": "d", "default": "x"}}, \
+            "shared_params must survive"
         assert g.queries == ["q1", "q2"], "queries must survive"
         assert g.join_key == "id", "join_key must survive"
+
+    def test_update_calls_build_with_only_the_given_flags(self, tmp_config_dir, monkeypatch):
+        """A white-box guard beside the `folder` whitespace check above.
+
+        The reviewer traced all fourteen `Group` fields for a black-box
+        discriminator and found only one: `folder`'s whitespace stripping,
+        which lives in `_carry` and disappears if a future refactor
+        normalises both of `_carry`'s branches the same way. This test
+        asserts the rule itself instead of that one side effect of it, by
+        spying on `group_builder.build` and checking the exact key set
+        `_group_update` hands it -- so it stays a guard even if `_carry`
+        changes.
+        """
+        from dbqm.cli import run_cli
+        import dbqm.core.group_builder as group_builder
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli(["group", "add", "alvo", "--query", "q1", "--query", "q2",
+                 "--join-key", "id"])
+
+        with patch("dbqm.core.group_builder.build", wraps=group_builder.build) as spy:
+            run_cli(["group", "update", "alvo", "--description", "nova descricao"])
+
+        recebidos = spy.call_args[0][0]
+        assert set(recebidos.keys()) == {"name", "description"}, \
+            "build must receive only the flags actually given on this command line"
 
     def test_update_empty_description_clears_it_without_touching_other_fields(
         self, tmp_config_dir, monkeypatch
@@ -3686,6 +3745,42 @@ class TestCmdGroup:
         corpo = json.loads(capsys.readouterr().out)
         assert corpo["command"] == "group.list"
         assert [item["name"] for item in corpo["data"]] == ["alvo"]
+
+    def test_rm_on_a_tty_honours_a_no(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli(["group", "add", "alvo", "--query", "q1", "--query", "q2",
+                 "--join-key", "id"])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+        run_cli(["group", "rm", "alvo"])
+        assert find_group("alvo") is not None, "a cancelled removal must not remove"
+
+    def test_bare_group_command_exits_2(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["group"])
+        assert exc.value.code == 2
+
+    def test_bare_group_command_prints_the_group_help(self, tmp_config_dir,
+                                                       monkeypatch, capsys):
+        """A bare `dbqm group` must print the group's own help, not a
+        one-line usage reminder -- mirrors `TestConnection`'s own
+        bare-command test."""
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["group"])
+        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
+        assert "Criar um grupo" in out, \
+            "expected each subcommand's own help text, e.g. add's, to be listed"
 
 
 class TestConnectionMarkupSafety:
