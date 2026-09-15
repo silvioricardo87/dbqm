@@ -126,7 +126,10 @@ command line, over the same `core/` rules the TUI screens now call instead
 of owning. **`C7` was closed without being built** -- the investigation for
 it found both halves already shipped, in commands that do the job for more
 object types than a dedicated pair would. See "C7, closed on the evidence"
-below.
+below. **`C9`/`C10`/`C12`/`X4` shipped in 2.8.0** — `dbqm config get|set|list`,
+`dbqm template`, `dbqm oracle-client` and `dbqm describe-cli` — and with them
+**Tier 3 is complete**: every item either shipped or was closed on the
+evidence above.
 
 **2.1.0 and 2.2.0 are deliberately internal versions.** Both exist in
 `CHANGELOG.md` and in the code — discovery and the read-only guard are real,
@@ -136,9 +139,8 @@ oversight: whoever installs 2.3.x receives everything 2.1.0 and 2.2.0 added,
 already folded in. Recorded here so it is not rediscovered later as a gap in
 the release history.
 
-| Order | Item | Theme | Effort | Agent value | Notes |
-|---|---|---|---|---|---|
-| 1 | **C9 / C10 / C12 / X4** — templates, `config get\|set`, oracle-client, self-description | curation | S-M | low | `config set audit_log_enabled true` is the one an agent flow cares about. |
+**Empty.** Every item shipped or was closed on the evidence (see "C7, closed
+on the evidence" below).
 
 ### C7, closed on the evidence
 
@@ -171,7 +173,10 @@ tier spent five sub-projects removing. The id is retired and not reused.
   for agent consumption and would remove the shell round-trip entirely — but it
   should wrap a settled CLI contract, not race it. The contract settled in
   2.0.0, discovery landed in 2.1.0, the read-only guard landed in 2.2.0, and
-  execution (`C4`) landed in 2.6.0; revisit now.
+  execution (`C4`) landed in 2.6.0, and curation (`C5`/`C6`, 2.7.0) plus the
+  last of Tier 3 (`C9`/`C10`/`C12`/`X4`, 2.8.0) have landed since. The
+  condition the maintainer set is met: everything else is done. Whether to
+  start it is the maintainer's call.
 
 ---
 
@@ -266,18 +271,33 @@ else a reader would think to look for it.
 
 ## Suggested next slice
 
-**Tier 0 is empty.** The html-export sub-project (2.4.0), `dbqm multi`
-(2.5.0), `dbqm call` (2.6.0) and saved query/group curation (2.7.0, see
-`CHANGELOG.md` for all four) have now shipped, in that order, ahead of
-Tier 3's original priority order: `--export` is shared plumbing that every
-later Tier 3 command touches again, the Multi-Exec tab's flow was the
-most-used one missing from the CLI, execution (`C4`) is what an agent does
-once it can see, and curation (`C5`/`C6`) is what lets it keep what it
-found. **C7 was closed without being built**, on the evidence above: `dbqm ddl`
-already reads package source and `dbqm sql` already compiles and detects
-`all_errors`. **C9 / C10 / C12 / X4** are what remain -- templates,
-`config get|set`, oracle-client and self-description -- of which
-`config set audit_log_enabled true` is the one an agent flow cares about.
+**Tier 0, Tier 1 and Tier 3 are all empty.** The html-export sub-project
+(2.4.0), `dbqm multi` (2.5.0), `dbqm call` (2.6.0), saved query/group
+curation (2.7.0) and the last four Tier 3 commands (2.8.0, see
+`CHANGELOG.md` for all of them) have now shipped. There is no obvious next
+slice any more — what remains is **decisions**, not tasks. For the
+maintainer to choose among:
+
+1. **The server-side read-only session** (`SET TRANSACTION READ ONLY` on
+   Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL) — it would change what
+   "read-only" means per engine: a database-side guarantee on Oracle,
+   PostgreSQL and MySQL, still only a dbqm-side promise on SQL Server, which
+   has no server-side equivalent to reach for.
+2. **`to_dict()` publishes `error` and `output_lines` unredacted.** A JSON
+   payload can echo a DSN, a host, or arbitrary DBMS_OUTPUT. Redaction here
+   is a policy call, not an implementation detail.
+3. **The design guards are calibrated to 80x24.** If that is not the target
+   width, the reference is worth changing on purpose rather than left
+   measuring a terminal nobody runs.
+4. **The `usage`-versus-`validation` divergence.** `connection add` reports
+   `usage` for a duplicate name while `query`, `group` and `template` report
+   `validation`. `validation` is the more accurate token, but `connection`
+   is published and aligning it is a breaking change — a MAJOR's business.
+5. **`TestBuildParser::test_all_commands_have_handlers` keeps a hand-typed
+   command set**, edited four times in this sub-project alone.
+   `describe-cli`'s parser-versus-dispatch-map set equality is a strict
+   superset of what it proves, so retiring the hand-typed test is now
+   possible.
 
 **A note on estimating, not an apology:** the html item's effort **S** was
 measured against `run-group` alone, where `export_group_html` already
@@ -287,8 +307,3 @@ queries and nothing else, so a renderer for one result set
 (`export_query_html`) turned out to be new code, not a wiring change. An
 estimate keyed to "the code already exists" is only as good as checking that
 it exists for every caller, not just the first one checked.
-
-One thing to decide when convenient, from the B8 ruling: the design guards and
-parts of the recorded debt are calibrated to **80x24**. If that is not a target
-width, the reference size is worth changing on purpose rather than leaving the
-guards measuring something nobody runs.
