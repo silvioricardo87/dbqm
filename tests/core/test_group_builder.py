@@ -74,7 +74,7 @@ def test_build_from_existing_preserves_what_values_omit(tmp_config_dir):
         folder="Relatorios",
         template="tpl1",
         template_fields={"titulo": "literal:Teste"},
-        adhoc_sql="",
+        adhoc_sql="SELECT 1",
         connections=["c1", "c2"],
         created_at="2020-01-01T00:00:00",
     )
@@ -90,7 +90,7 @@ def test_build_from_existing_preserves_what_values_omit(tmp_config_dir):
     assert new.folder == "Relatorios"
     assert new.template == "tpl1"
     assert new.template_fields == {"titulo": "literal:Teste"}
-    assert new.adhoc_sql == ""
+    assert new.adhoc_sql == "SELECT 1"
     assert new.connections == ["c1", "c2"]
     assert new.created_at == "2020-01-01T00:00:00"
     assert new.description == "nova"
