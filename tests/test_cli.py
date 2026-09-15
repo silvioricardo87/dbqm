@@ -3293,7 +3293,11 @@ class TestCmdQuery:
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "not_found"
 
-    def test_sql_and_sql_file_are_mutually_exclusive(self, tmp_config_dir, monkeypatch, tmp_path):
+    def test_sql_and_sql_file_are_mutually_exclusive(self, tmp_config_dir, monkeypatch,
+                                                     tmp_path, capsys):
+        """argparse rejects this one before the command runs, so there is no
+        envelope and no token to assert -- the exit code alone would also be
+        satisfied by any other bad argument, so pin argparse's own wording."""
         from dbqm.cli import run_cli
 
         self._add_connection(monkeypatch)
@@ -3305,6 +3309,7 @@ class TestCmdQuery:
                 "--sql", "SELECT 1", "--sql-file", str(sql_path),
             ])
         assert exc.value.code == 2
+        assert "not allowed with argument" in capsys.readouterr().err
 
     def test_sql_file_pointing_at_a_directory_is_usage(self, tmp_config_dir, monkeypatch,
                                                         tmp_path, capsys):
