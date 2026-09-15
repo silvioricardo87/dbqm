@@ -103,16 +103,15 @@ class TemplateEditModal(ModalScreen[dict | None]):
 
     def _save(self) -> None:
         name = self.query_one("#name-input", Input).value.strip()
-        if not name:
-            self.notify("Informe o nome do template.", severity="warning")
-            return
-
-        content = self.query_one("#content-area", TextArea).text
-        if not content.strip():
-            self.notify("O conteudo do template nao pode estar vazio.", severity="warning")
-            return
-
         description = self.query_one("#desc-input", Input).value.strip()
+        content = self.query_one("#content-area", TextArea).text
+
+        from dbqm.core.template_builder import validate
+
+        errors = validate({"name": name, "description": description, "content": content})
+        if errors:
+            self.notify(errors[0], severity="warning")
+            return
 
         self.dismiss({
             "name": name,
@@ -262,7 +261,8 @@ class TemplateManageScreen(Vertical):
         if result is None:
             return
 
-        from dbqm.models.template import Template, load_templates, save_templates
+        from dbqm.core.template_builder import build
+        from dbqm.models.template import load_templates, save_templates
 
         templates = load_templates()
 
@@ -270,11 +270,7 @@ class TemplateManageScreen(Vertical):
             self.notify(f'Template "{result["name"]}" ja existe.', severity="error")
             return
 
-        template = Template(
-            name=result["name"],
-            description=result["description"],
-            content=result["content"],
-        )
+        template = build(result)
         templates.append(template)
         save_templates(templates)
         self._load_templates()
@@ -309,13 +305,13 @@ class TemplateManageScreen(Vertical):
         if result is None:
             return
 
+        from dbqm.core.template_builder import build
         from dbqm.models.template import load_templates, save_templates
 
         templates = load_templates()
-        for t in templates:
+        for i, t in enumerate(templates):
             if t.name == self._edit_template_name:
-                t.description = result["description"]
-                t.content = result["content"]
+                templates[i] = build(result, existing=t)
                 break
         save_templates(templates)
         self._load_templates()

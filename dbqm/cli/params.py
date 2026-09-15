@@ -125,6 +125,24 @@ def _add_group_fields(parser: argparse.ArgumentParser) -> None:
                         help="Formato de saida")
 
 
+def _add_template_fields(parser: argparse.ArgumentParser) -> None:
+    """The template fields, shared by `template add` and `template update`.
+
+    Nothing here is `required`: a missing name/content is reported by
+    `template_builder.validate`, the same way `_add_query_fields` defers to
+    `query_builder.validate`. `--content` and `--content-file` are mutually
+    exclusive -- only one way to say what the template holds, mirroring
+    `--sql`/`--sql-file`.
+    """
+    content_grupo = parser.add_mutually_exclusive_group()
+    content_grupo.add_argument("--content", help="Conteudo do template (use {{campo}} para placeholders)")
+    content_grupo.add_argument("--content-file", dest="content_file",
+                               help="Arquivo contendo o conteudo do template")
+    parser.add_argument("--description", help="Anotacao livre sobre o template")
+    parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
+
+
 @overload
 def resolve_password(
     args: argparse.Namespace, env_var: str, prompt: str, *, required: Literal[True],

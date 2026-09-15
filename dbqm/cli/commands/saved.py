@@ -1,17 +1,19 @@
-"""Commands for curating saved queries and groups: add, update, rm, show, list.
+"""Commands for curating saved queries, groups and templates: add, update,
+rm, show, list.
 
 Mirrors `dbqm.cli.commands.connection` -- the subparser shape, `_fail_or_print`,
 the outcome printer, and `_*_rm`'s confirmation (refuse under a non-terminal
 stdin rather than hang, and prompt on stderr so `-f json`'s stdout stays
-JSON-only) are the same decisions, copied on purpose. `cmd_query` and
-`cmd_group` both live here, over `query_builder` and `group_builder`
-respectively -- same shape, same two-dictionary rule (validate the merged
-effective state, `build` the sparse flags actually given), neither uses
-`upsert` (that is what the TUI's Salvar button means; the CLI's `add` on an
-existing name and `update` on a missing one are both errors a script wants
-to hear about). Ad-hoc (Multi-Exec) groups are out of scope for `cmd_group`:
-no flag here sets `adhoc_sql`/`connections`, but `group_builder.build` still
-preserves them on an `update` of a group that already has them.
+JSON-only) are the same decisions, copied on purpose. `cmd_query`, `cmd_group`
+and `cmd_template` all live here, over `query_builder`, `group_builder` and
+`template_builder` respectively -- same shape, same two-dictionary rule
+(validate the merged effective state, `build` the sparse flags actually
+given), none uses `upsert` (that is what the TUI's Salvar button means; the
+CLI's `add` on an existing name and `update` on a missing one are both
+errors a script wants to hear about). Ad-hoc (Multi-Exec) groups are out of
+scope for `cmd_group`: no flag here sets `adhoc_sql`/`connections`, but
+`group_builder.build` still preserves them on an `update` of a group that
+already has them.
 """
 from __future__ import annotations
 
@@ -28,12 +30,13 @@ from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
 
-# Set by `build_parser` (in `dbqm.cli`) so `cmd_query`/`cmd_group` can print
-# their own group's help (add/update/rm/show/list) on a bare `dbqm query` /
-# `dbqm group`, the same way `connection._connection_parser` does for
-# `dbqm connection`.
+# Set by `build_parser` (in `dbqm.cli`) so `cmd_query`/`cmd_group`/
+# `cmd_template` can print their own group's help (add/update/rm/show/list)
+# on a bare `dbqm query` / `dbqm group` / `dbqm template`, the same way
+# `connection._connection_parser` does for `dbqm connection`.
 _query_parser: argparse.ArgumentParser | None = None
 _group_parser: argparse.ArgumentParser | None = None
+_template_parser: argparse.ArgumentParser | None = None
 
 
 _QUERY_OUTCOME_TEXT = {
@@ -500,6 +503,231 @@ def cmd_group(args: argparse.Namespace) -> None:
         else:
             console.print(
                 "[ds.op.failure]Use: dbqm group add|update|rm|show|list"
+                "[/ds.op.failure]"
+            )
+        sys.exit(int(exit_for("validation")))
+    handler(args)
+
+
+# ---------------------------------------------------------------------------
+# dbqm template add|update|show|rm|list
+# ---------------------------------------------------------------------------
+
+_TEMPLATE_OUTCOME_TEXT = {
+    "created": "criado",
+    "updated": "atualizado",
+    "removed": "removido",
+}
+
+# `outcome` (past participle, used in the Rich sentence) to the verb the
+# envelope's `command` field uses instead (`template.add`, not
+# `template.created`).
+_TEMPLATE_OUTCOME_VERB = {
+    "created": "add",
+    "updated": "update",
+    "removed": "rm",
+}
+
+
+def _print_template_outcome(output_format: str, name: str, outcome: str) -> None:
+    if output_format == "json":
+        verbo = _TEMPLATE_OUTCOME_VERB[outcome]
+        ok(f"template.{verbo}", {"name": name, outcome: True})
+        return
+    console.print(f'Template "{escape(name)}" {_TEMPLATE_OUTCOME_TEXT[outcome]}.')
+
+
+def _resolve_content(args: argparse.Namespace, command: str) -> str | None:
+    """The content text for `add`/`update`, or `None` if neither flag was
+    given. Mirrors `_resolve_sql`: `None` (not `""`) is what lets
+    `_template_values` drop the key entirely when the command line never
+    mentions the template's content. `--content-file` is read as UTF-8 text,
+    verbatim -- `template_builder.build` never strips it either, since
+    leading/trailing whitespace in a report template's body is formatting,
+    not incidental input noise.
+    """
+    content_file = getattr(args, "content_file", None)
+    if content_file:
+        try:
+            return Path(content_file).read_text(encoding="utf-8")
+        except OSError as exc:
+            _fail_or_print(args, command, "usage",
+                            f'Nao foi possivel ler "{content_file}": {exc}')
+    return getattr(args, "content", None)
+
+
+def _template_values(args: argparse.Namespace, content: str | None) -> dict[str, str]:
+    """Only the flags actually given. Mirrors `_query_values`/`_group_values`.
+
+    `None` means "not mentioned on this command line" and is dropped here so
+    `template_builder.build` sees an absent key -- which is what lets
+    `template update --description` leave `content` exactly as it was.
+
+    Typed `dict[str, str]`, unlike its two siblings (`dict[str, object]`):
+    every `Template` field is a plain string -- no `is_favorite` bool, no
+    `queries` list -- so `str` is the precise type here, and it is also
+    what lets `merged.update(values)` below type-check against
+    `Template.to_dict()`'s own `dict[str, str]` (`dbqm.models.template` is
+    strict-clean, unlike `query`/`group`, so `object` would not type-check
+    there the way it harmlessly does for the other two).
+    """
+    values = {
+        "name": args.name,
+        "description": args.description,
+        "content": content,
+    }
+    return {key: value for key, value in values.items() if value is not None}
+
+
+def _template_add(args: argparse.Namespace) -> None:
+    from dbqm.core.template_builder import build, validate
+    from dbqm.models.template import save_templates
+
+    if deps.find_template(args.name) is not None:
+        _exit_with_errors(args, "template.add", [f'Template "{args.name}" ja existe.'])
+
+    content = _resolve_content(args, "template.add")
+    values = _template_values(args, content)
+
+    errors = validate(values)
+    if errors:
+        _exit_with_errors(args, "template.add", errors)
+
+    template = build(values)
+
+    templates = deps.load_templates()
+    templates.append(template)
+    save_templates(templates)
+    _print_template_outcome(args.format, template.name, "created")
+
+
+def _template_update(args: argparse.Namespace) -> None:
+    from dbqm.core.template_builder import build, validate
+    from dbqm.models.template import save_templates
+
+    existing = deps.find_template(args.name)
+    if existing is None:
+        _fail_or_print(args, "template.update", "not_found",
+                        f'Template "{args.name}" nao encontrado.')
+
+    content = _resolve_content(args, "template.update")
+    values = _template_values(args, content)
+
+    # Validate the EFFECTIVE state an update would leave behind, not the
+    # sparse `values` alone: a `template update NOME --description "..."`
+    # must not fail validation just because --content/--content-file were
+    # not repeated on this command line.
+    merged = existing.to_dict()
+    merged.update(values)
+    errors = validate(merged)
+    if errors:
+        _exit_with_errors(args, "template.update", errors)
+
+    # `build` gets the SPARSE `values`, never `merged`: `merged` always
+    # carries a "content" key (copied from `existing`), and passing that to
+    # `build` would be indistinguishable from the user actually repeating
+    # --content on this command line -- harmless here since both reproduce
+    # the same string, but it is the same trap `_query_update`'s comment
+    # warns about for `table`.
+    template = build(values, existing)
+
+    templates = deps.load_templates()
+    index = next(i for i, t in enumerate(templates) if t.name == template.name)
+    templates[index] = template
+    save_templates(templates)
+    _print_template_outcome(args.format, template.name, "updated")
+
+
+def _template_show(args: argparse.Namespace) -> None:
+    template = deps.find_template(args.name)
+    if template is None:
+        _fail_or_print(args, "template.show", "not_found",
+                        f'Template "{args.name}" nao encontrado.')
+
+    data = template.to_dict()
+
+    if args.format == "json":
+        ok("template.show", data)
+        return
+
+    table = Table(title=f"Template: {escape(template.name)}")
+    table.add_column("Campo")
+    table.add_column("Valor")
+    for key, value in data.items():
+        table.add_row(key, escape(str(value)))
+    console.print(table)
+
+
+def _template_rm(args: argparse.Namespace) -> None:
+    from dbqm.models.template import delete_template
+
+    if deps.find_template(args.name) is None:
+        _fail_or_print(args, "template.rm", "not_found",
+                        f'Template "{args.name}" nao encontrado.')
+
+    if not args.yes:
+        # Refuse rather than prompt when there is no terminal: a script that
+        # hangs on an unanswerable question is worse than one that fails.
+        if not sys.stdin.isatty():
+            _fail_or_print(args, "template.rm", "usage",
+                            "Use --yes para remover sem confirmacao.")
+        # The prompt goes to stderr: `input(prompt)` writes it to stdout,
+        # which would put prose on the stream the envelope owns.
+        print(f'Remover o template "{args.name}"? [s/N] ', end="", file=sys.stderr, flush=True)
+        resposta = input().strip().lower()
+        if resposta not in ("s", "sim"):
+            if args.format == "json":
+                ok("template.rm", {"name": args.name, "removed": False})
+            else:
+                console.print("Cancelado.")
+            return
+
+    delete_template(args.name)
+    _print_template_outcome(args.format, args.name, "removed")
+
+
+def _template_list(args: argparse.Namespace) -> None:
+    items = deps.load_templates()
+
+    if args.format == "json":
+        data = [{"name": t.name, "description": t.description} for t in items]
+        ok("template.list", data)
+        return
+
+    if not items:
+        console.print("[ds.text.muted]Nenhum template configurado.[/ds.text.muted]")
+        return
+
+    table = Table(title="Templates")
+    table.add_column("Nome")
+    table.add_column("Descricao")
+    for t in items:
+        desc = t.description[:50] + "..." if len(t.description) > 50 else t.description
+        table.add_row(escape(t.name), escape(desc or "-"))
+    console.print(table)
+
+
+_TEMPLATE_SUBCOMMANDS = {
+    "add": _template_add,
+    "update": _template_update,
+    "rm": _template_rm,
+    "show": _template_show,
+    "list": _template_list,
+}
+
+
+def cmd_template(args: argparse.Namespace) -> None:
+    """Manage saved templates."""
+    subcommand = getattr(args, "subcommand", None)
+    handler = _TEMPLATE_SUBCOMMANDS.get(subcommand) if isinstance(subcommand, str) else None
+    if handler is None:
+        # A bare `dbqm template` prints the group's own help (add/update/rm/
+        # show/list, with their flags) rather than a one-line reminder.
+        if _template_parser is not None:
+            _template_parser.print_help()
+        else:
+            console.print(
+                "[ds.op.failure]Use: dbqm template add|update|rm|show|list"
                 "[/ds.op.failure]"
             )
         sys.exit(int(exit_for("validation")))

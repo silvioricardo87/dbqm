@@ -14,12 +14,13 @@ from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.describe_cli import cmd_describe_cli
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
-from dbqm.cli.commands.saved import cmd_group, cmd_query
+from dbqm.cli.commands.saved import cmd_group, cmd_query, cmd_template
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
 from dbqm.cli.params import (
     _add_connection_fields,
     _add_group_fields,
     _add_query_fields,
+    _add_template_fields,
     _parse_params,
     resolve_password,
 )
@@ -333,6 +334,40 @@ def build_parser() -> argparse.ArgumentParser:
     p_group_list.add_argument("-f", "--format", choices=["table", "json"],
                               default="table", help="Formato de saida")
 
+    # --- template ---
+    p_template = subparsers.add_parser(
+        "template",
+        help="Gerenciar templates de relatorio (criar, alterar, remover, ver, listar)",
+    )
+    # `cmd_template` (in `dbqm.cli.commands.saved`) reads this back to print
+    # the group's own help on a bare `dbqm template`.
+    _saved_commands._template_parser = p_template
+    template_sub = p_template.add_subparsers(dest="subcommand")
+
+    p_template_add = template_sub.add_parser("add", help="Criar um template")
+    p_template_add.add_argument("name", help="Nome do template")
+    _add_template_fields(p_template_add)
+
+    p_template_update = template_sub.add_parser("update", help="Alterar um template existente")
+    p_template_update.add_argument("name", help="Nome do template")
+    _add_template_fields(p_template_update)
+
+    p_template_show = template_sub.add_parser("show", help="Ver um template")
+    p_template_show.add_argument("name", help="Nome do template")
+    p_template_show.add_argument("-f", "--format", choices=["table", "json"],
+                                 default="table", help="Formato de saida")
+
+    p_template_rm = template_sub.add_parser("rm", help="Remover um template")
+    p_template_rm.add_argument("name", help="Nome do template")
+    p_template_rm.add_argument("--yes", action="store_true",
+                               help="Remover sem confirmacao (obrigatorio fora do terminal)")
+    p_template_rm.add_argument("-f", "--format", choices=["table", "json"],
+                               default="table", help="Formato de saida")
+
+    p_template_list = template_sub.add_parser("list", help="Listar templates")
+    p_template_list.add_argument("-f", "--format", choices=["table", "json"],
+                                 default="table", help="Formato de saida")
+
     # --- describe-cli ---
     p_describe_cli = subparsers.add_parser(
         "describe-cli",
@@ -360,6 +395,7 @@ COMMAND_MAP = {
     "connection": cmd_connection,
     "query": cmd_query,
     "group": cmd_group,
+    "template": cmd_template,
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,

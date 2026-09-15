@@ -123,7 +123,7 @@ class TestBuildParser:
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
                     "export-config", "import-config", "history", "config", "connection",
-                    "query", "group", "objects", "describe", "rows", "describe-cli"}
+                    "query", "group", "template", "objects", "describe", "rows", "describe-cli"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -3863,6 +3863,273 @@ class TestCmdGroup:
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
         assert "Criar um grupo" in out, \
+            "expected each subcommand's own help text, e.g. add's, to be listed"
+
+
+class TestCmdTemplate:
+    """`dbqm template add|update|show|rm|list`, mirroring `TestCmdQuery`.
+
+    `Template` has no `connection`/`folder`/`is_favorite` to worry about --
+    only `name`, `description` and `content` -- so there is no
+    `connection_failed` and no `sql_error` here either, only
+    `usage`/`not_found`/`validation`. Every failure asserts the machine
+    token from the `-f json` envelope, not just the exit code -- exit 2 is
+    also argparse's own code for a bad argument.
+    """
+
+    def test_add_creates(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli([
+            "template", "add", "relatorio", "--content", "Ola {{nome}}",
+            "--description", "nota",
+        ])
+
+        t = find_template("relatorio")
+        assert t is not None
+        assert t.content == "Ola {{nome}}"
+        assert t.description == "nota"
+
+    def test_add_on_an_existing_name_is_a_validation_error(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "dup", "--content", "v1"])
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "add", "dup", "--content", "v2", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_template("dup").content == "v1", "a rejected add must change nothing"
+
+    def test_add_without_content_is_validation(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "add", "vazio", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_template("vazio") is None
+
+    def test_update_on_a_missing_name_is_not_found(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "update", "inexistente", "--description", "x", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_update_preserves_content_not_mentioned(self, tmp_config_dir):
+        """The trap: an update must overlay only the flags actually given.
+        A plain `--description` must not touch `content` at all."""
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "conteudo original"])
+        run_cli(["template", "update", "alvo", "--description", "nova descricao"])
+
+        t = find_template("alvo")
+        assert t.description == "nova descricao"
+        assert t.content == "conteudo original", "content must survive"
+
+    def test_update_calls_build_with_only_the_given_flags(self, tmp_config_dir):
+        """A white-box guard, the way `dbqm group`'s own test does: spies on
+        `template_builder.build` and checks the exact key set `_template_update`
+        hands it, so a future refactor that reuses `existing`'s values (which
+        would round-trip and pass silently) is still caught."""
+        from dbqm.cli import run_cli
+        import dbqm.core.template_builder as template_builder
+
+        run_cli(["template", "add", "alvo", "--content", "conteudo original"])
+
+        with patch("dbqm.core.template_builder.build", wraps=template_builder.build) as spy:
+            run_cli(["template", "update", "alvo", "--description", "nova descricao"])
+
+        recebidos = spy.call_args[0][0]
+        assert set(recebidos.keys()) == {"name", "description"}, \
+            "build must receive only the flags actually given on this command line"
+
+    def test_update_empty_description_clears_it_without_touching_content(self, tmp_config_dir):
+        """`--description ""` is a deliberate empty value, not "not given" --
+        argparse hands the two cases different Python values (`""` vs
+        `None`), and `_template_values` must keep them apart."""
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli([
+            "template", "add", "alvo", "--content", "conteudo",
+            "--description", "nota original",
+        ])
+
+        run_cli(["template", "update", "alvo", "--description", ""])
+
+        t = find_template("alvo")
+        assert t.description == "", "an explicit empty value must clear the field"
+        assert t.content == "conteudo", "an unmentioned field must not change"
+
+    def test_update_with_content_replaces_it(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "velho"])
+        run_cli(["template", "update", "alvo", "--content", "novo"])
+
+        assert find_template("alvo").content == "novo"
+
+    def test_show_unknown_name_is_not_found(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "show", "inexistente", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_show_returns_to_dict(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        capsys.readouterr()
+        run_cli(["template", "show", "alvo", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "template.show"
+        assert corpo["data"] == find_template("alvo").to_dict()
+
+    def test_rm_unknown_name_is_not_found(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "rm", "inexistente", "--yes", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_rm_with_yes_removes(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        run_cli(["template", "rm", "alvo", "--yes"])
+        assert find_template("alvo") is None
+
+    def test_rm_without_yes_and_without_a_tty_is_usage(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "rm", "alvo", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_template("alvo") is not None, "a refusal must not remove"
+
+    def test_rm_on_a_tty_honours_a_no(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+        run_cli(["template", "rm", "alvo"])
+        assert find_template("alvo") is not None, "a cancelled removal must not remove"
+
+    def test_list_returns_templates(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+
+        capsys.readouterr()
+        run_cli(["template", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "template.list"
+        assert [item["name"] for item in corpo["data"]] == ["alvo"]
+
+    def test_content_and_content_file_are_mutually_exclusive(self, tmp_config_dir, tmp_path, capsys):
+        """argparse rejects this one before the command runs, so there is no
+        envelope and no token to assert -- the exit code alone would also be
+        satisfied by any other bad argument, so pin argparse's own wording."""
+        from dbqm.cli import run_cli
+
+        content_path = tmp_path / "conteudo.txt"
+        content_path.write_text("Ola {{nome}}", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "template", "add", "alvo",
+                "--content", "v1", "--content-file", str(content_path),
+            ])
+        assert exc.value.code == 2
+        assert "not allowed with argument" in capsys.readouterr().err
+
+    def test_content_file_pointing_at_a_directory_is_usage(self, tmp_config_dir, tmp_path, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "template", "add", "arq", "--content-file", str(tmp_path), "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_template("arq") is None
+
+    def test_content_file_reads_the_file(self, tmp_config_dir, tmp_path):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        content_path = tmp_path / "conteudo.txt"
+        content_path.write_text("Ola {{nome}}, tudo bem?", encoding="utf-8")
+        run_cli(["template", "add", "arq", "--content-file", str(content_path)])
+        assert find_template("arq").content == "Ola {{nome}}, tudo bem?"
+
+    def test_unreadable_content_file_is_usage(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "template", "add", "arq",
+                "--content-file", "caminho/que/nao/existe.txt", "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_template("arq") is None, "a failed read must not create the template"
+
+    def test_bare_template_command_exits_2(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template"])
+        assert exc.value.code == 2
+
+    def test_bare_template_command_prints_the_group_help(self, tmp_config_dir, capsys):
+        """A bare `dbqm template` must print the group's own help, not a
+        one-line usage reminder -- mirrors `TestCmdGroup`'s own bare-command
+        test."""
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template"])
+        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
+        assert "Criar um template" in out, \
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
 

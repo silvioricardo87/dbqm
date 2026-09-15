@@ -75,6 +75,7 @@ from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
 from dbqm.models.query import find_query, load_queries
 from dbqm.models.settings import load_settings, save_settings
+from dbqm.models.template import find_template, load_templates
 
 __all__ = [
     "NoComparableColumns",
@@ -110,6 +111,7 @@ __all__ = [
     "find_connection",
     "find_group",
     "find_query",
+    "find_template",
     "get_standalone_routine_info",
     "get_table_structure",
     "get_view_definition",
@@ -121,6 +123,7 @@ __all__ = [
     "load_history",
     "load_queries",
     "load_settings",
+    "load_templates",
     "log_execution",
     "open_connection",
     "record_group_execution",
