@@ -102,6 +102,29 @@ def _add_query_fields(parser: argparse.ArgumentParser) -> None:
                         help="Formato de saida")
 
 
+def _add_group_fields(parser: argparse.ArgumentParser) -> None:
+    """The group fields, shared by `group add` and `group update`.
+
+    Nothing here is `required`: a missing name/queries/join-key is reported
+    by `group_builder.validate`, the same way `_add_query_fields` defers to
+    `query_builder.validate`. `--query` and `--compare-column` repeat (a
+    group needs at least two queries to compare); `--join-key` takes a
+    single value -- there is only one join column. Ad-hoc (Multi-Exec)
+    groups are out of scope here: `adhoc_sql`/`connections` have no flag,
+    but `group_builder.build` still preserves them on an `update` of a
+    group that already has them.
+    """
+    parser.add_argument("--query", dest="query", action="append", metavar="NOME",
+                        help="Consulta do grupo (repita; minimo 2)")
+    parser.add_argument("--compare-column", dest="compare_column", action="append",
+                        metavar="COLUNA", help="Coluna a comparar (pode repetir)")
+    parser.add_argument("--join-key", dest="join_key", help="Coluna de juncao")
+    parser.add_argument("--description", help="Anotacao livre sobre o grupo")
+    parser.add_argument("--folder", help="Pasta do grupo")
+    parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                        help="Formato de saida")
+
+
 @overload
 def resolve_password(
     args: argparse.Namespace, env_var: str, prompt: str, *, required: Literal[True],

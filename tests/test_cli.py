@@ -122,7 +122,7 @@ class TestBuildParser:
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
                     "export-config", "import-config", "history", "connection", "query",
-                    "objects", "describe", "rows"}
+                    "group", "objects", "describe", "rows"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -3407,6 +3407,285 @@ class TestCmdQuery:
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "usage"
         assert find_query("arq") is None, "a failed read must not create the query"
+
+
+class TestCmdGroup:
+    """`dbqm group add|update|show|rm|list`, mirroring `TestCmdQuery`.
+
+    No command here opens a database: there is no `connection_failed` and no
+    `sql_error` in this class, only `usage`/`not_found`/`validation`. Every
+    failure asserts the machine token from the `-f json` envelope, not just
+    the exit code — exit 2 is also argparse's own code for a bad argument.
+    """
+
+    def _add_connection(self, monkeypatch, name="db1"):
+        from dbqm.cli import run_cli
+
+        run_cli(["connection", "add", name, "--type", "mysql", "--host", "h",
+                 "--no-password"])
+
+    def _add_query(self, monkeypatch, name, connection="db1"):
+        from dbqm.cli import run_cli
+
+        run_cli(["query", "add", name, "--connection", connection,
+                 "--sql", f"SELECT id FROM {name}"])
+
+    def test_add_creates(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli([
+            "group", "add", "meugrupo", "--query", "q1", "--query", "q2",
+            "--join-key", "id", "--description", "nota", "--folder", "pasta1",
+            "--compare-column", "nome",
+        ])
+
+        g = find_group("meugrupo")
+        assert g is not None
+        assert g.queries == ["q1", "q2"]
+        assert g.join_key == "id"
+        assert g.description == "nota"
+        assert g.folder == "pasta1"
+        assert g.compare_columns == ["nome"]
+
+    def test_add_on_an_existing_name_is_a_validation_error(self, tmp_config_dir,
+                                                            monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli(["group", "add", "dup", "--query", "q1", "--query", "q2",
+                 "--join-key", "id"])
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "group", "add", "dup", "--query", "q1", "--query", "q2",
+                "--join-key", "outra", "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_group("dup").join_key == "id", "a rejected add must change nothing"
+
+    def test_add_with_fewer_than_two_queries_is_validation(self, tmp_config_dir,
+                                                            monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "group", "add", "sozinho", "--query", "q1", "--join-key", "id",
+                "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_group("sozinho") is None
+
+    def test_add_with_unknown_query_is_validation(self, tmp_config_dir,
+                                                   monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "group", "add", "comfantasma", "--query", "q1",
+                "--query", "naoexiste", "--join-key", "id", "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_group("comfantasma") is None
+
+    def test_update_on_a_missing_name_is_not_found(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "group", "update", "inexistente", "--description", "x", "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_update_preserves_fields_not_mentioned(self, tmp_config_dir, monkeypatch):
+        """The trap: an update must overlay only the flags actually given.
+        `column_mapping` has no CLI flag at all, so this also proves `build`
+        (never `upsert`) is called with a sparse dict, not the validation-only
+        merged one.
+
+        `folder` is the field that actually tells the two dicts apart: the
+        sparse path's "key not in values" branch (`_carry` in
+        `group_builder.build`) returns `getattr(existing, key)` untouched,
+        while its "key in values" branch runs the value through `_text`,
+        which strips whitespace. Most fields round-trip to the same value
+        whichever dict `build` receives — that is exactly why a plain
+        "did it survive" assertion on its own would pass even with the bug,
+        the same trap Task 2 hit with `table`. A folder value with leading
+        and trailing spaces is a value the merged path can never reproduce
+        byte for byte, so it is what actually separates the two.
+        """
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group, load_groups, save_groups
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli([
+            "group", "add", "alvo", "--query", "q1", "--query", "q2",
+            "--join-key", "id",
+        ])
+
+        groups = load_groups()
+        groups[0].column_mapping = {"col": {"q1": "c1"}}
+        groups[0].folder = "  pasta com espacos  "
+        save_groups(groups)
+
+        run_cli(["group", "update", "alvo", "--description", "nova descricao"])
+
+        g = find_group("alvo")
+        assert g.description == "nova descricao"
+        assert g.column_mapping == {"col": {"q1": "c1"}}, "column_mapping must survive"
+        assert g.folder == "  pasta com espacos  ", \
+            "an unmentioned field must survive byte for byte, not be re-stripped"
+        assert g.queries == ["q1", "q2"], "queries must survive"
+        assert g.join_key == "id", "join_key must survive"
+
+    def test_update_empty_description_clears_it_without_touching_other_fields(
+        self, tmp_config_dir, monkeypatch
+    ):
+        """`--description ""` is a deliberate empty value, not "not given" --
+        argparse hands the two cases different Python values (`""` vs
+        `None`), and `_group_values` must keep them apart."""
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli([
+            "group", "add", "alvo", "--query", "q1", "--query", "q2",
+            "--join-key", "id", "--description", "nota original",
+            "--folder", "pasta1",
+        ])
+
+        run_cli(["group", "update", "alvo", "--description", ""])
+
+        g = find_group("alvo")
+        assert g.description == "", "an explicit empty value must clear the field"
+        assert g.folder == "pasta1", "an unmentioned field must not change"
+        assert g.queries == ["q1", "q2"], "an unmentioned field must not change"
+
+    def test_update_with_query_replaces_the_list(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        self._add_query(monkeypatch, "q3")
+        run_cli([
+            "group", "add", "alvo", "--query", "q1", "--query", "q2",
+            "--join-key", "id",
+        ])
+
+        run_cli(["group", "update", "alvo", "--query", "q1", "--query", "q3"])
+
+        g = find_group("alvo")
+        assert g.queries == ["q1", "q3"], "an explicit --query must replace the list"
+
+    def test_show_unknown_name_is_not_found(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["group", "show", "inexistente", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_show_returns_to_dict(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli(["group", "add", "alvo", "--query", "q1", "--query", "q2",
+                 "--join-key", "id"])
+        capsys.readouterr()
+        run_cli(["group", "show", "alvo", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "group.show"
+        assert corpo["data"] == find_group("alvo").to_dict()
+
+    def test_rm_unknown_name_is_not_found(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["group", "rm", "inexistente", "--yes", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_rm_with_yes_removes(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli(["group", "add", "alvo", "--query", "q1", "--query", "q2",
+                 "--join-key", "id"])
+        run_cli(["group", "rm", "alvo", "--yes"])
+        assert find_group("alvo") is None
+
+    def test_rm_without_yes_and_without_a_tty_is_usage(self, tmp_config_dir,
+                                                        monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.group import find_group
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli(["group", "add", "alvo", "--query", "q1", "--query", "q2",
+                 "--join-key", "id"])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["group", "rm", "alvo", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_group("alvo") is not None, "a refusal must not remove"
+
+    def test_list_returns_groups(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+
+        self._add_connection(monkeypatch)
+        self._add_query(monkeypatch, "q1")
+        self._add_query(monkeypatch, "q2")
+        run_cli(["group", "add", "alvo", "--query", "q1", "--query", "q2",
+                 "--join-key", "id"])
+
+        capsys.readouterr()
+        run_cli(["group", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "group.list"
+        assert [item["name"] for item in corpo["data"]] == ["alvo"]
 
 
 class TestConnectionMarkupSafety:

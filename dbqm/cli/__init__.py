@@ -10,10 +10,11 @@ from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
-from dbqm.cli.commands.saved import cmd_query
+from dbqm.cli.commands.saved import cmd_group, cmd_query
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
 from dbqm.cli.params import (
     _add_connection_fields,
+    _add_group_fields,
     _add_query_fields,
     _parse_params,
     resolve_password,
@@ -265,6 +266,40 @@ def build_parser() -> argparse.ArgumentParser:
     p_query_list.add_argument("-f", "--format", choices=["table", "json"],
                               default="table", help="Formato de saida")
 
+    # --- group ---
+    p_group = subparsers.add_parser(
+        "group",
+        help="Gerenciar grupos de comparacao (criar, alterar, remover, ver, listar)",
+    )
+    # `cmd_group` (in `dbqm.cli.commands.saved`) reads this back to print the
+    # group's own help on a bare `dbqm group`.
+    _saved_commands._group_parser = p_group
+    group_sub = p_group.add_subparsers(dest="subcommand")
+
+    p_group_add = group_sub.add_parser("add", help="Criar um grupo")
+    p_group_add.add_argument("name", help="Nome do grupo")
+    _add_group_fields(p_group_add)
+
+    p_group_update = group_sub.add_parser("update", help="Alterar um grupo existente")
+    p_group_update.add_argument("name", help="Nome do grupo")
+    _add_group_fields(p_group_update)
+
+    p_group_show = group_sub.add_parser("show", help="Ver um grupo")
+    p_group_show.add_argument("name", help="Nome do grupo")
+    p_group_show.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
+    p_group_rm = group_sub.add_parser("rm", help="Remover um grupo")
+    p_group_rm.add_argument("name", help="Nome do grupo")
+    p_group_rm.add_argument("--yes", action="store_true",
+                            help="Remover sem confirmacao (obrigatorio fora do terminal)")
+    p_group_rm.add_argument("-f", "--format", choices=["table", "json"],
+                            default="table", help="Formato de saida")
+
+    p_group_list = group_sub.add_parser("list", help="Listar grupos")
+    p_group_list.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
     return parser
 
 
@@ -282,6 +317,7 @@ COMMAND_MAP = {
     "history": cmd_history,
     "connection": cmd_connection,
     "query": cmd_query,
+    "group": cmd_group,
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,
