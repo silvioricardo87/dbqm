@@ -3940,6 +3940,20 @@ class TestCmdTemplate:
         assert t.description == "nova descricao"
         assert t.content == "conteudo original", "content must survive"
 
+    def test_update_preserves_description_not_mentioned(self, tmp_config_dir):
+        """The mirror image of the test above: an update that only touches
+        `content` must not clear a `description` set at `add` time."""
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo",
+                 "--content", "conteudo original", "--description", "descricao original"])
+        run_cli(["template", "update", "alvo", "--content", "conteudo novo"])
+
+        t = find_template("alvo")
+        assert t.content == "conteudo novo"
+        assert t.description == "descricao original", "description must survive"
+
     def test_update_calls_build_with_only_the_given_flags(self, tmp_config_dir):
         """A white-box guard, the way `dbqm group`'s own test does: spies on
         `template_builder.build` and checks the exact key set `_template_update`
@@ -5499,6 +5513,39 @@ class TestCmdOracleClient:
         assert corpo["command"] == "oracle-client.list"
         assert corpo["data"] == []
 
+    def test_list_with_a_client_actually_installed(self, tmp_path, monkeypatch, capsys):
+        """The empty case above is only meaningful by contrast with this one
+        -- an `_oracle_client_list` hardcoded to always return `[]` would
+        pass the empty test and fail only here."""
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "BASIC_README").write_text(
+            "Basic Package Information\nClient Shared Library 64-bit - 23.26.1.0.0\n",
+            encoding="utf-8",
+        )
+
+        run_cli(["oracle-client", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"] == [
+            {"name": "instantclient_23_x64", "path": str(target), "version": "23.26.1.0.0"},
+        ]
+
+    def test_list_table_format_prints_the_version(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "BASIC_README").write_text(
+            "Basic Package Information\nClient Shared Library 64-bit - 23.26.1.0.0\n",
+            encoding="utf-8",
+        )
+
+        run_cli(["oracle-client", "list"])
+        saida = capsys.readouterr().out
+        assert '"ok"' not in saida
+        assert "23.26.1.0.0" in saida
+        assert "instantclient_23_x64" in saida
+
     def test_available_on_an_unsupported_host_is_usage_naming_the_platform(
         self, monkeypatch, capsys,
     ):
@@ -5509,6 +5556,14 @@ class TestCmdOracleClient:
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "usage"
         assert "plan9/riscv" in corpo["error"]["message"]
+
+    def test_available_table_format_prints_the_catalog(self, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+
+        run_cli(["oracle-client", "available"])
+        saida = capsys.readouterr().out
+        assert '"ok"' not in saida
+        assert "23.26.1.0.0" in saida
 
     def test_install_calls_through_with_the_named_version(self, monkeypatch, capsys, tmp_path):
         monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
@@ -5553,6 +5608,64 @@ class TestCmdOracleClient:
         assert corpo["error"]["code"] == "unexpected"
         assert "arquivo truncado" in corpo["error"]["message"]
 
+    def test_install_on_a_dir_that_already_exists_is_usage(self, monkeypatch, capsys):
+        """`install_client`'s own `FileExistsError` -- the target directory is
+        already occupied -- is a precondition the user can fix (remove it
+        first), not something dbqm could not handle. `usage`, not
+        `unexpected`."""
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        monkeypatch.setattr(
+            "dbqm.cli.deps.install_client",
+            MagicMock(side_effect=FileExistsError("Directory already exists with content: X")),
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+
+    def test_install_progress_goes_to_stderr_under_json_leaving_stdout_the_envelope(
+        self, monkeypatch, capsys, tmp_path,
+    ):
+        """The whole reason `install` routes progress to stderr: the
+        envelope on stdout must stay parseable even while progress lines are
+        being written."""
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        dest = tmp_path / "instantclient_23_x64"
+
+        def fake_install(pkg, progress=None):
+            progress(50, 100)
+            progress(100, 100)
+            return dest
+
+        monkeypatch.setattr("dbqm.cli.deps.install_client", MagicMock(side_effect=fake_install))
+
+        run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+        saida = capsys.readouterr()
+        assert "50%" in saida.err
+        assert "100%" in saida.err
+        corpo = json.loads(saida.out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "oracle-client.install"
+
+    def test_install_progress_reaches_stdout_under_table(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        dest = tmp_path / "instantclient_23_x64"
+
+        def fake_install(pkg, progress=None):
+            progress(50, 100)
+            progress(100, 100)
+            return dest
+
+        monkeypatch.setattr("dbqm.cli.deps.install_client", MagicMock(side_effect=fake_install))
+
+        run_cli(["oracle-client", "install", "23.26.1.0.0"])
+        saida = capsys.readouterr()
+        assert saida.err == ""
+        assert "50%" in saida.out
+        assert "100%" in saida.out
+
     def test_rm_with_yes_removes(self, tmp_path, monkeypatch):
         monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
         target = tmp_path / "instantclient_23_x64"
@@ -5578,3 +5691,32 @@ class TestCmdOracleClient:
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "usage"
         assert target.exists(), "a refusal must not remove"
+
+    def test_rm_on_a_tty_honours_a_no(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "oci.dll").write_text("stub")
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+
+        run_cli(["oracle-client", "rm", "instantclient_23_x64"])
+
+        assert target.exists(), "a cancelled removal must not remove"
+
+    def test_bare_oracle_client_command_exits_2(self):
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client"])
+        assert exc.value.code == 2
+
+    def test_bare_oracle_client_command_prints_the_group_help(self, capsys):
+        """A bare `dbqm oracle-client` must print the group's own help, not a
+        one-line usage reminder -- mirrors `TestCmdTemplate`'s own
+        bare-command test."""
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client"])
+        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
+        assert "Baixar e instalar um Oracle Instant Client" in out, \
+            "expected each subcommand's own help text, e.g. install's, to be listed"
