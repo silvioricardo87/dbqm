@@ -545,6 +545,10 @@ def _resolve_content(args: argparse.Namespace, command: str) -> str | None:
     verbatim -- `template_builder.build` never strips it either, since
     leading/trailing whitespace in a report template's body is formatting,
     not incidental input noise.
+
+    A path that cannot be read is `usage`, not a stack trace: the caller
+    mistyped a filename, which is their mistake to see and fix, not a
+    condition dbqm failed to handle.
     """
     content_file = getattr(args, "content_file", None)
     if content_file:

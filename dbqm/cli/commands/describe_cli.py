@@ -15,9 +15,9 @@ from (a circular import).
 Every command's `_actions` is read the same way argparse reads it to print
 `--help`: nothing here is per-command logic, so a flag added to an existing
 command, or an entire command added next year, appears without anyone
-touching this file. `config`, `connection`, `query` and `group` each hold a
-subparsers action of their own -- `add`, `update`, `show`, `rm`, `list`, and
-so on -- so the walk recurses: a command that itself has subcommands reports
+touching this file. Several commands hold a subparsers action of their own --
+`add`, `update`, `show`, `rm`, `list`, and so on -- so the walk recurses: a
+command that itself has subcommands reports
 them under `subcommands`, described the same way, arguments included, rather
 than as a bare `choices` list that names a subcommand without saying how to
 call it.
@@ -46,8 +46,10 @@ def _find_nested_subparsers(
 ) -> argparse._SubParsersAction[argparse.ArgumentParser] | None:
     """The subparsers action `parser` itself added, if any.
 
-    `config`, `connection`, `query` and `group` each have one -- their
-    subcommands live behind it. A leaf command like `sql` has none.
+    Several commands have one -- their subcommands live behind it. A leaf
+    command like `sql` has none. Deliberately not listed by name: this module
+    enumerates nothing about the surface, and a comment naming today's
+    commands would go stale the way the code cannot.
     """
     for action in parser._actions:
         if isinstance(action, argparse._SubParsersAction):
