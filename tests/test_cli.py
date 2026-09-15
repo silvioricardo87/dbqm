@@ -121,8 +121,8 @@ class TestBuildParser:
 
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
-                    "export-config", "import-config", "history", "connection", "query",
-                    "group", "objects", "describe", "rows"}
+                    "export-config", "import-config", "history", "config", "connection",
+                    "query", "group", "objects", "describe", "rows"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -2167,6 +2167,78 @@ class TestCmdDdl:
             saida = capsys.readouterr()
             assert saida.out == ""
             assert json.loads(saida.err)["error"]["code"] == "not_found"
+
+
+# ---------------------------------------------------------------------------
+# config subcommand
+# ---------------------------------------------------------------------------
+
+class TestCmdConfig:
+    def test_list_returns_every_setting(self, tmp_config_dir, capsys):
+        run_cli(["config", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "config.list"
+        assert set(corpo["data"].keys()) == {
+            "audit_log_enabled", "theme", "default_export_dir",
+            "export_dir_prompted", "create_export_subdirs", "oracle_client_dir",
+        }
+
+    def test_get_returns_the_real_type_not_a_string(self, tmp_config_dir, capsys):
+        """A caller branching on audit_log_enabled must get true, not "true"."""
+        run_cli(["config", "get", "audit_log_enabled", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "config.get"
+        assert corpo["data"]["value"] is False
+
+    def test_an_unknown_key_is_not_found_and_lists_the_valid_ones(self, tmp_config_dir, capsys):
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "get", "bogus_key", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+        assert "theme" in corpo["error"]["message"]
+
+    def test_set_parses_a_boolean(self, tmp_config_dir):
+        from dbqm.models.settings import load_settings
+
+        run_cli(["config", "set", "audit_log_enabled", "true"])
+        assert load_settings().audit_log_enabled is True
+
+    def test_a_bad_boolean_is_refused_not_coerced(self, tmp_config_dir, capsys):
+        """`set audit_log_enabled talvez` must not quietly become False."""
+        from dbqm.models.settings import load_settings
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "set", "audit_log_enabled", "talvez", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert load_settings().audit_log_enabled is False
+
+    def test_an_unknown_theme_is_refused_and_names_what_exists(self, tmp_config_dir, capsys):
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "set", "theme", "nao-existe", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert "plano-escuro" in corpo["error"]["message"]
+
+    def test_a_directory_that_does_not_exist_is_refused(self, tmp_config_dir, capsys):
+        """oracle_client_dir exists to override auto-detection; a typo there
+        becomes a confusing connection failure much later."""
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "set", "oracle_client_dir",
+                     str(tmp_config_dir / "no-such-dir"), "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+
+    def test_an_empty_directory_value_is_accepted(self, tmp_config_dir):
+        """Empty means "auto-detect" and must stay settable."""
+        from dbqm.models.settings import load_settings
+
+        run_cli(["config", "set", "oracle_client_dir", ""])
+        assert load_settings().oracle_client_dir == ""
 
 
 # ---------------------------------------------------------------------------

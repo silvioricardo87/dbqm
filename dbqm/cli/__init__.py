@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import argparse
 
+from dbqm.cli.commands import config_cmd as _config_commands
 from dbqm.cli.commands import connection as _connection_commands
 from dbqm.cli.commands import saved as _saved_commands
 from dbqm.cli.commands import schema as _schema_commands
 from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
+from dbqm.cli.commands.config_cmd import cmd_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
@@ -197,6 +199,31 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Formato de saida")
     p_hist.add_argument("--clear", action="store_true", help="Limpar historico")
 
+    # --- config ---
+    p_config = subparsers.add_parser(
+        "config",
+        help="Ver e alterar as configuracoes do programa (get, set, list)",
+    )
+    # `cmd_config` (in `dbqm.cli.commands.config_cmd`) reads this back to
+    # print the group's own help on a bare `dbqm config`.
+    _config_commands._config_parser = p_config
+    config_sub = p_config.add_subparsers(dest="subcommand")
+
+    p_config_list = config_sub.add_parser("list", help="Listar todas as configuracoes")
+    p_config_list.add_argument("-f", "--format", choices=["table", "json"],
+                               default="table", help="Formato de saida")
+
+    p_config_get = config_sub.add_parser("get", help="Ver uma configuracao")
+    p_config_get.add_argument("key", help="Nome da configuracao")
+    p_config_get.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
+    p_config_set = config_sub.add_parser("set", help="Alterar uma configuracao")
+    p_config_set.add_argument("key", help="Nome da configuracao")
+    p_config_set.add_argument("value", help="Novo valor")
+    p_config_set.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
     # --- connection ---
     p_conn = subparsers.add_parser(
         "connection",
@@ -315,6 +342,7 @@ COMMAND_MAP = {
     "export-config": cmd_export_config,
     "import-config": cmd_import_config,
     "history": cmd_history,
+    "config": cmd_config,
     "connection": cmd_connection,
     "query": cmd_query,
     "group": cmd_group,

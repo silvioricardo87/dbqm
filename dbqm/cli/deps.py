@@ -74,6 +74,7 @@ from dbqm.core.table_browser import browse_table
 from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
 from dbqm.models.query import find_query, load_queries
+from dbqm.models.settings import load_settings, save_settings
 
 __all__ = [
     "NoComparableColumns",
@@ -119,10 +120,12 @@ __all__ = [
     "load_groups",
     "load_history",
     "load_queries",
+    "load_settings",
     "log_execution",
     "open_connection",
     "record_group_execution",
     "record_query_execution",
     "save_extraction",
+    "save_settings",
     "test_connection",
 ]
