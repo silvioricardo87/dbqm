@@ -3,19 +3,26 @@ from __future__ import annotations
 
 import argparse
 
+from dbqm.cli.commands import config_cmd as _config_commands
 from dbqm.cli.commands import connection as _connection_commands
+from dbqm.cli.commands import describe_cli as _describe_cli_commands
+from dbqm.cli.commands import oracle_client as _oracle_client_commands
 from dbqm.cli.commands import saved as _saved_commands
 from dbqm.cli.commands import schema as _schema_commands
 from dbqm.cli.commands.config_bundle import cmd_export_config, cmd_import_config
+from dbqm.cli.commands.config_cmd import cmd_config
 from dbqm.cli.commands.connection import cmd_connection
+from dbqm.cli.commands.describe_cli import cmd_describe_cli
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
+from dbqm.cli.commands.oracle_client import cmd_oracle_client
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
-from dbqm.cli.commands.saved import cmd_group, cmd_query
+from dbqm.cli.commands.saved import cmd_group, cmd_query, cmd_template
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
 from dbqm.cli.params import (
     _add_connection_fields,
     _add_group_fields,
     _add_query_fields,
+    _add_template_fields,
     _parse_params,
     resolve_password,
 )
@@ -32,6 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="DB Query Manager — ferramenta CLI para consultas em banco de dados",
     )
     subparsers = parser.add_subparsers(dest="command")
+    # `cmd_describe_cli` (in `dbqm.cli.commands.describe_cli`) walks this same
+    # action to describe every command below -- the same reference, so every
+    # `add_parser` call from here on is visible to it without a second list.
+    _describe_cli_commands._subparsers_action = subparsers
 
     # --- run ---
     p_run = subparsers.add_parser("run", help="Executar uma consulta salva")
@@ -197,6 +208,31 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Formato de saida")
     p_hist.add_argument("--clear", action="store_true", help="Limpar historico")
 
+    # --- config ---
+    p_config = subparsers.add_parser(
+        "config",
+        help="Ver e alterar as configuracoes do programa (get, set, list)",
+    )
+    # `cmd_config` (in `dbqm.cli.commands.config_cmd`) reads this back to
+    # print the group's own help on a bare `dbqm config`.
+    _config_commands._config_parser = p_config
+    config_sub = p_config.add_subparsers(dest="subcommand")
+
+    p_config_list = config_sub.add_parser("list", help="Listar todas as configuracoes")
+    p_config_list.add_argument("-f", "--format", choices=["table", "json"],
+                               default="table", help="Formato de saida")
+
+    p_config_get = config_sub.add_parser("get", help="Ver uma configuracao")
+    p_config_get.add_argument("key", help="Nome da configuracao")
+    p_config_get.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
+    p_config_set = config_sub.add_parser("set", help="Alterar uma configuracao")
+    p_config_set.add_argument("key", help="Nome da configuracao")
+    p_config_set.add_argument("value", help="Novo valor")
+    p_config_set.add_argument("-f", "--format", choices=["table", "json"],
+                              default="table", help="Formato de saida")
+
     # --- connection ---
     p_conn = subparsers.add_parser(
         "connection",
@@ -300,6 +336,79 @@ def build_parser() -> argparse.ArgumentParser:
     p_group_list.add_argument("-f", "--format", choices=["table", "json"],
                               default="table", help="Formato de saida")
 
+    # --- template ---
+    p_template = subparsers.add_parser(
+        "template",
+        help="Gerenciar templates de relatorio (criar, alterar, remover, ver, listar)",
+    )
+    # `cmd_template` (in `dbqm.cli.commands.saved`) reads this back to print
+    # the group's own help on a bare `dbqm template`.
+    _saved_commands._template_parser = p_template
+    template_sub = p_template.add_subparsers(dest="subcommand")
+
+    p_template_add = template_sub.add_parser("add", help="Criar um template")
+    p_template_add.add_argument("name", help="Nome do template")
+    _add_template_fields(p_template_add)
+
+    p_template_update = template_sub.add_parser("update", help="Alterar um template existente")
+    p_template_update.add_argument("name", help="Nome do template")
+    _add_template_fields(p_template_update)
+
+    p_template_show = template_sub.add_parser("show", help="Ver um template")
+    p_template_show.add_argument("name", help="Nome do template")
+    p_template_show.add_argument("-f", "--format", choices=["table", "json"],
+                                 default="table", help="Formato de saida")
+
+    p_template_rm = template_sub.add_parser("rm", help="Remover um template")
+    p_template_rm.add_argument("name", help="Nome do template")
+    p_template_rm.add_argument("--yes", action="store_true",
+                               help="Remover sem confirmacao (obrigatorio fora do terminal)")
+    p_template_rm.add_argument("-f", "--format", choices=["table", "json"],
+                               default="table", help="Formato de saida")
+
+    p_template_list = template_sub.add_parser("list", help="Listar templates")
+    p_template_list.add_argument("-f", "--format", choices=["table", "json"],
+                                 default="table", help="Formato de saida")
+
+    # --- oracle-client ---
+    p_oc = subparsers.add_parser(
+        "oracle-client",
+        help="Gerenciar instalacoes do Oracle Instant Client (listar, disponiveis, instalar, remover)",
+    )
+    # `cmd_oracle_client` (in `dbqm.cli.commands.oracle_client`) reads this
+    # back to print the group's own help on a bare `dbqm oracle-client`.
+    _oracle_client_commands._oracle_client_parser = p_oc
+    oc_sub = p_oc.add_subparsers(dest="subcommand")
+
+    p_oc_list = oc_sub.add_parser("list", help="Listar clients Oracle instalados")
+    p_oc_list.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                           help="Formato de saida")
+
+    p_oc_available = oc_sub.add_parser(
+        "available", help="Listar pacotes disponiveis para download nesta plataforma")
+    p_oc_available.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                                help="Formato de saida")
+
+    p_oc_install = oc_sub.add_parser("install", help="Baixar e instalar um Oracle Instant Client")
+    p_oc_install.add_argument("version", help="Versao do pacote (ver 'oracle-client available')")
+    p_oc_install.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                              help="Formato de saida")
+
+    p_oc_rm = oc_sub.add_parser("rm", help="Remover um Oracle Instant Client instalado")
+    p_oc_rm.add_argument("name", help="Nome do diretorio do client (ver 'oracle-client list')")
+    p_oc_rm.add_argument("--yes", action="store_true",
+                         help="Remover sem confirmacao (obrigatorio fora do terminal)")
+    p_oc_rm.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                         help="Formato de saida")
+
+    # --- describe-cli ---
+    p_describe_cli = subparsers.add_parser(
+        "describe-cli",
+        help="Descrever os comandos do CLI (nome, ajuda e argumentos de cada um)",
+    )
+    p_describe_cli.add_argument("-f", "--format", choices=["table", "json"], default="table",
+                                help="Formato de saida")
+
     return parser
 
 
@@ -315,12 +424,16 @@ COMMAND_MAP = {
     "export-config": cmd_export_config,
     "import-config": cmd_import_config,
     "history": cmd_history,
+    "config": cmd_config,
     "connection": cmd_connection,
     "query": cmd_query,
     "group": cmd_group,
+    "template": cmd_template,
+    "oracle-client": cmd_oracle_client,
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,
+    "describe-cli": cmd_describe_cli,
 }
 
 

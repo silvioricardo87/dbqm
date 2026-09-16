@@ -7,7 +7,7 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Fullscreen TUI** — Single tabbed dashboard (8 tabs, `F1`–`F8`), collapsible Templates sidebar, status bar, and keyboard-driven workflow
 - **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL
 - **Cross-database comparison** — Execute query groups and compare results side-by-side with match/diff/absent status
-- **Report templates** — Define text templates with `{{field}}` placeholders, auto-fill from query results or manual input, export rendered reports
+- **Report templates** — Define text templates with `{{field}}` placeholders, auto-fill from query results or manual input, export rendered reports. Curate them from the CLI too: `dbqm template add|update|show|rm|list`, over the same `core/template_builder.py` validation the TUI uses. Content is stored verbatim — never stripped, since whitespace in a report body is formatting — but content that is only whitespace is refused
 - **DDL execution** — Execute CREATE, ALTER, DROP statements with compilation error detection from USER_ERRORS
 - **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE)
 - **Execute routines** — Run Oracle packages, procedures, and functions with parameter input and DBMS_OUTPUT capture
@@ -33,7 +33,9 @@ Fullscreen terminal application for managing and executing SQL queries across mu
 - **Execution history** — Browse recent executions with timing, row counts, and status
 - **Error handling** — Global error modal displays details instead of crashing the app
 - **Audit logging** — Opt-in append-only JSON log of all executions
-- **Oracle Instant Client manager** — In-app downloader/installer that detects the host OS/arch and offers compatible Basic packages (Windows x64/x86, macOS ARM64/Intel, Linux x86_64/ARM64) — installed into `~/.dbqm/clients/` and auto-picked up by the thick-mode loader; "Usar este client" pins an install as the configured one
+- **Oracle Instant Client manager** — In-app downloader/installer that detects the host OS/arch and offers compatible Basic packages (Windows x64/x86, macOS ARM64/Intel, Linux x86_64/ARM64) — installed into `~/.dbqm/clients/` and auto-picked up by the thick-mode loader; "Usar este client" pins an install as the configured one. The same operations are on the CLI: `dbqm oracle-client list|available|install|rm` — `install` is the only dbqm command that reaches the internet
+- **Settings from the CLI** — `dbqm config get|set|list` reads and writes what dbqm stores. Valid keys come from `Settings`' own fields and valid themes from the design tokens, both read at runtime, so neither list can go stale. A bad value is refused, not coerced: `dbqm config set audit_log_enabled talvez` fails and leaves the setting alone. `get -f json` returns the real type, so a caller branching on a boolean gets `true`, not `"true"`
+- **Self-describing CLI** — `dbqm describe-cli` emits dbqm's own command surface as JSON, walking the same `argparse` tree the CLI dispatches through and recursing into nested subcommands with their arguments. Nothing about the surface is written down twice, so a command or flag added later appears without anyone updating this one
 - **Configurable Instant Client path** — Settings › Oracle Instant Client stores the client directory in dbqm's own `settings.json`, taking precedence over the system `ORACLE_HOME`. This keeps a 32-bit client wired in by another tool (e.g. an old PL/SQL Developer) from hijacking the 64-bit client dbqm needs. The path is architecture-checked before it is saved, an unusable configured path fails loudly instead of silently falling back, and a failed thick-mode init is reported on connection errors instead of surfacing as a bare network failure
 
 ## Changelog
@@ -173,6 +175,14 @@ dbqm group show prod-vs-homolog -f json
 dbqm group list -f json
 dbqm group rm prod-vs-homolog --yes
 
+# Curate a report template (content from --content or --content-file, stored
+# verbatim -- whitespace-only content is refused, not silently stripped)
+dbqm template add resumo-mensal --content "Total: {{total}}" --description "Resumo mensal"
+dbqm template update resumo-mensal --content-file relatorio.txt
+dbqm template show resumo-mensal -f json
+dbqm template list -f json
+dbqm template rm resumo-mensal --yes
+
 # Test connections
 dbqm test [connection]
 
@@ -197,6 +207,25 @@ dbqm import-config <file.dbqm>
 
 # View history
 dbqm history
+
+# Read and write stored settings. Keys come from Settings' own fields and
+# themes from the design tokens, both at runtime, so neither list goes stale.
+# A bad value is refused, not coerced.
+dbqm config list -f json
+dbqm config get theme
+dbqm config set audit_log_enabled true
+dbqm config set theme plano-escuro
+
+# Manage Oracle Instant Client installations (the only command that reaches
+# the internet)
+dbqm oracle-client available
+dbqm oracle-client install 23.26.1.0.0
+dbqm oracle-client list -f json
+dbqm oracle-client rm instantclient_23_x64 --yes
+
+# Describe dbqm's own CLI surface: every command, recursing into subcommands
+# and their arguments -- read live from the parser, nothing hand-typed
+dbqm describe-cli -f json
 
 # Create a connection (password read from stdin, never from argv)
 echo "s3cret" | dbqm connection add prod --type oracle --mode direct \
@@ -247,10 +276,11 @@ every DML statement is subject to, protected connection or not.
 
 ### Output format and exit codes
 
-Every command accepts `-f/--format`. `run`, `run-group`, `sql` and `rows`
-offer `table|json|csv|raw`; every other command — `call`, `test`, `list`,
-`ddl`, `history`, `export-config`, `import-config`, `objects`, `describe`,
-and the `connection` group — offers `table|json`. `raw` prints plain values
+Every command accepts `-f/--format`. `run`, `sql` and `rows` offer
+`table|json|csv|raw`; **every other command offers `table|json`** —
+rather than list them here, where the list has already gone stale twice, ask
+the program: `dbqm describe-cli -f json` reports every command, every
+subcommand and every flag, read from the parser itself. `raw` prints plain values
 with no headers/decoration, handy for piping the body of a view, package, or
 procedure to another tool.
 `--export csv|json|txt|html` writes the result to a file regardless of `-f`.

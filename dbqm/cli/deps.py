@@ -62,6 +62,14 @@ from dbqm.core.object_browser import (
     list_objects,
     list_package_routines,
 )
+from dbqm.core.oracle_client_installer import (
+    available_clients,
+    detect_host_platform,
+    host_platform_label,
+    install_client,
+    list_installed_clients,
+    remove_client,
+)
 from dbqm.core.query_engine import (
     QueryResult,
     classify_sql,
@@ -74,6 +82,8 @@ from dbqm.core.table_browser import browse_table
 from dbqm.models.connection import find_connection, load_connections
 from dbqm.models.group import find_group, load_groups
 from dbqm.models.query import find_query, load_queries
+from dbqm.models.settings import load_settings, save_settings
+from dbqm.models.template import find_template, load_templates
 
 __all__ = [
     "NoComparableColumns",
@@ -81,6 +91,7 @@ __all__ = [
     "QueryResult",
     "ReadOnlyViolation",
     "UnsupportedEngine",
+    "available_clients",
     "browse_table",
     "build_adhoc_group_result",
     "build_group_result",
@@ -88,6 +99,7 @@ __all__ = [
     "classify_sql",
     "clear_history",
     "derive_comparison_columns",
+    "detect_host_platform",
     "execute_across",
     "execute_adhoc",
     "execute_explain",
@@ -109,20 +121,28 @@ __all__ = [
     "find_connection",
     "find_group",
     "find_query",
+    "find_template",
     "get_standalone_routine_info",
     "get_table_structure",
     "get_view_definition",
+    "host_platform_label",
     "import_configs",
+    "install_client",
+    "list_installed_clients",
     "list_objects",
     "list_package_routines",
     "load_connections",
     "load_groups",
     "load_history",
     "load_queries",
+    "load_settings",
+    "load_templates",
     "log_execution",
     "open_connection",
     "record_group_execution",
     "record_query_execution",
+    "remove_client",
     "save_extraction",
+    "save_settings",
     "test_connection",
 ]

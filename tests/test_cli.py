@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -121,8 +122,9 @@ class TestBuildParser:
 
     def test_all_commands_have_handlers(self):
         expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
-                    "export-config", "import-config", "history", "connection", "query",
-                    "group", "objects", "describe", "rows"}
+                    "export-config", "import-config", "history", "config", "connection",
+                    "query", "group", "template", "oracle-client", "objects", "describe",
+                    "rows", "describe-cli"}
         assert set(COMMAND_MAP.keys()) == expected
 
 
@@ -2170,6 +2172,88 @@ class TestCmdDdl:
 
 
 # ---------------------------------------------------------------------------
+# config subcommand
+# ---------------------------------------------------------------------------
+
+class TestCmdConfig:
+    def test_list_returns_every_setting(self, tmp_config_dir, capsys):
+        run_cli(["config", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "config.list"
+        assert set(corpo["data"].keys()) == {
+            "audit_log_enabled", "theme", "default_export_dir",
+            "export_dir_prompted", "create_export_subdirs", "oracle_client_dir",
+        }
+
+    def test_get_returns_the_real_type_not_a_string(self, tmp_config_dir, capsys):
+        """A caller branching on audit_log_enabled must get true, not "true"."""
+        run_cli(["config", "get", "audit_log_enabled", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "config.get"
+        assert corpo["data"]["value"] is False
+
+    def test_an_unknown_key_is_not_found_and_lists_the_valid_ones(self, tmp_config_dir, capsys):
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "get", "bogus_key", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+        assert "theme" in corpo["error"]["message"]
+
+    def test_set_parses_a_boolean(self, tmp_config_dir):
+        from dbqm.models.settings import load_settings
+
+        run_cli(["config", "set", "audit_log_enabled", "true"])
+        assert load_settings().audit_log_enabled is True
+
+    def test_a_bad_boolean_is_refused_not_coerced(self, tmp_config_dir, capsys):
+        """`set audit_log_enabled talvez` must not quietly become False.
+
+        The stored value is driven to True first, on purpose. `False` is the
+        field's own default, so asserting it stayed False would be satisfied
+        just as well by an implementation that coerced the bad input and
+        wrote it -- the two states are indistinguishable from the outside.
+        """
+        from dbqm.models.settings import load_settings
+
+        run_cli(["config", "set", "audit_log_enabled", "true", "-f", "json"])
+        capsys.readouterr()
+        assert load_settings().audit_log_enabled is True
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "set", "audit_log_enabled", "talvez", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert load_settings().audit_log_enabled is True
+
+    def test_an_unknown_theme_is_refused_and_names_what_exists(self, tmp_config_dir, capsys):
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "set", "theme", "nao-existe", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert "plano-escuro" in corpo["error"]["message"]
+
+    def test_a_directory_that_does_not_exist_is_refused(self, tmp_config_dir, capsys):
+        """oracle_client_dir exists to override auto-detection; a typo there
+        becomes a confusing connection failure much later."""
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["config", "set", "oracle_client_dir",
+                     str(tmp_config_dir / "no-such-dir"), "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+
+    def test_an_empty_directory_value_is_accepted(self, tmp_config_dir):
+        """Empty means "auto-detect" and must stay settable."""
+        from dbqm.models.settings import load_settings
+
+        run_cli(["config", "set", "oracle_client_dir", ""])
+        assert load_settings().oracle_client_dir == ""
+
+
+# ---------------------------------------------------------------------------
 # history subcommand
 # ---------------------------------------------------------------------------
 
@@ -3783,6 +3867,287 @@ class TestCmdGroup:
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
 
+class TestCmdTemplate:
+    """`dbqm template add|update|show|rm|list`, mirroring `TestCmdQuery`.
+
+    `Template` has no `connection`/`folder`/`is_favorite` to worry about --
+    only `name`, `description` and `content` -- so there is no
+    `connection_failed` and no `sql_error` here either, only
+    `usage`/`not_found`/`validation`. Every failure asserts the machine
+    token from the `-f json` envelope, not just the exit code -- exit 2 is
+    also argparse's own code for a bad argument.
+    """
+
+    def test_add_creates(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli([
+            "template", "add", "relatorio", "--content", "Ola {{nome}}",
+            "--description", "nota",
+        ])
+
+        t = find_template("relatorio")
+        assert t is not None
+        assert t.content == "Ola {{nome}}"
+        assert t.description == "nota"
+
+    def test_add_on_an_existing_name_is_a_validation_error(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "dup", "--content", "v1"])
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "add", "dup", "--content", "v2", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_template("dup").content == "v1", "a rejected add must change nothing"
+
+    def test_add_without_content_is_validation(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "add", "vazio", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert find_template("vazio") is None
+
+    def test_update_on_a_missing_name_is_not_found(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "update", "inexistente", "--description", "x", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_update_preserves_content_not_mentioned(self, tmp_config_dir):
+        """The trap: an update must overlay only the flags actually given.
+        A plain `--description` must not touch `content` at all."""
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "conteudo original"])
+        run_cli(["template", "update", "alvo", "--description", "nova descricao"])
+
+        t = find_template("alvo")
+        assert t.description == "nova descricao"
+        assert t.content == "conteudo original", "content must survive"
+
+    def test_update_preserves_description_not_mentioned(self, tmp_config_dir):
+        """The mirror image of the test above: an update that only touches
+        `content` must not clear a `description` set at `add` time."""
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo",
+                 "--content", "conteudo original", "--description", "descricao original"])
+        run_cli(["template", "update", "alvo", "--content", "conteudo novo"])
+
+        t = find_template("alvo")
+        assert t.content == "conteudo novo"
+        assert t.description == "descricao original", "description must survive"
+
+    def test_update_calls_build_with_only_the_given_flags(self, tmp_config_dir):
+        """A white-box guard, the way `dbqm group`'s own test does: spies on
+        `template_builder.build` and checks the exact key set `_template_update`
+        hands it, so a future refactor that reuses `existing`'s values (which
+        would round-trip and pass silently) is still caught."""
+        from dbqm.cli import run_cli
+        import dbqm.core.template_builder as template_builder
+
+        run_cli(["template", "add", "alvo", "--content", "conteudo original"])
+
+        with patch("dbqm.core.template_builder.build", wraps=template_builder.build) as spy:
+            run_cli(["template", "update", "alvo", "--description", "nova descricao"])
+
+        recebidos = spy.call_args[0][0]
+        assert set(recebidos.keys()) == {"name", "description"}, \
+            "build must receive only the flags actually given on this command line"
+
+    def test_update_empty_description_clears_it_without_touching_content(self, tmp_config_dir):
+        """`--description ""` is a deliberate empty value, not "not given" --
+        argparse hands the two cases different Python values (`""` vs
+        `None`), and `_template_values` must keep them apart."""
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli([
+            "template", "add", "alvo", "--content", "conteudo",
+            "--description", "nota original",
+        ])
+
+        run_cli(["template", "update", "alvo", "--description", ""])
+
+        t = find_template("alvo")
+        assert t.description == "", "an explicit empty value must clear the field"
+        assert t.content == "conteudo", "an unmentioned field must not change"
+
+    def test_update_with_content_replaces_it(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "velho"])
+        run_cli(["template", "update", "alvo", "--content", "novo"])
+
+        assert find_template("alvo").content == "novo"
+
+    def test_show_unknown_name_is_not_found(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "show", "inexistente", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_show_returns_to_dict(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        capsys.readouterr()
+        run_cli(["template", "show", "alvo", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "template.show"
+        assert corpo["data"] == find_template("alvo").to_dict()
+
+    def test_rm_unknown_name_is_not_found(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "rm", "inexistente", "--yes", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "not_found"
+
+    def test_rm_with_yes_removes(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        run_cli(["template", "rm", "alvo", "--yes"])
+        assert find_template("alvo") is None
+
+    def test_rm_without_yes_and_without_a_tty_is_usage(self, tmp_config_dir, monkeypatch, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template", "rm", "alvo", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_template("alvo") is not None, "a refusal must not remove"
+
+    def test_rm_on_a_tty_honours_a_no(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+        run_cli(["template", "rm", "alvo"])
+        assert find_template("alvo") is not None, "a cancelled removal must not remove"
+
+    def test_list_returns_templates(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+
+        run_cli(["template", "add", "alvo", "--content", "v1"])
+
+        capsys.readouterr()
+        run_cli(["template", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["command"] == "template.list"
+        assert [item["name"] for item in corpo["data"]] == ["alvo"]
+
+    def test_content_and_content_file_are_mutually_exclusive(self, tmp_config_dir, tmp_path, capsys):
+        """argparse rejects this one before the command runs, so there is no
+        envelope and no token to assert -- the exit code alone would also be
+        satisfied by any other bad argument, so pin argparse's own wording."""
+        from dbqm.cli import run_cli
+
+        content_path = tmp_path / "conteudo.txt"
+        content_path.write_text("Ola {{nome}}", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "template", "add", "alvo",
+                "--content", "v1", "--content-file", str(content_path),
+            ])
+        assert exc.value.code == 2
+        assert "not allowed with argument" in capsys.readouterr().err
+
+    def test_content_file_pointing_at_a_directory_is_usage(self, tmp_config_dir, tmp_path, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "template", "add", "arq", "--content-file", str(tmp_path), "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_template("arq") is None
+
+    def test_content_file_reads_the_file(self, tmp_config_dir, tmp_path):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        content_path = tmp_path / "conteudo.txt"
+        content_path.write_text("Ola {{nome}}, tudo bem?", encoding="utf-8")
+        run_cli(["template", "add", "arq", "--content-file", str(content_path)])
+        assert find_template("arq").content == "Ola {{nome}}, tudo bem?"
+
+    def test_unreadable_content_file_is_usage(self, tmp_config_dir, capsys):
+        from dbqm.cli import run_cli
+        from dbqm.models.template import find_template
+
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exc:
+            run_cli([
+                "template", "add", "arq",
+                "--content-file", "caminho/que/nao/existe.txt", "-f", "json",
+            ])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert find_template("arq") is None, "a failed read must not create the template"
+
+    def test_bare_template_command_exits_2(self, tmp_config_dir):
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template"])
+        assert exc.value.code == 2
+
+    def test_bare_template_command_prints_the_group_help(self, tmp_config_dir, capsys):
+        """A bare `dbqm template` must print the group's own help, not a
+        one-line usage reminder -- mirrors `TestCmdGroup`'s own bare-command
+        test."""
+        from dbqm.cli import run_cli
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["template"])
+        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
+        assert "Criar um template" in out, \
+            "expected each subcommand's own help text, e.g. add's, to be listed"
+
+
 class TestConnectionMarkupSafety:
     """User-supplied values must never be interpreted as Rich markup
     (Minor 3) — a bad value must exit 2 cleanly and stay visible in the
@@ -5006,3 +5371,352 @@ class TestDdlStdout:
 
         mock_save.assert_called_once()
         assert json.loads(capsys.readouterr().out)["data"]["path"] is not None
+
+
+# ---------------------------------------------------------------------------
+# describe-cli
+# ---------------------------------------------------------------------------
+
+class TestCmdDescribeCli:
+    """`describe-cli` must never hand-maintain a list of its own: every
+    assertion here reads `COMMAND_MAP` or the live parser, not a list typed
+    into this test file.
+    """
+
+    def test_describe_lists_every_command_in_the_dispatch_map(self, capsys):
+        """Set equality, not containment: a command added later without a
+        doc entry must fail this test rather than go silently undescribed.
+        """
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "describe-cli"
+        nomes = {c["name"] for c in corpo["data"]["commands"]}
+        assert nomes == set(COMMAND_MAP)
+
+    def test_each_command_carries_its_help_and_arguments(self, capsys):
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        by_name = {c["name"]: c for c in corpo["data"]["commands"]}
+
+        sql = by_name["sql"]
+        assert sql["help"]
+        flags = {tuple(arg["flags"]): arg for arg in sql["arguments"]}
+        formato = flags[("-f", "--format")]
+        assert formato["choices"] == ["table", "json", "csv", "raw"]
+        assert formato["help"]
+
+        # A bare positional (no option strings) is still reported, flagged
+        # by its dest, and required.
+        positional = flags[("sql",)]
+        assert positional["required"] is True
+        assert positional["choices"] is None
+
+    def test_nothing_is_hand_written(self, capsys):
+        """The payload must come from the parser, so a flag added to an
+        existing command appears without anyone editing `describe_cli.py`.
+        `--force-write` exists only in the `sql` subparser -- it is never
+        mentioned by name in `dbqm/cli/commands/describe_cli.py`.
+        """
+        import dbqm.cli.commands.describe_cli as describe_cli_module
+
+        source = Path(describe_cli_module.__file__).read_text(encoding="utf-8")
+        assert "force-write" not in source
+        assert "force_write" not in source
+
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        by_name = {c["name"]: c for c in corpo["data"]["commands"]}
+        sql_flags = {tuple(arg["flags"]) for arg in by_name["sql"]["arguments"]}
+        assert ("--force-write",) in sql_flags
+
+    def test_nested_subcommands_carry_their_own_arguments(self, capsys):
+        """A parser with a subparsers action of its own recurses: each
+        subcommand is described
+        the same way -- `name`, `help`, `arguments` -- under a `subcommands`
+        key, not merely named by an opaque `choices` list. `--read-only`
+        exists only on `connection add`/`connection update` and is never
+        mentioned in `describe_cli.py`, same trick as `--force-write` above.
+        """
+        import dbqm.cli.commands.describe_cli as describe_cli_module
+
+        source = Path(describe_cli_module.__file__).read_text(encoding="utf-8")
+        assert "read-only" not in source
+        assert "read_only" not in source
+
+        run_cli(["describe-cli", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        by_name = {c["name"]: c for c in corpo["data"]["commands"]}
+        connection = by_name["connection"]
+
+        # The nested group itself carries no opaque "subcommand" argument
+        # once it has a `subcommands` key -- the flags for its children live
+        # under that key instead, described the same way as a top-level one.
+        assert {tuple(a["flags"]) for a in connection["arguments"]} == set()
+
+        sub_by_name = {s["name"]: s for s in connection["subcommands"]}
+        assert sub_by_name.keys() == {"add", "update", "show", "rm", "list"}
+        add = sub_by_name["add"]
+        assert add["help"]
+        add_flags = {tuple(a["flags"]) for a in add["arguments"]}
+        assert ("--read-only",) in add_flags
+
+    def test_an_uninitialized_parser_is_unexpected_not_a_false_success(self, monkeypatch, capsys):
+        """`_subparsers_action` is `None` only before `build_parser` has run.
+        That must never look like "dbqm has zero commands" -- a confidently
+        wrong success -- so it is reported as `unexpected` (exit 1) instead.
+        """
+        import argparse
+
+        import dbqm.cli.commands.describe_cli as describe_cli_module
+
+        monkeypatch.setattr(describe_cli_module, "_subparsers_action", None)
+
+        with pytest.raises(SystemExit) as saiu:
+            describe_cli_module.cmd_describe_cli(argparse.Namespace(format="json"))
+        assert saiu.value.code == 1
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["ok"] is False
+        assert corpo["error"]["code"] == "unexpected"
+
+    def test_table_format_prints_a_summary_without_the_envelope(self, capsys):
+        run_cli(["describe-cli"])
+        saida = capsys.readouterr().out
+        assert '"ok"' not in saida
+        # The argument-table header pins that real per-argument tables are
+        # printed, and "describe-cli" (its own self-description) pins that
+        # the command's name -- not just its help text -- reaches the line:
+        # neither string can appear here by accident of some other command's
+        # Portuguese help text.
+        assert "Flags" in saida
+        assert "describe-cli" in saida
+
+
+# ---------------------------------------------------------------------------
+# oracle-client subcommand
+# ---------------------------------------------------------------------------
+
+class TestCmdOracleClient:
+    """`install` is the only dbqm command that reaches the internet, so every
+    test here patches `deps.install_client` instead of letting it run — a
+    real download would be slow, flaky, and dependent on Oracle's CDN
+    staying up. `list`/`rm` patch `oracle_client_installer.CLIENTS_DIR`
+    itself (same trick as `tests/core/test_oracle_client_installer.py`) so
+    nothing touches a real install location either.
+    """
+
+    def test_list_on_a_machine_with_none_installed(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        run_cli(["oracle-client", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "oracle-client.list"
+        assert corpo["data"] == []
+
+    def test_list_with_a_client_actually_installed(self, tmp_path, monkeypatch, capsys):
+        """The empty case above is only meaningful by contrast with this one
+        -- an `_oracle_client_list` hardcoded to always return `[]` would
+        pass the empty test and fail only here."""
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "BASIC_README").write_text(
+            "Basic Package Information\nClient Shared Library 64-bit - 23.26.1.0.0\n",
+            encoding="utf-8",
+        )
+
+        run_cli(["oracle-client", "list", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"] == [
+            {"name": "instantclient_23_x64", "path": str(target), "version": "23.26.1.0.0"},
+        ]
+
+    def test_list_table_format_prints_the_version(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "BASIC_README").write_text(
+            "Basic Package Information\nClient Shared Library 64-bit - 23.26.1.0.0\n",
+            encoding="utf-8",
+        )
+
+        run_cli(["oracle-client", "list"])
+        saida = capsys.readouterr().out
+        assert '"ok"' not in saida
+        assert "23.26.1.0.0" in saida
+        assert "instantclient_23_x64" in saida
+
+    def test_available_on_an_unsupported_host_is_usage_naming_the_platform(
+        self, monkeypatch, capsys,
+    ):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("plan9", "riscv"))
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "available", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert "plan9/riscv" in corpo["error"]["message"]
+
+    def test_available_table_format_prints_the_catalog(self, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+
+        run_cli(["oracle-client", "available"])
+        saida = capsys.readouterr().out
+        assert '"ok"' not in saida
+        assert "23.26.1.0.0" in saida
+
+    def test_install_calls_through_with_the_named_version(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        dest = tmp_path / "instantclient_23_x64"
+        spy = MagicMock(return_value=dest)
+        monkeypatch.setattr("dbqm.cli.deps.install_client", spy)
+
+        run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+
+        spy.assert_called_once()
+        called_pkg = spy.call_args.args[0]
+        assert called_pkg.version == "23.26.1.0.0"
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "oracle-client.install"
+        assert corpo["data"]["version"] == "23.26.1.0.0"
+        assert corpo["data"]["path"] == str(dest)
+
+    def test_install_on_an_unknown_version_is_usage(self, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        spy = MagicMock()
+        monkeypatch.setattr("dbqm.cli.deps.install_client", spy)
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "install", "9.9.9.9.9", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        spy.assert_not_called()
+
+    def test_install_whose_underlying_call_raises_is_unexpected(self, monkeypatch, capsys):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        monkeypatch.setattr(
+            "dbqm.cli.deps.install_client",
+            MagicMock(side_effect=RuntimeError("arquivo truncado")),
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+        assert exc.value.code == 1
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "unexpected"
+        assert "arquivo truncado" in corpo["error"]["message"]
+
+    def test_install_on_a_dir_that_already_exists_is_usage(self, monkeypatch, capsys):
+        """`install_client`'s own `FileExistsError` -- the target directory is
+        already occupied -- is a precondition the user can fix (remove it
+        first), not something dbqm could not handle. `usage`, not
+        `unexpected`."""
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        monkeypatch.setattr(
+            "dbqm.cli.deps.install_client",
+            MagicMock(side_effect=FileExistsError("Directory already exists with content: X")),
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+
+    def test_install_progress_goes_to_stderr_under_json_leaving_stdout_the_envelope(
+        self, monkeypatch, capsys, tmp_path,
+    ):
+        """The whole reason `install` routes progress to stderr: the
+        envelope on stdout must stay parseable even while progress lines are
+        being written."""
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        dest = tmp_path / "instantclient_23_x64"
+
+        def fake_install(pkg, progress=None):
+            progress(50, 100)
+            progress(100, 100)
+            return dest
+
+        monkeypatch.setattr("dbqm.cli.deps.install_client", MagicMock(side_effect=fake_install))
+
+        run_cli(["oracle-client", "install", "23.26.1.0.0", "-f", "json"])
+        saida = capsys.readouterr()
+        assert "50%" in saida.err
+        assert "100%" in saida.err
+        corpo = json.loads(saida.out)
+        assert corpo["ok"] is True
+        assert corpo["command"] == "oracle-client.install"
+
+    def test_install_progress_reaches_stdout_under_table(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
+        dest = tmp_path / "instantclient_23_x64"
+
+        def fake_install(pkg, progress=None):
+            progress(50, 100)
+            progress(100, 100)
+            return dest
+
+        monkeypatch.setattr("dbqm.cli.deps.install_client", MagicMock(side_effect=fake_install))
+
+        run_cli(["oracle-client", "install", "23.26.1.0.0"])
+        saida = capsys.readouterr()
+        assert saida.err == ""
+        assert "50%" in saida.out
+        assert "100%" in saida.out
+
+    def test_rm_with_yes_removes(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "oci.dll").write_text("stub")
+
+        run_cli(["oracle-client", "rm", "instantclient_23_x64", "--yes"])
+
+        assert not target.exists()
+
+    def test_rm_without_yes_and_without_a_tty_is_usage_and_deletes_nothing(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "oci.dll").write_text("stub")
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client", "rm", "instantclient_23_x64", "-f", "json"])
+        assert exc.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert target.exists(), "a refusal must not remove"
+
+    def test_rm_on_a_tty_honours_a_no(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("dbqm.core.oracle_client_installer.CLIENTS_DIR", tmp_path)
+        target = tmp_path / "instantclient_23_x64"
+        target.mkdir()
+        (target / "oci.dll").write_text("stub")
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+
+        run_cli(["oracle-client", "rm", "instantclient_23_x64"])
+
+        assert target.exists(), "a cancelled removal must not remove"
+
+    def test_bare_oracle_client_command_exits_2(self):
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client"])
+        assert exc.value.code == 2
+
+    def test_bare_oracle_client_command_prints_the_group_help(self, capsys):
+        """A bare `dbqm oracle-client` must print the group's own help, not a
+        one-line usage reminder -- mirrors `TestCmdTemplate`'s own
+        bare-command test."""
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["oracle-client"])
+        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
+        assert "Baixar e instalar um Oracle Instant Client" in out, \
+            "expected each subcommand's own help text, e.g. install's, to be listed"

@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.8.0] — 2026-09-15
+
+A MINOR release: four new command groups, and with them Tier 3 of the
+roadmap is complete.
+
+### Added
+
+- **`dbqm config get|set|list`** — reads and writes what dbqm stores. Valid
+  keys come from `Settings`' own fields and valid themes from the design
+  tokens, both read at runtime, so neither list can go stale. A bad value is
+  **refused, not coerced**: `dbqm config set audit_log_enabled talvez` fails
+  and leaves the setting alone. `get -f json` returns the real type, so a
+  caller branching on a boolean gets `true`, not `"true"`. A non-empty
+  directory setting that does not exist is refused too — that setting exists
+  to override auto-detection, and a typo there would otherwise surface much
+  later as a confusing connection failure instead of at the point it was set.
+- **`dbqm describe-cli`** — emits dbqm's own command surface as JSON, walking
+  the same `argparse.ArgumentParser` the CLI dispatches through and
+  recursing into nested subcommands with their own arguments. Nothing about
+  the surface is written down twice, so a command or flag added later
+  appears without anyone updating this one.
+- **`dbqm template add|update|show|rm|list`** — creates and curates report
+  templates from the command line, over a new `core/template_builder.py`,
+  the third module of the `validate`/`build`/`upsert` shape
+  `connection_builder.py`, `query_builder.py` and `group_builder.py` already
+  share. `content` (from `--content` or `--content-file`) is stored
+  **verbatim**, never stripped — whitespace in a report body is formatting —
+  but content that is *only* whitespace is still refused.
+- **`dbqm oracle-client list|available|install|rm`** — manages Oracle
+  Instant Client installations from the CLI, the last thing the TUI's
+  Oracle Clients screen could do that scripted use could not. `install` is
+  the only command in dbqm that reaches the internet; a failed download or
+  extraction is reported as `unexpected` (exit `1`), and an unsupported host
+  as `usage` (exit `2`), naming the platform.
+
+### Notes on the CLI surface's design
+
+These are properties the four command groups have from their first release,
+not fixes to anything a user of 2.7.0 could have run — nothing in this
+branch shipped before.
+
+- **`config set` validates before writing, never after.** A key that does
+  not exist on `Settings`, a theme not in the design tokens, a boolean that
+  is not one of `true/false`, `1/0`, `sim/nao`, or a non-empty directory
+  that does not exist on disk — all are refused with `validation` (or
+  `not_found` for an unknown key) before `settings.json` is touched, so a
+  rejected `set` never leaves the file half-changed.
+- **`describe-cli` reports nothing about the surface by name.** Every
+  command's arguments are read the way argparse itself reads them to print
+  `--help` — no hand-typed list of command or flag names lives inside the
+  module, so the description cannot drift from what the parser actually
+  builds.
+- **`template`'s `add`/`update` share one field-adding helper with the
+  same `--content`/`--content-file` mutual-exclusion shape** `query`
+  already uses for `--sql`/`--sql-file`, and `update` preserves `content`
+  and `description` it is not asked to change, the same guarantee
+  `query_builder.build`/`group_builder.build` already give their own
+  records.
+- **`oracle-client install`'s download progress goes to stderr**, the same
+  routing `dbqm ddl` uses for its per-object progress, so the `-f json`
+  envelope on stdout stays parseable while a long download is running.
+  `rm` refuses under a non-terminal stdin rather than hanging on an
+  unanswerable confirmation prompt, matching `connection rm`/`query
+  rm`/`group rm`/`template rm`.
+
 ## [2.7.0] — 2026-09-15
 
 A MINOR release: two new command groups.
