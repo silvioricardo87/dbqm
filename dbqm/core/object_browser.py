@@ -217,6 +217,20 @@ def _is_numeric_type(dtype: str) -> bool:
 # Object listing
 # ---------------------------------------------------------------------------
 
+_SQLITE_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _sqlite_ident(name: str) -> str:
+    """`name` double-quoted for a PRAGMA, which takes no bind parameters.
+
+    Anything but a plain identifier is refused rather than interpolated: the
+    catalogue is the one place a table name reaches SQL as text.
+    """
+    if not _SQLITE_IDENT.fullmatch(name):
+        raise ValueError(f"Nome de objeto invalido: {name}")
+    return f'"{name}"'
+
+
 def list_objects(db, db_type: str, obj_type: str) -> list[str]:
     """List database objects by type (TABLE, PACKAGE, VIEW, ROUTINE).
 
@@ -244,6 +258,10 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
         raise UnsupportedEngine(
             f"Packages so existem no Oracle. Conexao e {db_type}."
         )
+    if db_type == "sqlite" and obj_upper in ("ROUTINE", "PROCEDURE", "FUNCTION"):
+        # SQLite has no stored routines at all. An empty list would read as
+        # "none here" instead of "this question does not apply here".
+        raise UnsupportedEngine("SQLite nao tem rotinas armazenadas.")
 
     cursor = db.cursor()
     try:
@@ -329,6 +347,17 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
                 )
             else:
                 return []
+        elif db_type == "sqlite":
+            # `sqlite_master` is the whole catalogue. Internal `sqlite_*`
+            # objects (autoindexes, sequences) are not the user's.
+            if obj_upper in ("TABLE", "VIEW"):
+                cursor.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = :t AND name NOT LIKE 'sqlite_%' ORDER BY name",
+                    {"t": obj_upper.lower()},
+                )
+            else:
+                return []
         else:
             return []
 
@@ -371,6 +400,11 @@ def _get_pk_columns(cursor, db_type: str, table: str) -> set[str]:
               AND table_name = %(table_name)s
               AND constraint_name = 'PRIMARY'
         """, {"table_name": table})
+    elif db_type == "sqlite":
+        # (cid, name, type, notnull, dflt_value, pk) -- pk > 0 marks a key
+        # column; the number is its position in a composite key.
+        cursor.execute(f"PRAGMA table_info({_sqlite_ident(table)})")
+        return {row[1].upper() for row in cursor.fetchall() if row[5]}
     else:
         cursor.execute("""
             SELECT ccu.column_name
@@ -428,6 +462,12 @@ def _get_fk_map(cursor, db_type: str, table: str) -> dict[str, str]:
               AND kcu.table_schema = {schema_filter}
             ORDER BY kcu.column_name
         """, {"table_name": table})
+    elif db_type == "sqlite":
+        # (id, seq, table, from, to, on_update, on_delete, match)
+        cursor.execute(f"PRAGMA foreign_key_list({_sqlite_ident(table)})")
+        for row in cursor.fetchall():
+            fk_map[row[3].upper()] = f"{row[2]}.{row[4]}"
+        return fk_map
     else:
         cursor.execute("""
             SELECT
@@ -516,6 +556,15 @@ def _get_indexes(cursor, db_type: str, table: str) -> list[IndexInfo]:
                 idx_dict[idx_name] = IndexInfo(name=idx_name, columns=[], is_unique=(non_unique == 0))
             idx_dict[idx_name].columns.append(col_name)
         indexes = list(idx_dict.values())
+    elif db_type == "sqlite":
+        # index_list: (seq, name, unique, origin, partial); index_info:
+        # (seqno, cid, name). Autoindexes SQLite creates for constraints are
+        # kept -- they are real indexes and a describe should say so.
+        cursor.execute(f"PRAGMA index_list({_sqlite_ident(table)})")
+        for _seq, idx_name, is_unique, _origin, _partial in cursor.fetchall():
+            cursor.execute(f"PRAGMA index_info({_sqlite_ident(idx_name)})")
+            cols = [r[2] for r in sorted(cursor.fetchall(), key=lambda r: r[0])]
+            indexes.append(IndexInfo(name=idx_name, columns=cols, is_unique=bool(is_unique)))
     else:
         cursor.execute("""
             SELECT i.name AS index_name,
@@ -593,6 +642,12 @@ def get_table_structure(db, db_type: str, table: str) -> TableStructure:
                   AND table_schema = DATABASE()
                 ORDER BY ordinal_position
             """, {"table_name": table})
+        elif db_type == "sqlite":
+            # Shaped like the other engines' rows so the loop below reads
+            # one tuple form. The declared type is whatever the CREATE said,
+            # possibly nothing -- SQLite allows an untyped column, and this
+            # reports "" rather than inventing a type for it.
+            cursor.execute(f"PRAGMA table_info({_sqlite_ident(table)})")
         else:
             cursor.execute("""
                 SELECT column_name, data_type,
@@ -605,6 +660,11 @@ def get_table_structure(db, db_type: str, table: str) -> TableStructure:
             """, {"table_name": table})
 
         col_rows = cursor.fetchall()
+        if db_type == "sqlite":
+            col_rows = [
+                (name, dtype or "", 0, None, None, "NO" if notnull else "YES")
+                for _cid, name, dtype, notnull, _dflt, _pk in col_rows
+            ]
 
         # PK and FK info
         pk_columns = _get_pk_columns(cursor, db_type, table)
@@ -852,8 +912,20 @@ def list_package_routines(db, db_type: str, package: str) -> PackageInfo:
         cursor.close()
 
 
-def get_standalone_routine_info(db, routine_name: str, routine_type: str = "PROCEDURE") -> RoutineInfo:
-    """Get parameter info for a standalone procedure or function from ALL_ARGUMENTS."""
+def get_standalone_routine_info(
+    db, routine_name: str, routine_type: str = "PROCEDURE", db_type: str = "oracle",
+) -> RoutineInfo:
+    """Get parameter info for a standalone procedure or function from ALL_ARGUMENTS.
+
+    `db_type` defaults to Oracle because every caller before 2.9.0 was
+    Oracle; a caller that knows better passes it, and anything else is
+    refused before `all_arguments` is asked of an engine that has no such
+    view.
+    """
+    if db_type != "oracle":
+        raise UnsupportedEngine(
+            f"Rotinas armazenadas so existem no Oracle. Conexao e {db_type}."
+        )
     cursor = db.cursor()
     try:
         cursor.execute("""
@@ -994,6 +1066,15 @@ def get_view_definition(db, db_type: str, view: str) -> ViewInfo:
             if row:
                 owner = row[0] or ""
                 sql_definition = row[1] or ""
+        elif db_type == "sqlite":
+            # The whole CREATE VIEW statement, verbatim. No owner concept.
+            cursor.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'view' AND name = :v",
+                {"v": view},
+            )
+            row = cursor.fetchone()
+            if row:
+                sql_definition = row[0] or ""
         else:
             cursor.execute("""
                 SELECT table_schema, view_definition
@@ -1036,6 +1117,12 @@ def execute_routine(
     refuses outright: a routine can write regardless of the text that calls
     it, which is exactly why it is refused rather than classified.
     """
+    if conn is not None and conn.db_type != "oracle":
+        # Before read-only: there is nothing to protect on an engine with no
+        # routines, and the anonymous block below is PL/SQL.
+        raise UnsupportedEngine(
+            f"Rotinas armazenadas so existem no Oracle. Conexao e {conn.db_type}."
+        )
     if conn is not None and conn.read_only:
         raise ReadOnlyViolation(
             f"Conexao '{conn.name}' e somente leitura e uma rotina pode "

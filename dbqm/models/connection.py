@@ -11,7 +11,7 @@ from dbqm.core.paths import CONFIG_DIR, CONNECTIONS_FILE
 @dataclass
 class Connection:
     name: str
-    db_type: str  # "oracle", "sqlserver", "postgresql", "mysql"
+    db_type: str  # "oracle", "sqlserver", "postgresql", "mysql", "sqlite"
     user: str
     password: str  # encrypted
     # Oracle
@@ -53,6 +53,9 @@ class Connection:
             if self.database:
                 target += f"/{self.database}"
             return target
+        if self.db_type == "sqlite":
+            # No host: the file is the whole target.
+            return self.database or ""
         return self.host or ""
 
 

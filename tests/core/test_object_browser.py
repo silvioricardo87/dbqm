@@ -490,3 +490,103 @@ class TestGetViewDefinition:
         view = get_view_definition(db, "oracle", "NAO_EXISTE")
 
         assert view.sql_definition == ""
+
+@pytest.fixture
+def sqlite_catalog(tmp_path):
+    """A real file with a PK, an FK, a unique index and a view.
+
+    A fixture, not a helper, so the handle is closed after the test: with
+    `filterwarnings = error`, an unclosed sqlite3 connection raises its
+    ResourceWarning at garbage collection -- inside whichever test happens
+    to be running then, which is how it surfaced as flaky failures in files
+    that had nothing to do with SQLite."""
+    import sqlite3
+    path = tmp_path / "cat.db"
+    db = sqlite3.connect(path)
+    db.executescript("""
+        CREATE TABLE clientes (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, status TEXT);
+        CREATE TABLE pedidos (id INTEGER PRIMARY KEY,
+                              cliente_id INTEGER REFERENCES clientes(id), valor REAL);
+        CREATE UNIQUE INDEX ix_clientes_nome ON clientes(nome);
+        CREATE VIEW v_ativos AS SELECT id, nome FROM clientes WHERE status = 'A';
+        INSERT INTO clientes VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
+        INSERT INTO pedidos VALUES (10, 1, 9.5), (11, 3, 20.0);
+    """)
+    db.commit()
+    yield db
+    db.close()
+
+
+class TestSqliteCatalog:
+    """The fifth engine's catalogue: sqlite_master and PRAGMA, against a
+    real file. No mocks -- a mocked PRAGMA would only prove the mock."""
+
+    def test_tables_and_views_come_from_sqlite_master(self, sqlite_catalog):
+        db = sqlite_catalog
+        assert list_objects(db, "sqlite", "TABLE") == ["clientes", "pedidos"]
+        assert list_objects(db, "sqlite", "VIEW") == ["v_ativos"]
+
+    def test_routines_and_packages_are_refused_not_empty(self, sqlite_catalog):
+        """An empty list would read as "none here" instead of "does not apply"."""
+        db = sqlite_catalog
+        for kind in ("PACKAGE", "ROUTINE", "PROCEDURE", "FUNCTION"):
+            with pytest.raises(UnsupportedEngine):
+                list_objects(db, "sqlite", kind)
+
+    def test_structure_reports_pk_nullability_and_the_unique_index(self, sqlite_catalog):
+        from dbqm.core.object_browser import get_table_structure
+        db = sqlite_catalog
+        est = get_table_structure(db, "sqlite", "clientes")
+        por_nome = {c.name: c for c in est.columns}
+        assert por_nome["id"].is_pk is True
+        assert por_nome["nome"].nullable is False
+        assert por_nome["status"].nullable is True
+        assert por_nome["nome"].data_type == "TEXT"
+        idx = {i.name: i for i in est.indexes}
+        assert idx["ix_clientes_nome"].columns == ["nome"]
+        assert idx["ix_clientes_nome"].is_unique is True
+
+    def test_structure_reports_the_foreign_key(self, sqlite_catalog):
+        from dbqm.core.object_browser import get_table_structure
+        db = sqlite_catalog
+        est = get_table_structure(db, "sqlite", "pedidos")
+        por_nome = {c.name: c for c in est.columns}
+        assert por_nome["cliente_id"].fk_ref == "clientes.id"
+        assert por_nome["id"].fk_ref == ""
+
+    def test_view_definition_is_the_create_statement(self, sqlite_catalog):
+        from dbqm.core.object_browser import get_view_definition
+        db = sqlite_catalog
+        info = get_view_definition(db, "sqlite", "v_ativos")
+        assert "SELECT id, nome FROM clientes" in info.sql_definition
+        assert info.owner == ""
+
+    def test_a_table_name_that_is_not_an_identifier_is_refused(self, sqlite_catalog):
+        """PRAGMA takes no bind parameters, so the name reaches SQL as text.
+        It must never be interpolated unchecked."""
+        from dbqm.core.object_browser import get_table_structure
+        db = sqlite_catalog
+        with pytest.raises(ValueError):
+            get_table_structure(db, "sqlite", 'x"); DROP TABLE clientes; --')
+
+
+class TestSqliteHasNoRoutines:
+    """`get_standalone_routine_info` and `execute_routine` take an open
+    handle, not a Connection, so until 2.9.0 nothing stopped them from
+    sending Oracle SQL to any engine. They refuse now, before touching it."""
+
+    def test_standalone_lookup_refuses_sqlite_before_querying(self):
+        db = MagicMock()
+        with pytest.raises(UnsupportedEngine):
+            get_standalone_routine_info(db, "P", db_type="sqlite")
+        db.cursor.assert_not_called()
+
+    def test_execute_routine_refuses_a_sqlite_connection_before_touching_it(self):
+        from dbqm.core.object_browser import execute_routine
+        from dbqm.models.connection import Connection
+        db = MagicMock()
+        conn = Connection(name="l", db_type="sqlite", user="", password="", database=":memory:")
+        rotina = RoutineInfo(name="P", routine_type="PROCEDURE", params=[])
+        with pytest.raises(UnsupportedEngine):
+            execute_routine(db, "", rotina, {}, conn=conn)
+        db.cursor.assert_not_called()

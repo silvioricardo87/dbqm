@@ -2356,34 +2356,63 @@ class TestCmdExportConfig:
 
 
 class TestCmdImportConfig:
-    def test_import_success(self):
+    """The bundle path must exist before anything else is looked at, so
+    these tests hand the command a real (empty) file and mock only what
+    reads it."""
+
+    @pytest.fixture
+    def bundle(self, tmp_path):
+        arquivo = tmp_path / "file.dbqm"
+        arquivo.write_text("{}", encoding="utf-8")
+        return str(arquivo)
+
+    def test_import_success(self, bundle):
         summary = {"connections": 2, "queries": 3, "groups": 1, "skipped": 0}
         with patch("dbqm.cli.deps.import_configs", return_value=summary):
-            run_cli(["import-config", "file.dbqm", "--password", "pw"])
+            run_cli(["import-config", bundle, "--password", "pw"])
 
-    def test_import_error(self):
+    def test_import_error(self, bundle):
         with patch("dbqm.cli.deps.import_configs", side_effect=ValueError("bad password")):
             with pytest.raises(SystemExit) as exc:
-                run_cli(["import-config", "file.dbqm", "--password", "wrong"])
+                run_cli(["import-config", bundle, "--password", "wrong"])
             assert exc.value.code == 2
 
-    def test_import_config_json_envelope(self, capsys):
+    def test_import_config_json_envelope(self, bundle, capsys):
         summary = {"connections": 2, "queries": 3, "groups": 1, "skipped": 0}
         with patch("dbqm.cli.deps.import_configs", return_value=summary):
-            run_cli(["import-config", "file.dbqm", "--password", "pw", "-f", "json"])
+            run_cli(["import-config", bundle, "--password", "pw", "-f", "json"])
             corpo = json.loads(capsys.readouterr().out)
             assert corpo["ok"] is True
             assert corpo["command"] == "import-config"
             assert corpo["data"] == summary
 
-    def test_import_config_json_failure_leaves_stdout_clean(self, capsys):
+    def test_import_config_json_failure_leaves_stdout_clean(self, bundle, capsys):
         with patch("dbqm.cli.deps.import_configs", side_effect=ValueError("bad password")):
             with pytest.raises(SystemExit) as exc:
-                run_cli(["import-config", "file.dbqm", "--password", "wrong", "-f", "json"])
+                run_cli(["import-config", bundle, "--password", "wrong", "-f", "json"])
             assert exc.value.code == 2
             saida = capsys.readouterr()
             assert saida.out == ""
             assert json.loads(saida.err)["error"]["code"] == "validation"
+
+    def test_a_missing_bundle_is_not_found_before_the_password_is_asked(self, tmp_path, monkeypatch, capsys):
+        """No password source at all: if the path check did not come first,
+        this would fail as `usage` from `resolve_password` -- or worse, as
+        the OS's localised "file not found" text under `validation`."""
+        monkeypatch.delenv("DBQM_BUNDLE_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        spy = MagicMock()
+        monkeypatch.setattr("dbqm.cli.deps.import_configs", spy)
+        caminho = str(tmp_path / "nao.dbqm")
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["import-config", caminho, "-f", "json"])
+        assert exc.value.code == 2
+        saida = capsys.readouterr()
+        assert saida.out == ""
+        erro = json.loads(saida.err)["error"]
+        assert erro["code"] == "not_found"
+        assert erro["message"] == f"Arquivo '{caminho}' nao encontrado."
+        spy.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -2756,8 +2785,10 @@ class TestConfigBundlePassword:
         spy = MagicMock()
         monkeypatch.setattr("dbqm.cli.deps.import_configs", spy)
 
+        arquivo = tmp_config_dir / "file.dbqm"
+        arquivo.write_text("{}", encoding="utf-8")
         with pytest.raises(SystemExit) as exc:
-            run_cli(["import-config", "file.dbqm"])
+            run_cli(["import-config", str(arquivo)])
         assert exc.value.code == 2
         spy.assert_not_called()
 
@@ -2830,11 +2861,12 @@ class TestConnectionAdd:
         assert exc.value.code == 2
         assert find_connection("dup").db_type == "mysql"
 
+    # "sqlite" was the invalid example until 2.9.0 made it an engine.
     def test_invalid_db_type_exits_2_with_the_dbqm_message(self, tmp_config_dir,
                                                            monkeypatch, capsys):
         with pytest.raises(SystemExit) as exc:
             self._run([
-                "connection", "add", "x", "--type", "sqlite", "--no-password",
+                "connection", "add", "x", "--type", "h2", "--no-password",
             ], monkeypatch)
         assert exc.value.code == 2
         assert "Tipo de banco invalido" in capsys.readouterr().out
@@ -5720,3 +5752,45 @@ class TestCmdOracleClient:
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
         assert "Baixar e instalar um Oracle Instant Client" in out, \
             "expected each subcommand's own help text, e.g. install's, to be listed"
+
+
+
+class TestSqliteFromTheCli:
+    """The fifth engine through the commands. `build` and `to_dict` already
+    do the work; these pin that the CLI reaches them and that the result
+    reads like a file, not like a server with an empty host."""
+
+    def test_add_then_show_carries_the_file_and_no_host(self, tmp_config_dir, capsys):
+        run_cli(["connection", "add", "local", "--type", "sqlite",
+                 "--database", "meu.db", "--no-password", "-f", "json"])
+        capsys.readouterr()
+        run_cli(["connection", "show", "local", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"]["db_type"] == "sqlite"
+        assert corpo["data"]["database"] == "meu.db"
+        assert "host" not in corpo["data"]
+        assert "port" not in corpo["data"]
+
+    def test_a_host_typed_for_sqlite_is_refused_by_name(self, tmp_config_dir, capsys):
+        with pytest.raises(SystemExit) as saiu:
+            run_cli(["connection", "add", "local", "--type", "sqlite",
+                     "--database", "meu.db", "--host", "srv", "--no-password", "-f", "json"])
+        assert saiu.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert "host" in corpo["error"]["message"]
+
+    def test_call_refuses_sqlite_before_any_connection_opens(self, tmp_config_dir, capsys):
+        """Same refusal as PostgreSQL gets: an anonymous PL/SQL block has no
+        equivalent, and `db_type` is known without opening anything."""
+        conn = Connection(name="local", db_type="sqlite", user="", password="",
+                          database=":memory:")
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection") as mock_open:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "local", "-f", "json"])
+            assert saiu.value.code == 2
+            mock_open.assert_not_called()
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert "sqlite" in corpo["error"]["message"]

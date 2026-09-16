@@ -90,6 +90,11 @@ def list_tables(db, db_type: str) -> list[str]:
                 "SELECT table_name FROM information_schema.tables "
                 "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name"
             )
+        elif db_type == "sqlite":
+            cursor.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
         else:
             cursor.execute(
                 "SELECT table_name FROM information_schema.tables "
@@ -143,6 +148,14 @@ def get_foreign_keys(db, db_type: str, table: str) -> list[FKInfo]:
                   AND kcu.table_schema = {schema_filter}
                 ORDER BY kcu.column_name
             """, {"table_name": table})
+        elif db_type == "sqlite":
+            # (id, seq, table, from, to, ...) -- the shape the others select.
+            safe = _validate_identifier(table)
+            cursor.execute(f'PRAGMA foreign_key_list("{safe}")')
+            return [
+                FKInfo(column=row[3], ref_table=row[2], ref_column=row[4])
+                for row in cursor.fetchall()
+            ]
         else:
             cursor.execute("""
                 SELECT
@@ -197,6 +210,16 @@ def detect_label_column(db, db_type: str, ref_table: str, pk_col: str) -> str | 
                   AND column_name != %(pk_col)s
                 ORDER BY ordinal_position
             """, {"table_name": ref_table, "pk_col": pk_col})
+        elif db_type == "sqlite":
+            # No information_schema: read the declared types and pick the
+            # first text-like column that is not the key, in table order.
+            safe = _validate_identifier(ref_table)
+            cursor.execute(f'PRAGMA table_info("{safe}")')
+            for _cid, name, dtype, _nn, _d, _pk in cursor.fetchall():
+                tipo = (dtype or "").upper()
+                if name != pk_col and any(t in tipo for t in ("CHAR", "TEXT", "CLOB")):
+                    return name
+            return None
         else:
             cursor.execute("""
                 SELECT column_name
@@ -233,7 +256,7 @@ def build_fk_lookups(db, db_type: str, fk_list: list[FKInfo]) -> dict[str, dict]
                 ref_col = _validate_identifier(fk.ref_column)
                 lbl_col = _validate_identifier(label_col)
                 ref_tbl = _validate_identifier(fk.ref_table)
-                if db_type in ("oracle", "postgresql"):
+                if db_type in ("oracle", "postgresql", "sqlite"):
                     cursor.execute(
                         f'SELECT "{ref_col}", "{lbl_col}" FROM "{ref_tbl}"'
                     )
@@ -275,7 +298,7 @@ def browse_table(
         safe_table = _validate_identifier(table)
 
         # Total count
-        if db_type in ("oracle", "postgresql"):
+        if db_type in ("oracle", "postgresql", "sqlite"):
             cursor.execute(f'SELECT COUNT(*) FROM "{safe_table}"')
         elif db_type == "mysql":
             cursor.execute(f"SELECT COUNT(*) FROM `{safe_table}`")
@@ -298,6 +321,11 @@ def browse_table(
         elif db_type == "mysql":
             cursor.execute(
                 f"SELECT * FROM `{safe_table}` LIMIT %(lim)s OFFSET %(off)s",
+                {"lim": limit, "off": offset},
+            )
+        elif db_type == "sqlite":
+            cursor.execute(
+                f'SELECT * FROM "{safe_table}" LIMIT :lim OFFSET :off',
                 {"lim": limit, "off": offset},
             )
         else:

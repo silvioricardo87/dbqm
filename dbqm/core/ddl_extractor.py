@@ -732,6 +732,9 @@ def extract_ddl(
 
     Returns ExtractionResult with objects and a saved .sql file path.
     """
+    if conn.db_type != "oracle":
+        return _extract_non_oracle(conn, object_name, on_progress)
+
     db = get_connection(conn)
     cursor = db.cursor()
     name_upper = object_name.strip().upper()
@@ -783,6 +786,43 @@ def extract_ddl(
     finally:
         cursor.close()
         db.close()
+
+
+def _extract_non_oracle(
+    conn: Connection,
+    object_name: str,
+    on_progress: Any = None,
+) -> ExtractionResult:
+    """Route to the engine's own extractor.
+
+    Everything below this function is Oracle: `detect_object` reads
+    `all_objects`, `_resolve_synonym` reads `all_synonyms`. Until 2.9.0 the
+    CLI's `dbqm ddl` called straight into it for every engine, so a
+    PostgreSQL connection was asked Oracle catalogue questions -- only the
+    TUI's browser screen knew to dispatch. The dispatch lives here now, once.
+    """
+    result = ExtractionResult(
+        object_name=object_name.strip(), object_type="UNKNOWN",
+        owner="", connection_name=conn.name,
+    )
+    if conn.db_type == "sqlite":
+        from dbqm.core.ddl_sqlite import extract_sqlite_ddl as extractor
+    elif conn.db_type == "postgresql":
+        from dbqm.core.ddl_pg import extract_pg_ddl as extractor
+    elif conn.db_type == "mysql":
+        from dbqm.core.ddl_mysql import extract_mysql_ddl as extractor
+    else:
+        result.errors.append(f"Extracao de DDL nao suportada para {conn.db_type}.")
+        return result
+
+    db = get_connection(conn)
+    try:
+        extractor(db, object_name, result, on_progress)
+    except Exception as e:
+        result.errors.append(f"Erro ao extrair: {e}")
+    finally:
+        db.close()
+    return result
 
 
 def save_extraction(result: ExtractionResult) -> tuple[str, int]:

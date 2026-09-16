@@ -47,7 +47,7 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
     meets one error vocabulary instead of argparse's next to dbqm's.
     """
     parser.add_argument("--type", dest="db_type",
-                        help="Tipo de banco: oracle, sqlserver, postgresql ou mysql")
+                        help="Tipo de banco: oracle, sqlserver, postgresql, mysql ou sqlite")
     parser.add_argument("--mode", help="Modo Oracle: direct ou tns (padrao: direct)")
     parser.add_argument("--host", help="Host do servidor")
     parser.add_argument("--port", help="Porta (padrao: a do tipo de banco)")

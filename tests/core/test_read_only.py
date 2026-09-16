@@ -153,6 +153,7 @@ class TestExplainThatExecutes:
         "EXPLAIN ANALYZE SELECT 1",
         "EXPLAIN (FORMAT JSON) SELECT 1",
         "EXPLAIN FORMAT=JSON SELECT 1",
+        "EXPLAIN QUERY PLAN SELECT 1",
     ])
     def test_explaining_a_query_passes(self, sql):
         check_read_only(sql, _conn())
@@ -163,6 +164,7 @@ class TestExplainThatExecutes:
         "EXPLAIN (ANALYZE, FORMAT JSON) UPDATE t SET a = 1",
         "EXPLAIN PLAN FOR DELETE FROM t",
         "EXPLAIN DROP TABLE t",
+        "EXPLAIN QUERY PLAN DELETE FROM t",
     ])
     def test_explaining_a_write_is_refused(self, sql):
         with pytest.raises(ReadOnlyViolation):

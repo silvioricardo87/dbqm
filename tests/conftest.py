@@ -75,10 +75,8 @@ def tmp_config_dir(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.fixture
-def sqlite_db():
-    """Create an in-memory SQLite database with test tables."""
-    conn = sqlite3.connect(":memory:")
+def _seed_sqlite(conn) -> None:
+    """The one schema both SQLite fixtures share: two tables, five rows."""
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE employees (
@@ -102,8 +100,29 @@ def sqlite_db():
     """)
     cursor.execute("INSERT INTO departments VALUES (1, 'Engineering'), (2, 'Sales')")
     conn.commit()
+
+
+@pytest.fixture
+def sqlite_db():
+    """An in-memory SQLite handle with the shared seed, for code that takes
+    an already-open handle."""
+    conn = sqlite3.connect(":memory:")
+    _seed_sqlite(conn)
     yield conn
     conn.close()
+
+
+@pytest.fixture
+def sqlite_file(tmp_path):
+    """The same seed in a file, returned as a path -- for code that opens
+    its own connection from a `Connection(db_type="sqlite")`. A fresh
+    `:memory:` opened by the engine would be empty; a file is what lets the
+    engine tests stop patching `get_connection`."""
+    path = tmp_path / "seed.db"
+    conn = sqlite3.connect(path)
+    _seed_sqlite(conn)
+    conn.close()
+    return str(path)
 
 
 @pytest.fixture

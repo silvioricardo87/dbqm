@@ -28,6 +28,7 @@ DB_TYPE_OPTIONS = [
     ("SQL Server", "sqlserver"),
     ("PostgreSQL", "postgresql"),
     ("MySQL", "mysql"),
+    ("SQLite", "sqlite"),
 ]
 
 ORACLE_MODE_OPTIONS = [
@@ -173,6 +174,10 @@ class ConnectionsScreen(Vertical):
         "tns_name": ("#conn-form-tns-name-label", "#conn-form-tns-name"),
         "host": ("#conn-form-host-label", "#conn-form-host"),
         "port": ("#conn-form-port-label", "#conn-form-port"),
+        # SQLite is a file: it has no user and no password, and a form that
+        # kept asking for them would be asking for something it discards.
+        "user": ("#conn-form-user-label", "#conn-form-user"),
+        "password": ("#conn-form-pass-label", "#conn-form-pass"),
     }
 
     def __init__(
@@ -244,10 +249,10 @@ class ConnectionsScreen(Vertical):
                     )
                     yield Input(id="conn-form-database")
 
-                    yield Static("Usuario:", classes="field-label")
+                    yield Static("Usuario:", classes="field-label", id="conn-form-user-label")
                     yield Input(id="conn-form-user")
 
-                    yield Static("Senha:", classes="field-label")
+                    yield Static("Senha:", classes="field-label", id="conn-form-pass-label")
                     yield Input(password=True, id="conn-form-pass")
 
                     yield Static("Descricao (opcional):", classes="field-label")
@@ -537,15 +542,20 @@ class ConnectionsScreen(Vertical):
     def _apply_field_visibility(self, db_type: str, mode: str) -> None:
         is_oracle = db_type == "oracle"
         is_tns = is_oracle and mode == "tns"
+        is_sqlite = db_type == "sqlite"
         has_type = bool(db_type)
 
         self._set_visible("mode", is_oracle)
         self._set_visible("service", is_oracle and not is_tns)
+        # For SQLite the "database" field is the file path -- the whole
+        # configuration. Everything network-shaped is hidden with it.
         self._set_visible("database", has_type and not is_oracle)
         self._set_visible("tns_path", is_tns)
         self._set_visible("tns_name", is_tns)
-        self._set_visible("host", has_type and not is_tns)
-        self._set_visible("port", has_type and not is_tns)
+        self._set_visible("host", has_type and not is_tns and not is_sqlite)
+        self._set_visible("port", has_type and not is_tns and not is_sqlite)
+        self._set_visible("user", not is_sqlite)
+        self._set_visible("password", not is_sqlite)
 
     def _set_visible(self, key: str, visible: bool) -> None:
         label_id, field_id = self._FIELD_GROUPS[key]
