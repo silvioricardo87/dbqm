@@ -30,11 +30,13 @@ class TestValidate:
         assert "Selecione o tipo de banco." in validate({"name": "prod"})
 
     def test_unknown_db_type_lists_the_valid_ones(self):
-        errors = validate({"name": "prod", "db_type": "sqlite"})
+        # "sqlite" was this test's example of an invalid type until 2.9.0
+        # made it the fifth engine. H2 is Java; it will never be one here.
+        errors = validate({"name": "prod", "db_type": "h2"})
         assert errors == [
             (
-                "Tipo de banco invalido: sqlite. "
-                "Use um de: oracle, sqlserver, postgresql, mysql."
+                "Tipo de banco invalido: h2. "
+                "Use um de: oracle, sqlserver, postgresql, mysql, sqlite."
             )
         ]
 
@@ -58,8 +60,10 @@ class TestValidate:
 
 
 class TestConstants:
-    def test_default_ports_cover_every_db_type(self):
-        assert set(DEFAULT_PORTS) == set(DB_TYPES)
+    def test_default_ports_cover_every_networked_db_type(self):
+        """SQLite is a file: it has no port, and giving it one to satisfy a
+        set equality would be a lie the connection form then displays."""
+        assert set(DEFAULT_PORTS) == set(DB_TYPES) - {"sqlite"}
 
     def test_default_hosts_only_where_localhost_makes_sense(self):
         assert DEFAULT_HOSTS == {"postgresql": "localhost", "mysql": "localhost"}
@@ -260,3 +264,28 @@ class TestReadOnlyInBuild:
         c = build({"name": "c", "db_type": "mysql", "host": "h", "user": "u",
                    "read_only": False}, existing=existente)
         assert c.read_only is False
+
+
+class TestSqlite:
+    """One file is the whole configuration."""
+
+    def test_sqlite_is_a_valid_type_and_needs_only_a_database(self, tmp_config_dir):
+        assert validate({"name": "l", "db_type": "sqlite", "database": "a.db"}) == []
+
+    def test_sqlite_without_a_database_is_refused(self, tmp_config_dir):
+        erros = validate({"name": "l", "db_type": "sqlite"})
+        assert any("arquivo" in e.lower() for e in erros)
+
+    def test_sqlite_refuses_a_host_it_cannot_use(self, tmp_config_dir):
+        """A user who typed a host for a SQLite file has misunderstood
+        something; saying so beats ignoring it."""
+        erros = validate({"name": "l", "db_type": "sqlite", "database": "a.db", "host": "srv"})
+        assert any("host" in e.lower() for e in erros)
+
+    def test_build_stores_only_the_file(self, tmp_config_dir):
+        """No empty host lingering in the JSON to read like a real one."""
+        conn = build({"name": "l", "db_type": "sqlite", "database": "a.db"})
+        assert conn.database == "a.db"
+        assert conn.host is None
+        assert conn.port is None
+        assert "host" not in conn.to_dict()

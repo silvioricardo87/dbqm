@@ -11,7 +11,7 @@ from dbqm.core.paths import CONFIG_DIR, CONNECTIONS_FILE
 @dataclass
 class Connection:
     name: str
-    db_type: str  # "oracle", "sqlserver", "postgresql", "mysql"
+    db_type: str  # "oracle", "sqlserver", "postgresql", "mysql", "sqlite"
     user: str
     password: str  # encrypted
     # Oracle

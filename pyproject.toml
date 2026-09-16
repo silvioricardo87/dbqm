@@ -40,6 +40,7 @@ dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "mypy>=1.11"]
 oracle = ["oracledb>=2.0"]
 postgres = ["psycopg[binary]>=3.1"]
 sqlserver = ["pymssql>=2.2"]
+mysql = ["pymysql>=1.1"]
 
 [project.urls]
 Homepage = "https://github.com/silvioricardo87/dbqm"

@@ -2830,11 +2830,12 @@ class TestConnectionAdd:
         assert exc.value.code == 2
         assert find_connection("dup").db_type == "mysql"
 
+    # "sqlite" was the invalid example until 2.9.0 made it an engine.
     def test_invalid_db_type_exits_2_with_the_dbqm_message(self, tmp_config_dir,
                                                            monkeypatch, capsys):
         with pytest.raises(SystemExit) as exc:
             self._run([
-                "connection", "add", "x", "--type", "sqlite", "--no-password",
+                "connection", "add", "x", "--type", "h2", "--no-password",
             ], monkeypatch)
         assert exc.value.code == 2
         assert "Tipo de banco invalido" in capsys.readouterr().out

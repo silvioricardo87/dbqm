@@ -222,87 +222,74 @@ class TestParseDmlLiterals:
 class TestExecuteWithSqlite:
     """Integration tests using SQLite as a proxy database."""
 
-    def _make_conn(self):
-        return Connection(name="test", db_type="sqlite", user="", password="")
+    # These run the engine against a real SQLite file through its own
+    # `get_connection`. Until 2.9.0 they patched `get_connection` to hand in
+    # an in-memory handle and then patched `db_type` to "oracle" so the bind
+    # path would accept `:name` -- the code believed it was talking to
+    # Oracle. SQLite is an engine now, and the tests say so.
+
+    def _make_conn(self, sqlite_file):
+        return Connection(name="test", db_type="sqlite", user="", password="",
+                          database=sqlite_file)
 
     def _make_query(self, sql):
         return Query(name="q", connection="test", sql=sql)
 
-    def test_execute_query_select(self, sqlite_db):
+    def test_execute_query_select(self, sqlite_file):
         q = self._make_query("SELECT id, name FROM employees WHERE department = :dept")
-        conn = self._make_conn()
-
-        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
-            # SQLite uses :param natively like Oracle
-            with patch.object(conn, "db_type", "oracle"):
-                result = execute_query(q, conn, {"dept": "Engineering"})
+        result = execute_query(q, self._make_conn(sqlite_file), {"dept": "Engineering"})
 
         assert result.success
         assert result.row_count == 2
         assert "id" in result.columns
 
-    def test_execute_query_rejects_insert(self, sqlite_db):
+    def test_execute_query_rejects_insert(self, sqlite_file):
         q = self._make_query("INSERT INTO employees VALUES (4, 'Dave', 'HR', 50000)")
-        conn = self._make_conn()
-
-        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
-            result = execute_query(q, conn, {})
+        result = execute_query(q, self._make_conn(sqlite_file), {})
 
         assert not result.success
         assert "SELECT" in result.error
 
-    def test_execute_adhoc_select(self, sqlite_db):
-        conn = self._make_conn()
-        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
-            with patch.object(conn, "db_type", "oracle"):
-                result = execute_adhoc("SELECT COUNT(*) FROM employees", conn, {})
+    def test_execute_adhoc_select(self, sqlite_file):
+        result = execute_adhoc("SELECT COUNT(*) FROM employees", self._make_conn(sqlite_file), {})
 
         assert result.success
         assert result.row_count == 1
 
-    def test_execute_adhoc_dml_autocommit(self, sqlite_db):
-        conn = self._make_conn()
-        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
-            with patch.object(conn, "db_type", "oracle"):
-                result = execute_adhoc(
-                    "UPDATE employees SET salary = 100000 WHERE id = 1",
-                    conn, {}, auto_commit=True
-                )
+    def test_execute_adhoc_dml_autocommit(self, sqlite_file):
+        result = execute_adhoc(
+            "UPDATE employees SET salary = 100000 WHERE id = 1",
+            self._make_conn(sqlite_file), {}, auto_commit=True,
+        )
 
         assert result.success
         assert result.rows_affected == 1
         assert result.committed is True
 
-    def test_execute_adhoc_ddl_create_table(self, sqlite_db):
+    def test_execute_adhoc_ddl_create_table(self, sqlite_file):
         """DDL CREATE TABLE should execute and return success."""
-        conn = self._make_conn()
-        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
-            with patch.object(conn, "db_type", "sqlite"):
-                result = execute_adhoc(
-                    "CREATE TABLE test_ddl (id INTEGER, name TEXT)",
-                    conn, {},
-                )
+        result = execute_adhoc(
+            "CREATE TABLE test_ddl (id INTEGER, name TEXT)",
+            self._make_conn(sqlite_file), {},
+        )
 
         assert result.success
         assert result.sql_type == "DDL"
         assert result.committed is True
 
-    def test_execute_adhoc_ddl_alter_table(self, sqlite_db):
+    def test_execute_adhoc_ddl_alter_table(self, sqlite_file):
         """DDL ALTER TABLE should execute and return success."""
-        conn = self._make_conn()
-        with patch("dbqm.core.query_engine.get_connection", return_value=sqlite_db):
-            with patch.object(conn, "db_type", "sqlite"):
-                result = execute_adhoc(
-                    "ALTER TABLE employees ADD COLUMN bonus REAL",
-                    conn, {},
-                )
+        result = execute_adhoc(
+            "ALTER TABLE employees ADD COLUMN bonus REAL",
+            self._make_conn(sqlite_file), {},
+        )
 
         assert result.success
         assert result.sql_type == "DDL"
 
     def test_execute_adhoc_ddl_error(self):
         """DDL on non-existent table should return error."""
-        conn = self._make_conn()
+        conn = self._make_conn(":memory:")
         with patch("dbqm.core.query_engine.get_connection") as mock_get:
             mock_db = MagicMock()
             mock_cursor = MagicMock()
@@ -318,7 +305,7 @@ class TestExecuteWithSqlite:
 
     def test_execute_adhoc_unknown_rejected(self):
         """UNKNOWN SQL type should be rejected."""
-        conn = self._make_conn()
+        conn = self._make_conn(":memory:")
         result = execute_adhoc("MERGE INTO t USING s ON (t.id=s.id)", conn, {})
         assert not result.success
         assert "nao suportado" in result.error

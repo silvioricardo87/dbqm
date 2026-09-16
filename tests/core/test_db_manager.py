@@ -285,3 +285,22 @@ class TestOpenConnection:
             with pytest.raises(RuntimeError, match="ORA-12541"):
                 with open_connection(MagicMock()):
                     pass
+
+
+class TestSqliteConnection:
+    """The fifth engine. No driver to miss: sqlite3 ships with Python."""
+
+    def test_sqlite_connects_to_a_file(self, tmp_path):
+        conn = Connection(name="l", db_type="sqlite", user="", password="",
+                          database=str(tmp_path / "t.db"))
+        db = get_connection(conn)
+        db.execute("CREATE TABLE t (id INTEGER)")
+        db.commit()
+        db.close()
+        assert (tmp_path / "t.db").exists()
+
+    def test_sqlite_accepts_memory(self):
+        conn = Connection(name="m", db_type="sqlite", user="", password="", database=":memory:")
+        db = get_connection(conn)
+        assert db.execute("SELECT 1").fetchone() == (1,)
+        db.close()

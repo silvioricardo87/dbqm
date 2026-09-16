@@ -16,7 +16,7 @@ from __future__ import annotations
 from dbqm.core.crypto import encrypt
 from dbqm.models.connection import Connection, load_connections, save_connections
 
-DB_TYPES: tuple[str, ...] = ("oracle", "sqlserver", "postgresql", "mysql")
+DB_TYPES: tuple[str, ...] = ("oracle", "sqlserver", "postgresql", "mysql", "sqlite")
 ORACLE_MODES: tuple[str, ...] = ("direct", "tns")
 
 DEFAULT_PORTS: dict[str, int] = {
@@ -66,6 +66,18 @@ def validate(values: dict) -> list[str]:
             f"Modo Oracle invalido: {mode}. Use um de: {', '.join(ORACLE_MODES)}."
         )
 
+    if db_type == "sqlite":
+        # The whole configuration is one file. A host, port, user or mode
+        # typed for it means the user has misunderstood what they are
+        # connecting to, and saying so beats silently ignoring the field.
+        if not _text(values, "database"):
+            errors.append("Informe o arquivo do banco SQLite (ou :memory:).")
+        for campo in ("host", "port", "user", "mode"):
+            if _text(values, campo):
+                errors.append(f"SQLite nao usa {campo}; deixe em branco.")
+        if values.get("password"):
+            errors.append("SQLite nao usa senha; deixe em branco.")
+
     return errors
 
 
@@ -112,6 +124,10 @@ def build(values: dict, existing: Connection | None = None) -> Connection:
             fields["host"] = _text(values, "host") or DEFAULT_HOSTS.get(db_type, "")
             fields["port"] = _port(values.get("port"), db_type)
             fields["service_name"] = _text(values, "service_name")
+    elif db_type == "sqlite":
+        # One file, nothing else. Host and port stay None so `to_dict` drops
+        # them, rather than storing an empty host that reads like a real one.
+        fields["database"] = _text(values, "database")
     else:
         fields["host"] = _text(values, "host") or DEFAULT_HOSTS.get(db_type, "")
         fields["port"] = _port(values.get("port"), db_type)

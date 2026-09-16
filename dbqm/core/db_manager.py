@@ -446,6 +446,18 @@ def get_mysql_connection(conn: Connection) -> Any:
     )
 
 
+def get_sqlite_connection(conn: Connection) -> Any:
+    """Open a SQLite database. `conn.database` is the file path, or `:memory:`.
+
+    No driver guard: `sqlite3` ships with Python. The path reuses the
+    `database` field SQL Server already has, so the model gains nothing new
+    for an engine whose whole configuration is one file name.
+    """
+    import sqlite3
+
+    return sqlite3.connect(conn.database or ":memory:")
+
+
 def get_connection(conn: Connection) -> Any:
     """Get a database connection based on connection type."""
     if conn.db_type == "oracle":
@@ -456,6 +468,8 @@ def get_connection(conn: Connection) -> Any:
         return get_postgresql_connection(conn)
     if conn.db_type == "mysql":
         return get_mysql_connection(conn)
+    if conn.db_type == "sqlite":
+        return get_sqlite_connection(conn)
     raise ValueError(f"Tipo de banco desconhecido: {conn.db_type}")
 
 

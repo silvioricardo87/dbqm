@@ -216,7 +216,8 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
             )
         cursor = db.cursor()
         try:
-            if conn.db_type == "oracle":
+            # SQLite binds `:name` natively, exactly like Oracle.
+            if conn.db_type in ("oracle", "sqlite"):
                 sql, param_values = _bind_params_oracle(sql, param_values)
             else:
                 sql, param_values = _bind_params_pyformat(sql, param_values)
@@ -449,7 +450,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             )
         cursor = db.cursor()
 
-        if conn.db_type == "oracle":
+        if conn.db_type in ("oracle", "sqlite"):
             bound_sql, param_values = _bind_params_oracle(sql, param_values)
         else:
             bound_sql, param_values = _bind_params_pyformat(sql, param_values)
