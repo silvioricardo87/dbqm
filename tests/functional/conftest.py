@@ -55,12 +55,14 @@ def envelope(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, 
 
     On success it is on stdout; on failure, on stderr. A divergence (exit 5)
     is the one case with both a non-zero exit and an `ok` object on stdout,
-    so the stream is chosen by which one carries the object, not by the
-    exit code -- and exactly one of them must.
+    so the stream is chosen by what stdout holds, not by the exit code.
+    stderr may carry progress lines next to a success (`ddl` reports each
+    object there so stdout stays parseable), which is why it is not
+    required to be empty here -- `test_output_contract.py` asserts the
+    streams where the contract says something about them.
     """
     code, out, err = invoke(argv, capsys)
-    assert (out.strip() == "") != (err.strip() == ""), (out, err)
-    return code, json.loads(out or err)
+    return code, json.loads(out if out.strip() else err)
 
 
 def seed_sqlite(path: Path, script: str = SEED) -> None:
