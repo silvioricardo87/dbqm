@@ -27,9 +27,10 @@ the message is free to be reworded. The mapping lives in
 | `unexpected` | 1 | dbqm itself failed |
 
 The shape is asserted **once, here**; other documents reference these IDs
-instead of repeating the assertion. Exit 5 is produced by a real divergence
-in [groups.md](groups.md) / [multi.md](multi.md) — its row joins this table
-with the comparison task, when the test that produces it exists.
+instead of repeating the assertion. Exit 5 needs two databases that
+disagree — [groups.md](groups.md) and [multi.md](multi.md) own the
+divergence scenarios, and QA-OUT-014 below is the one that stands for the
+exit code itself.
 
 | ID | Cenario | Camada | Engine | Teste |
 |---|---|---|---|---|
@@ -46,3 +47,4 @@ with the comparison task, when the test that produces it exists.
 | QA-OUT-011 | Dado `-f table` / Quando `dbqm sql "SELECT * FROM nao_existe" local` / Entao a mensagem `no such table: nao_existe` vai para o stdout, stderr fica vazio e o exit continua 4 | functional | all | tests/functional/test_output_contract.py::test_table_format_prints_the_failure_to_stdout_with_the_same_exit |
 | QA-OUT-012 | Dado `-f json` / Quando `dbqm sql "SELECT * FROM nao_existe" local -f json` / Entao stdout esta vazio — nem uma linha de prosa antes do envelope | functional | all | tests/functional/test_output_contract.py::test_json_failure_leaves_stdout_empty |
 | QA-OUT-013 | Dado a tabela de tokens acima / Quando lida contra `dbqm.cli.errors.ERROR_CODES` / Entao os tokens e os exits deste documento sao exatamente os do codigo | functional | all | tests/functional/test_output_contract.py::test_this_document_matches_the_error_table_in_code |
+| QA-OUT-014 | Dado `local` e `local2` divergindo num pedido / Quando `dbqm run-group pedidos -f json` / Entao exit 5 com `ok == true` no stdout (a comparacao terminou; a resposta e "nao") e `data.all_match == false` | functional | all | tests/functional/test_run_group.py::test_a_real_divergence_exits_5 |

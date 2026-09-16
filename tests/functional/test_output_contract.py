@@ -1,8 +1,9 @@
 """docs/qa/output-contract.md — the envelope and every exit code, each
 produced by a real condition against a real SQLite file.
 
-Exit 5 (`divergent`) is produced by the comparison tests; see
-`test_run_group.py`/`test_multi.py` once they exist. Everything else is here.
+Exit 5 (`divergent`) needs two databases that disagree and lives with the
+comparison tests (`test_run_group.py`, `test_multi.py`). Everything else is
+here.
 """
 from __future__ import annotations
 

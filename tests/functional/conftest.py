@@ -51,10 +51,16 @@ def invoke(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, st
 
 
 def envelope(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, dict[str, Any]]:
-    """`invoke` under the contract: the one JSON object the command emitted,
-    read from stdout on success and from stderr on failure."""
+    """`invoke` under the contract: the one JSON object the command emitted.
+
+    On success it is on stdout; on failure, on stderr. A divergence (exit 5)
+    is the one case with both a non-zero exit and an `ok` object on stdout,
+    so the stream is chosen by which one carries the object, not by the
+    exit code -- and exactly one of them must.
+    """
     code, out, err = invoke(argv, capsys)
-    return code, json.loads(out if code == 0 else err)
+    assert (out.strip() == "") != (err.strip() == ""), (out, err)
+    return code, json.loads(out or err)
 
 
 def seed_sqlite(path: Path, script: str = SEED) -> None:
@@ -95,6 +101,23 @@ def local_db(tmp_config_dir, tmp_path) -> Path:
     path = tmp_path / "local.db"
     seed_sqlite(path)
     register_connection("local", path)
+    return path
+
+
+#: What `local2` holds that `local` does not: pedido 13 is worth 6.0, not
+#: 5.25. One row, one column, so a divergence is real and its counts are
+#: known (4 keys, 3 equal, 1 different).
+LOCAL2_SEED = SEED.replace("(13, 3, 5.25)", "(13, 3, 6.0)")
+
+
+@pytest.fixture
+def local2_db(local_db, tmp_path) -> Path:
+    """A second seeded file and a connection named `local2`, identical to
+    `local` except for `LOCAL2_SEED`'s one row. What the comparison
+    commands compare against."""
+    path = tmp_path / "local2.db"
+    seed_sqlite(path, LOCAL2_SEED)
+    register_connection("local2", path)
     return path
 
 
