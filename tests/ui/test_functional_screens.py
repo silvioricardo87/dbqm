@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 from textual.app import ComposeResult
-from textual.widgets import Select, TextArea
+from textual.widgets import Select, Static, TextArea
 
 from dbqm.models.connection import find_connection
 from dbqm.models.group import find_group
@@ -25,7 +25,7 @@ from tests.functional.conftest import (  # noqa: F401 -- the fixtures are re-exp
     local2_db,
     local_db,
 )
-from tests.ui._helpers import ThemedTestApp, rendered_text
+from tests.ui._helpers import ThemedTestApp
 
 ATIVOS = "SELECT id, nome FROM clientes WHERE status = 'A' ORDER BY id"
 PED = "SELECT id, valor FROM pedidos ORDER BY id"
@@ -64,7 +64,7 @@ async def test_query_exec_runs_a_saved_query_and_shows_the_row_count(local_db, c
         await pilot.pause()
 
         assert screen.query_one("#results-phase").display is True
-        info = rendered_text(app)
+        info = str(screen.query_one("#result-info", Static).content)
         assert "ativos" in info and "local" in info
         assert "2 registros" in info
         table = screen.query_one("#result-table", ResultTable)
@@ -85,7 +85,7 @@ async def test_adhoc_executes_a_select_and_shows_the_rows(local_db):
         await app.workers.wait_for_complete()
         await pilot.pause()
 
-        info = rendered_text(app)
+        info = str(screen.query_one("#adhoc-result-info", Static).content)
         assert "local" in info
         assert "3 registros" in info
         table = screen.query_one("#res-table", ResultTable)
@@ -116,7 +116,7 @@ async def test_group_run_runs_a_group_and_shows_the_verdict(local2_db, capsys):
         await pilot.pause()
 
         assert screen.query_one("#gr-results-phase").display is True
-        info = rendered_text(app)
+        info = str(screen.query_one("#gr-result-info", Static).content)
         assert "pedidos" in info and "2 consultas" in info
         assert "DIVERGENTE" in info
         gr = screen.query_one("#gr-group-result", GroupResultWidget).group_result

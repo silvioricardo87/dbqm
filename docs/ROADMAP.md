@@ -205,7 +205,8 @@ tier spent five sub-projects removing. The id is retired and not reused.
   `validation` is the more accurate of the two — a name collision is not a
   malformed invocation. `connection` is published and an agent may already
   branch on its token, so aligning it is a breaking change and belongs in a
-  MAJOR, not in the release that noticed it.
+  MAJOR, not in the release that noticed it. QA-CONN-002 documents the
+  current behaviour so the change, when it comes, has a row to flip.
 
 - **`dbqm sql` ignores `--export` unless the statement is a SELECT.** The
   export block sits inside `if result.sql_type == "SELECT"`
@@ -277,6 +278,13 @@ tier spent five sub-projects removing. The id is retired and not reused.
   `adhoc.py` nor the design guards; recorded during the 2.9.0 regression
   rather than papered over with a retry. The fix is a second `pause()` or a
   `wait_for_animation`, taken deliberately in a suite-hygiene slice.
+- **`rendered_text` after a thread worker can come back frame-only.** The
+  adhoc pilot in `tests/ui/test_functional_screens.py` read the screenshot
+  after `wait_for_complete()` + one `pause()`; run after `test_screens.py`'s
+  adhoc tests it painted only borders while `#adhoc-result-info` already
+  held "3 registros". The pilots read the widget's `content` instead, which
+  is the fact the screenshot lags behind. Same class as the flake above:
+  one `pause()` is not always a frame.
 
 Not a tier — the four above are the product's bugs, toolchain and features.
 This is the test suite's own upkeep, recorded here because there is nowhere
