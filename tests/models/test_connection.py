@@ -61,6 +61,12 @@ class TestConnection:
         c = Connection(name="t", db_type="mysql", user="u", password="p", host="my", port=3306, database="app")
         assert c.display_target() == "my:3306/app"
 
+    def test_display_target_sqlite_is_the_file(self):
+        """No host to show: before 2.9.0 `connection list` printed an empty
+        target for every SQLite connection."""
+        c = Connection(name="t", db_type="sqlite", user="", password="", database="C:/dados/local.db")
+        assert c.display_target() == "C:/dados/local.db"
+
 
 class TestConnectionPersistence:
     def test_save_and_load(self, tmp_config_dir):

@@ -53,6 +53,9 @@ class Connection:
             if self.database:
                 target += f"/{self.database}"
             return target
+        if self.db_type == "sqlite":
+            # No host: the file is the whole target.
+            return self.database or ""
         return self.host or ""
 
 
