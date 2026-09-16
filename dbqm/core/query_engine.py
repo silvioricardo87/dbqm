@@ -692,6 +692,40 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
 
     if conn.db_type in ("postgresql", "mysql"):
         return execute_adhoc(f"EXPLAIN {sql}", conn, param_values)  # type: ignore[return-value]
+    if conn.db_type == "sqlite":
+        # EXPLAIN QUERY PLAN returns (id, parent, notused, detail). Only the
+        # detail is the plan; the rest is tree bookkeeping. Keeping the
+        # documented shape -- columns=["plan"], one row per line -- is what
+        # lets a consumer treat every engine's plan the same way.
+        db = None
+        try:
+            start = time.time()
+            try:
+                db = get_connection(conn)
+            except Exception as e:
+                return AdhocResult(
+                    sql_type="EXPLAIN", connection_name=conn.name, sql=sql,
+                    db_type=conn.db_type, success=False,
+                    error=str(e).split("\n")[0][:500], error_kind="connection",
+                )
+            cursor = db.cursor()
+            cursor.execute(f"EXPLAIN QUERY PLAN {sql}", param_values or {})
+            rows = [[row[3]] for row in cursor.fetchmany(MAX_ROWS)]
+            cursor.close()
+            return AdhocResult(
+                sql_type="EXPLAIN", connection_name=conn.name, sql=sql,
+                db_type=conn.db_type, columns=["plan"], rows=rows,
+                row_count=len(rows), elapsed=time.time() - start,
+            )
+        except Exception as e:
+            return AdhocResult(
+                sql_type="EXPLAIN", connection_name=conn.name, sql=sql,
+                db_type=conn.db_type, success=False,
+                error=str(e).split("\n")[0][:500], error_kind="statement",
+            )
+        finally:
+            if db is not None:
+                db.close()
 
     return AdhocResult(
         sql_type="EXPLAIN",

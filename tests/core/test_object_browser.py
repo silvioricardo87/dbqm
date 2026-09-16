@@ -568,3 +568,25 @@ class TestSqliteCatalog:
         db = sqlite_catalog
         with pytest.raises(ValueError):
             get_table_structure(db, "sqlite", 'x"); DROP TABLE clientes; --')
+
+
+class TestSqliteHasNoRoutines:
+    """`get_standalone_routine_info` and `execute_routine` take an open
+    handle, not a Connection, so until 2.9.0 nothing stopped them from
+    sending Oracle SQL to any engine. They refuse now, before touching it."""
+
+    def test_standalone_lookup_refuses_sqlite_before_querying(self):
+        db = MagicMock()
+        with pytest.raises(UnsupportedEngine):
+            get_standalone_routine_info(db, "P", db_type="sqlite")
+        db.cursor.assert_not_called()
+
+    def test_execute_routine_refuses_a_sqlite_connection_before_touching_it(self):
+        from dbqm.core.object_browser import execute_routine
+        from dbqm.models.connection import Connection
+        db = MagicMock()
+        conn = Connection(name="l", db_type="sqlite", user="", password="", database=":memory:")
+        rotina = RoutineInfo(name="P", routine_type="PROCEDURE", params=[])
+        with pytest.raises(UnsupportedEngine):
+            execute_routine(db, "", rotina, {}, conn=conn)
+        db.cursor.assert_not_called()

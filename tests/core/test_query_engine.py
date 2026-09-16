@@ -1106,3 +1106,25 @@ class TestErrorKind:
             execute_adhoc("SELECT 1", self._conn(), {})
 
         db.close.assert_called()
+
+
+class TestExplainSqlite:
+    def test_explain_query_plan_keeps_the_documented_shape(self, sqlite_file):
+        """columns=["plan"], one row per line -- the same shape every engine
+        returns, so a consumer reads one contract. Only the detail column of
+        EXPLAIN QUERY PLAN is the plan; the rest is tree bookkeeping."""
+        from dbqm.core.query_engine import execute_explain
+        conn = Connection(name="t", db_type="sqlite", user="", password="", database=sqlite_file)
+        r = execute_explain("SELECT name FROM employees WHERE id = 1", conn, {})
+        assert r.success, r.error
+        assert r.sql_type == "EXPLAIN"
+        assert r.columns == ["plan"]
+        assert r.rows and all(len(row) == 1 for row in r.rows)
+        assert "employees" in r.rows[0][0].lower()
+
+    def test_a_bad_query_is_a_statement_error(self, sqlite_file):
+        from dbqm.core.query_engine import execute_explain
+        conn = Connection(name="t", db_type="sqlite", user="", password="", database=sqlite_file)
+        r = execute_explain("SELECT * FROM nao_existe", conn, {})
+        assert not r.success
+        assert r.error_kind == "statement"

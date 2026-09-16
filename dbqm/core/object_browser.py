@@ -912,8 +912,20 @@ def list_package_routines(db, db_type: str, package: str) -> PackageInfo:
         cursor.close()
 
 
-def get_standalone_routine_info(db, routine_name: str, routine_type: str = "PROCEDURE") -> RoutineInfo:
-    """Get parameter info for a standalone procedure or function from ALL_ARGUMENTS."""
+def get_standalone_routine_info(
+    db, routine_name: str, routine_type: str = "PROCEDURE", db_type: str = "oracle",
+) -> RoutineInfo:
+    """Get parameter info for a standalone procedure or function from ALL_ARGUMENTS.
+
+    `db_type` defaults to Oracle because every caller before 2.9.0 was
+    Oracle; a caller that knows better passes it, and anything else is
+    refused before `all_arguments` is asked of an engine that has no such
+    view.
+    """
+    if db_type != "oracle":
+        raise UnsupportedEngine(
+            f"Rotinas armazenadas so existem no Oracle. Conexao e {db_type}."
+        )
     cursor = db.cursor()
     try:
         cursor.execute("""
@@ -1105,6 +1117,12 @@ def execute_routine(
     refuses outright: a routine can write regardless of the text that calls
     it, which is exactly why it is refused rather than classified.
     """
+    if conn is not None and conn.db_type != "oracle":
+        # Before read-only: there is nothing to protect on an engine with no
+        # routines, and the anonymous block below is PL/SQL.
+        raise UnsupportedEngine(
+            f"Rotinas armazenadas so existem no Oracle. Conexao e {conn.db_type}."
+        )
     if conn is not None and conn.read_only:
         raise ReadOnlyViolation(
             f"Conexao '{conn.name}' e somente leitura e uma rotina pode "
