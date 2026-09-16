@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.9.0] — 2026-09-15
+
+A MINOR release: SQLite is the fifth engine.
+
+### Added
+
+- **SQLite as an engine.** `dbqm connection add local --type sqlite
+  --database ./meu.db` and every engine-agnostic command runs against it —
+  `run`, `run-group`, `multi`, `sql` (SELECT, DML with `--commit`, DDL,
+  `--explain` via `EXPLAIN QUERY PLAN`), `objects`, `describe`, `rows`,
+  `ddl`, and the `--export` formats. `:memory:` is accepted. The whole
+  configuration is one file: a host, port, user or password typed for it is
+  refused by name rather than ignored, and the connection form hides those
+  fields when SQLite is chosen. A zero-setup local database, and the ground
+  the functional test suite stands on.
+- **The `mysql` extra.** `_connect_mysql` has imported `pymysql` since the
+  engine was added; no extra installed it. `pip install dbqm[mysql]` now
+  does.
+
+### Fixed
+
+- **`dbqm ddl` sent Oracle catalogue SQL to every engine.** `extract_ddl`,
+  the function the command calls, had no notion of engine: a PostgreSQL or
+  MySQL connection was asked `all_objects` and `all_synonyms` questions and
+  answered with a driver error. Only the TUI's browser screen knew to route
+  to `ddl_pg` and `ddl_mysql`. The dispatch now lives in `extract_ddl`,
+  once, and SQL Server — which has no extractor — is told so instead.
+
+### Notes on the design
+
+- **What SQLite refuses, and why.** Packages, stored routines and
+  `dbqm call` are refused with the same `UnsupportedEngine` message
+  PostgreSQL gets: an anonymous PL/SQL block has no equivalent, and an empty
+  list would read as "none here" instead of "does not apply here".
+  `get_standalone_routine_info` and `execute_routine` took an open handle
+  rather than a `Connection`, so nothing had stopped them from sending
+  PL/SQL to any engine; both now check the engine first.
+- **The engine tests stopped pretending.** They used to patch
+  `get_connection` to hand in an in-memory SQLite handle and then patch the
+  connection's `db_type` to `"oracle"` so the bind path would accept
+  `:name` — the code believed it was talking to Oracle. They now open a real
+  SQLite file through the engine's own path, with nothing patched.
+- **PRAGMA takes no bind parameters**, so in the one place a table name
+  reaches SQL as text the catalogue refuses anything that is not a plain
+  identifier rather than interpolating it.
+
 ## [2.8.0] — 2026-09-15
 
 A MINOR release: four new command groups, and with them Tier 3 of the

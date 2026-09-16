@@ -1,20 +1,20 @@
 # DB Query Manager (dbqm)
 
-Fullscreen terminal application for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, and **MySQL**. Built with [Textual](https://textual.textualize.io/) for a modern TUI experience with a single tabbed dashboard, keyboard shortcuts, and theme support.
+Fullscreen terminal application for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, **MySQL**, and **SQLite**. Built with [Textual](https://textual.textualize.io/) for a modern TUI experience with a single tabbed dashboard, keyboard shortcuts, and theme support.
 
 ## Features
 
 - **Fullscreen TUI** — Single tabbed dashboard (8 tabs, `F1`–`F8`), collapsible Templates sidebar, status bar, and keyboard-driven workflow
-- **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, and MySQL
+- **Multi-database query execution** — Run saved queries against Oracle (TNS or direct), SQL Server, PostgreSQL, MySQL, and SQLite (a file, or `:memory:`)
 - **Cross-database comparison** — Execute query groups and compare results side-by-side with match/diff/absent status
 - **Report templates** — Define text templates with `{{field}}` placeholders, auto-fill from query results or manual input, export rendered reports. Curate them from the CLI too: `dbqm template add|update|show|rm|list`, over the same `core/template_builder.py` validation the TUI uses. Content is stored verbatim — never stripped, since whitespace in a report body is formatting — but content that is only whitespace is refused
 - **DDL execution** — Execute CREATE, ALTER, DROP statements with compilation error detection from USER_ERRORS
-- **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE)
+- **DDL extraction** — Extract CREATE statements: Oracle (DBMS_METADATA), PostgreSQL (pg_catalog), MySQL (SHOW CREATE), SQLite (`sqlite_master`, verbatim)
 - **Execute routines** — Run Oracle packages, procedures, and functions with parameter input and DBMS_OUTPUT capture
 - **Package editor** — Create and edit Oracle packages with spec/body tabs, inline compilation errors from ALL_ERRORS, and wizard mode
 - **Object browser** — Inspect tables, views, stored routines (PostgreSQL/MySQL), and Oracle packages
 - **Ad-hoc SQL** — Execute SQL with parameter detection, Ctrl+Enter shortcut, connection validation, and clear with confirmation. Supports CTEs (`WITH ... SELECT`), anonymous PL/SQL blocks (`DECLARE`/`BEGIN`/`END;`, with an optional trailing `/` terminator and leading `--`/`/* */` comments) and the `EXEC`/`EXECUTE`/`CALL <proc>` shortcuts on Oracle, with DBMS_OUTPUT capture displayed after execution (TUI and CLI). In the TUI, a **"Saida DBMS"** checkbox opts SELECT/DML executions into capture; captured logs appear in a dedicated panel below the result with **Save to file** and **Copy to clipboard** buttons (anonymous PL/SQL blocks always show their output). Saving or copying produces an IDE-style **execution evidence** record — the executed SQL, connection, date/time, DBMS_OUTPUT and the outcome — for a self-contained audit trail.
-- **Execution plan (`--explain`)** — From the CLI: `dbqm sql "<query>" <conn> --explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` on Oracle (or native `EXPLAIN` on PostgreSQL/MySQL) and prints the plan in one step.
+- **Execution plan (`--explain`)** — From the CLI: `dbqm sql "<query>" <conn> --explain` runs `EXPLAIN PLAN FOR` + `DBMS_XPLAN.DISPLAY` on Oracle (native `EXPLAIN` on PostgreSQL/MySQL, `EXPLAIN QUERY PLAN` on SQLite) and prints the plan in one step.
 - **Dark/Light themes** — "Plano" design system (dark default, light variant), switchable in settings; shared design tokens (`dbqm/design/tokens.py`) drive the TUI, CLI output, and HTML reports so all three stay visually consistent
 - **Design tokens** — 15 semantic color tokens (surfaces, text, borda, identidade, and a veredito axis for OK/DIFF/AUSENTE) shared across the TUI, Rich-based CLI output, and HTML report CSS; WCAG contrast-checked against every surface it declares as valid (`VALIDO_SOBRE` in `dbqm/design/tokens.py`). Known gap outside that check: Textual's built-in `$text-muted` and Rich's `[dim]` modifier sit outside the token layer and are not contrast-checked
 - **Shared components** — `Dialog` (floating-layer chrome), `EmptyState` (mandatory what/why/first-action for empty lists), `Veredito`/`StatusOperacao` (match/diff/absent + op-result markup), and `Esqueleto` (loading skeleton + distinct disabled/read-only states) are the single implementation for their respective jobs across the TUI; zero literal colors remain outside the token layer, and all four are locked against a second hand-rolled copy reappearing — `Dialog`, `EmptyState` and `Esqueleto` by the component-inventory guards in `tests/design/test_inventory.py`, `Veredito` by its own guard in `tests/ui/test_widgets.py`
@@ -228,6 +228,9 @@ dbqm oracle-client rm instantclient_23_x64 --yes
 dbqm describe-cli -f json
 
 # Create a connection (password read from stdin, never from argv)
+# A SQLite file needs nothing but its path. No host, no user, no password.
+dbqm connection add local --type sqlite --database ./meu.db --no-password
+
 echo "s3cret" | dbqm connection add prod --type oracle --mode direct \
     --host db.example.com --port 1521 --service ORCL --user admin \
     --password-stdin --test

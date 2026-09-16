@@ -275,6 +275,9 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
+mysql = [
+    { name = "pymysql" },
+]
 oracle = [
     { name = "oracledb" },
 ]
@@ -296,13 +299,14 @@ requires-dist = [
     { name = "pymssql", marker = "platform_machine != 'ARM64' or sys_platform != 'win32'", specifier = ">=2.2" },
     { name = "pymssql", marker = "extra == 'sqlserver'", specifier = ">=2.2" },
     { name = "pymysql", specifier = ">=1.1" },
+    { name = "pymysql", marker = "extra == 'mysql'", specifier = ">=1.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "rich", specifier = ">=13.0" },
     { name = "sqlparse", specifier = ">=0.5" },
     { name = "textual", specifier = ">=0.80" },
 ]
-provides-extras = ["dev", "oracle", "postgres", "sqlserver"]
+provides-extras = ["dev", "oracle", "postgres", "sqlserver", "mysql"]
 
 [[package]]
 name = "exceptiongroup"
