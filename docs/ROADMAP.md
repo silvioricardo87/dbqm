@@ -192,22 +192,6 @@ tier spent five sub-projects removing. The id is retired and not reused.
   the refusal is the same `UnsupportedEngine` PostgreSQL gets. What it also
   does not have is an owner concept, so `_detect_owner` returns `""` and a
   DDL extraction names no schema.
-- **The TUI browser's DDL dispatch sends SQL Server to the MySQL extractor.**
-  `ui/screens/browser.py` routes `postgresql` to `ddl_pg` and *everything
-  else* to `ddl_mysql`. Found while fixing the CLI's `extract_ddl` dispatch
-  in 2.9.0, which now refuses SQL Server explicitly; the screen still does
-  not. A screen change from inside a CLI slice is how a refactor hides a
-  behaviour change, so it is recorded here rather than folded in.
-
-- **The four CRUD command groups disagree on one token.** `dbqm connection
-  add` on a name that already exists reports `usage`; `dbqm query add`,
-  `dbqm group add` and `dbqm template add` report `validation`. The exit code is 2 either way, and
-  `validation` is the more accurate of the two — a name collision is not a
-  malformed invocation. `connection` is published and an agent may already
-  branch on its token, so aligning it is a breaking change and belongs in a
-  MAJOR, not in the release that noticed it. QA-CONN-002 documents the
-  current behaviour so the change, when it comes, has a row to flip.
-
 - **`dbqm sql` ignores `--export` unless the statement is a SELECT.** The
   export block sits inside `if result.sql_type == "SELECT"`
   (`cli/commands/query.py`), so a DML, DDL or PL/SQL run accepts the flag and
@@ -270,20 +254,13 @@ tier spent five sub-projects removing. The id is retired and not reused.
 
 ## Suite hygiene
 
-- **`test_adhoc_controls_do_not_wear_the_frame` is timing-flaky on a cold
-  start.** A Textual pilot at 120x30 with one `pause()` before the frame is
-  captured; it failed once in twelve runs of `tests/models tests/design` in
-  a fresh worktree -- the first run each time -- and never in eight isolated
-  runs or four runs on `main`. Not caused by any branch that touches neither
-  `adhoc.py` nor the design guards; recorded during the 2.9.0 regression
-  rather than papered over with a retry. The fix is a second `pause()` or a
-  `wait_for_animation`, taken deliberately in a suite-hygiene slice.
 - **`rendered_text` after a thread worker can come back frame-only.** The
   adhoc pilot in `tests/ui/test_functional_screens.py` read the screenshot
   after `wait_for_complete()` + one `pause()`; run after `test_screens.py`'s
   adhoc tests it painted only borders while `#adhoc-result-info` already
   held "3 registros". The pilots read the widget's `content` instead, which
-  is the fact the screenshot lags behind. Same class as the flake above:
+  is the fact the screenshot lags behind. `test_adhoc_controls_do_not_wear_the_frame`
+  had the same cold-start shape and took a second `pause()` in 2.9.0;
   one `pause()` is not always a frame.
 
 Not a tier — the four above are the product's bugs, toolchain and features.

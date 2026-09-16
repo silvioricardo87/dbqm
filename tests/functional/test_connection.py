@@ -49,7 +49,7 @@ def test_add_creates_a_connection_that_answers(arquivo, capsys):
 def test_add_refuses_a_duplicate(local, capsys):
     code, body = _add_local(local, capsys)
     assert code == 2
-    assert body["error"]["code"] == "usage"
+    assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == 'Conexao "local" ja existe.'
 
 

@@ -371,6 +371,9 @@ async def test_adhoc_controls_do_not_wear_the_frame(tmp_config_dir):
 
     app = _App()
     async with app.run_test(size=(120, 30)) as pilot:
+        # Two pauses, not one: on a cold start the first frame is not always
+        # painted after a single pause, and the crop read an empty line.
+        await pilot.pause()
         await pilot.pause()
         for seletor in ("#adhoc-dbms-toggle", "#adhoc-conn-select"):
             topo = crop(app, app.query_one(seletor))[0]
@@ -384,6 +387,7 @@ async def test_adhoc_controls_do_not_wear_the_frame(tmp_config_dir):
         largura_antes = len(crop(app, seletor_conexao))
 
         seletor_conexao.add_class("--conn-selected")
+        await pilot.pause()
         await pilot.pause()
         depois = app.screen.get_style_at(*canto).color
 

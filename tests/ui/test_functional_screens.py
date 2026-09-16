@@ -8,14 +8,18 @@ absence of `monkeypatch` and `patch` in this file.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from textual.app import ComposeResult
 from textual.widgets import Select, Static, TextArea
 
-from dbqm.models.connection import find_connection
+from dbqm.core import paths
+from dbqm.models.connection import Connection, find_connection
 from dbqm.models.group import find_group
 from dbqm.models.query import find_query
 from dbqm.ui.screens.adhoc import AdhocScreen
+from dbqm.ui.screens.browser import BrowserScreen
 from dbqm.ui.screens.group_run import GroupRunScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
 from dbqm.ui.widgets.group_result import GroupResultWidget
@@ -44,6 +48,15 @@ class AdhocTestApp(ThemedTestApp):
 class GroupRunTestApp(ThemedTestApp):
     def compose(self) -> ComposeResult:
         yield GroupRunScreen()
+
+
+class BrowserTestApp(ThemedTestApp):
+    def compose(self) -> ComposeResult:
+        yield BrowserScreen()
+
+
+def _notifications(app) -> list[str]:
+    return [n.message for n in app._notifications]
 
 
 @pytest.mark.asyncio
@@ -123,3 +136,43 @@ async def test_group_run_runs_a_group_and_shows_the_verdict(local2_db, capsys):
         assert gr is not None and gr.all_match is False
         assert [c.column for c in gr.comparisons] == ["valor"]
         assert gr.comparisons[0].diff_count == 1
+
+
+@pytest.mark.asyncio
+async def test_browser_extracts_sqlite_ddl_through_the_core_dispatch(local_db):
+    """`browser`: the DDL worker on a SQLite connection saves the CREATE
+    TABLE under exports/ddl. The screen used to route engines itself and
+    refused SQLite as unsupported."""
+    conn = find_connection("local")
+    assert conn is not None
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        worker = screen._run_ddl(conn, "clientes")
+        await worker.wait()
+        await pilot.pause()
+
+        avisos = _notifications(app)
+        assert any(a.startswith("DDL salvo") for a in avisos), avisos
+    arquivos = list((Path(paths.EXPORTS_DIR) / "ddl").rglob("*.sql"))
+    assert arquivos, "no .sql under exports/ddl"
+    assert "CREATE TABLE clientes" in "".join(a.read_text(encoding="utf-8") for a in arquivos)
+
+
+@pytest.mark.asyncio
+async def test_browser_tells_sql_server_it_has_no_extractor(tmp_config_dir):
+    """The one engine without an extractor is told so by core's message --
+    not handed to the MySQL extractor, as the screen's own routing once
+    did. No connection is opened: the refusal comes before the driver."""
+    conn = Connection(name="ms", db_type="sqlserver", user="u", password="p",
+                      host="h", port=1433, database="d")
+    app = BrowserTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(BrowserScreen)
+        worker = screen._run_ddl(conn, "dbo.tabela")
+        await worker.wait()
+        await pilot.pause()
+        # the mount notice ("Nenhuma conexao configurada.") is also there:
+        # the connection is handed to the worker, never registered
+        assert "Erro: Extracao de DDL nao suportada para sqlserver." in _notifications(app)
+    assert not (Path(paths.EXPORTS_DIR) / "ddl").exists()

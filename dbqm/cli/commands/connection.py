@@ -107,7 +107,9 @@ def _connection_add(args: argparse.Namespace) -> None:
     from dbqm.models.connection import save_connections
 
     if deps.find_connection(args.name) is not None:
-        _fail_or_print(args, "connection.add", "usage",
+        # `validation`, like query/group/template: a name collision is not a
+        # malformed invocation. Was `usage` until 2.9.0.
+        _fail_or_print(args, "connection.add", "validation",
                         f'Conexao "{args.name}" ja existe.')
 
     # Validate everything but the password first: a terminal user should
