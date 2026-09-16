@@ -35,6 +35,7 @@ _EXPLAIN_PREFIX = re.compile(
         (?:ANALYZE\s+)?
         (?:VERBOSE\s+)?
         (?:FORMAT\s*=\s*\w+\s+)?          # MySQL: FORMAT=JSON
+        (?:QUERY\s+PLAN\s+)?              # SQLite: QUERY PLAN
         (?:PLAN\s+                        # Oracle: PLAN [SET STATEMENT_ID=x] FOR
            (?:SET\s+STATEMENT_ID\s*=\s*\S+\s+)?
            FOR\s+)?
