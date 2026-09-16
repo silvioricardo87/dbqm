@@ -8,10 +8,14 @@ the database is a file under `tmp_path` -- never the developer's home.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import pytest
+
+from dbqm.cli import run_cli
 
 SEED = """
 CREATE TABLE clientes (
@@ -29,6 +33,28 @@ CREATE VIEW v_ativos AS SELECT id, nome FROM clientes WHERE status = 'A';
 INSERT INTO clientes VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
 INSERT INTO pedidos VALUES (10, 1, 9.5), (11, 1, 30.0), (12, 3, 20.0), (13, 3, 5.25);
 """
+
+
+def invoke(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, str, str]:
+    """Run the CLI for real and return `(exit_code, stdout, stderr)`.
+
+    `run_cli` returns on success and raises `SystemExit` on failure; the
+    tests care about the number either way, so this folds both into one.
+    """
+    try:
+        run_cli(argv)
+        code = 0
+    except SystemExit as e:
+        code = int(e.code or 0)
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+def envelope(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, dict[str, Any]]:
+    """`invoke` under the contract: the one JSON object the command emitted,
+    read from stdout on success and from stderr on failure."""
+    code, out, err = invoke(argv, capsys)
+    return code, json.loads(out if code == 0 else err)
 
 
 def seed_sqlite(path: Path, script: str = SEED) -> None:
@@ -69,4 +95,27 @@ def local_db(tmp_config_dir, tmp_path) -> Path:
     path = tmp_path / "local.db"
     seed_sqlite(path)
     register_connection("local", path)
+    return path
+
+
+@pytest.fixture
+def read_only_db(local_db) -> Path:
+    """`local_db` plus a second connection, `ro`, on the same file with
+    `read_only=True`. Same data, so a refusal can be checked by reading the
+    row back through `local` and finding it untouched."""
+    register_connection("ro", local_db, read_only=True)
+    return local_db
+
+
+@pytest.fixture
+def broken_db(tmp_config_dir, tmp_path) -> Path:
+    """A connection named `broken` whose `database` is a directory.
+
+    `sqlite3.connect` creates a missing file, so a path that does not exist
+    would connect fine; a directory is what makes the driver refuse
+    (`unable to open database file`), which is the only way to produce a real
+    `connection_failed` on this engine."""
+    path = tmp_path / "not-a-file"
+    path.mkdir()
+    register_connection("broken", path)
     return path
