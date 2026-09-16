@@ -2356,34 +2356,63 @@ class TestCmdExportConfig:
 
 
 class TestCmdImportConfig:
-    def test_import_success(self):
+    """The bundle path must exist before anything else is looked at, so
+    these tests hand the command a real (empty) file and mock only what
+    reads it."""
+
+    @pytest.fixture
+    def bundle(self, tmp_path):
+        arquivo = tmp_path / "file.dbqm"
+        arquivo.write_text("{}", encoding="utf-8")
+        return str(arquivo)
+
+    def test_import_success(self, bundle):
         summary = {"connections": 2, "queries": 3, "groups": 1, "skipped": 0}
         with patch("dbqm.cli.deps.import_configs", return_value=summary):
-            run_cli(["import-config", "file.dbqm", "--password", "pw"])
+            run_cli(["import-config", bundle, "--password", "pw"])
 
-    def test_import_error(self):
+    def test_import_error(self, bundle):
         with patch("dbqm.cli.deps.import_configs", side_effect=ValueError("bad password")):
             with pytest.raises(SystemExit) as exc:
-                run_cli(["import-config", "file.dbqm", "--password", "wrong"])
+                run_cli(["import-config", bundle, "--password", "wrong"])
             assert exc.value.code == 2
 
-    def test_import_config_json_envelope(self, capsys):
+    def test_import_config_json_envelope(self, bundle, capsys):
         summary = {"connections": 2, "queries": 3, "groups": 1, "skipped": 0}
         with patch("dbqm.cli.deps.import_configs", return_value=summary):
-            run_cli(["import-config", "file.dbqm", "--password", "pw", "-f", "json"])
+            run_cli(["import-config", bundle, "--password", "pw", "-f", "json"])
             corpo = json.loads(capsys.readouterr().out)
             assert corpo["ok"] is True
             assert corpo["command"] == "import-config"
             assert corpo["data"] == summary
 
-    def test_import_config_json_failure_leaves_stdout_clean(self, capsys):
+    def test_import_config_json_failure_leaves_stdout_clean(self, bundle, capsys):
         with patch("dbqm.cli.deps.import_configs", side_effect=ValueError("bad password")):
             with pytest.raises(SystemExit) as exc:
-                run_cli(["import-config", "file.dbqm", "--password", "wrong", "-f", "json"])
+                run_cli(["import-config", bundle, "--password", "wrong", "-f", "json"])
             assert exc.value.code == 2
             saida = capsys.readouterr()
             assert saida.out == ""
             assert json.loads(saida.err)["error"]["code"] == "validation"
+
+    def test_a_missing_bundle_is_not_found_before_the_password_is_asked(self, tmp_path, monkeypatch, capsys):
+        """No password source at all: if the path check did not come first,
+        this would fail as `usage` from `resolve_password` -- or worse, as
+        the OS's localised "file not found" text under `validation`."""
+        monkeypatch.delenv("DBQM_BUNDLE_PASSWORD", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        spy = MagicMock()
+        monkeypatch.setattr("dbqm.cli.deps.import_configs", spy)
+        caminho = str(tmp_path / "nao.dbqm")
+        with pytest.raises(SystemExit) as exc:
+            run_cli(["import-config", caminho, "-f", "json"])
+        assert exc.value.code == 2
+        saida = capsys.readouterr()
+        assert saida.out == ""
+        erro = json.loads(saida.err)["error"]
+        assert erro["code"] == "not_found"
+        assert erro["message"] == f"Arquivo '{caminho}' nao encontrado."
+        spy.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -2756,8 +2785,10 @@ class TestConfigBundlePassword:
         spy = MagicMock()
         monkeypatch.setattr("dbqm.cli.deps.import_configs", spy)
 
+        arquivo = tmp_config_dir / "file.dbqm"
+        arquivo.write_text("{}", encoding="utf-8")
         with pytest.raises(SystemExit) as exc:
-            run_cli(["import-config", "file.dbqm"])
+            run_cli(["import-config", str(arquivo)])
         assert exc.value.code == 2
         spy.assert_not_called()
 

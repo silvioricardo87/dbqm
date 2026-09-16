@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from rich.markup import escape
 
@@ -33,6 +34,15 @@ def cmd_export_config(args: argparse.Namespace) -> None:
 
 def cmd_import_config(args: argparse.Namespace) -> None:
     """Import configurations from a .dbqm bundle."""
+    # Before the password is asked for: a path that does not exist is a
+    # `not_found` in the CLI's own words, not the OS's localised error text
+    # surfacing through the generic `validation` arm below.
+    if not Path(args.file).is_file():
+        message = f"Arquivo '{args.file}' nao encontrado."
+        if args.format == "json":
+            fail("import-config", "not_found", message)
+        console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
+        sys.exit(int(exit_for("not_found")))
     password = resolve_password(
         args, "DBQM_BUNDLE_PASSWORD", "Senha do bundle: ", required=True,
         command="import-config",
