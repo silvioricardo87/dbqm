@@ -5721,3 +5721,45 @@ class TestCmdOracleClient:
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
         assert "Baixar e instalar um Oracle Instant Client" in out, \
             "expected each subcommand's own help text, e.g. install's, to be listed"
+
+
+
+class TestSqliteFromTheCli:
+    """The fifth engine through the commands. `build` and `to_dict` already
+    do the work; these pin that the CLI reaches them and that the result
+    reads like a file, not like a server with an empty host."""
+
+    def test_add_then_show_carries_the_file_and_no_host(self, tmp_config_dir, capsys):
+        run_cli(["connection", "add", "local", "--type", "sqlite",
+                 "--database", "meu.db", "--no-password", "-f", "json"])
+        capsys.readouterr()
+        run_cli(["connection", "show", "local", "-f", "json"])
+        corpo = json.loads(capsys.readouterr().out)
+        assert corpo["data"]["db_type"] == "sqlite"
+        assert corpo["data"]["database"] == "meu.db"
+        assert "host" not in corpo["data"]
+        assert "port" not in corpo["data"]
+
+    def test_a_host_typed_for_sqlite_is_refused_by_name(self, tmp_config_dir, capsys):
+        with pytest.raises(SystemExit) as saiu:
+            run_cli(["connection", "add", "local", "--type", "sqlite",
+                     "--database", "meu.db", "--host", "srv", "--no-password", "-f", "json"])
+        assert saiu.value.code == 2
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "validation"
+        assert "host" in corpo["error"]["message"]
+
+    def test_call_refuses_sqlite_before_any_connection_opens(self, tmp_config_dir, capsys):
+        """Same refusal as PostgreSQL gets: an anonymous PL/SQL block has no
+        equivalent, and `db_type` is known without opening anything."""
+        conn = Connection(name="local", db_type="sqlite", user="", password="",
+                          database=":memory:")
+        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+             patch("dbqm.cli.deps.open_connection") as mock_open:
+            with pytest.raises(SystemExit) as saiu:
+                run_cli(["call", "PKG.ROTINA", "local", "-f", "json"])
+            assert saiu.value.code == 2
+            mock_open.assert_not_called()
+        corpo = json.loads(capsys.readouterr().err)
+        assert corpo["error"]["code"] == "usage"
+        assert "sqlite" in corpo["error"]["message"]

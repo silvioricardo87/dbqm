@@ -6143,3 +6143,26 @@ async def test_connections_an_unreadable_password_is_not_destroyed_by_a_save(
     assert find_connection("quebrada").password == "nao-e-um-token-fernet", (
         "an unreadable password must survive a save, not be silently replaced"
     )
+
+
+
+@pytest.mark.asyncio
+async def test_connections_form_hides_the_network_fields_for_sqlite(tmp_config_dir):
+    """Choosing SQLite leaves only the file path: host, port, user and
+    password disappear, and choosing PostgreSQL brings them back."""
+    from textual.widgets import Select
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-type", Select).value = "sqlite"
+        await pilot.pause()
+        assert screen.query_one("#conn-form-database").display is True
+        for field in ("#conn-form-host", "#conn-form-port",
+                      "#conn-form-user", "#conn-form-pass"):
+            assert screen.query_one(field).display is False, field
+
+        screen.query_one("#conn-form-type", Select).value = "postgresql"
+        await pilot.pause()
+        for field in ("#conn-form-host", "#conn-form-port",
+                      "#conn-form-user", "#conn-form-pass"):
+            assert screen.query_one(field).display is True, field
