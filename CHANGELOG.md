@@ -44,6 +44,21 @@ A MINOR release: SQLite is the fifth engine.
 - **`import-config` on a path that does not exist** surfaced the OS's
   localised error text under `validation`, after asking for the password.
   It is `not_found`, in dbqm's words, before the prompt. Found by QA-PORT-006.
+- **The TUI browser's DDL extraction routed engines itself.** It refused
+  SQLite as unsupported and, before 2.9.0's `extract_ddl` dispatch, sent
+  everything that was not PostgreSQL to the MySQL extractor. It now calls
+  `extract_ddl` for every non-Oracle engine: SQLite extracts, SQL Server is
+  told there is no extractor. Two TUI pilots prove both.
+- **`test_adhoc_controls_do_not_wear_the_frame` failed on a cold start** —
+  one `pause()` before reading the frame; it takes two now.
+
+### Changed
+
+- **`dbqm connection add` on a name that already exists reports
+  `validation`**, as `query add`, `group add` and `template add` always did.
+  It said `usage`; the exit code is 2 either way, and a name collision is not
+  a malformed invocation. A consumer branching on the token for this one
+  case sees a different word — the number it branches on is the same.
 
 ### QA
 
@@ -64,12 +79,12 @@ A MINOR release: SQLite is the fifth engine.
   on a `functional` row that says `—`, on a referenced test that does not
   exist, on a `functional` row pointing outside `tests/functional/`, and on
   an ID used twice.
-- **Three TUI pilots that execute** (`tests/ui/test_functional_screens.py`):
-  `query_exec`, `adhoc` and `group_run` run against the real SQLite file
-  and read the result back from the widget. The first UI tests that do more
+- **Five TUI pilots that execute** (`tests/ui/test_functional_screens.py`):
+  `query_exec`, `adhoc`, `group_run` and the browser's DDL run against the
+  real SQLite file and read the result back from the widget. The first UI tests that do more
   than render.
-- The suite went from 1479 tests to 1678: 183 functional, 9 in the ratchet,
-  3 pilots, and the unit cases the three fixes above brought.
+- The suite went from 1479 tests to 1680: 183 functional, 9 in the ratchet,
+  5 pilots, and the unit cases the fixes above brought.
 
 ### Notes on the design
 

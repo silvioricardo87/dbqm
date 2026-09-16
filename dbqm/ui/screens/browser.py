@@ -566,14 +566,13 @@ class BrowserScreen(Vertical):
                     self.app.call_from_thread(self._on_ddl_saved, dir_path, result.saved_files)
                     return
                 result = extract_ddl(conn, obj_upper)
-            elif conn.db_type in ("postgresql", "mysql"):
-                result = self._extract_generic(conn, obj_name)
             else:
-                self.app.call_from_thread(
-                    self._on_error,
-                    f"Tipo de banco '{conn.db_type}' nao suportado para DDL.",
-                )
-                return
+                # `extract_ddl` dispatches by engine (sqlite, postgresql,
+                # mysql) and answers SQL Server with an error in `errors`;
+                # the screen used to keep its own copy of that routing, which
+                # is how SQLite arrived here unsupported and SQL Server was
+                # once handed to the MySQL extractor.
+                result = extract_ddl(conn, obj_name)
 
             if result.errors and not result.objects:
                 self.app.call_from_thread(self._on_error, "; ".join(result.errors))
@@ -583,32 +582,6 @@ class BrowserScreen(Vertical):
             self.app.call_from_thread(self._on_ddl_saved, dir_path, result.saved_files)
         except Exception as e:  # pragma: no cover - depends on live DB
             self.app.call_from_thread(self._on_error, str(e))
-
-    def _extract_generic(self, conn, object_name: str):
-        """Extract DDL for PostgreSQL/MySQL objects (own short-lived handle)."""
-        from dbqm.core.db_manager import get_connection
-        from dbqm.core.ddl_extractor import ExtractionResult
-
-        db = None
-        try:
-            db = get_connection(conn)
-            result = ExtractionResult(
-                object_name=object_name, object_type="UNKNOWN",
-                owner="", connection_name=conn.name,
-            )
-            if conn.db_type == "postgresql":
-                from dbqm.core.ddl_pg import extract_pg_ddl
-                extract_pg_ddl(db, object_name, result)
-            else:
-                from dbqm.core.ddl_mysql import extract_mysql_ddl
-                extract_mysql_ddl(db, object_name, result)
-            return result
-        finally:
-            if db is not None:
-                try:
-                    db.close()
-                except Exception:
-                    pass
 
     def _on_ddl_saved(self, dir_path: str, saved_files: list[str]) -> None:
         if saved_files:
