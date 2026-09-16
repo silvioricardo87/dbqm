@@ -42,6 +42,7 @@ exports/
 ops/
 docs/plans/
 docs/superpowers/
+.superpowers/
 PRD.md
 
 # Logs
