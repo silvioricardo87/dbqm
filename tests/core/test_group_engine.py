@@ -315,3 +315,60 @@ class TestExecuteAcross:
             ("missing", "ghost"),
             ("progress", "b"), ("result", "b"),
         ]
+
+
+class TestDuplicateKeyValues:
+    """Two rows sharing a key value on the same side used to collapse into
+    one silently: the index keeps the last, and the comparison answered
+    about it as though the other had never existed."""
+
+    @staticmethod
+    def _result(rows):
+        return QueryResult(
+            query_name="q", connection_name="c",
+            columns=["id", "valor"], rows=rows, row_count=len(rows), elapsed=0.0,
+        )
+
+    def test_rows_lost_to_a_repeated_key_are_counted_per_side(self):
+        resultados = {
+            "a": self._result([[1, "x"], [1, "y"], [2, "z"]]),
+            "b": self._result([[1, "y"], [2, "z"]]),
+        }
+        comparacoes = run_comparison(resultados, "id", ["valor"])
+        assert comparacoes[0].duplicate_rows == {"a": 1}
+        assert comparacoes[0].total_keys == 2
+
+    def test_a_unique_key_says_nothing(self):
+        """An empty map is the case worth no words at all -- every caller
+        renders a warning per entry."""
+        resultados = {
+            "a": self._result([[1, "x"], [2, "y"]]),
+            "b": self._result([[1, "x"], [2, "y"]]),
+        }
+        comparacoes = run_comparison(resultados, "id", ["valor"])
+        assert comparacoes[0].duplicate_rows == {}
+
+    def test_the_count_is_rows_dropped_not_keys_repeated(self):
+        """Three rows under one key lose two, not one."""
+        resultados = {
+            "a": self._result([[1, "x"], [1, "y"], [1, "z"]]),
+            "b": self._result([[1, "z"]]),
+        }
+        comparacoes = run_comparison(resultados, "id", ["valor"])
+        assert comparacoes[0].duplicate_rows == {"a": 2}
+
+    def test_every_column_carries_the_same_map(self):
+        """The index is built once, before any column is compared, so a
+        caller may read the first comparison and answer for all of them."""
+        resultado = QueryResult(
+            query_name="q", connection_name="c",
+            columns=["id", "a", "b"], rows=[[1, "x", "x"], [1, "y", "y"]],
+            row_count=2, elapsed=0.0,
+        )
+        comparacoes = run_comparison({"um": resultado}, "id", ["a", "b"])
+        assert [c.duplicate_rows for c in comparacoes] == [{"um": 1}, {"um": 1}]
+
+    def test_it_travels_on_the_wire(self):
+        resultados = {"a": self._result([[1, "x"], [1, "y"]])}
+        comparacao = run_comparison(resultados, "id", ["valor"])[0]
+        assert comparacao.to_dict()["duplicate_rows"] == {"a": 1}

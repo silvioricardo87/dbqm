@@ -6,6 +6,7 @@ by reading the data back afterwards.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from tests.functional.conftest import envelope, invoke
@@ -24,6 +25,7 @@ def test_two_connections_that_agree_exit_0(local2_db, capsys):
     assert body["data"]["comparisons"] == [{
         "column": "nome", "total_keys": 3, "equal_count": 3,
         "diff_count": 0, "absent_count": 0, "normalized_count": 0,
+        "duplicate_rows": {},
     }]
 
 
@@ -36,6 +38,7 @@ def test_two_connections_that_differ_exit_5(local2_db, capsys):
     assert body["data"]["comparisons"] == [{
         "column": "valor", "total_keys": 4, "equal_count": 3,
         "diff_count": 1, "absent_count": 0, "normalized_count": 0,
+        "duplicate_rows": {},
     }]
 
 
@@ -149,3 +152,31 @@ def test_table_format_prints_the_verdict_with_the_same_exit(local2_db, capsys):
     assert code == 5
     assert "DIVERGENTE" in out and "chave: id" in out
     assert err == ""
+
+
+POR_CLIENTE = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
+
+
+# QA-MULTI-015
+def test_a_repeated_derived_key_is_reported(local2_db, capsys):
+    """`multi` derives its key from whatever columns the connections have
+    in common, so an ambiguous one is easier to hit here than in a group
+    whose key a person curated."""
+    code, out, _ = invoke(
+        ["multi", POR_CLIENTE, "-c", "local", "-c", "local2", "-f", "json"], capsys,
+    )
+    body = json.loads(out)
+    assert body["data"]["join_key"] == "id"
+    assert body["warnings"] == [
+        "Chave 'id' tem valores repetidos em 'local': 2 linha(s) fora da comparacao.",
+        "Chave 'id' tem valores repetidos em 'local2': 2 linha(s) fora da comparacao.",
+    ]
+    assert body["data"]["comparisons"][0]["duplicate_rows"] == {"local": 2, "local2": 2}
+    assert code == 5
+
+
+# QA-MULTI-016
+def test_a_unique_derived_key_warns_about_nothing(local2_db, capsys):
+    code, out, _ = invoke(["multi", CLI, "-c", "local", "-c", "local2", "-f", "json"], capsys)
+    assert code == 0
+    assert "warnings" not in json.loads(out)

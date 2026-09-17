@@ -1,6 +1,7 @@
 """Tests for object browser — pure logic functions."""
 import pytest
-from unittest.mock import MagicMock
+import re
+from unittest.mock import MagicMock, patch
 from dbqm.core.object_browser import (
     _is_numeric_type, _parse_params, _parse_spec_routines,
     RoutineInfo, RoutineParam, UnsupportedEngine, get_standalone_routine_info,
@@ -202,17 +203,29 @@ class TestListObjectsProcedureFunction:
 
 
 class TestGetStandaloneRoutineInfo:
-    """Test get_standalone_routine_info."""
+    """Test get_standalone_routine_info.
 
-    def test_procedure_with_params(self):
+    Two queries now: `all_objects` resolves the owner and the real type,
+    then `all_arguments` is asked about that owner. `_cursor` wires both,
+    so a test says which routine the database knows about instead of
+    handing back a `MagicMock` for the first one.
+    """
+
+    @staticmethod
+    def _cursor(argumentos, objeto=("APP", "PROCEDURE")):
         mock_db = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [
+        mock_cursor.fetchone.return_value = objeto
+        mock_cursor.fetchall.return_value = argumentos
+        mock_db.cursor.return_value = mock_cursor
+        return mock_db, mock_cursor
+
+    def test_procedure_with_params(self):
+        mock_db, mock_cursor = self._cursor([
             ("P_ID", "NUMBER", "IN", None, 1),
             ("P_NAME", "VARCHAR2", "IN", None, 2),
             ("P_RESULT", "NUMBER", "OUT", None, 3),
-        ]
-        mock_db.cursor.return_value = mock_cursor
+        ])
 
         info = get_standalone_routine_info(mock_db, "MY_PROC", "PROCEDURE")
         assert info.name == "MY_PROC"
@@ -224,13 +237,10 @@ class TestGetStandaloneRoutineInfo:
         assert info.return_type == ""
 
     def test_function_with_return(self):
-        mock_db = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [
+        mock_db, mock_cursor = self._cursor([
             (None, "NUMBER", "OUT", None, 0),  # return type
             ("P_INPUT", "VARCHAR2", "IN", None, 1),
-        ]
-        mock_db.cursor.return_value = mock_cursor
+        ], objeto=("APP", "FUNCTION"))
 
         info = get_standalone_routine_info(mock_db, "FN_CALC", "FUNCTION")
         assert info.return_type == "NUMBER"
@@ -238,14 +248,55 @@ class TestGetStandaloneRoutineInfo:
         assert info.params[0].name == "P_INPUT"
 
     def test_procedure_no_params(self):
-        mock_db = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = []
-        mock_db.cursor.return_value = mock_cursor
+        mock_db, mock_cursor = self._cursor([])
 
         info = get_standalone_routine_info(mock_db, "SIMPLE_PROC")
         assert info.params == []
         assert info.routine_type == "PROCEDURE"
+
+    def test_the_owner_comes_from_all_objects_not_from_USER(self):
+        """`all_arguments` was filtered by `owner = USER`, so a routine the
+        caller can execute but does not own came back with no arguments --
+        indistinguishable from a real zero-argument procedure, and the block
+        was built without its parameters."""
+        mock_db, mock_cursor = self._cursor([
+            ("P_ID", "NUMBER", "IN", None, 1),
+        ], objeto=("OUTRO_SCHEMA", "PROCEDURE"))
+
+        info = get_standalone_routine_info(mock_db, "MY_PROC")
+
+        resolucao, argumentos = mock_cursor.execute.call_args_list
+        assert "all_objects" in resolucao[0][0]
+        assert resolucao[0][1] == {"name": "MY_PROC"}
+        assert "owner = USER" not in argumentos[0][0]
+        assert argumentos[0][1]["owner"] == "OUTRO_SCHEMA"
+        assert [p.name for p in info.params] == ["P_ID"]
+
+    def test_all_objects_wins_over_the_type_the_caller_guessed(self):
+        """A command line has no list to pick a type from, so the CLI asks
+        for PROCEDURE and re-tags afterwards. The dictionary is looking at
+        the routine; it answers."""
+        mock_db, _ = self._cursor([
+            (None, "NUMBER", "OUT", None, 0),
+        ], objeto=("APP", "FUNCTION"))
+
+        info = get_standalone_routine_info(mock_db, "FN_CALC", "PROCEDURE")
+
+        assert info.routine_type == "FUNCTION"
+        assert info.return_type == "NUMBER"
+
+    def test_a_name_all_objects_does_not_know_falls_back_to_the_caller(self):
+        """No row means the caller cannot see the name at all. The lookup
+        does not invent a refusal: an empty `params` reaches the caller and
+        the statement reaches Oracle, which answers PLS-00201."""
+        mock_db, mock_cursor = self._cursor([], objeto=None)
+
+        info = get_standalone_routine_info(mock_db, "NAO_EXISTE", "FUNCTION")
+
+        assert info.routine_type == "FUNCTION"
+        assert info.params == []
+        argumentos = mock_cursor.execute.call_args_list[1]
+        assert argumentos[0][1]["owner"] is None
 
     def test_in_out_direction_mapping(self):
         mock_db = MagicMock()
@@ -590,3 +641,78 @@ class TestSqliteHasNoRoutines:
         with pytest.raises(UnsupportedEngine):
             execute_routine(db, "", rotina, {}, conn=conn)
         db.cursor.assert_not_called()
+
+
+class TestExecuteRoutineHandsValuesBack:
+    """OUT values and a function's return travel back marked.
+
+    They used to arrive as bare `NOME=valor` lines mixed into whatever the
+    routine printed: a caller could not tell one from the other, and a
+    routine printing its own `RETURN=...` shadowed the real return value.
+    """
+
+    MARCADOR = re.compile(r"##dbqm[0-9a-f]{8}##")
+
+    def _run(self, linhas_extra=(), routine=None):
+        from dbqm.core.object_browser import (
+            RoutineInfo, RoutineParam, execute_routine,
+        )
+        from dbqm.models.connection import Connection
+
+        rotina = routine or RoutineInfo(
+            name="SOMA", routine_type="FUNCTION", return_type="NUMBER",
+            params=[
+                RoutineParam(name="A", data_type="NUMBER", direction="IN"),
+                RoutineParam(name="R", data_type="NUMBER", direction="OUT"),
+            ],
+        )
+        conn = Connection(name="ora", db_type="oracle", user="u", password="p")
+        db = MagicMock()
+        cursor = MagicMock()
+        db.cursor.return_value = cursor
+        executados: list[str] = []
+        cursor.execute.side_effect = lambda sql, binds=None: executados.append(sql)
+
+        def linhas(_cursor):
+            marcador = self.MARCADOR.search("\n".join(executados)).group(0)
+            return [
+                f"{marcador}R=5",
+                *linhas_extra,
+                f"{marcador}RETURN=12",
+            ]
+
+        with patch("dbqm.core.query_engine._read_dbms_output", linhas):
+            resultado = execute_routine(db, "PKG", rotina, {"A": "7"}, conn=conn)
+        return resultado, executados
+
+    def test_out_values_are_their_own_field(self):
+        resultado, _ = self._run()
+        assert resultado.success is True
+        assert resultado.out_values == {"R": "5"}
+        assert resultado.return_value == "12"
+        assert resultado.output_lines == []
+
+    def test_a_routine_printing_RETURN_no_longer_shadows_the_real_one(self):
+        """The line the routine printed stays in `output_lines`, verbatim,
+        and the return value is still the one the block handed back."""
+        resultado, _ = self._run(linhas_extra=["RETURN=eu nao sou o retorno"])
+        assert resultado.return_value == "12"
+        assert resultado.output_lines == ["RETURN=eu nao sou o retorno"]
+
+    def test_a_line_the_routine_printed_is_not_read_as_an_out_value(self):
+        resultado, _ = self._run(linhas_extra=["R=99", "processando..."])
+        assert resultado.out_values == {"R": "5"}
+        assert resultado.output_lines == ["R=99", "processando..."]
+
+    def test_the_marker_is_generated_per_execution(self):
+        """A constant could appear in a routine's own source; a marker that
+        did not exist when the routine was compiled cannot."""
+        _, primeiro = self._run()
+        _, segundo = self._run()
+        um = self.MARCADOR.search("\n".join(primeiro)).group(0)
+        outro = self.MARCADOR.search("\n".join(segundo)).group(0)
+        assert um != outro
+
+    def test_to_dict_carries_the_out_values(self):
+        resultado, _ = self._run()
+        assert resultado.to_dict()["out_values"] == {"R": "5"}

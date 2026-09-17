@@ -6,7 +6,9 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, DataTable, Input, Label, Select, Static
+from textual.widgets import (
+    Button, Checkbox, DataTable, Input, Label, Select, Static,
+)
 from textual import work
 
 from dbqm.ui.utils import sanitize_id, escape_markup
@@ -408,9 +410,7 @@ class ExecRoutineScreen(Vertical):
         in_params = [p for p in routine.params if p.direction in ("IN", "IN OUT")]
         if not in_params:
             param_area.mount(Static("[dim]Sem parametros de entrada[/]", markup=True))
-            param_area.mount(
-                Button("Executar", id="er-exec-btn", variant="primary")
-            )
+            self._mount_run_controls(param_area)
             return
 
         for p in in_params:
@@ -427,14 +427,38 @@ class ExecRoutineScreen(Vertical):
             param_area.mount(inp)
             self._param_inputs[p.name] = inp
 
-        param_area.mount(
-            Button("Executar", id="er-exec-btn", variant="primary")
-        )
+        self._mount_run_controls(param_area)
 
         # Focus first input
         if in_params:
             first_inp = self._param_inputs[in_params[0].name]
             self.call_after_refresh(first_inp.focus)
+
+    def _mount_run_controls(self, param_area: VerticalScroll) -> None:
+        """The Executar button and the commit choice, mounted together.
+
+        A routine can write, and until 2.10.0 this screen never committed:
+        `execute_routine` leaves the decision to its caller (which is why
+        `dbqm call` has `--commit`), and no caller here made it -- the
+        screen reported "Executado com sucesso" and the driver rolled the
+        work back at close. Unchecked, the rollback is now explicit and the
+        result panel says so; checked, the work is kept. Off by default:
+        running a routine to see what it does must not write.
+        """
+        param_area.mount(
+            Checkbox("Confirmar alteracoes (commit)", id="er-commit-toggle", value=False)
+        )
+        param_area.mount(
+            Button("Executar", id="er-exec-btn", variant="primary")
+        )
+
+    def _commit_requested(self) -> bool:
+        try:
+            return bool(self.query_one("#er-commit-toggle", Checkbox).value)
+        except Exception:
+            # The routine has not been chosen yet, so there is no toggle and
+            # nothing to commit either.
+            return False
 
     def _set_detail_actions(self) -> None:
         try:
@@ -466,10 +490,12 @@ class ExecRoutineScreen(Vertical):
         self.query_one(ProgressIndicator).start(
             f"Executando [bold]{escape_markup(routine.name)}[/]..."
         )
-        self._run_routine(package, routine, param_values)
+        self._run_routine(package, routine, param_values, self._commit_requested())
 
     @work(thread=True)
-    def _run_routine(self, package: str, routine, param_values: dict) -> None:
+    def _run_routine(
+        self, package: str, routine, param_values: dict, commit: bool = False,
+    ) -> None:
         from dbqm.core.object_browser import execute_routine
         from dbqm.core.read_only import ReadOnlyViolation
 
@@ -477,11 +503,31 @@ class ExecRoutineScreen(Vertical):
             result = execute_routine(
                 self._db, package, routine, param_values, conn=self._current_conn
             )
-            self.app.call_from_thread(self._show_execution_result, result)
+            # Same rule as `dbqm call`: `--commit` is not a promise to keep a
+            # failure, so an unsuccessful routine is rolled back whatever the
+            # checkbox says. Decided here, on the open handle, rather than
+            # left to the driver's close-time behaviour.
+            committed = bool(commit and result.success)
+            if committed:
+                self._db.commit()
+            else:
+                self._db.rollback()
+            self.app.call_from_thread(
+                self._show_execution_result, result, committed,
+            )
         except ReadOnlyViolation as e:
             self.app.call_from_thread(self._on_read_only_violation, str(e))
         except Exception as e:
+            self._rollback_quietly()
             self.app.call_from_thread(self._on_error, str(e))
+
+    def _rollback_quietly(self) -> None:
+        """Undo a partially executed block without letting the rollback's own
+        failure replace the error the caller is about to read."""
+        try:
+            self._db.rollback()
+        except Exception:
+            pass
 
     def _on_read_only_violation(self, msg: str) -> None:
         # A refusal, not a crash: stop the spinner and leave the screen
@@ -490,7 +536,7 @@ class ExecRoutineScreen(Vertical):
         self.query_one(ProgressIndicator).stop()
         self.notify(msg, severity="warning", timeout=8)
 
-    def _show_execution_result(self, result) -> None:
+    def _show_execution_result(self, result, committed: bool = False) -> None:
         self.query_one(ProgressIndicator).stop()
 
         result_area = self.query_one("#er-result-area", VerticalScroll)
@@ -500,12 +546,22 @@ class ExecRoutineScreen(Vertical):
             lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]
             if result.return_value is not None:
                 lines.append(f"\n[bold]Retorno:[/] {result.return_value}")
+            if result.out_values:
+                lines.append("\n[bold]Parametros de saida:[/]")
+                for nome, valor in result.out_values.items():
+                    lines.append(f"  {escape_markup(nome)} = {escape_markup(str(valor))}")
             if result.output_lines:
                 lines.append("\n[bold]Output:[/]")
                 for line in result.output_lines:
                     lines.append(f"  {escape_markup(line)}")
-            if not result.return_value and not result.output_lines:
+            if not result.return_value and not result.out_values and not result.output_lines:
                 lines.append("\n[dim]Sem retorno ou output DBMS_OUTPUT[/]")
+            # What happened to the work, always -- the screen used to say
+            # "sucesso" over a transaction the driver then threw away.
+            lines.append(
+                "\n[dim]Transacao confirmada (commit).[/]" if committed
+                else "\n[dim]Transacao desfeita (rollback) -- nada foi gravado.[/]"
+            )
         else:
             lines = [
                 f"[bold $ds-op-failure]Erro na execucao[/] ({result.elapsed:.2f}s)",

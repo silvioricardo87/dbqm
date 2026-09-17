@@ -124,6 +124,76 @@ def _export_group(
     return path
 
 
+def _sql_or_file(sql: str) -> str:
+    """The SQL to run: `sql` itself, or the contents of the file it names.
+
+    `dbqm sql` and `dbqm multi` both take "SQL text or a path to a .sql
+    file" and both implemented it in place, byte for byte. A path that is
+    not a file is SQL: a statement is never a file name by accident, and
+    letting the driver reject it says more than a guess here would.
+    """
+    caminho = Path(sql)
+    if caminho.is_file():
+        return caminho.read_text(encoding="utf-8")
+    return sql
+
+
+def _duplicate_key_warnings(join_key: str, group_result: GroupResult) -> list[str]:
+    """One line per side that lost rows to a key value it had already seen.
+
+    `run_comparison` keeps the last row under a repeated key, so a
+    comparison over an ambiguous key answers about one row and says nothing
+    about the other -- reporting `all_match` over data it never told apart.
+    The counts ride along instead of being recomputed: every
+    `ComparisonResult` carries the same map, because the index is built once
+    before any column is compared, so the first one answers for all of them.
+
+    `ds.text.muted` is this design system's warning ink (see `ui/theme.py`):
+    a warning with no colour of its own, because the result it qualifies is
+    still the headline.
+    """
+    if not group_result.comparisons:
+        return []
+    duplicadas = group_result.comparisons[0].duplicate_rows
+    return [
+        f"Chave '{join_key}' tem valores repetidos em '{nome}': "
+        f"{n} linha(s) fora da comparacao."
+        for nome, n in sorted(duplicadas.items())
+    ]
+
+
+def _export_result(
+    args: argparse.Namespace,
+    result: Any,
+    conn: Connection,
+    param_values: dict[str, str],
+) -> str:
+    """Export an `AdhocResult`'s rows, in the format `--export` names.
+
+    The four format arms were written once inside `cmd_sql`'s SELECT
+    branch; every other statement type that returns rows needs the same
+    four, and a second copy is how one of them drifts.
+    """
+    qr = deps.QueryResult(
+        query_name="adhoc",
+        connection_name=conn.name,
+        columns=result.columns,
+        rows=result.rows,
+        row_count=result.row_count,
+        elapsed=result.elapsed,
+    )
+    fmt = args.export
+    if fmt == "csv":
+        return str(deps.export_query_csv(qr, "adhoc", param_values))
+    if fmt == "json":
+        return str(deps.export_query_json(qr, "adhoc", param_values))
+    if fmt == "txt":
+        return str(deps.export_query_txt(qr, "adhoc", param_values))
+    if fmt == "html":
+        return str(deps.export_query_html(qr, "adhoc", param_values))
+    _fail_or_print(args, "sql", "usage", f"Formato de export invalido: {fmt}")
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     """Execute a saved query."""
     query = deps.find_query(args.query)
@@ -270,13 +340,18 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # Export if requested — this must still fall through to the same
     # divergence exit as every other path; it does not get to opt the
     # headline behaviour of this release out with a flag.
+    avisos = _duplicate_key_warnings(group.join_key, group_result)
+
     if args.export:
         fmt = args.export
         path = _export_group(args, "run-group", group_result, param_values)
         if args.format == "json":
-            ok("run-group", {"exported": str(path), "format": fmt})
+            ok("run-group", {"exported": str(path), "format": fmt},
+               warnings=avisos or None)
         else:
             console.print(f"Exportado: {path}")
+            for aviso in avisos:
+                console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
@@ -293,11 +368,12 @@ def cmd_run_group(args: argparse.Namespace) -> None:
                     "diff_count": c.diff_count,
                     "absent_count": c.absent_count,
                     "normalized_count": c.normalized_count,
+                    "duplicate_rows": dict(c.duplicate_rows),
                 }
                 for c in group_result.comparisons
             ],
         }
-        ok("run-group", data)
+        ok("run-group", data, warnings=avisos or None)
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
@@ -306,6 +382,8 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     console.print(f"Grupo: {group_result.group_name} — {status}")
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
+    for aviso in avisos:
+        console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
     if not group_result.all_match:
         sys.exit(int(exit_for("divergent")))
 
@@ -371,10 +449,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
                        "Informe pelo menos duas conexoes com -c/--connection.")
     names = distinct_names
 
-    sql = args.sql
-    sql_path = Path(sql)
-    if sql_path.is_file():
-        sql = sql_path.read_text(encoding="utf-8")
+    sql = _sql_or_file(args.sql)
 
     # A comparison needs a result set to compare, and only SELECT/EXPLAIN
     # produce one. Refusing here -- before any connection is even resolved,
@@ -476,13 +551,18 @@ def cmd_multi(args: argparse.Namespace) -> None:
         results, join_key=join_key, compare_columns=compare_columns,
     )
 
+    avisos = _duplicate_key_warnings(join_key, group_result)
+
     if args.export:
         fmt = args.export
         path = _export_group(args, "multi", group_result, param_values)
         if args.format == "json":
-            ok("multi", {"exported": str(path), "format": fmt, "join_key": join_key})
+            ok("multi", {"exported": str(path), "format": fmt, "join_key": join_key},
+               warnings=avisos or None)
         else:
             console.print(f"Exportado: {path}")
+            for aviso in avisos:
+                console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
@@ -499,11 +579,12 @@ def cmd_multi(args: argparse.Namespace) -> None:
                     "diff_count": c.diff_count,
                     "absent_count": c.absent_count,
                     "normalized_count": c.normalized_count,
+                    "duplicate_rows": dict(c.duplicate_rows),
                 }
                 for c in group_result.comparisons
             ],
         }
-        ok("multi", data)
+        ok("multi", data, warnings=avisos or None)
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
@@ -513,6 +594,8 @@ def cmd_multi(args: argparse.Namespace) -> None:
     console.print(f"Multi ({conexoes}) — chave: {join_key} — {status}")
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
+    for aviso in avisos:
+        console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
     if not group_result.all_match:
         sys.exit(int(exit_for("divergent")))
 
@@ -531,11 +614,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
         # transient and never reaches `save_connections`.
         conn = replace(conn, read_only=False)
 
-    sql = args.sql
-    # If argument is a file path, read SQL from it
-    sql_path = Path(sql)
-    if sql_path.is_file():
-        sql = sql_path.read_text(encoding="utf-8")
+    sql = _sql_or_file(args.sql)
 
     param_values = _parse_params(args.param, args, "sql")
 
@@ -557,6 +636,19 @@ def cmd_sql(args: argparse.Namespace) -> None:
         return
 
     sql_type = deps.classify_sql(sql)
+
+    # `--export` writes a result set, and these statement types do not
+    # return one. Until 2.10.0 the flag was accepted and silently ignored --
+    # the export block sits inside the SELECT branch -- so a DML run with
+    # `--commit -e csv` wrote the row and no file, and said nothing about
+    # it. Refused here, before the statement runs: refusing afterwards
+    # would mean the write happened and the caller still got exit 2.
+    if args.export and sql_type in ("INSERT", "UPDATE", "DELETE", "DDL"):
+        _fail_or_print(
+            args, "sql", "usage",
+            f"--export precisa de um comando que retorne linhas; "
+            f"{sql_type} nao retorna.",
+        )
 
     # Ask the read-only question before the --commit one. `execute_adhoc`
     # enforces the guard either way, and that is what protects every other
@@ -619,6 +711,23 @@ def cmd_sql(args: argparse.Namespace) -> None:
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                             result.error or "Erro ao executar bloco.")
+        # A block is the one type whose result set is not knowable from its
+        # text: it may open a cursor and return rows, and then `--export` is
+        # exactly right. Only a block that returned nothing is refused, and
+        # only after the fact -- there was nothing to decide earlier.
+        if args.export and not result.rows:
+            _fail_or_print(
+                args, "sql", "usage",
+                "--export precisa de um comando que retorne linhas; "
+                "o bloco nao retornou nenhuma.",
+            )
+        if args.export:
+            path = _export_result(args, result, conn, param_values)
+            if args.format == "json":
+                ok("sql", {"exported": str(path), "format": args.export})
+                return
+            console.print(f"Exportado: {path}")
+            return
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
@@ -659,19 +768,9 @@ def cmd_sql(args: argparse.Namespace) -> None:
         )
 
         if args.export:
-            fmt = args.export
-            if fmt == "csv":
-                path = deps.export_query_csv(qr, "adhoc", param_values)
-            elif fmt == "json":
-                path = deps.export_query_json(qr, "adhoc", param_values)
-            elif fmt == "txt":
-                path = deps.export_query_txt(qr, "adhoc", param_values)
-            elif fmt == "html":
-                path = deps.export_query_html(qr, "adhoc", param_values)
-            else:
-                _fail_or_print(args, "sql", "usage", f"Formato de export invalido: {fmt}")
+            path = _export_result(args, result, conn, param_values)
             if args.format == "json":
-                ok("sql", {"exported": str(path), "format": fmt})
+                ok("sql", {"exported": str(path), "format": args.export})
                 return
             console.print(f"Exportado: {path}")
             return
@@ -686,6 +785,19 @@ def cmd_sql(args: argparse.Namespace) -> None:
         # still ran successfully (e.g. a type sqlparse can't name) — same
         # shape as the DML success branch, so json still gets an envelope
         # instead of falling through to a bare `print`.
+        if args.export and not result.rows:
+            _fail_or_print(
+                args, "sql", "usage",
+                "--export precisa de um comando que retorne linhas; "
+                f"{result.sql_type} nao retornou nenhuma.",
+            )
+        if args.export:
+            path = _export_result(args, result, conn, param_values)
+            if args.format == "json":
+                ok("sql", {"exported": str(path), "format": args.export})
+                return
+            console.print(f"Exportado: {path}")
+            return
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
@@ -906,6 +1018,8 @@ def cmd_call(args: argparse.Namespace) -> None:
 
     if result.return_value is not None:
         console.print(f"Retorno: {result.return_value}", markup=False, highlight=False)
+    for nome, valor in result.out_values.items():
+        console.print(f"{nome}: {valor}", markup=False, highlight=False)
     for line in result.output_lines:
         console.print(line, markup=False, highlight=False)
     if committed:
