@@ -43,6 +43,20 @@ stops answering about rows it never told apart.
   discarded at close. The screen has a `Confirmar alteracoes (commit)`
   checkbox, off by default, and the result panel now always says which of
   the two happened.
+- **`dbqm sql --explain` accepted `--export` and ignored it.** The explain
+  branch returns before everything else, so the flag never reached the
+  guard above — the same "accepted and ignored" this release set out to
+  remove, one branch further up. A plan is a result set (`plan`, one row
+  per line) and is now exported like any other.
+- **The export refusal jumped ahead of the read-only one.** On a read-only
+  connection, `sql "UPDATE ..." ro -e csv` reported the flag, sending the
+  caller to drop it and only then meet the real obstacle — the two round
+  trips the `--commit` ordering exists to avoid. The connection's refusal
+  comes first.
+- **The comparison screens were silent about a repeated key.** The CLI
+  warned and the TUI did not, over the same wrong answer. Both screens
+  notify now, with the wording the CLI uses: it lives in
+  `group_engine.duplicate_key_warnings`, read by all three.
 - **OUT values and a function's return were indistinguishable from output.**
   They arrived as bare `NOME=valor` lines mixed into whatever the routine
   printed, so a routine printing its own `RETURN=...` shadowed the real
@@ -55,6 +69,10 @@ stops answering about rows it never told apart.
 - **`comparisons[*]` gained `duplicate_rows`** in the `run-group` and `multi`
   envelopes, and both commands may now emit `warnings`. Additive: a consumer
   reading the existing keys is unaffected.
+- **`GroupResult` carries the `join_key` it was compared on**, and publishes
+  it in `to_dict()`. An ad-hoc comparison derives its key, and the result
+  had no way to say which column that had been — which is what a warning
+  naming the key needs.
 
 ### Internal
 
@@ -68,6 +86,11 @@ stops answering about rows it never told apart.
   once wrote into the developer's real `~/.dbqm`.
 - `TestBuildParser`'s hand-typed command set is gone — the parser's own
   subparsers are the source, which is what it was trying to say.
+- The QA traceability ratchet accepts `tests/ui/test_functional_screens.py`
+  as a `functional` source: it drives the real screens against the real
+  database and patches nothing, which is what makes a row functional. The
+  five TUI pilots are traced from the documents now — 203 scenarios, 173
+  functional.
 
 ---
 

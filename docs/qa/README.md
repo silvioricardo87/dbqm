@@ -39,7 +39,7 @@ code.
 | Layer | Against | Covers |
 |---|---|---|
 | unit | mocks | isolated logic |
-| functional | a seeded SQLite file (`tests/functional/conftest.py`) | every engine-agnostic command end to end |
+| functional | a seeded SQLite file (`tests/functional/conftest.py`) | every engine-agnostic command end to end, plus the screens that execute (`tests/ui/test_functional_screens.py`) |
 | manual | a real Oracle the maintainer has | `call`, packages, DBMS_OUTPUT, `ddl` via `DBMS_METADATA`, `--explain` on Oracle |
 
 Before 2.9.0 the CLI had 1448 tests and not one ran a command against a
@@ -63,9 +63,9 @@ scenario, only the orchestration around it.
 
 | Document | Code | Scenarios | functional | manual |
 |---|---|---|---|---|
-| [adhoc-sql.md](adhoc-sql.md) | `SQL` | 18 | 17 | 1 |
-| [saved-queries.md](saved-queries.md) | `QUERY` | 10 | 10 | 0 |
-| [groups.md](groups.md) | `GROUP` | 13 | 13 | 0 |
+| [adhoc-sql.md](adhoc-sql.md) | `SQL` | 21 | 20 | 1 |
+| [saved-queries.md](saved-queries.md) | `QUERY` | 11 | 11 | 0 |
+| [groups.md](groups.md) | `GROUP` | 16 | 16 | 0 |
 | [multi.md](multi.md) | `MULTI` | 16 | 16 | 0 |
 | [read-only-guard.md](read-only-guard.md) | `RO` | 11 | 10 | 1 |
 | [output-contract.md](output-contract.md) | `OUT` | 14 | 14 | 0 |
@@ -81,7 +81,7 @@ scenario, only the orchestration around it.
 | [routines.md](routines.md) | `CALL` | 15 | 0 | 15 |
 | [packages.md](packages.md) | `PKG` | 5 | 0 | 5 |
 | [oracle-client.md](oracle-client.md) | `OCLI` | 6 | 0 | 6 |
-| **Total** | | **196** | **166** | **30** |
+| **Total** | | **203** | **173** | **30** |
 
 The 30 manual rows are the Oracle-only surface (`call`, packages, the
 client installer, `DBMS_METADATA`, DBMS_OUTPUT, `EXPLAIN PLAN FOR` on a

@@ -61,6 +61,10 @@ class GroupResult:
     comparisons: list[ComparisonResult]
     all_match: bool
     summary_lines: list[str] = field(default_factory=list)
+    #: The column the sides were joined on. A curated group has it from the
+    #: group; an ad-hoc comparison derives it, and before 2.10.0 the result
+    #: could not say which column that had been.
+    join_key: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Wire shape. Nested dataclasses serialise through their own
@@ -74,6 +78,7 @@ class GroupResult:
             },
             "comparisons": [c.to_dict() for c in self.comparisons],
             "all_match": self.all_match,
+            "join_key": self.join_key,
         }
 
 
@@ -151,6 +156,7 @@ def build_adhoc_group_result(
         query_results=results,
         comparisons=comparisons,
         all_match=all_match,
+        join_key=join_key,
     )
 
 
@@ -352,6 +358,28 @@ def run_comparison(
     return comparisons
 
 
+def duplicate_key_warnings(group_result: GroupResult) -> list[str]:
+    """One line per side that lost rows to a key value it had already seen.
+
+    `run_comparison` keeps the last row under a repeated key, so a
+    comparison over an ambiguous key answers about one row and says nothing
+    about the other -- reporting a verdict over data it never told apart.
+    Every surface that shows a comparison shows these: the CLI in
+    `warnings`, both TUI screens as a notification. One wording, one place.
+
+    Reads the first comparison and answers for all of them: the index is
+    built once, before any column is compared, so every `ComparisonResult`
+    carries the same map.
+    """
+    if not group_result.comparisons:
+        return []
+    return [
+        f"Chave '{group_result.join_key}' tem valores repetidos em '{nome}': "
+        f"{n} linha(s) fora da comparacao."
+        for nome, n in sorted(group_result.comparisons[0].duplicate_rows.items())
+    ]
+
+
 def build_group_result(
     group_name: str,
     query_results: dict[str, QueryResult],
@@ -385,4 +413,5 @@ def build_group_result(
         comparisons=comparisons,
         all_match=all_match,
         summary_lines=summary_lines,
+        join_key=join_key,
     )

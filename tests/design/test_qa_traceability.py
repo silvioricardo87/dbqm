@@ -101,14 +101,22 @@ def test_every_referenced_test_exists():
     assert not ausentes, f"testes referenciados que nao existem: {ausentes}"
 
 
+#: Where a `functional` row may point. `tests/ui/test_functional_screens.py`
+#: is the UI's half of the same layer -- it drives the real screens against
+#: the real SQLite file and patches nothing, which is the property that makes
+#: a row `functional`. It cannot live under `tests/functional/`: the UI slice
+#: is what runs it, and it needs `tests/ui/_helpers.py`.
+FONTES_FUNCIONAIS = ("tests/functional/", "tests/ui/test_functional_screens.py")
+
+
 def test_functional_rows_point_at_the_functional_folder():
     """A `functional` row backed by a mocked test would claim a proof the
     program never gave."""
     fora = [
         f"{doc.name} {ident} -> {teste}" for doc, ident, camada, _, teste in _linhas()
-        if camada == "functional" and not teste.startswith("tests/functional/")
+        if camada == "functional" and not teste.startswith(FONTES_FUNCIONAIS)
     ]
-    assert not fora, f"linhas funcionais apontando para fora de tests/functional/: {fora}"
+    assert not fora, f"linhas funcionais apontando para fora de {FONTES_FUNCIONAIS}: {fora}"
 
 
 def test_manual_rows_carry_no_test_and_a_script():

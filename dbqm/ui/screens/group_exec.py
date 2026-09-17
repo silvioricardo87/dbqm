@@ -330,3 +330,11 @@ class GroupExecScreen(Vertical):
         grw = self.query_one("#group-results", GroupResultWidget)
         grw.display = True
         grw.load_result(group_result)
+
+        # This screen derives its join key from whatever columns the
+        # connections share, so an ambiguous one is easier to hit here than
+        # in a group whose key a person curated.
+        from dbqm.core.group_engine import duplicate_key_warnings
+
+        for aviso in duplicate_key_warnings(group_result):
+            self.notify(aviso, severity="warning", timeout=8)

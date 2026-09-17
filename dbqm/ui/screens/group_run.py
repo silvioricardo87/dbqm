@@ -26,7 +26,7 @@ from dbqm.ui.widgets.progress import ProgressIndicator
 from dbqm.ui.widgets.result_table import ResultTable
 from dbqm.ui.widgets.verdict import mark_operation, mark_verdict
 
-from dbqm.core.group_engine import GroupResult
+from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +573,12 @@ class GroupRunScreen(Vertical):
         # Load result into GroupResultWidget
         grw = self.query_one("#gr-group-result", GroupResultWidget)
         grw.load_result(group_result)
+
+        # A key whose values repeat means the verdict above covers one row
+        # per key and says nothing about the others. The CLI puts this in
+        # `warnings`; a person looking at the screen deserves the same fact.
+        for aviso in duplicate_key_warnings(group_result):
+            self.notify(aviso, severity="warning", timeout=8)
 
         # Set up action bar
         self._set_result_actions()

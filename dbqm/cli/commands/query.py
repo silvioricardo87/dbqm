@@ -15,7 +15,7 @@ from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
-from dbqm.core.group_engine import GroupResult
+from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
 from dbqm.core.object_browser import RoutineInfo
 from dbqm.models.connection import Connection
 
@@ -136,30 +136,6 @@ def _sql_or_file(sql: str) -> str:
     if caminho.is_file():
         return caminho.read_text(encoding="utf-8")
     return sql
-
-
-def _duplicate_key_warnings(join_key: str, group_result: GroupResult) -> list[str]:
-    """One line per side that lost rows to a key value it had already seen.
-
-    `run_comparison` keeps the last row under a repeated key, so a
-    comparison over an ambiguous key answers about one row and says nothing
-    about the other -- reporting `all_match` over data it never told apart.
-    The counts ride along instead of being recomputed: every
-    `ComparisonResult` carries the same map, because the index is built once
-    before any column is compared, so the first one answers for all of them.
-
-    `ds.text.muted` is this design system's warning ink (see `ui/theme.py`):
-    a warning with no colour of its own, because the result it qualifies is
-    still the headline.
-    """
-    if not group_result.comparisons:
-        return []
-    duplicadas = group_result.comparisons[0].duplicate_rows
-    return [
-        f"Chave '{join_key}' tem valores repetidos em '{nome}': "
-        f"{n} linha(s) fora da comparacao."
-        for nome, n in sorted(duplicadas.items())
-    ]
 
 
 def _export_result(
@@ -340,7 +316,10 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # Export if requested — this must still fall through to the same
     # divergence exit as every other path; it does not get to opt the
     # headline behaviour of this release out with a flag.
-    avisos = _duplicate_key_warnings(group.join_key, group_result)
+    # `ds.text.muted` is this design system's warning ink (see
+    # `ui/theme.py`): a warning with no colour of its own, because the
+    # result it qualifies is still the headline.
+    avisos = duplicate_key_warnings(group_result)
 
     if args.export:
         fmt = args.export
@@ -551,7 +530,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
         results, join_key=join_key, compare_columns=compare_columns,
     )
 
-    avisos = _duplicate_key_warnings(join_key, group_result)
+    avisos = duplicate_key_warnings(group_result)
 
     if args.export:
         fmt = args.export
@@ -626,6 +605,17 @@ def cmd_sql(args: argparse.Namespace) -> None:
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
                             result.error or "Erro ao gerar plano de execucao.")
+        # A plan is a result set -- one `plan` column, one row per line --
+        # so `--export` writes it like any other. This branch returns before
+        # the guard below ever runs, so without this the flag would be
+        # accepted and ignored here: exactly what the guard exists to stop.
+        if args.export:
+            path = _export_result(args, result, conn, param_values)
+            if args.format == "json":
+                ok("sql", {"exported": str(path), "format": args.export})
+                return
+            console.print(f"Exportado: {path}")
+            return
         if args.format == "json":
             plano = [row[0] if row else "" for row in result.rows]
             ok("sql", {"connection_name": conn.name, "elapsed": round(result.elapsed, 3), "plan": plano})
@@ -637,28 +627,28 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     sql_type = deps.classify_sql(sql)
 
+    # Ask the read-only question first, before either flag question. The
+    # same reasoning the --commit refusal has always followed: a flag the
+    # caller can fix is not the real obstacle, and reporting it first costs
+    # them a round trip to learn the connection is protected.
+    try:
+        deps.check_read_only(sql, conn)
+    except deps.ReadOnlyViolation as e:
+        _fail_or_print(args, "sql", "read_only", str(e))
+
     # `--export` writes a result set, and these statement types do not
     # return one. Until 2.10.0 the flag was accepted and silently ignored --
     # the export block sits inside the SELECT branch -- so a DML run with
     # `--commit -e csv` wrote the row and no file, and said nothing about
-    # it. Refused here, before the statement runs: refusing afterwards
-    # would mean the write happened and the caller still got exit 2.
+    # it. Before --commit, because dropping `-e` is required either way,
+    # and before the statement runs: refusing afterwards would mean the
+    # write happened and the caller still got exit 2.
     if args.export and sql_type in ("INSERT", "UPDATE", "DELETE", "DDL"):
         _fail_or_print(
             args, "sql", "usage",
             f"--export precisa de um comando que retorne linhas; "
             f"{sql_type} nao retorna.",
         )
-
-    # Ask the read-only question before the --commit one. `execute_adhoc`
-    # enforces the guard either way, and that is what protects every other
-    # caller -- this call is purely about which refusal the user reads first.
-    # Reporting the missing --commit sends them to add it and only then meet
-    # the real obstacle: two round trips to learn the connection is protected.
-    try:
-        deps.check_read_only(sql, conn)
-    except deps.ReadOnlyViolation as e:
-        _fail_or_print(args, "sql", "read_only", str(e))
 
     # Require --commit for DML operations
     if sql_type in ("INSERT", "UPDATE", "DELETE") and not args.commit:
