@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -185,6 +186,11 @@ class RoutineExecutionResult:
     return_value: Any = None
     elapsed: float = 0.0
     error: str = ""
+    #: {OUT or IN OUT parameter name: its value after the call}. Strings:
+    #: the values travel back through DBMS_OUTPUT, which is text. Separate
+    #: from `output_lines`, which now holds only what the routine itself
+    #: printed.
+    out_values: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """Wire shape."""
@@ -192,6 +198,7 @@ class RoutineExecutionResult:
             "success": self.success,
             "output_lines": list(self.output_lines),
             "return_value": self.return_value,
+            "out_values": dict(self.out_values),
             "elapsed": self.elapsed,
             "error": self.error,
         }
@@ -200,6 +207,19 @@ class RoutineExecutionResult:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _output_marker() -> str:
+    """The prefix the generated block puts on the lines it adds to
+    DBMS_OUTPUT to carry OUT values and a function's return back.
+
+    Generated per execution, not a constant: the values used to arrive as
+    plain `NOME=valor` lines mixed into whatever the routine printed, so a
+    routine printing its own `RETURN=...` shadowed the real return value and
+    an OUT value was indistinguishable from output. No routine's source can
+    contain a marker that did not exist when it was compiled.
+    """
+    return f"##dbqm{secrets.token_hex(4)}##"
+
 
 def _is_numeric_type(dtype: str) -> bool:
     """Check if a data type is numeric."""
@@ -912,6 +932,31 @@ def list_package_routines(db, db_type: str, package: str) -> PackageInfo:
         cursor.close()
 
 
+def _resolve_standalone_routine(cursor, routine_name: str) -> tuple[str, str]:
+    """`(owner, object_type)` for a standalone routine, own schema first.
+
+    `all_arguments` was filtered by `owner = USER`, so a routine the caller
+    can execute but does not own came back with no arguments at all -- which
+    is indistinguishable from a real zero-argument procedure, and the block
+    was then built with no parameters. Resolving the owner first fixes that
+    and answers two more questions in the same round trip: whether the name
+    exists, and whether it is a PROCEDURE or a FUNCTION -- which the CLI had
+    to guess at (it asks for PROCEDURE and re-tags afterwards) because
+    nothing here told it.
+
+    Returns `("", "")` when the name matches nothing the caller can see.
+    """
+    cursor.execute("""
+        SELECT owner, object_type FROM all_objects
+        WHERE object_name = :name
+          AND object_type IN ('PROCEDURE', 'FUNCTION')
+        ORDER BY
+            CASE WHEN owner = USER THEN 0 ELSE 1 END, owner
+    """, {"name": routine_name.upper()})
+    row = cursor.fetchone()
+    return (row[0], row[1]) if row else ("", "")
+
+
 def get_standalone_routine_info(
     db, routine_name: str, routine_type: str = "PROCEDURE", db_type: str = "oracle",
 ) -> RoutineInfo:
@@ -921,6 +966,10 @@ def get_standalone_routine_info(
     Oracle; a caller that knows better passes it, and anything else is
     refused before `all_arguments` is asked of an engine that has no such
     view.
+
+    `routine_type` is what the caller believes; when `all_objects` knows the
+    object, what it says wins -- it is looking at the routine, the caller is
+    guessing from a command line.
     """
     if db_type != "oracle":
         raise UnsupportedEngine(
@@ -928,15 +977,18 @@ def get_standalone_routine_info(
         )
     cursor = db.cursor()
     try:
+        owner, tipo_real = _resolve_standalone_routine(cursor, routine_name)
+        if tipo_real:
+            routine_type = tipo_real
         cursor.execute("""
             SELECT argument_name, data_type, in_out, default_value, position
             FROM all_arguments
             WHERE object_name = :name
               AND package_name IS NULL
               AND data_level = 0
-              AND owner = USER
+              AND owner = NVL(:owner, USER)
             ORDER BY position
-        """, {"name": routine_name.upper()})
+        """, {"name": routine_name.upper(), "owner": owner or None})
 
         params = []
         return_type = ""
@@ -1197,15 +1249,17 @@ def execute_routine(
         else:
             begin_lines.append(f"  {qualified_name}({args_str});")
 
-        # Print OUT params and return value
+        # Hand OUT params and the return value back, marked so they can be
+        # told apart from what the routine printed itself.
+        marcador = _output_marker()
         for p_name, var_name in out_vars.items():
             begin_lines.append(
-                f"  DBMS_OUTPUT.PUT_LINE('{p_name}=' || {var_name});"
+                f"  DBMS_OUTPUT.PUT_LINE('{marcador}{p_name}=' || {var_name});"
             )
 
         if return_var:
             begin_lines.append(
-                f"  DBMS_OUTPUT.PUT_LINE('RETURN=' || {return_var});"
+                f"  DBMS_OUTPUT.PUT_LINE('{marcador}RETURN=' || {return_var});"
             )
 
         # Assemble block
@@ -1226,20 +1280,28 @@ def execute_routine(
         from dbqm.core.query_engine import _read_dbms_output
 
         output_lines: list[str] = []
+        out_values: dict[str, str] = {}
         return_value: Any = None
 
         for line_val in _read_dbms_output(cursor):
-            # Check for return value
-            if line_val.startswith("RETURN="):
-                return_value = line_val[7:]
-            else:
+            if not line_val.startswith(marcador):
+                # Whatever the routine printed, verbatim -- including a line
+                # that happens to read `RETURN=...`, which is the routine's
+                # to print and no longer mistaken for the real return value.
                 output_lines.append(line_val)
+                continue
+            nome, _, valor = line_val[len(marcador):].partition("=")
+            if nome == "RETURN":
+                return_value = valor
+            else:
+                out_values[nome] = valor
 
         elapsed = time.time() - start
         return RoutineExecutionResult(
             success=True,
             output_lines=output_lines,
             return_value=return_value,
+            out_values=out_values,
             elapsed=elapsed,
         )
 

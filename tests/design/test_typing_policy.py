@@ -17,7 +17,7 @@ from pathlib import Path
 #: Measured when the ratchet landed. This number goes DOWN as modules are
 #: typed, never up. Lowering it is the whole point; raising it needs a very
 #: good reason written next to it.
-MAX_LEGACY_MODULES = 36
+MAX_LEGACY_MODULES = 35
 
 
 def _legacy_modules() -> list[str]:

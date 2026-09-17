@@ -153,3 +153,79 @@ def test_table_format_prints_the_rows(local_db, capsys):
     assert code == 0
     assert "Ana" in out
     assert err == ""
+
+
+# QA-SQL-016
+def test_export_on_a_dml_is_refused_before_the_write(local_db, tmp_path, capsys):
+    """Refused before the statement runs, not after: refusing afterwards
+    would mean the row was written and the caller still got exit 2."""
+    code, body = envelope(
+        ["sql", "UPDATE clientes SET status='X' WHERE id=1", "local",
+         "--commit", "-e", "csv", "-f", "json"],
+        capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "usage"
+    assert body["error"]["message"] == (
+        "--export precisa de um comando que retorne linhas; UPDATE nao retorna."
+    )
+    assert _status_of_1(capsys) == "A"
+    assert not list(tmp_path.rglob("*.csv"))
+
+
+# QA-SQL-017
+def test_export_on_a_ddl_is_refused_and_nothing_is_created(local_db, capsys):
+    code, body = envelope(
+        ["sql", "CREATE TABLE auditoria (id INTEGER)", "local", "-e", "json", "-f", "json"],
+        capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "usage"
+    assert body["error"]["message"] == (
+        "--export precisa de um comando que retorne linhas; DDL nao retorna."
+    )
+    code, body = envelope(["objects", "local", "--type", "TABLE", "-f", "json"], capsys)
+    assert code == 0
+    assert "auditoria" not in body["data"]["objects"]
+
+
+# QA-SQL-018
+def test_a_select_still_exports(local_db, capsys):
+    """The guard names statement types, not the flag: what returns rows is
+    untouched."""
+    code, body = envelope(
+        ["sql", "SELECT id, nome FROM clientes", "local", "-e", "csv", "-f", "json"], capsys,
+    )
+    assert code == 0
+    assert Path(body["data"]["exported"]).is_file()
+
+
+# QA-SQL-019
+def test_explain_exports_the_plan(local_db, tmp_path, capsys):
+    """A plan is a result set. `--explain` returns before the guard that
+    refuses `--export`, so without its own arm the flag would be accepted
+    and ignored here -- the bug the guard exists to stop."""
+    code, body = envelope(
+        ["sql", "SELECT id FROM clientes", "local", "--explain", "-e", "csv", "-f", "json"],
+        capsys,
+    )
+    assert code == 0
+    assert body["data"]["format"] == "csv"
+    exportado = Path(body["data"]["exported"])
+    assert tmp_path in exportado.parents
+    conteudo = exportado.read_text(encoding="utf-8")
+    assert conteudo.splitlines()[0] == "plan"
+    assert "clientes" in conteudo
+
+
+# QA-SQL-020
+def test_the_read_only_refusal_comes_before_the_export_one(read_only_db, capsys):
+    """Both are things the caller could fix, but only one of them is the
+    connection refusing: reporting the flag first costs a round trip to
+    learn the connection is protected."""
+    code, body = envelope(
+        ["sql", "UPDATE clientes SET status='X' WHERE id=1", "ro", "--commit", "-e", "csv", "-f", "json"],
+        capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "read_only"

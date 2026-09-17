@@ -1,6 +1,7 @@
 """Tests for the CLI module — argument parsing and command execution."""
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -120,12 +121,24 @@ class TestBuildParser:
         # Verify parser was built (no exception)
         assert parser.prog == "dbqm"
 
-    def test_all_commands_have_handlers(self):
-        expected = {"run", "run-group", "multi", "sql", "call", "test", "list", "ddl",
-                    "export-config", "import-config", "history", "config", "connection",
-                    "query", "group", "template", "oracle-client", "objects", "describe",
-                    "rows", "describe-cli"}
-        assert set(COMMAND_MAP.keys()) == expected
+    def test_every_parser_command_has_a_handler(self):
+        """The parser is the source, not a list typed into this file.
+
+        The typed set this replaces was edited four times in one
+        sub-project and proved nothing the parser could not answer for
+        itself: a name in `COMMAND_MAP` with no subparser is a command
+        nobody can reach, and a subparser with no handler is a command that
+        parses and then does nothing. `TestCmdDescribeCli` proves the same
+        equality through the described output; this one asks the parser
+        directly, without running a command.
+        """
+        parser = build_parser()
+        acoes = [
+            a for a in parser._actions
+            if isinstance(a, argparse._SubParsersAction)
+        ]
+        assert len(acoes) == 1, "the parser grew a second subparser group"
+        assert set(acoes[0].choices) == set(COMMAND_MAP)
 
 
 class TestParseParams:
@@ -360,6 +373,21 @@ class TestCmdRun:
 # ---------------------------------------------------------------------------
 
 class TestCmdRunGroup:
+    """Every test here isolates the config paths, whether or not it thinks
+    it needs to.
+
+    The class relies entirely on per-test `patch("dbqm.cli.deps.X")`. During
+    the html-export sub-project a deliberate mutation left
+    `record_group_execution` unpatched and the test wrote a junk entry into
+    the developer's real `~/.dbqm/config/history/history.json`. Nothing is
+    known broken today; the exposure is structural, so the fix belongs to
+    the class rather than to whoever remembers to ask for the fixture.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _isolar_config(self, tmp_config_dir):
+        return tmp_config_dir
+
     def test_group_not_found(self):
         with patch("dbqm.cli.deps.find_group", return_value=None):
             with pytest.raises(SystemExit):

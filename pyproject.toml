@@ -105,8 +105,9 @@ module = ["pymysql.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# 36 modules not yet clean under `--strict`, measured 2026-09-13 (361 findings
-# total). Generated from a real run, not transcribed:
+# 35 modules not yet clean under `--strict`, measured 2026-09-13 (361 findings
+# total), one retired in 2.10.0 (group_engine, 11). Generated from a real run,
+# not transcribed:
 #   uv run mypy --strict dbqm/ 2>&1 | sed 's/:.*//' | sort -u
 # Each entry carries its finding count as a debt register, not just a list of
 # names. This list only shrinks -- see tests/design/test_typing_policy.py.
@@ -120,7 +121,6 @@ module = [
     "dbqm.core.ddl_extractor",         # 42
     "dbqm.core.ddl_pg",                # 9
     "dbqm.core.exporter",              # 17
-    "dbqm.core.group_engine",          # 11
     "dbqm.core.history",               # 5
     "dbqm.core.object_browser",        # 22
     "dbqm.core.package_editor",        # 7

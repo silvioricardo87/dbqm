@@ -9,6 +9,7 @@ from dbqm.core.group_engine import (
     build_adhoc_group_result,
     build_group_result,
     derive_comparison_columns,
+    duplicate_key_warnings,
     execute_across,
     run_comparison,
 )
@@ -315,3 +316,104 @@ class TestExecuteAcross:
             ("missing", "ghost"),
             ("progress", "b"), ("result", "b"),
         ]
+
+
+class TestDuplicateKeyValues:
+    """Two rows sharing a key value on the same side used to collapse into
+    one silently: the index keeps the last, and the comparison answered
+    about it as though the other had never existed."""
+
+    @staticmethod
+    def _result(rows):
+        return QueryResult(
+            query_name="q", connection_name="c",
+            columns=["id", "valor"], rows=rows, row_count=len(rows), elapsed=0.0,
+        )
+
+    def test_rows_lost_to_a_repeated_key_are_counted_per_side(self):
+        resultados = {
+            "a": self._result([[1, "x"], [1, "y"], [2, "z"]]),
+            "b": self._result([[1, "y"], [2, "z"]]),
+        }
+        comparacoes = run_comparison(resultados, "id", ["valor"])
+        assert comparacoes[0].duplicate_rows == {"a": 1}
+        assert comparacoes[0].total_keys == 2
+
+    def test_a_unique_key_says_nothing(self):
+        """An empty map is the case worth no words at all -- every caller
+        renders a warning per entry."""
+        resultados = {
+            "a": self._result([[1, "x"], [2, "y"]]),
+            "b": self._result([[1, "x"], [2, "y"]]),
+        }
+        comparacoes = run_comparison(resultados, "id", ["valor"])
+        assert comparacoes[0].duplicate_rows == {}
+
+    def test_the_count_is_rows_dropped_not_keys_repeated(self):
+        """Three rows under one key lose two, not one."""
+        resultados = {
+            "a": self._result([[1, "x"], [1, "y"], [1, "z"]]),
+            "b": self._result([[1, "z"]]),
+        }
+        comparacoes = run_comparison(resultados, "id", ["valor"])
+        assert comparacoes[0].duplicate_rows == {"a": 2}
+
+    def test_every_column_carries_the_same_map(self):
+        """The index is built once, before any column is compared, so a
+        caller may read the first comparison and answer for all of them."""
+        resultado = QueryResult(
+            query_name="q", connection_name="c",
+            columns=["id", "a", "b"], rows=[[1, "x", "x"], [1, "y", "y"]],
+            row_count=2, elapsed=0.0,
+        )
+        comparacoes = run_comparison({"um": resultado}, "id", ["a", "b"])
+        assert [c.duplicate_rows for c in comparacoes] == [{"um": 1}, {"um": 1}]
+
+    def test_it_travels_on_the_wire(self):
+        resultados = {"a": self._result([[1, "x"], [1, "y"]])}
+        comparacao = run_comparison(resultados, "id", ["valor"])[0]
+        assert comparacao.to_dict()["duplicate_rows"] == {"a": 1}
+
+
+class TestDuplicateKeyWarnings:
+    """One wording, read by the CLI and by both comparison screens."""
+
+    @staticmethod
+    def _group_result(rows_a, rows_b, join_key="id"):
+        def qr(nome, linhas):
+            return QueryResult(
+                query_name=nome, connection_name=nome,
+                columns=["id", "valor"], rows=linhas, row_count=len(linhas),
+                elapsed=0.0,
+            )
+        return build_adhoc_group_result(
+            {"a": qr("a", rows_a), "b": qr("b", rows_b)},
+            join_key=join_key, compare_columns=["valor"],
+        )
+
+    def test_one_line_per_side_that_lost_rows(self):
+        resultado = self._group_result(
+            [[1, "x"], [1, "y"], [2, "z"]], [[1, "y"], [1, "w"], [2, "z"]],
+        )
+        assert duplicate_key_warnings(resultado) == [
+            "Chave 'id' tem valores repetidos em 'a': 1 linha(s) fora da comparacao.",
+            "Chave 'id' tem valores repetidos em 'b': 1 linha(s) fora da comparacao.",
+        ]
+
+    def test_a_unique_key_says_nothing(self):
+        resultado = self._group_result([[1, "x"]], [[1, "x"]])
+        assert duplicate_key_warnings(resultado) == []
+
+    def test_it_names_the_key_the_comparison_actually_used(self):
+        """An ad-hoc comparison derives its key; the result carries it now,
+        so the warning names the real column instead of a caller\'s guess."""
+        resultado = self._group_result([[1, "x"], [1, "y"]], [[1, "x"]])
+        assert resultado.join_key == "id"
+        assert "Chave 'id'" in duplicate_key_warnings(resultado)[0]
+
+    def test_no_comparison_at_all_warns_about_nothing(self):
+        """A group with nothing to compare produces no `ComparisonResult`,
+        and the counts live on those."""
+        resultado = self._group_result([[1, "x"], [1, "y"]], [[1, "x"]])
+        resultado.comparisons = []
+        assert duplicate_key_warnings(resultado) == []

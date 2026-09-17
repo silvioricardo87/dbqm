@@ -16,7 +16,7 @@ class ComparisonRow:
     values: dict[str, Any]  # {query_name: value}
     status: str  # "OK", "DIFF", "ABSENT", "OK*" (normalized match)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Wire shape."""
         return {
             "key_value": self.key_value,
@@ -34,8 +34,13 @@ class ComparisonResult:
     diff_count: int
     absent_count: int
     normalized_count: int  # OK* matches
+    #: {query_name: rows dropped because their key value repeated}. Empty
+    #: when every key was unique, which is the case worth saying nothing
+    #: about. The same map on every column: the index is built once, before
+    #: any column is compared.
+    duplicate_rows: dict[str, int] = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Wire shape. Nested dataclasses serialise through their own to_dict."""
         return {
             "column": self.column,
@@ -45,18 +50,23 @@ class ComparisonResult:
             "diff_count": self.diff_count,
             "absent_count": self.absent_count,
             "normalized_count": self.normalized_count,
+            "duplicate_rows": dict(self.duplicate_rows),
         }
 
 
 @dataclass
 class GroupResult:
     group_name: str
-    query_results: dict[str, QueryResult]
+    query_results: Mapping[str, ResultLike]
     comparisons: list[ComparisonResult]
     all_match: bool
     summary_lines: list[str] = field(default_factory=list)
+    #: The column the sides were joined on. A curated group has it from the
+    #: group; an ad-hoc comparison derives it, and before 2.10.0 the result
+    #: could not say which column that had been.
+    join_key: str = ""
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Wire shape. Nested dataclasses serialise through their own
         to_dict. `summary_lines` does not travel here: it is Portuguese
         display prose (`"  Iguais:       3"`), and every number in it is
@@ -68,7 +78,14 @@ class GroupResult:
             },
             "comparisons": [c.to_dict() for c in self.comparisons],
             "all_match": self.all_match,
+            "join_key": self.join_key,
         }
+
+
+#: {column: {query_name: the column that query calls it}}
+ColumnMapping = dict[str, dict[str, str]]
+#: {column: {raw value: the value it counts as}}
+Normalization = dict[str, dict[str, str]]
 
 
 class NoComparableColumns(Exception):
@@ -82,6 +99,9 @@ class ResultLike(Protocol):
     code without touching the old signature."""
     columns: list[str]
     rows: list[list[Any]]
+    row_count: int
+
+    def to_dict(self) -> dict[str, Any]: ...
 
 
 def derive_comparison_columns(
@@ -136,6 +156,7 @@ def build_adhoc_group_result(
         query_results=results,
         comparisons=comparisons,
         all_match=all_match,
+        join_key=join_key,
     )
 
 
@@ -227,18 +248,24 @@ def execute_across(
 
 
 def run_comparison(
-    results: dict[str, QueryResult],
+    results: Mapping[str, ResultLike],
     join_key: str,
     compare_columns: list[str],
-    column_mapping: dict | None = None,
-    normalize: dict | None = None,
+    column_mapping: ColumnMapping | None = None,
+    normalize: Normalization | None = None,
 ) -> list[ComparisonResult]:
     """Compare results from multiple queries on specified columns."""
     column_mapping = column_mapping or {}
     normalize = normalize or {}
 
     # Index rows by join_key for each query
-    indexed: dict[str, dict[Any, dict]] = {}
+    indexed: dict[str, dict[Any, dict[str, Any]]] = {}
+    # How many rows each side lost to a key value it had already seen. The
+    # index keeps the last row under a repeated key, so without this the
+    # comparison answers about one row and says nothing about the other --
+    # `all_match: true` over data it never told apart. Counted while
+    # indexing, reported by every caller.
+    duplicates: dict[str, int] = {}
     for qname, result in results.items():
         indexed[qname] = {}
         key_idx = None
@@ -251,10 +278,12 @@ def run_comparison(
         for row in result.rows:
             key_val = row[key_idx]
             row_dict = dict(zip(result.columns, row, strict=True))
+            if key_val in indexed[qname]:
+                duplicates[qname] = duplicates.get(qname, 0) + 1
             indexed[qname][key_val] = row_dict
 
     # Collect all unique keys
-    all_keys: set = set()
+    all_keys: set[Any] = set()
     for qname_data in indexed.values():
         all_keys.update(qname_data.keys())
     sorted_keys = sorted(all_keys, key=lambda x: (isinstance(x, str), x))
@@ -273,8 +302,8 @@ def run_comparison(
         normalized_count = 0
 
         for key in sorted_keys:
-            values = {}
-            raw_values = {}
+            values: dict[str, Any] = {}
+            raw_values: dict[str, Any] = {}
             has_absent = False
 
             for qname in query_names:
@@ -323,9 +352,32 @@ def run_comparison(
             diff_count=diff_count,
             absent_count=absent_count,
             normalized_count=normalized_count,
+            duplicate_rows=dict(duplicates),
         ))
 
     return comparisons
+
+
+def duplicate_key_warnings(group_result: GroupResult) -> list[str]:
+    """One line per side that lost rows to a key value it had already seen.
+
+    `run_comparison` keeps the last row under a repeated key, so a
+    comparison over an ambiguous key answers about one row and says nothing
+    about the other -- reporting a verdict over data it never told apart.
+    Every surface that shows a comparison shows these: the CLI in
+    `warnings`, both TUI screens as a notification. One wording, one place.
+
+    Reads the first comparison and answers for all of them: the index is
+    built once, before any column is compared, so every `ComparisonResult`
+    carries the same map.
+    """
+    if not group_result.comparisons:
+        return []
+    return [
+        f"Chave '{group_result.join_key}' tem valores repetidos em '{nome}': "
+        f"{n} linha(s) fora da comparacao."
+        for nome, n in sorted(group_result.comparisons[0].duplicate_rows.items())
+    ]
 
 
 def build_group_result(
@@ -333,8 +385,8 @@ def build_group_result(
     query_results: dict[str, QueryResult],
     join_key: str,
     compare_columns: list[str],
-    column_mapping: dict | None = None,
-    normalize: dict | None = None,
+    column_mapping: ColumnMapping | None = None,
+    normalize: Normalization | None = None,
 ) -> GroupResult:
     """Build complete group comparison result."""
     comparisons = run_comparison(
@@ -361,4 +413,5 @@ def build_group_result(
         comparisons=comparisons,
         all_match=all_match,
         summary_lines=summary_lines,
+        join_key=join_key,
     )

@@ -60,6 +60,7 @@ def test_group_add_then_run_group_that_agrees(clientes, capsys):
     assert body["data"]["comparisons"] == [{
         "column": "nome", "total_keys": 3, "equal_count": 3,
         "diff_count": 0, "absent_count": 0, "normalized_count": 0,
+        "duplicate_rows": {},
     }]
 
 
@@ -74,6 +75,7 @@ def test_a_real_divergence_exits_5(pedidos, capsys):
     assert body["data"]["comparisons"] == [{
         "column": "valor", "total_keys": 4, "equal_count": 3,
         "diff_count": 1, "absent_count": 0, "normalized_count": 0,
+        "duplicate_rows": {},
     }]
 
 
@@ -161,3 +163,50 @@ def test_a_failing_query_names_itself(local2_db, capsys):
     assert code == 4
     assert body["error"]["code"] == "sql_error"
     assert body["error"]["message"] == "Erro na consulta 'quebrada': no such table: nao_existe"
+
+
+POR_CLIENTE = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
+
+
+@pytest.fixture
+def por_cliente(local2_db, capsys) -> str:
+    """A group whose join key repeats: four pedidos over two clientes, so
+    each side loses two rows to a key it had already seen."""
+    _add_query("pc_local", "local", POR_CLIENTE, capsys)
+    _add_query("pc_local2", "local2", POR_CLIENTE, capsys)
+    code, _ = envelope(
+        ["group", "add", "por_cliente", "--query", "pc_local", "--query", "pc_local2",
+         "--join-key", "id", "--compare-column", "valor", "-f", "json"],
+        capsys,
+    )
+    assert code == 0
+    return "por_cliente"
+
+
+# QA-GROUP-011
+def test_a_repeated_join_key_is_reported_not_swallowed(por_cliente, capsys):
+    code, out, _ = invoke(["run-group", por_cliente, "-f", "json"], capsys)
+    body = json.loads(out)
+    assert body["warnings"] == [
+        "Chave 'id' tem valores repetidos em 'pc_local': 2 linha(s) fora da comparacao.",
+        "Chave 'id' tem valores repetidos em 'pc_local2': 2 linha(s) fora da comparacao.",
+    ]
+    assert body["data"]["comparisons"][0]["duplicate_rows"] == {"pc_local": 2, "pc_local2": 2}
+    assert body["data"]["comparisons"][0]["total_keys"] == 2
+    assert code == 5
+
+
+# QA-GROUP-012
+def test_a_unique_join_key_warns_about_nothing(pedidos, capsys):
+    code, out, _ = invoke(["run-group", pedidos, "-f", "json"], capsys)
+    body = json.loads(out)
+    assert "warnings" not in body
+    assert body["data"]["comparisons"][0]["duplicate_rows"] == {}
+    assert code == 5
+
+
+# QA-GROUP-013
+def test_the_warning_reaches_the_table_format_too(por_cliente, capsys):
+    code, out, _ = invoke(["run-group", por_cliente], capsys)
+    assert code == 5
+    assert "valores repetidos em 'pc_local'" in out

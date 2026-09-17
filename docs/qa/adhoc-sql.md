@@ -1,5 +1,9 @@
 # QA — ad-hoc SQL (`SQL`)
 
+Ate a 2.9.0 `-e/--export` era aceito e ignorado em tudo que nao fosse
+SELECT (o bloco de export mora dentro do ramo SELECT). Agora um comando
+que nao retorna linhas recusa a flag, e recusa **antes de executar**.
+
 `dbqm sql <sql|arquivo.sql> <conexao> [-p k=v] [-f table|json|csv|raw] [-e csv|json|txt|html] [--commit] [--force-write] [--explain]`
 
 Runs one statement against a named connection. The seed every row below
@@ -24,6 +28,12 @@ Read-only refusals: [read-only-guard.md](read-only-guard.md).
 | QA-SQL-012 | Dado `-p semigual` / Quando `dbqm sql "SELECT 1" local -p semigual -f json` / Entao exit 2, `usage`, mensagem `Parametro invalido (use chave=valor): semigual` | functional | all | tests/functional/test_sql.py::test_a_param_without_equals_is_usage |
 | QA-SQL-013 | Dado uma conexao inexistente / Quando `dbqm sql "SELECT 1" nope -f json` / Entao exit 2, `not_found`, mensagem `Conexao 'nope' nao encontrada.` | functional | all | tests/functional/test_sql.py::test_an_unknown_connection_is_not_found |
 | QA-SQL-014 | Dado `-f table` (padrao) / Quando `dbqm sql "SELECT nome FROM clientes WHERE id=1" local` / Entao exit 0 e `Ana` aparece no stdout | functional | all | tests/functional/test_sql.py::test_table_format_prints_the_rows |
+| QA-SQL-016 | Dado `-e csv` num UPDATE / Quando `dbqm sql "UPDATE clientes SET status='X' WHERE id=1" local --commit -e csv -f json` / Entao exit 2, `usage`, `--export precisa de um comando que retorne linhas; UPDATE nao retorna.`, a linha continua `A` e nenhum arquivo foi escrito — a recusa vem antes de executar | functional | all | tests/functional/test_sql.py::test_export_on_a_dml_is_refused_before_the_write |
+| QA-SQL-017 | Dado `-e json` num DDL / Quando `dbqm sql "CREATE TABLE auditoria (id INTEGER)" local -e json -f json` / Entao exit 2, `usage`, `... DDL nao retorna.` e `objects` nao lista `auditoria` | functional | all | tests/functional/test_sql.py::test_export_on_a_ddl_is_refused_and_nothing_is_created |
+| QA-SQL-018 | Dado `-e csv` num SELECT / Quando executado / Entao exit 0 e o arquivo existe — a guarda nomeia tipos de comando, nao a flag | functional | all | tests/functional/test_sql.py::test_a_select_still_exports |
+| QA-SQL-019 | Dado `--explain -e csv` / Quando `dbqm sql "SELECT id FROM clientes" local --explain -e csv -f json` / Entao exit 0 e o arquivo traz o cabecalho `plan` e o plano — um plano e um conjunto de resultado, e este ramo retorna antes da guarda | functional | all | tests/functional/test_sql.py::test_explain_exports_the_plan |
+| QA-SQL-020 | Dado a conexao `ro` e `UPDATE ... --commit -e csv` / Quando executado / Entao exit 2 e `read_only` — a conexao recusar vem antes de qualquer problema de flag | functional | all | tests/functional/test_sql.py::test_the_read_only_refusal_comes_before_the_export_one |
+| QA-SQL-021 | Dado a tela **SQL Avulso** da TUI com a conexao `local` / Quando um SELECT e executado pelo botao Executar / Entao a barra de informacao mostra `3 registros` e a tabela traz 3 linhas | functional | all | tests/ui/test_functional_screens.py::test_adhoc_executes_a_select_and_shows_the_rows |
 | QA-SQL-015 | Dado um bloco PL/SQL anonimo com DBMS_OUTPUT / Quando `dbqm sql "BEGIN DBMS_OUTPUT.PUT_LINE('oi'); END;" <oracle> -f json` / Entao `data.sql_type == "PLSQL"` e `warnings == ["oi"]` | manual | oracle | — |
 
 ## Manual (Oracle)

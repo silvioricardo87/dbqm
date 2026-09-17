@@ -176,3 +176,66 @@ async def test_browser_tells_sql_server_it_has_no_extractor(tmp_config_dir):
         # the connection is handed to the worker, never registered
         assert "Erro: Extracao de DDL nao suportada para sqlserver." in _notifications(app)
     assert not (Path(paths.EXPORTS_DIR) / "ddl").exists()
+
+
+@pytest.mark.asyncio
+async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, capsys):
+    """The screen says what the CLI says: a comparison over an ambiguous
+    key covers one row per key and is silent about the rest."""
+    from dbqm.ui.screens.group_run import GroupRunScreen
+
+    por_cliente = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
+    for nome, conn in (("pc_local", "local"), ("pc_local2", "local2")):
+        code, _ = envelope(
+            ["query", "add", nome, "--connection", conn, "--sql", por_cliente, "-f", "json"], capsys,
+        )
+        assert code == 0
+    code, _ = envelope(
+        ["group", "add", "por_cliente", "--query", "pc_local", "--query", "pc_local2",
+         "--join-key", "id", "--compare-column", "valor", "-f", "json"],
+        capsys,
+    )
+    assert code == 0
+    group = find_group("por_cliente")
+    assert group is not None
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        worker = screen._run_group(group, {})
+        await worker.wait()
+        await pilot.pause()
+
+        avisos = [n.message for n in app._notifications]
+        assert avisos == [
+            "Chave 'id' tem valores repetidos em 'pc_local': 2 linha(s) fora da comparacao.",
+            "Chave 'id' tem valores repetidos em 'pc_local2': 2 linha(s) fora da comparacao.",
+        ]
+
+
+@pytest.mark.asyncio
+async def test_group_run_says_nothing_when_the_key_is_unique(local2_db, capsys):
+    from dbqm.ui.screens.group_run import GroupRunScreen
+
+    ped = "SELECT id, valor FROM pedidos ORDER BY id"
+    for nome, conn in (("ped_local", "local"), ("ped_local2", "local2")):
+        code, _ = envelope(
+            ["query", "add", nome, "--connection", conn, "--sql", ped, "-f", "json"], capsys,
+        )
+        assert code == 0
+    code, _ = envelope(
+        ["group", "add", "pedidos", "--query", "ped_local", "--query", "ped_local2",
+         "--join-key", "id", "--compare-column", "valor", "-f", "json"],
+        capsys,
+    )
+    assert code == 0
+    group = find_group("pedidos")
+    assert group is not None
+
+    app = GroupRunTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(GroupRunScreen)
+        worker = screen._run_group(group, {})
+        await worker.wait()
+        await pilot.pause()
+        assert [n.message for n in app._notifications] == []
