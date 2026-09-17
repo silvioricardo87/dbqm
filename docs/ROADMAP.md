@@ -192,52 +192,18 @@ tier spent five sub-projects removing. The id is retired and not reused.
   the refusal is the same `UnsupportedEngine` PostgreSQL gets. What it also
   does not have is an owner concept, so `_detect_owner` returns `""` and a
   DDL extraction names no schema.
-- **`dbqm sql` ignores `--export` unless the statement is a SELECT.** The
-  export block sits inside `if result.sql_type == "SELECT"`
-  (`cli/commands/query.py`), so a DML, DDL or PL/SQL run accepts the flag and
-  silently writes nothing. It predates the output contract and `html`
-  inherited it, rather than introducing it. The honest options are to export
-  what those statements do return — a row count, DBMS_OUTPUT — or to refuse
-  the flag with `usage`; what it must not keep doing is accept and ignore.
-- **`run_comparison` is annotated `dict[str, QueryResult]` and has always
-  been passed `AdhocResult`** by the Multi-Exec screen. The two are
-  duck-compatible, so it works, and mypy misses the mismatch because
-  `group_engine.py` sits on the per-module exemption list. The `multi`
-  sub-project named the real requirement instead of inheriting the wrong
-  one — a `ResultLike` `Protocol` in `core/group_engine.py` — but left the
-  old signature as it was. Fixing it means taking `group_engine.py` off the
-  exemption list, which is a typing slice, not a feature.
-- **The `.sql`-file-path block in `cmd_multi` is duplicated verbatim from
-  `cmd_sql`.** Both accept either SQL text or a path to a `.sql` file, and
-  both implement it in place. Real duplication, deliberately not fixed
-  inside the `multi` feature commit.
-- **`run_comparison` collapses duplicate key values — last row wins.** It
-  indexes each side as `indexed[qname][key_val] = row_dict`
-  (`core/group_engine.py`), so two rows sharing a key value on the same side
-  compare as one. Two rows with an all-NULL key column collapse to a single
-  entry on that side, and genuinely different data can compare as equal —
-  `all_match: true`, exit 0, over rows the comparison never actually told
-  apart. This is pre-existing behaviour, not something the `multi`
-  sub-project introduced, but `run-group` uses a join key a person curated
-  for that specific group, while `multi` derives one from whatever columns
-  happen to be common to the connections given — which is what turns this
-  from a theoretical gap into one worth hitting in practice.
-- **Nothing commits a routine in the TUI.** `execute_routine`'s comment says
-  the caller handles commit and, before 2.6.0, no caller did — the TUI
-  still does not, so a procedure run from the Executar Rotina screen shows
-  "Executado com sucesso" and has its work discarded when the connection
-  closes. `dbqm call` handles it with `--commit`; the screen is deliberately
-  untouched, because changing a screen from inside a CLI slice is how a
-  refactor hides a behaviour change.
-- **OUT parameter values are not structured data.** `execute_routine` emits
-  them as `DBMS_OUTPUT.PUT_LINE('NOME=' || var)`, so they arrive as ordinary
-  text lines, indistinguishable from a line the routine printed itself.
-- **The function return value is matched by a `RETURN=` prefix**, which a
-  routine printing its own `RETURN=` line would shadow.
-- **A standalone routine is only found in the caller's own schema** —
-  `get_standalone_routine_info` filters `owner = USER`, while `_detect_owner`
-  exists and is used elsewhere. Verifying a routine's existence properly
-  belongs here too.
+- **`run_comparison` still keeps the last row under a repeated key.** As of
+  2.10.0 it says so -- `comparisons[*].duplicate_rows` counts the rows each
+  side lost and every caller warns -- but the comparison it reports is still
+  over one row per key. Comparing the rows as multisets is the real answer
+  and a redesign of `group_engine`, not a warning.
+- **OUT values travel back as text.** 2.10.0 gave them their own field
+  (`out_values`) under a per-execution marker, so they are no longer mixed
+  into what the routine printed and a routine printing `RETURN=` no longer
+  shadows the real return value. They are still strings: DBMS_OUTPUT is
+  text. Typed values need real output binds (`cursor.var`), which means
+  mapping every declared Oracle type -- a slice with an Oracle to test
+  against, not one to write blind.
 - **The CLI deliberately exposes no flag for `column_maps`, `normalize`,
   `column_mapping`, `template`, `template_fields`, `validation_rule`,
   `is_favorite` or an `order_by` override.** They are TUI-authored, several
@@ -267,27 +233,16 @@ Not a tier — the four above are the product's bugs, toolchain and features.
 This is the test suite's own upkeep, recorded here because there is nowhere
 else a reader would think to look for it.
 
-- **`TestCmdRunGroup` can write to the real home directory.**
-  `tests/conftest.py` provides `tmp_config_dir`, which redirects every
-  config, export and history path into a temp directory. `tests/test_cli.py`
-  uses it extensively — but not once inside `TestCmdRunGroup`, which relies
-  entirely on per-test `patch("dbqm.cli.deps.X")`. During the html-export
-  sub-project, a deliberate mutation left `record_group_execution` unpatched
-  and the test wrote a junk entry into the developer's real
-  `~/.dbqm/config/history/history.json`. No test in the class is known
-  broken today; the class is structurally exposed. The fix is to make
-  `tmp_config_dir` autouse for that class, not to patch harder. Effort: S.
-
 ---
 
 ## Suggested next slice
 
 **Tier 0, Tier 1 and Tier 3 are all empty.** The html-export sub-project
 (2.4.0), `dbqm multi` (2.5.0), `dbqm call` (2.6.0), saved query/group
-curation (2.7.0) and the last four Tier 3 commands (2.8.0, see
-`CHANGELOG.md` for all of them) have now shipped. There is no obvious next
-slice any more — what remains is **decisions**, not tasks. For the
-maintainer to choose among:
+curation (2.7.0), the last four Tier 3 commands (2.8.0), SQLite and the QA
+review (2.9.0) and the hardening slice (2.10.0, which closed seven of the
+gaps below) have now shipped. What remains is mostly **decisions**, not
+tasks. For the maintainer to choose among:
 
 1. **The server-side read-only session** (`SET TRANSACTION READ ONLY` on
    Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL) — it would change what
@@ -300,15 +255,6 @@ maintainer to choose among:
 3. **The design guards are calibrated to 80x24.** If that is not the target
    width, the reference is worth changing on purpose rather than left
    measuring a terminal nobody runs.
-4. **The `usage`-versus-`validation` divergence.** `connection add` reports
-   `usage` for a duplicate name while `query`, `group` and `template` report
-   `validation`. `validation` is the more accurate token, but `connection`
-   is published and aligning it is a breaking change — a MAJOR's business.
-5. **`TestBuildParser::test_all_commands_have_handlers` keeps a hand-typed
-   command set**, edited four times in this sub-project alone.
-   `describe-cli`'s parser-versus-dispatch-map set equality is a strict
-   superset of what it proves, so retiring the hand-typed test is now
-   possible.
 
 **A note on estimating, not an apology:** the html item's effort **S** was
 measured against `run-group` alone, where `export_group_html` already

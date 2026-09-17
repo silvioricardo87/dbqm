@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.10.0] — 2026-09-17
+
+A MINOR release: seven recorded gaps closed, and the comparison engine
+stops answering about rows it never told apart.
+
+### Fixed
+
+- **`dbqm sql` accepted `--export` and silently wrote nothing.** The export
+  block sits inside the SELECT branch, so `dbqm sql "UPDATE ..." c --commit
+  -e csv` wrote the row, wrote no file, and said nothing about either. A
+  statement type that returns no rows now refuses the flag with `usage`,
+  **before it runs** — refusing afterwards would mean the write happened and
+  the caller still got exit 2. A PL/SQL block is the one type whose result
+  set is not knowable from its text, so it is judged after the fact: a block
+  that returned rows exports them.
+- **A comparison could report `all_match: true` over rows it never compared.**
+  `run_comparison` indexes each side by the join key, and a second row under
+  the same key overwrote the first. It still keeps the last row — comparing
+  as multisets is a redesign, not a fix — but the rows it dropped are now
+  counted in `comparisons[*].duplicate_rows` and every caller warns, naming
+  the key and the side. `dbqm multi` derives its key from whatever columns
+  the connections share, which is what made this worth hitting.
+- **A standalone routine was only found in the caller's own schema.**
+  `all_arguments` was filtered by `owner = USER`, so a routine the caller
+  can execute but does not own came back with no arguments at all —
+  indistinguishable from a real zero-argument procedure, and the block was
+  then built without its parameters. The owner is resolved from
+  `all_objects` first, which answers two more questions in the same round
+  trip: whether the name exists, and whether it is a PROCEDURE or a
+  FUNCTION — which the CLI had to guess at.
+- **The TUI never committed a routine.** `execute_routine` leaves the commit
+  to its caller; `dbqm call` has `--commit` and the Executar Rotina screen
+  had nothing, so it reported "Executado com sucesso" over work the driver
+  discarded at close. The screen has a `Confirmar alteracoes (commit)`
+  checkbox, off by default, and the result panel now always says which of
+  the two happened.
+- **OUT values and a function's return were indistinguishable from output.**
+  They arrived as bare `NOME=valor` lines mixed into whatever the routine
+  printed, so a routine printing its own `RETURN=...` shadowed the real
+  return value. They travel under a marker generated per execution and
+  arrive in `data.out_values`; `warnings` now holds only what the routine
+  printed.
+
+### Changed
+
+- **`comparisons[*]` gained `duplicate_rows`** in the `run-group` and `multi`
+  envelopes, and both commands may now emit `warnings`. Additive: a consumer
+  reading the existing keys is unaffected.
+
+### Internal
+
+- `dbqm.core.group_engine` comes off the mypy exemption list — 35 modules
+  left, and `ResultLike` replaces the `dict[str, QueryResult]` annotation
+  that had always been passed `AdhocResult`.
+- `dbqm sql` and `dbqm multi` share one reader for "SQL text, or a path to a
+  `.sql` file", and one exporter for an `AdhocResult`'s rows.
+- `TestCmdRunGroup` isolates the config paths for every test in the class: it
+  relied on per-test patching, and a mutation that left one call unpatched
+  once wrote into the developer's real `~/.dbqm`.
+- `TestBuildParser`'s hand-typed command set is gone — the parser's own
+  subparsers are the source, which is what it was trying to say.
+
+---
+
 ## [2.9.0] — 2026-09-15
 
 A MINOR release: SQLite is the fifth engine.
