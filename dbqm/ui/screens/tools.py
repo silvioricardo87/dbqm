@@ -31,7 +31,7 @@ class ToolsScreen(Vertical):
 
     def tools(self) -> tuple[tuple[str, str, str], ...]:
         """(key, identity, disambiguation) per tool. The key travels as
-        DATA in the option (`NamedOption.nome`), never as `id` -- the
+        DATA in the option (`NamedOption.name`), never as `id` -- the
         reason is in `NamedOption`'s docstring. The order is the
         screen's: first what is managed, then what is run.
 

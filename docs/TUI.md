@@ -28,17 +28,17 @@ DBMS_OUTPUT capture.
 **Queries** (`F7`) — saved queries, filtered by folder, by connection or by
 free text, and their results.
 
-![A saved query and its result table](img/consultas.svg)
+![A saved query and its result table](img/queries.svg)
 
 **Multi-Exec** (`F4`) — one statement across the connections you tick, compared
 row by row. The verdict and the per-column counts sit under the table.
 
-![A comparison across two databases reported as DIVERGENT](img/comparacao.svg)
+![A comparison across two databases reported as DIVERGENT](img/comparison.svg)
 
 **Connections** (`F2`) — the connections, their engine, their target and their
 description.
 
-![The connections screen, listing two SQLite connections](img/conexoes.svg)
+![The connections screen, listing two SQLite connections](img/connections.svg)
 
 ## Keyboard Navigation
 

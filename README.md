@@ -10,7 +10,7 @@ place, with one set of saved connections. Built with
 Every operation is available without a TTY, so the same tool serves a person at
 a terminal and a script, a CI job or an AI agent.
 
-![A saved query running against a connection, with its result table](docs/img/consultas.svg)
+![A saved query running against a connection, with its result table](docs/img/queries.svg)
 
 ## Install
 
@@ -80,7 +80,7 @@ has to remember to update.
 - **Execute routines** — Oracle packages, procedures and functions, with
   parameters in and OUT values and the return value back as data
 
-![The same statement run against two databases, reported as DIVERGENT with per-column counts](docs/img/comparacao.svg)
+![The same statement run against two databases, reported as DIVERGENT with per-column counts](docs/img/comparison.svg)
 
 **Look around**
 

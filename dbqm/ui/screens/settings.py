@@ -212,7 +212,7 @@ class SettingsScreen(Vertical):
         }
 
     #: The hosted screens: (key, identity, disambiguation). The key travels
-    #: as DATA in the option (`NamedOption.nome`), never as `id` — the
+    #: as DATA in the option (`NamedOption.name`), never as `id` — the
     #: reason is in `NamedOption`'s docstring.
     #:
     #: The text is SHORT out of a layout requirement, not out of taste: the

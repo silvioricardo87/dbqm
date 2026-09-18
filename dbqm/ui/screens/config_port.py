@@ -36,8 +36,8 @@ class ConfigPortScreen(Vertical):
     """
 
     #: (key, identity, disambiguation) of the two deep phases. The key
-    #: travels as DATA in the option (`NamedOption.nome`), never as `id`.
-    def modos(self) -> tuple[tuple[str, str, str], ...]:
+    #: travels as DATA in the option (`NamedOption.name`), never as `id`.
+    def modes(self) -> tuple[tuple[str, str, str], ...]:
         """A method, not a class attribute: a class body runs at import,
         before the app resolves the language."""
         return (
@@ -157,7 +157,7 @@ class ConfigPortScreen(Vertical):
     def on_mount(self) -> None:
         lista = self.query_one("#cp-mode-list", OptionList)
         lista.clear_options()
-        for chave, identidade, desambiguacao in self.modos():
+        for chave, identidade, desambiguacao in self.modes():
             lista.add_option(
                 NamedOption(hierarchical_item(identidade, desambiguacao), chave)
             )

@@ -125,9 +125,10 @@ The rules, each with the failure that earned it:
 - **Never call `t()` at import time.** A module-level constant or a class
   body runs before the app resolves the language, so its text freezes in the
   default one for the life of the process, silently. Wrap it in a function
-  or a method; `ORACLE_MODE_OPTIONS`, `ConfigPortScreen.MODOS`,
-  `ToolsScreen.TOOLS` and `SettingsScreen.FERNET_PREFIX` all had to become
-  callables for this reason.
+  or a method; the constants behind `oracle_mode_options()`,
+  `ConfigPortScreen.modes()`, `ToolsScreen.tools()` and
+  `SettingsScreen.fernet_prefix()` all had to become callables for this
+  reason.
 - **Short text is sometimes a layout requirement.** The "more settings"
   entries fit 30 columns; the ad-hoc connection prompt fits its panel. A
   longer translation silently wraps and breaks the alignment, so the two
