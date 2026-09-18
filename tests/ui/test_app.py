@@ -758,7 +758,7 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
             "o Esc Voltar das Ferramentas sobrou em Conexoes: %r"
             % pintado[-300:]
         )
-        assert "Nova" in pintado, (
+        assert "New" in pintado, (
             "a aba nova nem pintou suas proprias acoes: %r" % pintado[-300:]
         )
 

@@ -7,6 +7,7 @@ from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual.widgets import Button, DataTable, Input, Select, Static, TextArea
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
@@ -60,15 +61,15 @@ class SqlPasteModal(ModalScreen[dict | None]):
         connections = load_connections()
         conn_options = [(c.name, c.name) for c in connections]
 
-        with Dialog("Nova Consulta (Colar SQL)", width="lg", id="dialog"):
-            yield Static("[dim]Cole o SQL abaixo. A tabela e colunas serao detectadas automaticamente.[/dim]", id="info", markup=True)
+        with Dialog(t("query_manage.new_dialog_title"), width="lg", id="dialog"):
+            yield Static(f'[dim]{t("query_manage.paste_hint")}[/dim]', id="info", markup=True)
             yield TextArea(id="sql-area", language="sql")
-            yield Input(placeholder="Nome da consulta", id="name-input")
-            yield Input(placeholder="Descricao (opcional)", id="desc-input")
-            yield Select(conn_options, prompt="Conexao", id="conn-select")
+            yield Input(placeholder=t("query_manage.name_placeholder"), id="name-input")
+            yield Input(placeholder=t("common.description_optional"), id="desc-input")
+            yield Select(conn_options, prompt=t("common.connection"), id="conn-select")
             with Horizontal(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         self.query_one("#sql-area", TextArea).focus()
@@ -148,10 +149,10 @@ class SqlViewerModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from dbqm.ui.widgets.sql_viewer import SqlViewer
 
-        with Dialog(f"SQL: {self._query_name}", width="lg", id="dialog"):
+        with Dialog(t("query_manage.sql_dialog_title", nome=self._query_name), width="lg", id="dialog"):
             yield SqlViewer(self._sql, id="sql-display")
             with Horizontal(id="buttons"):
-                yield Button("Fechar", variant="primary", id="close-btn")
+                yield Button(t("common.close"), variant="primary", id="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
@@ -183,13 +184,13 @@ class EditMenuModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("O que deseja editar?", width="sm", id="dialog"):
-            yield Button("Descricao", id="edit_description")
-            yield Button("Conexao", id="edit_connection")
+        with Dialog(t("query_manage.edit_what"), width="sm", id="dialog"):
+            yield Button(t("common.description"), id="edit_description")
+            yield Button(t("common.connection"), id="edit_connection")
             yield Button("SQL", id="edit_sql")
-            yield Button("Tabela", id="edit_table")
-            yield Button("Parametros", id="edit_params")
-            yield Button("Cancelar", variant="default", id="cancel")
+            yield Button(t("common.table"), id="edit_table")
+            yield Button(t("common.params"), id="edit_params")
+            yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
@@ -236,11 +237,11 @@ class EditSqlModal(ModalScreen[str | None]):
         self._current_sql = current_sql
 
     def compose(self) -> ComposeResult:
-        with Dialog("Editar SQL", width="lg", id="dialog"):
+        with Dialog(t("query_manage.edit_sql_title"), width="lg", id="dialog"):
             yield TextArea(self._current_sql, id="sql-area", language="sql")
             with Horizontal(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         self.query_one("#sql-area", TextArea).focus()
@@ -249,7 +250,7 @@ class EditSqlModal(ModalScreen[str | None]):
         if event.button.id == "save":
             sql = self.query_one("#sql-area", TextArea).text.strip()
             if not sql:
-                self.notify("SQL nao pode ser vazio.", severity="warning")
+                self.notify(t("query_manage.sql_empty"), severity="warning")
                 return
             self.dismiss(sql)
         elif event.button.id == "cancel":
@@ -298,14 +299,14 @@ class FolderModal(ModalScreen[str | None]):
         self._existing = existing_folders or []
 
     def compose(self) -> ComposeResult:
-        with Dialog("Pasta da Consulta", id="dialog"):
+        with Dialog(t("query_manage.folder_dialog_title"), id="dialog"):
             if self._existing:
                 folders_text = ", ".join(self._existing)
-                yield Static(f"[dim]Pastas existentes: {folders_text}[/dim]", id="existing", markup=True)
-            yield Input(value=self._current, placeholder="Nome da pasta (vazio = sem pasta)", id="folder-input")
+                yield Static(f'[dim]{t("query_manage.existing_folders", pastas=folders_text)}[/dim]', id="existing", markup=True)
+            yield Input(value=self._current, placeholder=t("query_manage.folder_placeholder"), id="folder-input")
             with Horizontal(id="buttons"):
-                yield Button("OK", variant="primary", id="ok")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.ok"), variant="primary", id="ok")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         self.query_one("#folder-input", Input).focus()
@@ -362,11 +363,11 @@ class ConnectionPickerModal(ModalScreen[str | None]):
         connections = load_connections()
         options = [(c.name, c.name) for c in connections]
 
-        with Dialog("Conexao para a copia", id="dialog"):
+        with Dialog(t("query_manage.copy_connection_title"), id="dialog"):
             yield Select(options, value=self._current, id="conn-pick")
             with Horizontal(id="buttons"):
-                yield Button("OK", variant="primary", id="ok")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.ok"), variant="primary", id="ok")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ok":
@@ -407,9 +408,9 @@ class QueryManageScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Panel("📋  CONSULTAS", id="qm-panel"):
             yield EmptyState(
-                what="Consultas",
-                why="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
-                action_label="Criar consulta",
+                what=t("query.list_title"),
+                why=t("query_manage.empty_why"),
+                action_label=t("query_manage.create_query"),
                 action_id="criar-consulta",
                 id="qm-empty",
             )
@@ -479,15 +480,15 @@ class QueryManageScreen(Vertical):
         except Exception:
             return
         actions = [
-            Action("Nova", "N", "qm_new"),
-            Action("Ver SQL", "V", "qm_view_sql"),
-            Action("Editar", "E", "qm_edit"),
-            Action("DE-PARA", "M", "qm_depara"),
-            Action("Renomear", "R", "qm_rename"),
-            Action("Favorito", "F", "qm_favorite"),
-            Action("Pasta", "P", "qm_folder"),
-            Action("Duplicar", "C", "qm_duplicate"),
-            Action("Remover", "D", "qm_remove"),
+            Action(t("action.new_query"), "N", "qm_new"),
+            Action(t("action.view_sql"), "V", "qm_view_sql"),
+            Action(t("action.edit"), "E", "qm_edit"),
+            Action(t("action.column_map"), "M", "qm_depara"),
+            Action(t("action.rename"), "R", "qm_rename"),
+            Action(t("action.favorite"), "F", "qm_favorite"),
+            Action(t("action.folder"), "P", "qm_folder"),
+            Action(t("action.duplicate"), "C", "qm_duplicate"),
+            Action(t("action.remove"), "D", "qm_remove"),
         ]
         action_bar.set_actions(actions)
 
@@ -541,7 +542,7 @@ class QueryManageScreen(Vertical):
 
         # Check duplicate name
         if any(q.name == result["name"] for q in queries):
-            self.notify(f'Consulta "{result["name"]}" ja existe.', severity="error")
+            self.notify(t("query.already_exists", nome=result["name"]), severity="error")
             return
 
         params = [
@@ -563,21 +564,21 @@ class QueryManageScreen(Vertical):
         save_queries(queries)
         self._load_queries()
         self._update_status_bar()
-        self.notify(f'Consulta "{query.name}" criada!')
+        self.notify(t("query_manage.created", nome=query.name))
 
     # -- View SQL --
 
     def _handle_view_sql(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.query import find_query
 
         query = find_query(name)
         if query is None:
-            self.notify(f'Consulta "{name}" nao encontrada.', severity="error")
+            self.notify(t("query.not_found_named", nome=name), severity="error")
             return
 
         modal = SqlViewerModal(query.name, query.sql)
@@ -588,14 +589,14 @@ class QueryManageScreen(Vertical):
     def _handle_edit(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.query import find_query
 
         query = find_query(name)
         if query is None:
-            self.notify(f'Consulta "{name}" nao encontrada.', severity="error")
+            self.notify(t("query.not_found_named", nome=name), severity="error")
             return
 
         self._edit_query_name = name
@@ -616,8 +617,8 @@ class QueryManageScreen(Vertical):
         if field == "description":
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
-                title="Editar Descricao",
-                message=f'Descricao para "{name}":',
+                title=t("query_manage.edit_description_title"),
+                message=t("query_manage.description_for", nome=name),
                 default=query.description,
             )
             self.app.push_screen(modal, callback=self._on_edit_description)
@@ -626,7 +627,7 @@ class QueryManageScreen(Vertical):
             from dbqm.models.connection import load_connections
             connections = load_connections()
             if not connections:
-                self.notify("Nenhuma conexao disponivel.", severity="warning")
+                self.notify(t("query_manage.no_connections"), severity="warning")
                 return
             modal = ConnectionPickerModal(query.connection)
             self.app.push_screen(modal, callback=self._on_edit_connection)
@@ -638,14 +639,14 @@ class QueryManageScreen(Vertical):
         elif field == "table":
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
-                title="Editar Tabela",
-                message=f'Tabela para "{name}":',
+                title=t("query_manage.edit_table_title"),
+                message=t("query_manage.table_for", nome=name),
                 default=query.table,
             )
             self.app.push_screen(modal, callback=self._on_edit_table)
 
         elif field == "params":
-            self.notify("Edicao de parametros: use Editar SQL para ajustar.", severity="information")
+            self.notify(t("query_manage.params_via_sql"), severity="information")
 
     def _on_edit_description(self, value: str | None) -> None:
         if value is None:
@@ -681,7 +682,7 @@ class QueryManageScreen(Vertical):
                 break
         save_queries(queries)
         self._load_queries()
-        self.notify(f'SQL de "{self._edit_query_name}" atualizado!')
+        self.notify(t("query_manage.sql_updated", nome=self._edit_query_name))
 
     def _on_edit_table(self, value: str | None) -> None:
         if value is None:
@@ -698,25 +699,25 @@ class QueryManageScreen(Vertical):
                 break
         save_queries(queries)
         self._load_queries()
-        self.notify(f'"{name}" atualizado!')
+        self.notify(t("query_manage.updated", nome=name))
 
     # -- DE-PARA --
 
     def _handle_depara(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.query import find_query
 
         query = find_query(name)
         if query is None:
-            self.notify(f'Consulta "{name}" nao encontrada.', severity="error")
+            self.notify(t("query.not_found_named", nome=name), severity="error")
             return
 
         if not query.columns:
-            self.notify("Consulta sem colunas detectadas.", severity="warning")
+            self.notify(t("query_manage.no_columns"), severity="warning")
             return
 
         from dbqm.ui.modals.column_maps import ColumnMapsModal
@@ -737,22 +738,22 @@ class QueryManageScreen(Vertical):
                 q.column_maps = maps
                 break
         save_queries(queries)
-        self.notify(f'DE-PARA de "{self._depara_query_name}" salvo!')
+        self.notify(t("query_manage.depara_saved", nome=self._depara_query_name))
 
     # -- Rename --
 
     def _handle_rename(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.text_input import TextInputModal
 
         self._rename_old_name = name
         modal = TextInputModal(
-            title="Renomear Consulta",
-            message=f'Novo nome para "{name}":',
+            title=t("query_manage.rename_title"),
+            message=t("common.new_name_for", nome=name),
             default=name,
         )
         self.app.push_screen(modal, callback=self._on_rename_result)
@@ -772,7 +773,7 @@ class QueryManageScreen(Vertical):
         queries = load_queries()
 
         if any(q.name == new_name for q in queries):
-            self.notify(f'Consulta "{new_name}" ja existe.', severity="error")
+            self.notify(t("query.already_exists", nome=new_name), severity="error")
             return
 
         for q in queries:
@@ -794,14 +795,14 @@ class QueryManageScreen(Vertical):
             save_groups(groups)
 
         self._load_queries()
-        self.notify(f'Consulta renomeada: "{old_name}" -> "{new_name}"')
+        self.notify(t("query_manage.renamed", antigo=old_name, novo=new_name))
 
     # -- Favorite --
 
     def _handle_favorite(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.query import load_queries, save_queries
@@ -810,29 +811,30 @@ class QueryManageScreen(Vertical):
         for q in queries:
             if q.name == name:
                 q.is_favorite = not q.is_favorite
-                status = "marcada como favorita" if q.is_favorite else "removida dos favoritos"
+                status = (t("query_manage.favorited") if q.is_favorite
+                          else t("query_manage.unfavorited"))
                 break
         else:
-            self.notify(f'Consulta "{name}" nao encontrada.', severity="error")
+            self.notify(t("query.not_found_named", nome=name), severity="error")
             return
 
         save_queries(queries)
         self._load_queries()
-        self.notify(f'"{name}" {status}!')
+        self.notify(t("query_manage.status_changed", nome=name, estado=status))
 
     # -- Folder --
 
     def _handle_folder(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.query import find_query, load_queries
 
         query = find_query(name)
         if query is None:
-            self.notify(f'Consulta "{name}" nao encontrada.', severity="error")
+            self.notify(t("query.not_found_named", nome=name), severity="error")
             return
 
         # Collect existing folder names
@@ -856,23 +858,23 @@ class QueryManageScreen(Vertical):
                 break
         save_queries(queries)
         self._load_queries()
-        label = f'"{folder}"' if folder else "(sem pasta)"
-        self.notify(f'"{self._folder_query_name}" movida para {label}!')
+        label = f'"{folder}"' if folder else t("query_manage.no_folder")
+        self.notify(t("query_manage.moved_to", nome=self._folder_query_name, pasta=label))
 
     # -- Duplicate --
 
     def _handle_duplicate(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.text_input import TextInputModal
 
         self._dup_source_name = name
         modal = TextInputModal(
-            title="Duplicar Consulta",
-            message=f'Nome para a copia de "{name}":',
+            title=t("query_manage.duplicate_title"),
+            message=t("query_manage.name_for_copy", nome=name),
             default=f"{name}_copia",
         )
         self.app.push_screen(modal, callback=self._on_dup_name_result)
@@ -887,12 +889,12 @@ class QueryManageScreen(Vertical):
 
         queries = load_queries()
         if any(q.name == new_name for q in queries):
-            self.notify(f'Consulta "{new_name}" ja existe.', severity="error")
+            self.notify(t("query.already_exists", nome=new_name), severity="error")
             return
 
         source = find_query(self._dup_source_name)
         if source is None:
-            self.notify(f'Consulta "{self._dup_source_name}" nao encontrada.', severity="error")
+            self.notify(t("query.not_found_named", nome=self._dup_source_name), severity="error")
             return
 
         # Ask for connection change
@@ -927,20 +929,20 @@ class QueryManageScreen(Vertical):
         save_queries(queries)
         self._load_queries()
         self._update_status_bar()
-        self.notify(f'Consulta duplicada: "{new_name}"!')
+        self.notify(t("query_manage.duplicated", nome=new_name))
 
     # -- Remove --
 
     def _handle_remove(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma consulta.", severity="warning")
+            self.notify(t("query_manage.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=f'Remover consulta "{name}"?')
+        modal = ConfirmModal(message=t("query_manage.confirm_remove", nome=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -953,9 +955,9 @@ class QueryManageScreen(Vertical):
         if delete_query(name):
             self._load_queries()
             self._update_status_bar()
-            self.notify(f'Consulta "{name}" removida!')
+            self.notify(t("query_manage.removed", nome=name))
         else:
-            self.notify(f'Consulta "{name}" nao encontrada.', severity="error")
+            self.notify(t("query.not_found_named", nome=name), severity="error")
 
     # ------------------------------------------------------------------
     # Helpers

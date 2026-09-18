@@ -7,6 +7,7 @@ from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual.widgets import Button, DataTable, Input, Select, Static, SelectionList
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
@@ -56,23 +57,23 @@ class GroupCreateModal(ModalScreen[dict | None]):
         queries = load_queries()
         query_items = [(q.name, q.name) for q in sorted(queries, key=lambda q: q.name)]
 
-        with Dialog("Novo Grupo", width="lg", id="dialog"):
+        with Dialog(t("group_manage.new_dialog_title"), width="lg", id="dialog"):
             yield Static(
-                "[dim]Selecione pelo menos 2 consultas para comparar.[/dim]",
+                f'[dim]{t("group_manage.pick_two_hint")}[/dim]',
                 id="info",
                 markup=True,
             )
-            yield Input(placeholder="Nome do grupo", id="name-input")
-            yield Input(placeholder="Descricao (opcional)", id="desc-input")
+            yield Input(placeholder=t("group_manage.name_placeholder"), id="name-input")
+            yield Input(placeholder=t("common.description_optional"), id="desc-input")
             yield SelectionList(*query_items, id="query-select")
-            yield Input(placeholder="Coluna de juncao (join key)", id="join-key-input")
+            yield Input(placeholder=t("group_manage.join_key_placeholder"), id="join-key-input")
             yield Input(
-                placeholder="Colunas de comparacao (separadas por virgula)",
+                placeholder=t("group_manage.compare_cols_placeholder"),
                 id="compare-cols-input",
             )
             with Horizontal(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         self.query_one("#name-input", Input).focus()
@@ -138,14 +139,14 @@ class GroupEditMenuModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("O que deseja editar?", width="sm", id="dialog"):
-            yield Button("Descricao", id="edit_description")
-            yield Button("Consultas", id="edit_queries")
-            yield Button("Coluna de juncao", id="edit_join_key")
-            yield Button("Colunas de comparacao", id="edit_compare_columns")
-            yield Button("Template", id="edit_template")
-            yield Button("Campos do template", id="edit_template_fields")
-            yield Button("Cancelar", variant="default", id="cancel")
+        with Dialog(t("query_manage.edit_what"), width="sm", id="dialog"):
+            yield Button(t("common.description"), id="edit_description")
+            yield Button(t("query.list_title"), id="edit_queries")
+            yield Button(t("group_manage.join_key_button"), id="edit_join_key")
+            yield Button(t("group_manage.compare_cols_button"), id="edit_compare_columns")
+            yield Button(t("common.template"), id="edit_template")
+            yield Button(t("group_manage.template_fields_button"), id="edit_template_fields")
+            yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
@@ -200,18 +201,18 @@ class QuerySelectionModal(ModalScreen[list[str] | None]):
             for q in sorted(queries, key=lambda q: q.name)
         ]
 
-        with Dialog("Selecionar Consultas", id="dialog"):
+        with Dialog(t("group_manage.select_queries_title"), id="dialog"):
             yield SelectionList(*query_items, id="query-select")
             with Horizontal(id="buttons"):
-                yield Button("OK", variant="primary", id="ok")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.ok"), variant="primary", id="ok")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ok":
             selection_list = self.query_one("#query-select", SelectionList)
             selected = list(selection_list.selected)
             if len(selected) < 2:
-                self.notify("Selecione pelo menos 2 consultas.", severity="warning")
+                self.notify(t("group_manage.pick_two"), severity="warning")
                 return
             self.dismiss(selected)
         elif event.button.id == "cancel":
@@ -260,14 +261,14 @@ class GroupFolderModal(ModalScreen[str | None]):
         self._existing = existing_folders or []
 
     def compose(self) -> ComposeResult:
-        with Dialog("Pasta do Grupo", id="dialog"):
+        with Dialog(t("group_manage.folder_dialog_title"), id="dialog"):
             if self._existing:
                 folders_text = ", ".join(self._existing)
-                yield Static(f"[dim]Pastas existentes: {folders_text}[/dim]", id="existing", markup=True)
-            yield Input(value=self._current, placeholder="Nome da pasta (vazio = sem pasta)", id="folder-input")
+                yield Static(f'[dim]{t("query_manage.existing_folders", pastas=folders_text)}[/dim]', id="existing", markup=True)
+            yield Input(value=self._current, placeholder=t("query_manage.folder_placeholder"), id="folder-input")
             with Horizontal(id="buttons"):
-                yield Button("OK", variant="primary", id="ok")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.ok"), variant="primary", id="ok")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         self.query_one("#folder-input", Input).focus()
@@ -312,12 +313,12 @@ class TemplatePickerModal(ModalScreen[str | None]):
         self._current = current
 
     def compose(self) -> ComposeResult:
-        with Dialog("Selecionar Template", width="sm", id="dialog"):
+        with Dialog(t("group_manage.select_template_title"), width="sm", id="dialog"):
             for tname in self._templates:
                 variant = "primary" if tname == self._current else "default"
                 yield Button(tname, id=f"tpl-{tname}", variant=variant)
-            yield Button("Nenhum (remover)", variant="warning", id="tpl--none--")
-            yield Button("Cancelar", variant="default", id="tpl--cancel--")
+            yield Button(t("group_manage.no_template"), variant="warning", id="tpl--none--")
+            yield Button(t("common.cancel"), variant="default", id="tpl--cancel--")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
@@ -391,11 +392,9 @@ class TemplateFieldsModal(ModalScreen[dict | None]):
     def compose(self) -> ComposeResult:
         from textual.containers import Horizontal as H
 
-        with Dialog("Configurar Campos do Template", width="lg", id="dialog"):
+        with Dialog(t("group_manage.template_fields_title"), width="lg", id="dialog"):
             yield Static(
-                "[dim]Fontes: param:NOME | query:CONSULTA:COLUNA | query:CONSULTA:_count | "
-                "query:CONSULTA:_status | literal:texto\n"
-                "Vazio = campo de preenchimento manual[/dim]",
+                f'[dim]{t("group_manage.template_fields_hint")}[/dim]',
                 id="hint",
                 markup=True,
             )
@@ -404,13 +403,13 @@ class TemplateFieldsModal(ModalScreen[dict | None]):
                     yield Static(f"[bold]{{{{{ph}}}}}[/bold]", classes="field-label", markup=True)
                     yield Input(
                         value=self._current.get(ph, ""),
-                        placeholder="vazio = input manual",
+                        placeholder=t("group_manage.manual_input_placeholder"),
                         id=f"tf-{ph}",
                         classes="field-input",
                     )
             with H(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         if self._placeholders:
@@ -463,11 +462,11 @@ class GroupManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        with Panel("👥  GRUPOS", id="gm-panel"):
+        with Panel(t("panel.groups"), id="gm-panel"):
             yield EmptyState(
-                what="Grupos",
-                why="Grupos comparam a mesma consulta em varias conexoes de uma vez",
-                action_label="Criar grupo",
+                what=t("group.list_title"),
+                why=t("group_manage.empty_why"),
+                action_label=t("group_manage.create_group"),
                 action_id="criar-grupo",
                 id="gm-empty",
             )
@@ -535,11 +534,11 @@ class GroupManageScreen(Vertical):
         except Exception:
             return
         actions = [
-            Action("Novo", "N", "gm_new"),
-            Action("Editar", "E", "gm_edit"),
-            Action("Renomear", "R", "gm_rename"),
-            Action("Pasta", "P", "gm_folder"),
-            Action("Remover", "D", "gm_remove"),
+            Action(t("action.new_group"), "N", "gm_new"),
+            Action(t("action.edit"), "E", "gm_edit"),
+            Action(t("action.rename"), "R", "gm_rename"),
+            Action(t("action.folder"), "P", "gm_folder"),
+            Action(t("action.remove"), "D", "gm_remove"),
         ]
         action_bar.set_actions(actions)
 
@@ -579,7 +578,7 @@ class GroupManageScreen(Vertical):
         queries = load_queries()
         if len(queries) < 2:
             self.notify(
-                "Sao necessarias pelo menos 2 consultas para criar um grupo.",
+                t("group_manage.two_queries_needed"),
                 severity="warning",
             )
             return
@@ -596,7 +595,7 @@ class GroupManageScreen(Vertical):
         groups = load_groups()
 
         if any(g.name == result["name"] for g in groups):
-            self.notify(f'Grupo "{result["name"]}" ja existe.', severity="error")
+            self.notify(t("group.already_exists", nome=result["name"]), severity="error")
             return
 
         group = Group(
@@ -610,21 +609,21 @@ class GroupManageScreen(Vertical):
         save_groups(groups)
         self._load_groups()
         self._update_status_bar()
-        self.notify(f'Grupo "{group.name}" criado!')
+        self.notify(t("group_manage.created", nome=group.name))
 
     # -- Edit --
 
     def _handle_edit(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione um grupo.", severity="warning")
+            self.notify(t("group_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.group import find_group
 
         group = find_group(name)
         if group is None:
-            self.notify(f'Grupo "{name}" nao encontrado.', severity="error")
+            self.notify(t("group.not_found_named", nome=name), severity="error")
             return
 
         self._edit_group_name = name
@@ -645,8 +644,8 @@ class GroupManageScreen(Vertical):
         if field == "description":
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
-                title="Editar Descricao",
-                message=f'Descricao para "{name}":',
+                title=t("query_manage.edit_description_title"),
+                message=t("query_manage.description_for", nome=name),
                 default=group.description,
             )
             self.app.push_screen(modal, callback=self._on_edit_description)
@@ -658,8 +657,8 @@ class GroupManageScreen(Vertical):
         elif field == "join_key":
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
-                title="Editar Coluna de Juncao",
-                message=f'Coluna de juncao para "{name}":',
+                title=t("group_manage.edit_join_key_title"),
+                message=t("group_manage.join_key_for", nome=name),
                 default=group.join_key,
             )
             self.app.push_screen(modal, callback=self._on_edit_join_key)
@@ -668,8 +667,8 @@ class GroupManageScreen(Vertical):
             from dbqm.ui.modals.text_input import TextInputModal
             current = ", ".join(group.compare_columns)
             modal = TextInputModal(
-                title="Editar Colunas de Comparacao",
-                message=f'Colunas para "{name}" (separadas por virgula):',
+                title=t("group_manage.edit_compare_cols_title"),
+                message=t("group_manage.compare_cols_for", nome=name),
                 default=current,
             )
             self.app.push_screen(modal, callback=self._on_edit_compare_columns)
@@ -707,7 +706,7 @@ class GroupManageScreen(Vertical):
 
         templates = load_templates()
         if not templates:
-            self.notify("Nenhum template disponivel. Crie um primeiro.", severity="warning")
+            self.notify(t("group_manage.no_templates"), severity="warning")
             return
 
         modal = TemplatePickerModal(
@@ -726,7 +725,7 @@ class GroupManageScreen(Vertical):
     def _push_template_fields_editor(self, group) -> None:
         """Show the template field mapping editor."""
         if not group.template:
-            self.notify("Selecione um template primeiro.", severity="warning")
+            self.notify(t("group_manage.select_template_first"), severity="warning")
             return
 
         from dbqm.models.template import find_template
@@ -734,12 +733,12 @@ class GroupManageScreen(Vertical):
 
         template = find_template(group.template)
         if template is None:
-            self.notify(f'Template "{group.template}" nao encontrado.', severity="error")
+            self.notify(t("template.not_found_named", nome=group.template), severity="error")
             return
 
         placeholders = extract_placeholders(template.content)
         if not placeholders:
-            self.notify("Template nao possui campos {{campo}}.", severity="warning")
+            self.notify(t("group_manage.template_without_fields"), severity="warning")
             return
 
         modal = TemplateFieldsModal(
@@ -764,22 +763,22 @@ class GroupManageScreen(Vertical):
                 break
         save_groups(groups)
         self._load_groups()
-        self.notify(f'"{name}" atualizado!')
+        self.notify(t("group_manage.updated", nome=name))
 
     # -- Rename --
 
     def _handle_rename(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione um grupo.", severity="warning")
+            self.notify(t("group_manage.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.text_input import TextInputModal
 
         self._rename_old_name = name
         modal = TextInputModal(
-            title="Renomear Grupo",
-            message=f'Novo nome para "{name}":',
+            title=t("group_manage.rename_title"),
+            message=t("common.new_name_for", nome=name),
             default=name,
         )
         self.app.push_screen(modal, callback=self._on_rename_result)
@@ -799,7 +798,7 @@ class GroupManageScreen(Vertical):
         groups = load_groups()
 
         if any(g.name == new_name for g in groups):
-            self.notify(f'Grupo "{new_name}" ja existe.', severity="error")
+            self.notify(t("group.already_exists", nome=new_name), severity="error")
             return
 
         for g in groups:
@@ -808,21 +807,21 @@ class GroupManageScreen(Vertical):
                 break
         save_groups(groups)
         self._load_groups()
-        self.notify(f'Grupo renomeado: "{old_name}" -> "{new_name}"')
+        self.notify(t("group_manage.renamed", antigo=old_name, novo=new_name))
 
     # -- Folder --
 
     def _handle_folder(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione um grupo.", severity="warning")
+            self.notify(t("group_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.group import find_group, load_groups
 
         group = find_group(name)
         if group is None:
-            self.notify(f'Grupo "{name}" nao encontrado.', severity="error")
+            self.notify(t("group.not_found_named", nome=name), severity="error")
             return
 
         all_groups = load_groups()
@@ -846,20 +845,20 @@ class GroupManageScreen(Vertical):
         save_groups(groups)
         self._load_groups()
         label = f'"{folder}"' if folder else "(sem pasta)"
-        self.notify(f'"{self._folder_group_name}" movido para {label}!')
+        self.notify(t("group_manage.moved_to", nome=self._folder_group_name, pasta=label))
 
     # -- Remove --
 
     def _handle_remove(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione um grupo.", severity="warning")
+            self.notify(t("group_manage.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=f'Remover grupo "{name}"?')
+        modal = ConfirmModal(message=t("group_manage.confirm_remove", nome=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -872,9 +871,9 @@ class GroupManageScreen(Vertical):
         if delete_group(name):
             self._load_groups()
             self._update_status_bar()
-            self.notify(f'Grupo "{name}" removido!')
+            self.notify(t("group_manage.removed", nome=name))
         else:
-            self.notify(f'Grupo "{name}" nao encontrado.', severity="error")
+            self.notify(t("group.not_found_named", nome=name), severity="error")
 
     # ------------------------------------------------------------------
     # Helpers

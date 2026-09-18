@@ -38,7 +38,7 @@ MARCA = re.compile(r"\b(" + "|".join(PALAVRAS) + r")\b", re.IGNORECASE)
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
-MAX_LITERAIS = 386
+MAX_LITERAIS = 273
 
 #: The catalogue itself is Portuguese by definition, and the design tokens
 #: carry Portuguese token names that are identifiers, not screen text.
@@ -158,3 +158,51 @@ def test_english_is_the_default():
     which only works if English is the one language guaranteed complete."""
     assert IDIOMA_PADRAO == "en"
     assert set(CATALOGOS[IDIOMA_PADRAO]) == set(en.TEXTOS)
+
+
+def _chamadas_de_t_no_nivel_do_modulo(py: Path) -> list[int]:
+    """Lines where `t(...)` runs as the module is imported."""
+    fonte = py.read_text(encoding="utf-8")
+    arvore = ast.parse(fonte)
+    linhas = []
+    for no in arvore.body:
+        if isinstance(no, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            # A call inside a def runs when the def is called, which is the
+            # whole point. A class body, though, executes at import.
+            if not isinstance(no, ast.ClassDef):
+                continue
+            for corpo in no.body:
+                if isinstance(corpo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                linhas.extend(_ts_em(corpo))
+            continue
+        linhas.extend(_ts_em(no))
+    return linhas
+
+
+def _ts_em(no) -> list[int]:
+    return [f.lineno for f in ast.walk(no)
+            if isinstance(f, ast.Call) and isinstance(f.func, ast.Name) and f.func.id == "t"]
+
+
+def test_no_lookup_happens_at_import_time():
+    """`t()` in a module-level constant freezes the language at import.
+
+    Nothing raises, nothing is logged: the constant is built in whatever
+    language was current when Python read the file -- the default, for every
+    module imported before the app resolves the user's choice -- and it
+    keeps that text for the life of the process. `connections.py` had its
+    database-type list written that way.
+    """
+    culpados = {}
+    for py in sorted((RAIZ / "dbqm").rglob("*.py")):
+        relativo = py.relative_to(RAIZ).as_posix()
+        if relativo.startswith(FORA):
+            continue
+        linhas = _chamadas_de_t_no_nivel_do_modulo(py)
+        if linhas:
+            culpados[relativo] = linhas
+    assert not culpados, (
+        f"t() runs at import time in {culpados}. Wrap it in a function so the "
+        f"lookup happens after the language is resolved."
+    )

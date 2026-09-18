@@ -511,15 +511,15 @@ async def test_connections_screen_renders(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_connections_has_list_and_form_panels(tmp_config_dir):
-    """CONEXOES + EDICAO panels exist, with the list and form field ids."""
+    """CONNECTIONS + EDIT panels exist, with the list and form field ids."""
     from dbqm.ui.widgets.panel import Panel
 
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ConnectionsScreen)
         titles = [p.query_one("#panel-title").render().plain for p in screen.query(Panel)]
-        assert any("CONEXOES" in t for t in titles)
-        assert any("EDICAO" in t for t in titles)
+        assert any("CONNECTIONS" in t for t in titles)
+        assert any("EDIT" in t for t in titles)
         assert screen.query_one("#conn-list") is not None
         assert screen.query_one("#conn-form-name") is not None
         assert screen.query_one("#conn-form-type") is not None
@@ -1095,7 +1095,7 @@ async def test_connections_testar_warns_without_name(tmp_config_dir):
         screen._handle_test()
         await pilot.pause()
         messages = [str(n.message) for n in app._notifications]
-        assert any("nome" in m.lower() for m in messages)
+        assert any("name" in m.lower() for m in messages)
 
 
 @pytest.mark.asyncio
@@ -1113,7 +1113,7 @@ async def test_connections_testar_starts_worker_for_named_connection(tmp_config_
         await pilot.pause()
 
         messages = [str(n.message) for n in app._notifications]
-        assert any("Testando" in m for m in messages)
+        assert any("Testing" in m for m in messages)
 
 
 # ======================================================================
