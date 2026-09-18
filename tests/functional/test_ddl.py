@@ -80,4 +80,4 @@ def test_an_unknown_connection_is_not_found(local_db, capsys):
     code, body = envelope(["ddl", "clientes", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Conexao 'nope' nao encontrada."
+    assert body["error"]["message"] == 'Connection "nope" not found.'

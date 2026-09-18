@@ -18,7 +18,7 @@ Oracle it is `DBMS_METADATA` (manual row). Envelope and exit codes:
 | QA-DDL-004 | Dado `v_ativos` / Quando `dbqm ddl v_ativos local --stdout -f json` / Entao um objeto `VIEW` cujo ddl e `CREATE VIEW v_ativos AS SELECT id, nome FROM clientes WHERE status = 'A';` | functional | all | tests/functional/test_ddl.py::test_a_view_is_extracted |
 | QA-DDL-005 | Dado sem `--stdout` / Quando `dbqm ddl clientes local -f json` / Entao `data.path` e um diretorio existente sob a pasta de exports contendo um `.sql` com `CREATE TABLE clientes` | functional | all | tests/functional/test_ddl.py::test_without_stdout_a_sql_file_is_written |
 | QA-DDL-006 | Dado um nome que nao existe / Quando `dbqm ddl nao_existe local -f json` / Entao exit 2, `not_found`, `Object 'nao_existe' not found.` | functional | all | tests/functional/test_ddl.py::test_an_unknown_object_is_not_found |
-| QA-DDL-007 | Dado uma conexao nao registrada / Quando `dbqm ddl clientes nope -f json` / Entao exit 2, `not_found`, `Conexao 'nope' nao encontrada.` | functional | all | tests/functional/test_ddl.py::test_an_unknown_connection_is_not_found |
+| QA-DDL-007 | Dado uma conexao nao registrada / Quando `dbqm ddl clientes nope -f json` / Entao exit 2, `not_found`, `Connection "nope" not found.` | functional | all | tests/functional/test_ddl.py::test_an_unknown_connection_is_not_found |
 | QA-DDL-008 | Dado uma tabela Oracle / Quando `dbqm ddl <tabela> <oracle> --stdout -f json` / Entao o DDL vem de `DBMS_METADATA.GET_DDL` e inclui indices e constraints | manual | oracle | — |
 
 ## Manual (Oracle)

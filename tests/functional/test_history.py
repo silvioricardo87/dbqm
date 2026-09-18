@@ -102,7 +102,7 @@ def test_a_limit_below_one_is_refused(ativos, capsys, valor):
     code, body = envelope(["history", "-n", valor, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "-n deve ser maior que zero."
+    assert body["error"]["message"] == "-n must be greater than zero."
 
 
 # QA-HIST-008

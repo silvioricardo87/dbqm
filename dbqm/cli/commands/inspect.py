@@ -8,6 +8,7 @@ from typing import NoReturn
 from rich.markup import escape
 from rich.table import Table
 
+from dbqm.i18n import t
 from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
@@ -33,7 +34,7 @@ def cmd_test(args: argparse.Namespace) -> None:
             ok("test", data)
             return
         if not connections:
-            console.print("[ds.text.muted]Nenhuma conexao configurada.[/ds.text.muted]")
+            console.print(f'[ds.text.muted]{t("connection.none_configured")}[/ds.text.muted]')
             return
         for conn in connections:
             succeeded, msg = deps.test_connection(conn)
@@ -44,8 +45,9 @@ def cmd_test(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         if args.format == "json":
-            fail("test", "not_found", f"Conexao '{args.connection}' nao encontrada.")
-        console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
+            fail("test", "not_found", t("connection.not_found_named", nome=args.connection))
+        nao_achada = escape(t("connection.not_found_named", nome=args.connection))
+        console.print(f"[ds.op.failure]{nao_achada}[/ds.op.failure]")
         sys.exit(int(exit_for("not_found")))
 
     succeeded, msg = deps.test_connection(conn)
@@ -73,12 +75,12 @@ def cmd_list(args: argparse.Namespace) -> None:
             ok("list.connections", data)
             return
         if not items:
-            console.print("[ds.text.muted]Nenhuma conexao configurada.[/ds.text.muted]")
+            console.print(f'[ds.text.muted]{t("connection.none_configured")}[/ds.text.muted]')
             return
-        table = Table(title="Conexoes")
-        table.add_column("Nome")
-        table.add_column("Tipo")
-        table.add_column("Destino")
+        table = Table(title=t("connection.list_title"))
+        table.add_column(t("common.name"))
+        table.add_column(t("common.type"))
+        table.add_column(t("common.target"))
         for c in items:
             table.add_row(f"[ds.identity]{escape(c.name)}[/]", c.db_type, escape(c.display_target()))
         console.print(table)
@@ -92,15 +94,15 @@ def cmd_list(args: argparse.Namespace) -> None:
             ok("list.queries", data)
             return
         if not items:
-            console.print("[ds.text.muted]Nenhuma consulta configurada.[/ds.text.muted]")
+            console.print(f'[ds.text.muted]{t("query.none_configured")}[/ds.text.muted]')
             return
-        table = Table(title="Consultas")
-        table.add_column("Nome")
-        table.add_column("Descricao")
-        table.add_column("Conexao")
-        table.add_column("Pasta")
-        table.add_column("Parametros")
-        table.add_column("Fav")
+        table = Table(title=t("query.list_title"))
+        table.add_column(t("common.name"))
+        table.add_column(t("common.description"))
+        table.add_column(t("common.connection"))
+        table.add_column(t("common.folder"))
+        table.add_column(t("common.params"))
+        table.add_column(t("common.favorite_short"))
         for q in items:
             params = ", ".join(p.name for p in q.params) or "-"
             fav = "*" if q.is_favorite else ""
@@ -116,14 +118,14 @@ def cmd_list(args: argparse.Namespace) -> None:
             ok("list.groups", data)
             return
         if not items:
-            console.print("[ds.text.muted]Nenhum grupo configurado.[/ds.text.muted]")
+            console.print(f'[ds.text.muted]{t("group.none_configured")}[/ds.text.muted]')
             return
-        table = Table(title="Grupos")
-        table.add_column("Nome")
-        table.add_column("Descricao")
-        table.add_column("Consultas")
-        table.add_column("Chave")
-        table.add_column("Colunas")
+        table = Table(title=t("group.list_title"))
+        table.add_column(t("common.name"))
+        table.add_column(t("common.description"))
+        table.add_column(t("query.list_title"))
+        table.add_column(t("common.key"))
+        table.add_column(t("common.columns"))
         for g in items:
             desc = g.description[:50] + "..." if len(g.description) > 50 else g.description
             table.add_row(g.name, desc or "-", ", ".join(g.queries), g.join_key,
@@ -132,8 +134,9 @@ def cmd_list(args: argparse.Namespace) -> None:
 
     else:
         if args.format == "json":
-            fail(f"list.{resource}", "usage", f"Recurso desconhecido: {resource}")
-        console.print(f"[ds.op.failure]Recurso desconhecido: {resource}[/ds.op.failure]")
+            fail(f"list.{resource}", "usage", t("list.unknown_resource", recurso=resource))
+        desconhecido = escape(t("list.unknown_resource", recurso=resource))
+        console.print(f"[ds.op.failure]{desconhecido}[/ds.op.failure]")
         sys.exit(int(exit_for("usage")))
 
 
@@ -180,8 +183,9 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         if args.format == "json":
-            fail("ddl", "not_found", f"Conexao '{args.connection}' nao encontrada.")
-        console.print(f"[ds.op.failure]Conexao '{escape(args.connection)}' nao encontrada.[/ds.op.failure]")
+            fail("ddl", "not_found", t("connection.not_found_named", nome=args.connection))
+        nao_achada = escape(t("connection.not_found_named", nome=args.connection))
+        console.print(f"[ds.op.failure]{nao_achada}[/ds.op.failure]")
         sys.exit(int(exit_for("not_found")))
 
     def on_progress(current, total, obj_type, obj_name):
@@ -228,7 +232,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
             print()
     else:
         dir_path, _ = deps.save_extraction(result)
-        console.print(f"DDL salvo em: {dir_path}")
+        console.print(t("ddl.saved_to", caminho=dir_path))
 
 
 def cmd_history(args: argparse.Namespace) -> None:
@@ -238,14 +242,14 @@ def cmd_history(args: argparse.Namespace) -> None:
     # silently meant "all but the last five". `rows` validates `--limit` and
     # `--offset` the same way and for the same reason.
     if args.limit is not None and args.limit < 1:
-        _fail_or_print(args, "history", "usage", "-n deve ser maior que zero.")
+        _fail_or_print(args, "history", "usage", t("history.limit_positive"))
 
     if args.clear:
         deps.clear_history()
         if args.format == "json":
             ok("history", [])
             return
-        console.print("Historico limpo.")
+        console.print(t("history.cleared"))
         return
 
     entries = deps.load_history()
@@ -253,7 +257,7 @@ def cmd_history(args: argparse.Namespace) -> None:
         if args.format == "json":
             ok("history", [])
             return
-        console.print("[ds.text.muted]Historico vazio.[/ds.text.muted]")
+        console.print(f'[ds.text.muted]{t("history.empty")}[/ds.text.muted]')
         return
 
     limit = args.limit or 20
@@ -264,18 +268,20 @@ def cmd_history(args: argparse.Namespace) -> None:
         ok("history", data)
         return
 
-    table = Table(title=f"Historico (ultimos {len(entries)})")
-    table.add_column("Data")
-    table.add_column("Tipo")
-    table.add_column("Nome")
-    table.add_column("Conexao")
-    table.add_column("Registros")
-    table.add_column("Tempo")
-    table.add_column("Status")
+    table = Table(title=t("history.title", quantidade=len(entries)))
+    table.add_column(t("common.date"))
+    table.add_column(t("common.type"))
+    table.add_column(t("common.name"))
+    table.add_column(t("common.connection"))
+    table.add_column(t("common.rows"))
+    table.add_column(t("common.time"))
+    table.add_column(t("common.status"))
     for e in entries:
-        status = "OK" if e.success else "[ds.op.failure]ERRO[/ds.op.failure]"
+        status = ("OK" if e.success
+                  else f'[ds.op.failure]{t("common.error_short")}[/ds.op.failure]')
         if e.all_match is not None:
-            status = "[ds.verdict.match]CONSISTENTE[/]" if e.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
+            status = (f"[ds.verdict.match]{t('verdict.consistent')}[/]" if e.all_match
+                      else f"[ds.verdict.diff]{t('verdict.divergent')}[/]")
         table.add_row(
             e.timestamp, e.entry_type, e.name,
             f"[ds.identity]{e.connection}[/]" if e.connection else "-",
