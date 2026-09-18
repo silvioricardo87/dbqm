@@ -127,3 +127,22 @@ def test_a_run_is_recorded_in_history(ativos, capsys):
     assert registros[0]["entry_type"] == "query"
     assert registros[0]["success"] is True
     assert registros[0]["row_count"] == 2
+
+
+# QA-QUERY-012
+def test_a_param_the_query_does_not_declare_is_refused(ativos, capsys):
+    """It ran unfiltered and reported the rows as a result. `dbqm call` has
+    always refused an undeclared parameter."""
+    code, body = envelope(["run", ativos, "-p", "naoexiste=1", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["code"] == "validation"
+    assert body["error"]["message"] == "Consulta 'ativos' nao declara o parametro 'naoexiste'."
+
+
+# QA-QUERY-013
+def test_a_declared_param_alongside_an_undeclared_one_is_still_refused(por_status, capsys):
+    code, body = envelope(
+        ["run", por_status, "-p", "st=A", "-p", "lixo=9", "-f", "json"], capsys,
+    )
+    assert code == 2
+    assert body["error"]["message"] == "Consulta 'por_status' nao declara o parametro 'lixo'."

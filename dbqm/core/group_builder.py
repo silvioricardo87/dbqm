@@ -48,6 +48,16 @@ def validate(values: dict[str, Any]) -> list[str]:
         for qname in queries:
             if qname and find_query(qname) is None:
                 errors.append(f'Consulta "{qname}" nao encontrada.')
+        # Distinct, not merely two: `run_comparison` keys its index by query
+        # name, so the same name twice collapses to one side and the
+        # comparison can only ever report agreement -- with itself. `multi`
+        # refuses the same shape for a repeated `-c`.
+        repetidas = sorted({q for q in queries if queries.count(q) > 1})
+        if repetidas:
+            errors.append(
+                f'Consulta "{repetidas[0]}" repetida. Um grupo compara '
+                "consultas distintas."
+            )
 
     if not _text(values, "join_key"):
         errors.append("Informe a coluna de juncao.")

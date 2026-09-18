@@ -156,10 +156,15 @@ def _ddl_error_code(errors: list[str]) -> str:
     return "sql_error"
 
 
-def _fail_ddl(args: argparse.Namespace, code: str, message: str) -> NoReturn:
-    """One branch point for `-f json`, like `query._fail_or_print`."""
+def _fail_or_print(
+    args: argparse.Namespace, command: str, code: str, message: str,
+) -> NoReturn:
+    """One branch point for `-f json`, like `query._fail_or_print`.
+
+    Took the command name from a hard-coded "ddl" until 2.10.0, which is
+    why `history` had no way to reach it."""
     if args.format == "json":
-        fail("ddl", code, message)
+        fail(command, code, message)
     console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
     sys.exit(int(exit_for(code)))
 
@@ -198,7 +203,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     try:
         result = deps.extract_ddl(conn, args.object, on_progress=on_progress)
     except Exception as e:
-        _fail_ddl(args, "connection_failed", str(e))
+        _fail_or_print(args, "ddl", "connection_failed", str(e))
 
     if args.format == "json":
         if result.errors and not result.objects:
@@ -233,6 +238,13 @@ def cmd_ddl(args: argparse.Namespace) -> None:
 
 def cmd_history(args: argparse.Namespace) -> None:
     """View or clear execution history."""
+    # Before the history is even read: `-n 0` fell through `args.limit or 20`
+    # and silently meant the default, and `-n -5` reached `entries[:-5]` and
+    # silently meant "all but the last five". `rows` validates `--limit` and
+    # `--offset` the same way and for the same reason.
+    if args.limit is not None and args.limit < 1:
+        _fail_or_print(args, "history", "usage", "-n deve ser maior que zero.")
+
     if args.clear:
         deps.clear_history()
         if args.format == "json":

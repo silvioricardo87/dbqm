@@ -131,3 +131,21 @@ def test_no_connections_leaves_them_out(curated, capsys):
     assert code == 0
     assert body["data"] == {"connections": 0, "queries": 2, "groups": 1, "templates": 1, "skipped": 0}
     assert _names("connection", capsys) == []
+
+
+# QA-PORT-008
+def test_excluding_everything_is_refused(curated, capsys):
+    """It wrote a bundle carrying nothing but its own salt and called it a
+    successful export."""
+    code, body = envelope(
+        ["export-config", "--no-connections", "--no-queries", "--no-groups",
+         "--password", SENHA, "-f", "json"],
+        capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "usage"
+    assert body["error"]["message"] == (
+        "Nada a exportar: --no-connections, --no-queries e --no-groups "
+        "excluem tudo que o bundle carrega."
+    )
+    assert not list(Path(paths.EXPORTS_DIR).rglob("*.dbqm"))

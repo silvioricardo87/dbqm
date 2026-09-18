@@ -229,3 +229,24 @@ def test_the_read_only_refusal_comes_before_the_export_one(read_only_db, capsys)
     )
     assert code == 2
     assert body["error"]["code"] == "read_only"
+
+
+# QA-SQL-022
+def test_a_param_the_statement_never_binds_is_refused(local_db, capsys):
+    code, body = envelope(
+        ["sql", "SELECT 1 AS um", "local", "-p", "naoexiste=1", "-f", "json"], capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "validation"
+    assert body["error"]["message"] == "O SQL nao usa o parametro 'naoexiste'."
+
+
+# QA-SQL-023
+def test_a_missing_sql_file_says_so(local_db, tmp_path, capsys):
+    """A path ending in `.sql` is not a statement. Read as SQL it came back
+    "Tipo de SQL nao suportado", which says nothing about the typo."""
+    caminho = tmp_path / "nao_existe.sql"
+    code, body = envelope(["sql", str(caminho), "local", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["code"] == "not_found"
+    assert body["error"]["message"] == f"Arquivo '{caminho}' nao encontrado."

@@ -124,6 +124,26 @@ def _export_group(
     return path
 
 
+def _refuse_undeclared_params(
+    args: argparse.Namespace, command: str, sql: str, param_values: dict[str, str],
+) -> None:
+    """Refuse a `-p` whose name the SQL never binds.
+
+    The statement is right there, so the set of names it accepts is exactly
+    knowable -- and a name outside it is a typo that would otherwise run
+    unfiltered and be reported as a result.
+    """
+    if not param_values:
+        return
+    declarados = set(deps.detect_params(sql))
+    desconhecidos = sorted(set(param_values) - declarados)
+    if desconhecidos:
+        _fail_or_print(
+            args, command, "validation",
+            f"O SQL nao usa o parametro '{desconhecidos[0]}'.",
+        )
+
+
 def _sql_or_file(sql: str) -> str:
     """The SQL to run: `sql` itself, or the contents of the file it names.
 
@@ -135,6 +155,11 @@ def _sql_or_file(sql: str) -> str:
     caminho = Path(sql)
     if caminho.is_file():
         return caminho.read_text(encoding="utf-8")
+    if caminho.suffix.lower() == ".sql":
+        # Nothing that ends in `.sql` is a statement. Left as SQL it reached
+        # `classify_sql` and came back "Tipo de SQL nao suportado", which
+        # says nothing about the typo in the path.
+        raise FileNotFoundError(str(caminho))
     return sql
 
 
@@ -182,6 +207,20 @@ def cmd_run(args: argparse.Namespace) -> None:
         _fail_or_print(args, "run", "not_found", f"Conexao '{conn_name}' nao encontrada.")
 
     param_values = _parse_params(args.param, args, "run")
+
+    # A name the query does not declare is a typo, and accepting it means
+    # running unfiltered and calling it a result. `dbqm call` has always
+    # refused an undeclared parameter; `run` ignored it. `run-group` is
+    # deliberately left alone: its `shared_params` cross several queries and
+    # a parameter some of them do not use is the point.
+    declarados = {p.name for p in query.params}
+    desconhecidos = sorted(set(param_values) - declarados)
+    if desconhecidos:
+        _fail_or_print(
+            args, "run", "validation",
+            f"Consulta '{query.name}' nao declara o parametro "
+            f"'{desconhecidos[0]}'.",
+        )
 
     # Fill missing params with defaults
     for p in query.params:
@@ -304,9 +343,31 @@ def cmd_run_group(args: argparse.Namespace) -> None:
 
     total_elapsed = time.time() - total_start
 
+    # `--compare-column` is optional, so a group can name none -- and
+    # `run_comparison` over zero columns produces zero `ComparisonResult`,
+    # which makes `all(...)` vacuously True: CONSISTENTE, exit 0, over data
+    # nothing ever looked at. `cmd_multi` has refused this since it shipped;
+    # `cmd_run_group` answered it. The columns are derived the same way
+    # `multi` derives them, and the caller is told that is what happened.
+    compare_columns = list(group.compare_columns)
+    derivadas: list[str] = []
+    if not compare_columns:
+        try:
+            _, derivadas = deps.derive_comparison_columns(query_results)
+        except deps.NoComparableColumns as e:
+            _fail_or_print(args, "run-group", "validation", str(e))
+        compare_columns = [c for c in derivadas if c != group.join_key]
+        if not compare_columns:
+            _fail_or_print(
+                args, "run-group", "validation",
+                f"Grupo '{group.name}' nao define colunas para comparar e as "
+                f"consultas nao tem nenhuma coluna comum alem de "
+                f"'{group.join_key}'.",
+            )
+
     group_result = deps.build_group_result(
         group.name, query_results, group.join_key,
-        group.compare_columns, group.column_mapping, group.normalize,
+        compare_columns, group.column_mapping, group.normalize,
     )
 
     # Record history — unconditionally: a divergence is a completed run.
@@ -320,6 +381,11 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # `ui/theme.py`): a warning with no colour of its own, because the
     # result it qualifies is still the headline.
     avisos = duplicate_key_warnings(group_result)
+    if derivadas:
+        avisos.insert(0, (
+            f"Grupo '{group.name}' nao define colunas para comparar; "
+            f"comparando as comuns: {', '.join(compare_columns)}."
+        ))
 
     if args.export:
         fmt = args.export
@@ -428,7 +494,10 @@ def cmd_multi(args: argparse.Namespace) -> None:
                        "Informe pelo menos duas conexoes com -c/--connection.")
     names = distinct_names
 
-    sql = _sql_or_file(args.sql)
+    try:
+        sql = _sql_or_file(args.sql)
+    except FileNotFoundError as e:
+        _fail_or_print(args, "multi", "not_found", f"Arquivo '{e}' nao encontrado.")
 
     # A comparison needs a result set to compare, and only SELECT/EXPLAIN
     # produce one. Refusing here -- before any connection is even resolved,
@@ -453,6 +522,8 @@ def cmd_multi(args: argparse.Namespace) -> None:
         resolved.append((name, conn))
 
     param_values = _parse_params(args.param, args, "multi")
+
+    _refuse_undeclared_params(args, "multi", sql, param_values)
 
     results = deps.execute_across(sql, resolved, param_values)
 
@@ -593,9 +664,14 @@ def cmd_sql(args: argparse.Namespace) -> None:
         # transient and never reaches `save_connections`.
         conn = replace(conn, read_only=False)
 
-    sql = _sql_or_file(args.sql)
+    try:
+        sql = _sql_or_file(args.sql)
+    except FileNotFoundError as e:
+        _fail_or_print(args, "sql", "not_found", f"Arquivo '{e}' nao encontrado.")
 
     param_values = _parse_params(args.param, args, "sql")
+
+    _refuse_undeclared_params(args, "sql", sql, param_values)
 
     if args.explain:
         try:

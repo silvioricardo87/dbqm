@@ -63,17 +63,17 @@ scenario, only the orchestration around it.
 
 | Document | Code | Scenarios | functional | manual |
 |---|---|---|---|---|
-| [adhoc-sql.md](adhoc-sql.md) | `SQL` | 21 | 20 | 1 |
-| [saved-queries.md](saved-queries.md) | `QUERY` | 11 | 11 | 0 |
-| [groups.md](groups.md) | `GROUP` | 16 | 16 | 0 |
-| [multi.md](multi.md) | `MULTI` | 16 | 16 | 0 |
+| [adhoc-sql.md](adhoc-sql.md) | `SQL` | 23 | 22 | 1 |
+| [saved-queries.md](saved-queries.md) | `QUERY` | 13 | 13 | 0 |
+| [groups.md](groups.md) | `GROUP` | 20 | 20 | 0 |
+| [multi.md](multi.md) | `MULTI` | 18 | 18 | 0 |
 | [read-only-guard.md](read-only-guard.md) | `RO` | 11 | 10 | 1 |
 | [output-contract.md](output-contract.md) | `OUT` | 14 | 14 | 0 |
 | [connections.md](connections.md) | `CONN` | 21 | 21 | 0 |
 | [templates.md](templates.md) | `TPL` | 8 | 8 | 0 |
 | [settings.md](settings.md) | `CFG` | 7 | 7 | 0 |
-| [config-portability.md](config-portability.md) | `PORT` | 7 | 7 | 0 |
-| [history.md](history.md) | `HIST` | 6 | 6 | 0 |
+| [config-portability.md](config-portability.md) | `PORT` | 8 | 8 | 0 |
+| [history.md](history.md) | `HIST` | 8 | 8 | 0 |
 | [discovery.md](discovery.md) | `DISC` | 16 | 15 | 1 |
 | [ddl.md](ddl.md) | `DDL` | 8 | 7 | 1 |
 | [export.md](export.md) | `EXPORT` | 9 | 9 | 0 |
@@ -81,7 +81,7 @@ scenario, only the orchestration around it.
 | [routines.md](routines.md) | `CALL` | 15 | 0 | 15 |
 | [packages.md](packages.md) | `PKG` | 5 | 0 | 5 |
 | [oracle-client.md](oracle-client.md) | `OCLI` | 6 | 0 | 6 |
-| **Total** | | **203** | **173** | **30** |
+| **Total** | | **216** | **186** | **30** |
 
 The 30 manual rows are the Oracle-only surface (`call`, packages, the
 client installer, `DBMS_METADATA`, DBMS_OUTPUT, `EXPLAIN PLAN FOR` on a
