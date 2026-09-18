@@ -80,7 +80,7 @@ has to remember to update.
 - **Execute routines** — Oracle packages, procedures and functions, with
   parameters in and OUT values and the return value back as data
 
-![The same statement run against two databases, reported as DIVERGENTE with per-column counts](docs/img/comparacao.svg)
+![The same statement run against two databases, reported as DIVERGENT with per-column counts](docs/img/comparacao.svg)
 
 **Look around**
 

@@ -221,13 +221,13 @@ consumers, none of them importing each other.
   `3` `--test` failed. The project-wide code table is still unbuilt (backlog `X1`).
 
 ### UI conventions
-- Interactive UI labels **intentionally omit accents** (e.g. `Historico`,
+- **No screen text is written in a widget.** Labels, messages, placeholders
+  and panel titles come from `dbqm/i18n/` through `t("key")`. See the
+  language section below and "Screen text" in `AGENTS.md`.
+- Portuguese labels **intentionally omit accents** (e.g. `Historico`,
   `conexao`, `Nao`). This is deliberate — **do not "fix" them**.
 
-### Language: English in code, Portuguese only on screen
-
-This is not a style preference — it is the line between *what the program is
-made of* and *what the user reads*.
+### Language: English everywhere, Portuguese as a translation
 
 **English** — everything that is code, and everything written *about* it:
 - identifiers: modules, classes, functions, constants, fixtures, test names
@@ -238,10 +238,31 @@ made of* and *what the user reads*.
   issue titles and bodies, code-review comments, and release notes
 - `README.md`, `CHANGELOG.md`, `AGENTS.md` and anything else under `docs/`
 
-**Portuguese, without accents** — everything the user sees:
-- widget labels, panel titles, button text, tab names
-- notifications, error and confirmation messages
-- CLI output text
+**English, and in the catalogue** — everything the user reads: widget labels,
+panel titles, button text, tab names, notifications, error and confirmation
+messages, CLI output and `--help`. None of it is written in a widget: it
+lives in `dbqm/i18n/en.py` and is reached through `t("key")`.
+
+**Portuguese is a translation**, in `dbqm/i18n/pt.py`, still without accents.
+It is chosen with `dbqm config set language pt` or `DBQM_LANG=pt`.
+
+Until 2.11.0 the rule was "English in code, Portuguese on screen", and the
+screens were the exception. Making Portuguese a translation rather than the
+source removed the exception: there is now one language in the repository and
+a file of alternatives beside it.
+
+Three things that only became visible once a second language existed, each
+now a guard in `tests/design/test_i18n_policy.py`:
+
+- **Code that classified an outcome by reading its own message** was correct
+  in one language and silently wrong in every other. `error_kind` and
+  `result.not_found` are fields for that reason.
+- **A `t()` call at import time** freezes the text in whatever language was
+  default when the module loaded. Six class attributes had to become
+  methods.
+- **Short text is sometimes a layout requirement.** Two guards that measure a
+  width now run once per language, because a longer translation wraps and
+  nothing in a catalogue file says a label has 26 columns of budget.
 
 The test's *assertion messages* follow the code, not the UI: they are read by
 whoever the test failed on, never by a user of the program.
