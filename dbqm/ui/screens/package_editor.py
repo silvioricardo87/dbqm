@@ -154,7 +154,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
             return
 
         self.query_one("#pkg-search-error").display = False
-        self.query_one(ProgressIndicator).start("Buscando package...")
+        self.query_one(ProgressIndicator).start(t("package_editor.searching"))
         self._run_search(conn_name, pkg_name)
 
     @work(thread=True)
@@ -742,7 +742,7 @@ class PackageEditorScreen(Vertical):
         except Exception as e:
             self.app.call_from_thread(
                 self._show_db_error,
-                f"Erro ao conectar: {e}",
+                t("connection.connect_failed", error=e),
             )
 
     def _store_db(self, db, conn=None) -> None:
@@ -825,7 +825,7 @@ class PackageEditorScreen(Vertical):
             return
 
         self.query_one(ProgressIndicator).start(
-            f"Compilando {target}..."
+            t("package_editor.compiling", target=target)
         )
         self._run_compile(sql, obj_type, target)
 

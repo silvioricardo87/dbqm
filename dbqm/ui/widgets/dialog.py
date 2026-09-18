@@ -64,9 +64,9 @@ class Dialog(Vertical):
         id: str | None = None,
     ) -> None:
         if width not in WIDTHS:
-            raise ValueError(f"largura desconhecida: {width!r}; use {sorted(WIDTHS)}")
+            raise ValueError(f"unknown width: {width!r}; use one of {sorted(WIDTHS)}")
         if tone not in TONES:
-            raise ValueError(f"tom desconhecido: {tone!r}; use {list(TONES)}")
+            raise ValueError(f"unknown tone: {tone!r}; use one of {list(TONES)}")
         super().__init__(id=id, classes=f"-{tone}")
         self._title = title
         self.styles.width = WIDTHS[width]

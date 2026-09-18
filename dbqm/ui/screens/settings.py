@@ -523,7 +523,7 @@ class SettingsScreen(Vertical):
             from dbqm.ui.screens.config_port import ConfigPortScreen
 
             return ConfigPortScreen(id="settings-config-port-screen")
-        raise ValueError(f"ferramenta de configuracao desconhecida: {key}")
+        raise ValueError(f"unknown config tool: {key}")
 
     def _open_tool(self, key: str) -> None:
         """Swaps the settings area for the *key* screen, mounting it the 1st time.

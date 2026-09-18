@@ -346,7 +346,8 @@ class ConfigPortScreen(Vertical):
             self.app.call_from_thread(self._update_status_bar)
         except Exception as e:
             self.app.call_from_thread(
-                self.notify, f"Erro ao importar: {e}", severity="error", timeout=8
+                self.notify, t("config_port.import_failed", error=e),
+                severity="error", timeout=8
             )
 
     def _clear_import_form(self) -> None:

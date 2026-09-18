@@ -163,7 +163,8 @@ def _cmd_config_set(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("config.set", {"key": args.key, "value": value})
         return
-    console.print(f'Configuracao "{escape(args.key)}" definida como {escape(str(value))}.')
+    console.print(t("config.set_ok", key=escape(args.key),
+                    value=escape(str(value))))
 
 
 _CONFIG_SUBCOMMANDS = {

@@ -30,11 +30,19 @@ DBQM_LANG=en dbqm run sales -f json
 - **`dbqm/i18n/`** — a catalogue of ~640 keys per language, `t("key")` to
   read one. A key with no translation falls back to English, so a new
   language is usable before it is finished.
-- **Four design guards**: screen text must come from the catalogue (by
+- **Six design guards**: screen text must come from the catalogue (by
   where a string goes, not by what it says); `t()` must not run at import
-  time; catalogue values carry no Rich markup; and every language carries
-  every key English defines, with the same placeholders and no accents in
-  Portuguese.
+  time; catalogue values carry no Rich markup; every language carries every
+  key English defines, with the same placeholders and no accents in
+  Portuguese; every `t()` call passes exactly the fields its key declares;
+  and the old word-list ratchet stays at zero.
+
+  What counts as a place a string *goes* was widened by what it kept
+  missing: `console.print`, every positional of `add_row`,
+  `ProgressIndicator.start` and `Static.update`, the calls that forward to
+  a sink named by their first argument (`call_from_thread`), the fields of
+  a `t()` call, and a name followed one step back to the literal its own
+  scope assigns it.
 
 ### Fixed
 
@@ -61,6 +69,15 @@ DBQM_LANG=en dbqm run sales -f json
 - **Both HTML reports declared `<html lang="pt-BR">`** whatever they
   contained, which misleads a screen reader and makes a browser offer to
   translate what is already translated.
+- **Thirty-odd sentences never reached the catalogue at all**, because
+  none of them was written at the call that paints. The history table said
+  `grupo` while the detail panel beside it and `dbqm history -f table`
+  printed the stored `group` — one field, two languages, one screen. Six
+  progress messages arrived through `ProgressIndicator.start`. Thirteen
+  errors were forwarded through `call_from_thread`, whose own name says
+  nothing about where the text lands. `dbqm connection test` handed
+  `"desconhecida"` to a translated sentence as a field. Each shape is now
+  a rule in the guard, proven to fail before it was trusted.
 
 ### Changed
 

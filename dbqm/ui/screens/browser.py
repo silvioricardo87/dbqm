@@ -357,7 +357,7 @@ class BrowserScreen(Vertical):
             structure = get_table_structure(self._db, conn.db_type, name)
             self.app.call_from_thread(self._on_structure_loaded, structure)
         except Exception as e:  # pragma: no cover - depends on live DB
-            self.app.call_from_thread(self._on_error, f"Estrutura: {e}")
+            self.app.call_from_thread(self._on_error, t("browser.structure_failed", error=e))
 
         # First page -> DADOS
         self._preview_offset = 0
@@ -368,7 +368,7 @@ class BrowserScreen(Vertical):
             )
             self.app.call_from_thread(self._on_preview_loaded, result, False)
         except Exception as e:  # pragma: no cover - depends on live DB
-            self.app.call_from_thread(self._on_error, f"Dados: {e}")
+            self.app.call_from_thread(self._on_error, t("browser.data_failed", error=e))
 
     def _load_object_source(self, conn, name: str, obj_type: str) -> None:
         """Fetch SOURCE text for a PACKAGE/ROUTINE and show it in DADOS.
@@ -407,7 +407,7 @@ class BrowserScreen(Vertical):
                 source_text = "\n\n".join(o.ddl for o in objs)
                 self.app.call_from_thread(self._on_source_loaded, source_text)
         except Exception as e:  # pragma: no cover - depends on live DB
-            self.app.call_from_thread(self._on_error, f"Source: {e}")
+            self.app.call_from_thread(self._on_error, t("browser.source_failed", error=e))
 
         # COLUNAS: non-tabular objects get a routine list (PACKAGE) or a note.
         try:
@@ -422,7 +422,7 @@ class BrowserScreen(Vertical):
                     t("browser.not_tabular"),
                 )
         except Exception as e:  # pragma: no cover - depends on live DB
-            self.app.call_from_thread(self._on_error, f"Estrutura: {e}")
+            self.app.call_from_thread(self._on_error, t("browser.structure_failed", error=e))
 
     def _on_structure_loaded(self, structure) -> None:
         table = self.query_one("#obj-columns", DataTable)
@@ -616,7 +616,7 @@ class BrowserScreen(Vertical):
             )
             self.app.call_from_thread(self._on_preview_loaded, result, True)
         except Exception as e:  # pragma: no cover - depends on live DB
-            self.app.call_from_thread(self._on_error, f"Dados: {e}")
+            self.app.call_from_thread(self._on_error, t("browser.data_failed", error=e))
 
     # ------------------------------------------------------------------
     # Lifecycle

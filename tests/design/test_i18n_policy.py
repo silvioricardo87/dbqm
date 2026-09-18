@@ -337,7 +337,26 @@ SINKS_POSICIONAIS = frozenset({
     "TabPane", "Checkbox", "RadioButton", "ListItem", "Markdown", "Tab",
     "Dialog", "ConfirmModal", "ErrorModal", "TextInputModal", "Action",
     "EmptyState", "Panel", "PathLabel", "Digits",
+    # `console.print` is how the CLI paints; a literal in one is a message
+    # in the terminal exactly as a literal in a `Static` is one on a screen.
+    "print",
+    # `ProgressIndicator.start(...)` and `Static.update(...)`: the widget
+    # already exists, so its text arrives through a method rather than a
+    # constructor. Six progress messages lived here, seen by nothing.
+    "start", "update",
 })
+
+#: Attributes that are rendered when assigned. None of these carries a
+#: literal today; the check is here so the next one is not a discovery.
+ATRIBUTOS_RENDERIZADOS = frozenset({
+    "border_title", "border_subtitle", "sub_title", "tooltip", "placeholder",
+})
+
+#: Calls that forward their remaining arguments to another callable. The
+#: sink is named by the first argument, so the check has to look past it:
+#: `call_from_thread(self.notify, "Erro ao importar: ...")` is a
+#: notification, and reading the call by its own name says nothing.
+SINKS_ENCAMINHAM = frozenset({"call_from_thread", "run_worker", "call_later"})
 
 #: Calls where *every* positional argument becomes a cell someone reads.
 #: `add_row` is how the history table said "grupo" while the CLI printed
@@ -365,6 +384,7 @@ FORA_DO_APPEND = frozenset({
 #: Words that are the same in every language: product names, formats,
 #: SQL keywords, symbols. A sink may take one of these directly.
 NEUTROS = frozenset({
+    "dbqm",
     "SQL", "CSV", "JSON", "TXT", "HTML", "XML", "OK", "DBMS_OUTPUT",
     "Spec", "Body", "Wizard", "PROCEDURE", "FUNCTION", "PACKAGE", "TABLE",
     "VIEW", "COMMIT", "ROLLBACK", "Oracle", "PostgreSQL", "MySQL",
@@ -460,6 +480,14 @@ def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
     checa_append = relativo not in FORA_DO_APPEND
 
     for no in ast.walk(arvore):
+        if isinstance(no, ast.Assign):
+            for tgt in no.targets:
+                if isinstance(tgt, ast.Attribute) and tgt.attr in ATRIBUTOS_RENDERIZADOS:
+                    texto = _texto_cru(no.value)
+                    limpo = re.sub(r"\[[^]]*]", "", texto or "").strip()
+                    if limpo and re.search(r"[A-Za-z]{2,}", limpo) and limpo not in NEUTROS:
+                        achados.append((no.lineno, f".{tgt.attr}=", limpo))
+            continue
         if not isinstance(no, ast.Call):
             continue
         nome = no.func.id if isinstance(no.func, ast.Name) else (
@@ -470,6 +498,8 @@ def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
             alvos.append((nome, no.args[0]))
         if nome in SINKS_TODOS_POSICIONAIS:
             alvos += [(nome, arg) for arg in no.args]
+        if nome in SINKS_ENCAMINHAM:
+            alvos += [(nome, arg) for arg in no.args[1:]]
         # Text accumulated in a list and rendered later. A sentence appended
         # to `lines` is a message; a fragment of SQL being assembled is not,
         # which is what `FORA_DO_APPEND` separates.

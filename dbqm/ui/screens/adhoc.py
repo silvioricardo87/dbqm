@@ -439,7 +439,7 @@ class AdhocScreen(Vertical):
         """Start SQL execution in a worker thread."""
         self._current_params = params
         self.query_one(ProgressIndicator).start(
-            f"Executando em [bold]{conn.name}[/]..."
+            t("adhoc.running_on", connection=f"[bold]{conn.name}[/]")
         )
         self._run_sql(sql, conn, params)
 

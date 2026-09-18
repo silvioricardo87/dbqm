@@ -37,7 +37,7 @@ def _status_cell(status: str) -> Content:
     silently.
     """
     if status not in _STATUS_TO_VERDICT:
-        raise ValueError(f"status de comparacao desconhecido: {status!r}")
+        raise ValueError(f"unknown comparison status: {status!r}")
     return Content.from_markup(mark_verdict(_STATUS_TO_VERDICT[status]))
 
 

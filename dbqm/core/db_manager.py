@@ -156,10 +156,11 @@ def validate_oracle_client_dir(path: str) -> str | None:
     dll_is_64 = machine in (_PE_MACHINE_AMD64, _PE_MACHINE_ARM64)
     if dll_is_64 is _python_is_64bit():
         return None
-    return (
-        f"Arquitetura incompativel: o client em {p} e de "
-        f"{'64' if dll_is_64 else '32'} bits e o Python que executa o dbqm e de "
-        f"{'64' if _python_is_64bit() else '32'} bits."
+    return t(
+        "oracle_client.arch_mismatch",
+        path=p,
+        client_bits="64" if dll_is_64 else "32",
+        python_bits="64" if _python_is_64bit() else "32",
     )
 
 

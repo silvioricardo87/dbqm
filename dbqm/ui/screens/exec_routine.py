@@ -228,7 +228,7 @@ class ExecRoutineScreen(Vertical):
     # ------------------------------------------------------------------
 
     def _load_objects(self, obj_type: str) -> None:
-        self.query_one(ProgressIndicator).start(f"Listando {obj_type.lower()}s...")
+        self.query_one(ProgressIndicator).start(t("exec_routine.listing", type=f"{obj_type.lower()}s"))
         self._fetch_objects(obj_type)
 
     @work(thread=True)
@@ -305,7 +305,7 @@ class ExecRoutineScreen(Vertical):
     # ------------------------------------------------------------------
 
     def _load_detail(self, obj_name: str) -> None:
-        self.query_one(ProgressIndicator).start(f"Carregando {obj_name}...")
+        self.query_one(ProgressIndicator).start(t("exec_routine.loading", name=obj_name))
         self._fetch_detail(obj_name)
 
     @work(thread=True)
@@ -491,7 +491,8 @@ class ExecRoutineScreen(Vertical):
         package = self._package_info.name if self._package_info and self._obj_type == "PACKAGE" else ""
 
         self.query_one(ProgressIndicator).start(
-            f"Executando [bold]{escape_markup(routine.name)}[/]..."
+            t("exec_routine.running",
+              name=f"[bold]{escape_markup(routine.name)}[/]")
         )
         self._run_routine(package, routine, param_values, self._commit_requested())
 

@@ -149,11 +149,23 @@ word-list ratchet, kept at zero, looks everywhere rather than only at known
 sinks. The first is the one that generalises; the second catches a helper
 that builds a sentence for someone else to render.
 
-The sink guard follows a name one step: `kind = "grupo"` handed to
-`add_row(kind)` is the same defect as the literal written inline, and it is
-how the history table said "grupo" while the CLI printed "group" for the
-same field. It also reads the *fields* of a `t()` call, because a hard-coded
-word passed as `version=` renders inside a sentence that looks translated.
+What counts as a sink is the whole of that guard, and every entry was
+earned by a string that reached a screen without one:
+
+- the widget constructors and the `placeholder=`/`title=` keywords;
+- `console.print`, which is how the CLI paints;
+- `add_row`, where *every* positional is a cell someone reads;
+- `ProgressIndicator.start` and `Static.update`, where the widget already
+  exists and its text arrives by method rather than by constructor;
+- `call_from_thread` and friends, which forward to a sink named by their
+  first argument -- reading such a call by its own name says nothing;
+- the *fields* of a `t()` call, because a hard-coded word passed as
+  `version=` renders inside a sentence that looks translated.
+
+It also follows a name one step back to what its scope assigns it:
+`kind = "grupo"` handed to `add_row(kind)` is the same defect as the literal
+written inline. Scope is the point -- two functions can each have a `mode`,
+one a default and one the user's own input echoed back.
 
 The user picks the language with `dbqm config set language en|pt`, or per
 run with `DBQM_LANG`.

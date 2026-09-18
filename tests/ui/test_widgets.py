@@ -118,7 +118,7 @@ def test_match_verdict_uses_the_token_of_its_own_axis():
 def test_verdict_rejects_an_unknown_status():
     from dbqm.ui.widgets.verdict import mark_verdict
 
-    with pytest.raises(ValueError, match="status"):
+    with pytest.raises(ValueError, match="unknown status"):
         mark_verdict("talvez")
 
 
@@ -180,7 +180,7 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
 def test_operation_rejects_an_unknown_state():
     from dbqm.ui.widgets.verdict import mark_operation
 
-    with pytest.raises(ValueError, match="estado"):
+    with pytest.raises(ValueError, match="unknown state"):
         mark_operation("talvez")
 
 
@@ -1396,9 +1396,9 @@ from dbqm.ui.widgets.dialog import Dialog
 
 def test_dialog_rejects_an_unknown_variant():
     """Closed variants: no back door for arbitrary styling."""
-    with pytest.raises(ValueError, match="tom"):
+    with pytest.raises(ValueError, match="unknown tone"):
         Dialog("Titulo", tone="roxo")
-    with pytest.raises(ValueError, match="largura"):
+    with pytest.raises(ValueError, match="unknown width"):
         Dialog("Titulo", width="xxl")
 
 

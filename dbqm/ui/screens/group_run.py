@@ -252,7 +252,7 @@ class GroupRunScreen(Vertical):
 
         if folders:
             prefixo = common_folder_prefix(folders)
-            options = [(f"Todas ({len(groups)})", "")]
+            options = [(t("common.all_count", count=len(groups)), "")]
             for folder in folders:
                 rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
                 options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
@@ -469,7 +469,9 @@ class GroupRunScreen(Vertical):
                 self.app.call_from_thread(
                     self._update_progress,
                     f"{mark_operation('running')} "
-                    f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
+                    + t("group_run.running_query",
+                        query=f"[bold]{escape_markup(qname)}[/]",
+                        connection=f"[bold]{escape_markup(conn.name)}[/]"),
                 )
 
                 try:
@@ -477,7 +479,7 @@ class GroupRunScreen(Vertical):
                 except Exception as e:
                     self.app.call_from_thread(
                         self.notify,
-                        f"Erro em '{qname}': {e}",
+                        t("group_run.error_in_query", name=qname, error=e),
                         severity="error",
                         timeout=8,
                     )
@@ -538,7 +540,7 @@ class GroupRunScreen(Vertical):
                 raw_rows_map if has_any_maps else None,
             )
         except Exception as e:
-            self.app.call_from_thread(self._on_error, f"Erro inesperado: {e}")
+            self.app.call_from_thread(self._on_error, t("common.unexpected_error", error=e))
 
     def _update_progress(self, msg: str) -> None:
         """Update progress message (safe to call from main thread via call_from_thread)."""

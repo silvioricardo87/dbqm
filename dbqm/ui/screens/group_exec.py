@@ -268,14 +268,16 @@ class GroupExecScreen(Vertical):
         def on_progress(cname: str) -> None:
             self.app.call_from_thread(
                 self._update_progress,
-                f"Executando em [bold]{escape_markup(cname)}[/]...",
+                t("group_exec.running",
+                  connections=f"[bold]{escape_markup(cname)}[/]"),
             )
 
         def on_result(cname: str, res: AdhocResult) -> None:
             if not res.success:
                 self.app.call_from_thread(
                     self.notify,
-                    f"Erro em '{cname}': {res.error}",
+                    t("group_exec.error_on_connection",
+                      connection=cname, error=res.error),
                     severity="error",
                     timeout=8,
                 )
@@ -313,7 +315,7 @@ class GroupExecScreen(Vertical):
 
             self.app.call_from_thread(self._show_result, group_result)
         except Exception as e:
-            self.app.call_from_thread(self._on_error, f"Erro inesperado: {e}")
+            self.app.call_from_thread(self._on_error, t("common.unexpected_error", error=e))
 
     def _update_progress(self, msg: str) -> None:
         progress = self.query_one(ProgressIndicator)

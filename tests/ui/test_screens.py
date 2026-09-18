@@ -7,7 +7,7 @@ import pytest
 from textual.app import ComposeResult
 from textual.widgets import Input, Select
 
-from dbqm.i18n import IDIOMA_PADRAO, available_languages, set_language
+from dbqm.i18n import IDIOMA_PADRAO, available_languages, set_language, t
 from dbqm.ui.screens.connections import ConnectionsScreen
 from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -364,7 +364,7 @@ async def test_folders_become_a_select_with_counts(tmp_config_dir):
         await pilot.press("enter")
         await pilot.pause()
         assert _painted_select_labels(seletor) == [
-            "Todas (20)",
+            t("common.all_count", count=20),
             "Alfa (5)",
             "Beta (2)",
             "Delta (7)",
@@ -407,7 +407,7 @@ async def test_folder_label_elides_the_common_prefix(tmp_config_dir):
         await pilot.press("enter")
         await pilot.pause()
         assert _painted_select_labels(seletor) == [
-            "Todas (6)",
+            t("common.all_count", count=6),
             "Alpha (3)",
             "Beta (1)",
             "Gama (2)",
@@ -448,7 +448,7 @@ async def test_folder_label_shows_the_whole_path_with_two_families(
         await pilot.press("enter")
         await pilot.pause()
         assert _painted_select_labels(seletor) == [
-            "Todas (2)",
+            t("common.all_count", count=2),
             "Interno/Backlog (1)",
             "Projeto/Alpha (1)",
         ]
@@ -5544,10 +5544,10 @@ async def test_group_run_screen_with_folders(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(GroupRunScreen)
         seletor = screen.query_one("#gr-folder-select", Select)
-        # "Todas" + "Folder A" + "Folder B" = 3
+        # the "all" option + "Folder A" + "Folder B" = 3
         assert len(seletor._options) == 3
         rotulos = [str(r) for r, _ in seletor._options]
-        assert any("Todas (2)" in r for r in rotulos)
+        assert any(t("common.all_count", count=2) in r for r in rotulos)
         assert any("Folder A (1)" in r for r in rotulos)
         assert any("Folder B (1)" in r for r in rotulos)
 

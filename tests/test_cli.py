@@ -1898,24 +1898,41 @@ class TestCmdCall:
         db_handle.commit.assert_called_once()
         db_handle.rollback.assert_not_called()
 
-    def test_the_table_output_says_which_happened(self, tmp_config_dir, capsys):
+    def test_the_table_output_says_which_happened(self, tmp_config_dir, capsys,
+                                                  monkeypatch):
+        """In every language, and the two outcomes never read the same.
+
+        `--commit` is the difference between work that survives and work
+        the driver throws away, so this is the one line here that cannot
+        afford a translation reusing the other outcome's word.
+        """
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+        from dbqm.i18n import available_languages, t
 
         conn = _make_connection()
         rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
-        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
-             patch("dbqm.cli.deps.open_connection"), \
-             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
-             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
-            sem_commit = capsys.readouterr().out
-            assert "desfeita" in sem_commit
+        for idioma in available_languages():
+            monkeypatch.setenv("DBQM_LANG", idioma)
+            with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+                 patch("dbqm.cli.deps.open_connection"), \
+                 patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+                 patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+                run_cli(["call", "PKG.ROTINA", "test_conn"])
+                sem_commit = capsys.readouterr().out
 
-            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
-            com_commit = capsys.readouterr().out
-            assert "confirmada" in com_commit
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+                com_commit = capsys.readouterr().out
+
+            # Only up to the em dash: this console encodes in cp1252 and the
+            # dash comes back as a replacement character.
+            desfeito = t("exec_routine.rolled_back").split("\u2014")[0].strip()
+            confirmado = t("exec_routine.committed").split("\u2014")[0].strip()
+            assert desfeito != confirmado, idioma
+            assert desfeito in sem_commit, idioma
+            assert confirmado in com_commit, idioma
+            assert confirmado not in sem_commit, idioma
 
     def test_the_json_envelope_carries_the_commit_state(self, tmp_config_dir, capsys):
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo

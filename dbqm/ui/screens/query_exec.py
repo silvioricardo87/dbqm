@@ -202,7 +202,7 @@ class QueryExecScreen(Vertical):
 
         if folders:
             prefixo = common_folder_prefix(folders)
-            options = [(f"Todas ({len(queries)})", "")]
+            options = [(t("common.all_count", count=len(queries)), "")]
             for folder in folders:
                 rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
                 options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))

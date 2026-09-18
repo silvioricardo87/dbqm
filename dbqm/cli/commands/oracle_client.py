@@ -216,8 +216,7 @@ def cmd_oracle_client(args: argparse.Namespace) -> None:
             _oracle_client_parser.print_help()
         else:
             console.print(
-                "[ds.op.failure]Use: dbqm oracle-client list|available|install|rm"
-                "[/ds.op.failure]"
+                f'[ds.op.failure]{t("oracle_client.usage")}[/ds.op.failure]'
             )
         sys.exit(int(exit_for("validation")))
     handler(args)

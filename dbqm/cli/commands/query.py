@@ -1060,7 +1060,7 @@ def cmd_call(args: argparse.Namespace) -> None:
     for line in result.output_lines:
         console.print(line, markup=False, highlight=False)
     if committed:
-        console.print("[dim]Transacao confirmada (commit).[/dim]")
+        console.print(f'[dim]{t("exec_routine.committed")}[/dim]')
     else:
-        console.print("[dim]Transacao desfeita (rollback) -- nada foi gravado.[/dim]")
+        console.print(f'[dim]{t("exec_routine.rolled_back")}[/dim]')
     console.print(f"[dim]({result.elapsed:.2f}s)[/dim]")

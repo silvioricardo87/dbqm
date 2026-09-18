@@ -51,7 +51,7 @@ def mark_verdict(status: str, *, label: str | None = None) -> str:
     `[/]`/token in there would close the tag too early.
     """
     if status not in VERDICTS:
-        raise ValueError(f"status desconhecido: {status!r}; use {sorted(VERDICTS)}")
+        raise ValueError(f"unknown status: {status!r}; use one of {sorted(VERDICTS)}")
     glyph, token = VERDICTS[status]
     text = escape_markup(label) if label is not None else {
         "match": "OK",
@@ -76,7 +76,7 @@ def mark_operation(state: str, *, label: str | None = None) -> str:
     as `mark_verdict`).
     """
     if state not in OPERATIONS:
-        raise ValueError(f"estado desconhecido: {state!r}; use {sorted(OPERATIONS)}")
+        raise ValueError(f"unknown state: {state!r}; use one of {sorted(OPERATIONS)}")
     glyph, token = OPERATIONS[state]
     text = escape_markup(label) if label is not None else {
         "ok": "OK", "failure": "FALHA", "running": "executando",
