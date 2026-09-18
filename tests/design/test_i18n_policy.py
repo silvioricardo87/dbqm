@@ -38,7 +38,7 @@ MARCA = re.compile(r"\b(" + "|".join(PALAVRAS) + r")\b", re.IGNORECASE)
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
-MAX_LITERAIS = 236
+MAX_LITERAIS = 185
 
 #: The catalogue itself is Portuguese by definition, and the design tokens
 #: carry Portuguese token names that are identifiers, not screen text.
@@ -205,4 +205,36 @@ def test_no_lookup_happens_at_import_time():
     assert not culpados, (
         f"t() runs at import time in {culpados}. Wrap it in a function so the "
         f"lookup happens after the language is resolved."
+    )
+
+
+def test_the_catalogue_carries_words_and_not_markup():
+    """Rich tags belong to the call site, never to a catalogue value.
+
+    Two reasons, and the second is the one that bit. A translator editing
+    `pt.py` can unbalance `[bold]...[/]` and produce a screen of literal
+    brackets -- a tag is not language, and nothing about editing prose
+    suggests the brackets are load-bearing.
+
+    And `tests/ui/test_widgets.py` holds two guards that read
+    `dbqm/ui/**` looking for exactly this markup: one pins the `[bold]` of
+    the success headers, the other counts every `$ds-op-failure` so a new
+    one cannot appear unnoticed. Markup moved into a catalogue value makes
+    both of them scan a file that no longer contains what they watch. They
+    do not fail; they go quiet, which is worse.
+
+    Markup reaches a message through a placeholder the caller fills, or it
+    wraps the whole `t()` call. `[y/N]` in a confirmation prompt is not
+    markup: this looks for a closing tag, which every Rich span has and no
+    prompt does.
+    """
+    ofensores = {
+        f"{idioma}:{chave}": texto
+        for idioma, catalogo in CATALOGOS.items()
+        for chave, texto in catalogo.items()
+        if "[/" in texto
+    }
+    assert not ofensores, (
+        f"Rich markup in the catalogue: {ofensores}. Wrap the t() call at the "
+        f"call site, or pass the marked-up fragment in as a field."
     )

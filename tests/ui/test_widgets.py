@@ -152,7 +152,9 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
             # — so what is pinned is the markup, which is what this guard is
             # about, not the wording.
             'return f"[bold]{rotulo}[/] ({result.elapsed:.2f}s)"',
-            'f"[bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"',
+            # The words come from the catalogue; the markup stays here,
+            # which is what this guard is about.
+            'f"[bold]{t(\'adhoc.ddl_ok\')}[/] ({result.elapsed:.2f}s)"',
         ],
         "exec_routine.py": [
             'lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]',

@@ -100,7 +100,7 @@ async def test_adhoc_executes_a_select_and_shows_the_rows(local_db):
 
         info = str(screen.query_one("#adhoc-result-info", Static).content)
         assert "local" in info
-        assert "3 registros" in info
+        assert "3 rows" in info
         table = screen.query_one("#res-table", ResultTable)
         assert table.row_count == 3
 

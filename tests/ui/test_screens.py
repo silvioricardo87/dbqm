@@ -7,6 +7,7 @@ import pytest
 from textual.app import ComposeResult
 from textual.widgets import Input, Select
 
+from dbqm.i18n import IDIOMA_PADRAO, available_languages, set_language
 from dbqm.ui.screens.connections import ConnectionsScreen
 from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -1616,9 +1617,9 @@ async def test_adhoc_has_params_editor_results_panels(tmp_config_dir):
         titles = [
             p.query_one("#panel-title").render().plain for p in screen.query(Panel)
         ]
-        assert any("PARAMETROS" in t for t in titles)
+        assert any("PARAMETERS" in t for t in titles)
         assert any("SQL EDITOR" in t for t in titles)
-        assert any("RESULTADOS" in t for t in titles)
+        assert any("RESULTS" in t for t in titles)
         # Results sub-toggle: a ContentSwitcher with table + output panes.
         switcher = screen.query_one("#res-switcher", ContentSwitcher)
         assert switcher is not None
@@ -1759,14 +1760,23 @@ async def test_adhoc_has_dbms_toggle(tmp_config_dir):
         screen = app.query_one(AdhocScreen)
         toggle = screen.query_one("#adhoc-dbms-toggle", Checkbox)
         assert toggle.value is False
-        assert str(toggle.label) == "Saida DBMS"
+        assert str(toggle.label) == "DBMS output"
 
 
 @pytest.mark.asyncio
-async def test_adhoc_dbms_toggle_aligns_with_select(tmp_config_dir):
+@pytest.mark.parametrize("idioma", sorted(available_languages()))
+async def test_adhoc_dbms_toggle_aligns_with_select(tmp_config_dir, idioma):
     """The DBMS toggle matches the connection select height and stays within
-    the SQL editor width (no header overflow past the box below)."""
+    the SQL editor width (no header overflow past the box below).
+
+    Run in every language, because the alignment depends on the text. The
+    English prompt started as "Select the connection", which is two
+    characters too wide for the 28-column panel: the Select wrapped to two
+    lines, grew to height 4, and stopped matching the toggle beside it.
+    Nothing about writing a translation suggests it could change a layout,
+    so the layout is what gets checked, once per language."""
     from textual.widgets import Checkbox, Select, TextArea
+    set_language(idioma)
     app = AdhocTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -1776,9 +1786,12 @@ async def test_adhoc_dbms_toggle_aligns_with_select(tmp_config_dir):
         sql_area = screen.query_one("#adhoc-sql-area", TextArea)
 
         # Same height as the connection select next to it.
-        assert toggle.region.height == select.region.height
+        assert toggle.region.height == select.region.height, (
+            f"{idioma}: the connection prompt does not fit the panel"
+        )
         # Right edge must not extend past the SQL editor below it.
         assert toggle.region.right <= sql_area.region.right
+    set_language(IDIOMA_PADRAO)
 
 
 @pytest.mark.asyncio
@@ -3394,8 +3407,8 @@ async def test_config_port_mode_choice_is_a_list(tmp_config_dir):
         screen = app.query_one(ConfigPortScreen)
         fase = screen.query_one("#cp-mode-phase")
         assert rendered_names(fase.query_one(OptionList)) == [
-            "Exportar",
-            "Importar",
+            "Export",
+            "Import",
         ]
         assert not fase.query(Button), "botao e acao, nunca navegacao"
 

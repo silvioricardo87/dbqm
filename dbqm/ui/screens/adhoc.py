@@ -198,24 +198,24 @@ class AdhocScreen(Vertical):
     def compose(self) -> ComposeResult:
         with Horizontal(id="adhoc-body"):
             # Left column — parameters / connection / DBMS opt-in.
-            with Panel("🎯  PARAMETROS", accent=True, id="adhoc-params-panel"):
-                yield NavSelect([], prompt="Selecione a conexao", id="adhoc-conn-select")
-                yield Checkbox("Saida DBMS", id="adhoc-dbms-toggle", value=False)
+            with Panel(t("panel.params"), accent=True, id="adhoc-params-panel"):
+                yield NavSelect([], prompt=t("adhoc.select_connection"), id="adhoc-conn-select")
+                yield Checkbox(t("adhoc.dbms_output"), id="adhoc-dbms-toggle", value=False)
 
             # Right column — editor above, results below.
             with Vertical(id="adhoc-editor-col"):
-                with Panel("✏️  SQL EDITOR", id="adhoc-editor-panel"):
+                with Panel(t("panel.sql_editor"), id="adhoc-editor-panel"):
                     yield TextArea("", language="sql", id="adhoc-sql-area")
                     with Horizontal(id="adhoc-btn-bar"):
-                        yield Button("Executar (Ctrl+Enter)", variant="primary", id="adhoc-execute", disabled=True)
-                        yield Button("Limpar (Ctrl+L)", variant="error", id="adhoc-clear")
-                        yield Button("Gerar SQL", variant="default", id="adhoc-generate")
-                        yield Button("Salvar como consulta", variant="default", id="adhoc-save")
+                        yield Button(t("adhoc.run_button"), variant="primary", id="adhoc-execute", disabled=True)
+                        yield Button(t("adhoc.clear_button"), variant="error", id="adhoc-clear")
+                        yield Button(t("adhoc.generate_sql"), variant="default", id="adhoc-generate")
+                        yield Button(t("adhoc.save_as_query"), variant="default", id="adhoc-save")
 
-                with Panel("📊  RESULTADOS", id="adhoc-results-panel"):
+                with Panel(t("panel.results"), id="adhoc-results-panel"):
                     with Horizontal(id="res-toggle-bar"):
-                        yield Button("Tabela", id="res-btn-table")
-                        yield Button("Output", id="res-btn-output")
+                        yield Button(t("common.table"), id="res-btn-table")
+                        yield Button(t("adhoc.output_tab"), id="res-btn-output")
                     yield Static("", id="adhoc-result-info")
                     with ContentSwitcher(initial="res-table", id="res-switcher"):
                         yield ResultTable(id="res-table")
@@ -226,8 +226,8 @@ class AdhocScreen(Vertical):
                                 yield Static("DBMS_OUTPUT", id="adhoc-dbms-label")
                                 yield TextArea("", read_only=True, id="adhoc-dbms-view")
                                 with Horizontal(id="adhoc-dbms-btns"):
-                                    yield Button("Salvar em arquivo", id="adhoc-dbms-save")
-                                    yield Button("Copiar", id="adhoc-dbms-copy")
+                                    yield Button(t("adhoc.save_to_file"), id="adhoc-dbms-save")
+                                    yield Button(t("group_run.copy"), id="adhoc-dbms-copy")
 
         # Progress indicator
         yield ProgressIndicator()
@@ -299,11 +299,11 @@ class AdhocScreen(Vertical):
         select_widget = self.query_one("#adhoc-conn-select", Select)
         conn_name = select_widget.value
         if conn_name is Select.BLANK:
-            self.notify("Selecione uma conexao.", severity="warning")
+            self.notify(t("adhoc.select_connection_first"), severity="warning")
             return None
         conn = find_connection(conn_name)
         if not conn:
-            self.notify("Conexao nao encontrada.", severity="error")
+            self.notify(t("adhoc.connection_not_found"), severity="error")
             return None
         return conn
 
@@ -348,8 +348,8 @@ class AdhocScreen(Vertical):
         from dbqm.ui.modals.confirm import ConfirmModal
 
         modal = ConfirmModal(
-            message="Limpar o conteudo SQL?",
-            title="Confirmar limpeza",
+            message=t("adhoc.confirm_clear"),
+            title=t("adhoc.confirm_clear_title"),
         )
         self.app.push_screen(modal, callback=self._on_clear_confirmed)
 
@@ -365,7 +365,7 @@ class AdhocScreen(Vertical):
         """Execute the SQL statement."""
         raw_sql = self._get_sql()
         if not raw_sql:
-            self.notify("Nenhum SQL informado.", severity="warning")
+            self.notify(t("adhoc.no_sql"), severity="warning")
             return
 
         conn = self._get_selected_conn()
@@ -375,8 +375,7 @@ class AdhocScreen(Vertical):
         sql_type = classify_sql(raw_sql)
         if sql_type == "UNKNOWN":
             self.notify(
-                "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, "
-                "DDL ou blocos PL/SQL (BEGIN/DECLARE, EXEC).",
+                t("adhoc.unsupported_sql"),
                 severity="error",
             )
             return
@@ -423,7 +422,7 @@ class AdhocScreen(Vertical):
             for p in param_names
         ]
         modal = ParamModal(
-            query_name="SQL Avulso",
+            query_name=t("adhoc.label"),
             params=params_dicts,
             last_values=self._current_params,
         )
@@ -456,7 +455,7 @@ class AdhocScreen(Vertical):
     def _show_error(self, msg: str) -> None:
         """Show error notification and stop progress indicator."""
         self.query_one(ProgressIndicator).stop()
-        self.notify(f"Erro: {msg}", severity="error", timeout=8)
+        self.notify(t("adhoc.error", erro=msg), severity="error", timeout=8)
 
     def _on_sql_result(self, result) -> None:
         """Handle SQL result back on the main thread."""
@@ -470,7 +469,7 @@ class AdhocScreen(Vertical):
             adhoc_result = result
 
         if not adhoc_result.success:
-            self.notify(f"Erro: {adhoc_result.error}", severity="error", timeout=8)
+            self.notify(t("adhoc.error", erro=adhoc_result.error), severity="error", timeout=8)
             return
 
         self._current_adhoc_result = adhoc_result
@@ -547,7 +546,7 @@ class AdhocScreen(Vertical):
     def _show_select_result(self, result: AdhocResult) -> None:
         """Display SELECT results in the ResultTable."""
         qr = QueryResult(
-            query_name="SQL Avulso",
+            query_name=t("adhoc.label"),
             connection_name=result.connection_name,
             columns=result.columns,
             rows=result.rows,
@@ -559,8 +558,10 @@ class AdhocScreen(Vertical):
         # Show info bar
         info = self.query_one("#adhoc-result-info", Static)
         info.update(
-            f"[bold]SQL Avulso[/] | {result.connection_name} | "
-            f"{result.row_count} registros | {result.elapsed:.2f}s"
+            t("adhoc.result_info", rotulo=f'[bold]{t("adhoc.label")}[/]',
+              conexao=result.connection_name,
+              linhas=t("result_table.rows_count", linhas=result.row_count),
+              segundos=f"{result.elapsed:.2f}")
         )
         info.display = True
 
@@ -584,13 +585,13 @@ class AdhocScreen(Vertical):
             return
 
         actions = [
-            Action("Vertical", "V", "toggle_vertical"),
-            Action("Exportar", "E", "export"),
-            Action("Reexecutar", "R", "reexecute"),
+            Action(t("action.vertical"), "V", "toggle_vertical"),
+            Action(t("action.export"), "E", "export"),
+            Action(t("action.rerun"), "R", "reexecute"),
         ]
         if result_table.total_pages > 1:
-            actions.append(Action("Pag.Ant", "PgUp", "prev_page"))
-            actions.append(Action("Prox.Pag", "PgDn", "next_page"))
+            actions.append(Action(t("action.prev_page"), "PgUp", "prev_page"))
+            actions.append(Action(t("action.next_page"), "PgDn", "next_page"))
             actions.append(Action(result_table.page_info, "", "page_info"))
 
         action_bar.set_actions(actions)
@@ -606,7 +607,9 @@ class AdhocScreen(Vertical):
         dml_static = self.query_one("#adhoc-dml-result", Static)
         dml_static.display = True
         dml_static.update(
-            f"[bold]{result.rows_affected}[/] linha(s) afetada(s) ({result.elapsed:.2f}s)"
+            t("adhoc.rows_affected",
+              quantidade=f"[bold]{result.rows_affected}[/]",
+              segundos=f"{result.elapsed:.2f}")
         )
 
         if db_connection:
@@ -614,13 +617,13 @@ class AdhocScreen(Vertical):
             try:
                 action_bar = self.app.query_one(ActionBar)
                 action_bar.set_actions([
-                    Action("COMMIT", "C", "dml_commit"),
-                    Action("ROLLBACK", "R", "dml_rollback"),
+                    Action(t("action.commit"), "C", "dml_commit"),
+                    Action(t("action.rollback"), "R", "dml_rollback"),
                 ])
             except Exception:
                 pass
         else:
-            self.notify("Conexao nao disponivel para commit/rollback.", severity="warning")
+            self.notify(t("adhoc.no_connection_for_commit"), severity="warning")
 
     def _show_ddl_result(self, result: AdhocResult) -> None:
         """Display DDL execution result with compilation errors if any."""
@@ -635,19 +638,20 @@ class AdhocScreen(Vertical):
 
         if result.success:
             dml_static.update(
-                f"[bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"
+                f"[bold]{t('adhoc.ddl_ok')}[/] ({result.elapsed:.2f}s)"
             )
         else:
-            errors = result.error or "Erro desconhecido"
+            errors = result.error or t("adhoc.unknown_error")
             dml_static.update(
-                f"[bold $ds-op-failure]DDL executado com erros de compilacao[/] ({result.elapsed:.2f}s)\n\n"
+                f"[bold $ds-op-failure]{t('adhoc.ddl_errors')}[/]"
+                f" ({result.elapsed:.2f}s)\n\n"
                 f"[$ds-op-failure]{errors}[/]"
             )
 
         try:
             action_bar = self.app.query_one(ActionBar)
             action_bar.set_actions([
-                Action("Reexecutar", "R", "reexecute"),
+                Action(t("action.rerun"), "R", "reexecute"),
             ])
         except Exception:
             pass
@@ -666,7 +670,7 @@ class AdhocScreen(Vertical):
         try:
             action_bar = self.app.query_one(ActionBar)
             action_bar.set_actions([
-                Action("Reexecutar", "R", "reexecute"),
+                Action(t("action.rerun"), "R", "reexecute"),
             ])
         except Exception:
             pass
@@ -679,7 +683,7 @@ class AdhocScreen(Vertical):
         """Save the execution evidence (SQL + date/time + DBMS_OUTPUT) to a .txt file."""
         result = self._current_adhoc_result
         if result is None:
-            self.notify("Nada para salvar.", severity="warning")
+            self.notify(t("adhoc.nothing_to_save"), severity="warning")
             return
         from dbqm.core.exporter import export_dbms_output
 
@@ -689,15 +693,15 @@ class AdhocScreen(Vertical):
                 result, self._current_sql, self._last_exec_at,
                 label, self._current_params,
             )
-            self.notify(f"Evidencia salva: {path}", timeout=5)
+            self.notify(t("adhoc.evidence_saved", caminho=path), timeout=5)
         except Exception as e:
-            self.notify(f"Erro ao salvar: {e}", severity="error")
+            self.notify(t("adhoc.save_failed", erro=e), severity="error")
 
     def _copy_dbms_output(self) -> None:
         """Copy the execution evidence (SQL + date/time + DBMS_OUTPUT) to the clipboard."""
         result = self._current_adhoc_result
         if result is None:
-            self.notify("Nada para copiar.", severity="warning")
+            self.notify(t("adhoc.nothing_to_copy"), severity="warning")
             return
         from dbqm.core.exporter import format_dbms_evidence
 
@@ -706,9 +710,9 @@ class AdhocScreen(Vertical):
             import subprocess
             process = subprocess.Popen(["clip"], stdin=subprocess.PIPE)
             process.communicate(text.encode("utf-8"))
-            self.notify("Evidencia copiada para a area de transferencia!", timeout=3)
+            self.notify(t("adhoc.evidence_copied"), timeout=3)
         except Exception:
-            self.notify("Erro ao copiar. Selecione e copie manualmente.", severity="warning")
+            self.notify(t("group_run.copy_failed"), severity="warning")
 
     # ------------------------------------------------------------------
     # Generate SQL
@@ -718,7 +722,7 @@ class AdhocScreen(Vertical):
         """Generate final SQL with parameters replaced."""
         raw_sql = self._get_sql()
         if not raw_sql:
-            self.notify("Nenhum SQL informado.", severity="warning")
+            self.notify(t("adhoc.no_sql"), severity="warning")
             return
 
         existing_params = detect_params(raw_sql)
@@ -766,7 +770,7 @@ class AdhocScreen(Vertical):
         try:
             action_bar = self.app.query_one(ActionBar)
             action_bar.set_actions([
-                Action("Exportar SQL", "E", "export_sql"),
+                Action(t("action.export_sql"), "E", "export_sql"),
             ])
         except Exception:
             pass
@@ -781,7 +785,7 @@ class AdhocScreen(Vertical):
         """Save the ad-hoc SQL as a regular query."""
         raw_sql = self._get_sql()
         if not raw_sql:
-            self.notify("Nenhum SQL informado.", severity="warning")
+            self.notify(t("adhoc.no_sql"), severity="warning")
             return
 
         conn = self._get_selected_conn()
@@ -798,8 +802,8 @@ class AdhocScreen(Vertical):
             suggested = f"{clean_table} ({conn.name})"
 
         modal = TextInputModal(
-            title="Salvar como consulta",
-            message="Nome da consulta:",
+            title=t("adhoc.save_as_query"),
+            message=t("adhoc.query_name_prompt"),
             default=suggested,
         )
         self.app.push_screen(modal, callback=self._on_save_name_submitted)
@@ -813,7 +817,7 @@ class AdhocScreen(Vertical):
 
         existing = load_queries()
         if any(q.name == name for q in existing):
-            self.notify(f'Consulta "{name}" ja existe.', severity="error")
+            self.notify(t("query.already_exists", nome=name), severity="error")
             return
 
         raw_sql = self._get_sql()
@@ -844,7 +848,7 @@ class AdhocScreen(Vertical):
 
         existing.append(query)
         save_queries(existing)
-        self.notify(f'Consulta "{name}" salva!', timeout=5)
+        self.notify(t("adhoc.query_saved", nome=name), timeout=5)
 
     # ------------------------------------------------------------------
     # DML commit/rollback
@@ -856,11 +860,11 @@ class AdhocScreen(Vertical):
                 self._db_connection.commit()
                 self._db_connection.close()
             except Exception as e:
-                self.notify(f"Erro no commit: {e}", severity="error")
+                self.notify(t("adhoc.commit_failed", erro=e), severity="error")
                 return
             finally:
                 self._db_connection = None
-            self.notify("COMMIT executado. Alteracoes efetivadas.", timeout=5)
+            self.notify(t("adhoc.commit_done"), timeout=5)
             self._clear_action_bar()
 
     def _handle_rollback(self) -> None:
@@ -869,11 +873,11 @@ class AdhocScreen(Vertical):
                 self._db_connection.rollback()
                 self._db_connection.close()
             except Exception as e:
-                self.notify(f"Erro no rollback: {e}", severity="error")
+                self.notify(t("adhoc.rollback_failed", erro=e), severity="error")
                 return
             finally:
                 self._db_connection = None
-            self.notify("ROLLBACK executado. Alteracoes desfeitas.", severity="warning", timeout=5)
+            self.notify(t("adhoc.rollback_done"), severity="warning", timeout=5)
             self._clear_action_bar()
 
     def _clear_action_bar(self) -> None:
@@ -933,11 +937,11 @@ class AdhocScreen(Vertical):
             elif fmt == "txt":
                 path = export_query_txt(self._current_result, table=table, params=params)
             else:
-                self.notify(f"Formato '{fmt}' nao suportado.", severity="warning")
+                self.notify(t("group_run.format_unsupported", formato=fmt), severity="warning")
                 return
-            self.notify(f"Exportado: {path}", timeout=5)
+            self.notify(t("export.done", caminho=path), timeout=5)
         except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
+            self.notify(t("group_run.export_failed", erro=e), severity="error")
 
     def _handle_export_sql(self) -> None:
         """Export the generated SQL to a .sql file."""
@@ -946,9 +950,9 @@ class AdhocScreen(Vertical):
         try:
             label = self._table_name if self._table_name else "adhoc"
             path = export_sql_file(self._generated_sql, label, self._current_params)
-            self.notify(f"Exportado: {path}", timeout=5)
+            self.notify(t("export.done", caminho=path), timeout=5)
         except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
+            self.notify(t("group_run.export_failed", erro=e), severity="error")
 
     def _handle_reexecute(self) -> None:
         """Re-execute with new/same parameters."""

@@ -302,7 +302,7 @@ async def test_settings_opens_export_import(tmp_config_dir):
         assert app.query(ConfigPortScreen), (
             "a tela de Exportar/Importar nao foi montada pela rota real"
         )
-        assert "EXPORTAR" in rendered_text(app).upper()
+        assert "EXPORT" in rendered_text(app).upper()
 
 
 @pytest.mark.asyncio
@@ -366,7 +366,7 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
         # The screen stays mounted (an export worker may still be alive);
         # what has to change is what the tab PAINTS.
         pintado = rendered_text(app).upper()
-        assert "EXPORTAR OU IMPORTAR" not in pintado, "o Voltar nao voltou"
+        assert "EXPORT OR IMPORT" not in pintado, "o Voltar nao voltou"
         assert "MAIS CONFIGURACOES" in pintado
 
 
@@ -389,7 +389,7 @@ async def test_no_settings_route_fails_silently(tmp_config_dir):
     from tests.ui._helpers import rendered_text
 
     esperado = {
-        "portabilidade": "EXPORTAR OU IMPORTAR",
+        "portabilidade": "EXPORT OR IMPORT",
         "oracle-clients": "PLATAFORMA DETECTADA",
     }
     app = DBQMApp()
@@ -501,14 +501,14 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
         tela = app.query_one(ConfigPortScreen)
         tela._show_export_phase()
         await pilot.pause()
-        assert "EXPORTAR CONFIGURACOES" in rendered_text(app).upper()
+        assert "EXPORT CONFIGURATION" in rendered_text(app).upper()
 
         await pilot.press("escape")
         await pilot.pause()
         await _open_config_tool(pilot, app, "portabilidade")
 
         pintado = rendered_text(app).upper()
-        assert "EXPORTAR OU IMPORTAR" in pintado, (
+        assert "EXPORT OR IMPORT" in pintado, (
             "reabriu numa fase que a entrada da lista nao prometeu: %r"
             % pintado[-600:]
         )

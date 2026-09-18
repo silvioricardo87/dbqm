@@ -420,8 +420,9 @@ class GroupRunScreen(Vertical):
         self._current_params = params
         self.query_one(ProgressIndicator).start(
             f"{mark_operation('running')} "
-            + t("group_run.running", nome=escape_markup(group.name),
-                consultas=t("group_run.queries_many", quantidade=len(group.queries)))
+            + t("group_run.running",
+                  nome=f"[bold]{escape_markup(group.name)}[/]",
+                  consultas=t("group_run.queries_many", quantidade=len(group.queries)))
         )
         self._run_group(group, params)
 
@@ -569,10 +570,10 @@ class GroupRunScreen(Vertical):
         group_name = str(group_result.group_name) if group_result.group_name else ""
         info = self.query_one("#gr-result-info", Static)
         info.update(
-            t("group_run.info_bar", nome=escape_markup(group_name),
+            t("group_run.info_bar", nome=f"[bold]{escape_markup(group_name)}[/]",
               consultas=t("group_run.queries_many",
                           quantidade=len(group_result.query_results)),
-              veredito=mark_verdict(overall_status, label=overall))
+              veredito=f"[bold]{mark_verdict(overall_status, label=overall)}[/]")
         )
 
         # Load result into GroupResultWidget
@@ -717,17 +718,18 @@ class GroupRunScreen(Vertical):
                        else t("verdict.divergent"))
             overall_status = "match" if new_gr.all_match else "diff"
             info.update(
-                t("group_run.info_bar", nome=escape_markup(group_name),
+                t("group_run.info_bar", nome=f"[bold]{escape_markup(group_name)}[/]",
                   consultas=t("group_run.queries_many",
                               quantidade=len(new_gr.query_results)),
-                  veredito=mark_verdict(overall_status, label=overall))
+                  veredito=f"[bold]{mark_verdict(overall_status, label=overall)}[/]")
             )
         else:
             info.update(
-                t("group_run.info_bar_original", nome=escape_markup(group_name),
+                t("group_run.info_bar_original",
+                  nome=f"[bold]{escape_markup(group_name)}[/]",
                   consultas=t("group_run.queries_many",
                               quantidade=len(new_gr.query_results)),
-                  rotulo=t("group_run.original_values"))
+                  rotulo=f'[dim]{t("group_run.original_values")}[/]')
             )
 
         self._set_result_actions()

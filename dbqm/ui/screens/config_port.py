@@ -9,6 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Checkbox, Input, OptionList, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 
@@ -36,10 +37,13 @@ class ConfigPortScreen(Vertical):
 
     #: (key, identity, disambiguation) of the two deep phases. The key
     #: travels as DATA in the option (`NamedOption.nome`), never as `id`.
-    MODOS = (
-        ("export", "Exportar", "gera um .dbqm protegido por senha"),
-        ("import", "Importar", "le um .dbqm gerado por outro dbqm"),
-    )
+    def modos(self) -> tuple[tuple[str, str, str], ...]:
+        """A method, not a class attribute: a class body runs at import,
+        before the app resolves the language."""
+        return (
+            ("export", t("config_port.export_mode"), t("config_port.export_mode_hint")),
+            ("import", t("config_port.import_mode"), t("config_port.import_mode_hint")),
+        )
 
     DEFAULT_CSS = """
     ConfigPortScreen {
@@ -121,39 +125,39 @@ class ConfigPortScreen(Vertical):
         # NAVIGATION — it leads to a form, it does not run anything. Two
         # buttons side by side were a menu in disguise, the same shape the
         # Ferramentas menu had (section 7 of the grammar).
-        with Panel("🔄  EXPORTAR OU IMPORTAR", id="cp-mode-phase"):
+        with Panel(t("panel.export_or_import"), id="cp-mode-phase"):
             yield OptionList(id="cp-mode-list")
 
         # Phase 2: export form
-        with Panel("⬆️  EXPORTAR CONFIGURACOES", id="cp-export-phase"):
+        with Panel(t("panel.export_config"), id="cp-export-phase"):
             with Vertical(classes="cp-checks"):
-                yield Checkbox("Conexoes", id="cp-chk-connections", value=True)
-                yield Checkbox("Consultas", id="cp-chk-queries", value=True)
-                yield Checkbox("Grupos", id="cp-chk-groups", value=True)
+                yield Checkbox(t("connection.list_title"), id="cp-chk-connections", value=True)
+                yield Checkbox(t("query.list_title"), id="cp-chk-queries", value=True)
+                yield Checkbox(t("group.list_title"), id="cp-chk-groups", value=True)
             with Vertical(classes="cp-password-row"):
-                yield Static("Senha:", classes="cp-field-label")
-                yield Input(placeholder="Senha para proteger o arquivo", password=True, id="cp-export-password")
+                yield Static(t("field.password"), classes="cp-field-label")
+                yield Input(placeholder=t("config_port.password_placeholder"), password=True, id="cp-export-password")
             with Vertical(classes="cp-password-row"):
-                yield Static("Confirmar senha:", classes="cp-field-label")
-                yield Input(placeholder="Confirme a senha", password=True, id="cp-export-password-confirm")
+                yield Static(t("config_port.confirm_password"), classes="cp-field-label")
+                yield Input(placeholder=t("config_port.confirm_password_placeholder"), password=True, id="cp-export-password-confirm")
             with Horizontal(classes="cp-actions"):
-                yield Button("Exportar", id="cp-do-export", variant="primary")
+                yield Button(t("action.export"), id="cp-do-export", variant="primary")
 
         # Phase 3: import form
-        with Panel("⬇️  IMPORTAR CONFIGURACOES", id="cp-import-phase"):
+        with Panel(t("panel.import_config"), id="cp-import-phase"):
             with Vertical(classes="cp-field"):
-                yield Static("Caminho do arquivo .dbqm:", classes="cp-field-label")
-                yield Input(placeholder="Ex: C:\\exports\\config.dbqm", id="cp-import-path")
+                yield Static(t("config_port.file_path"), classes="cp-field-label")
+                yield Input(placeholder=t("config_port.file_path_placeholder"), id="cp-import-path")
             with Vertical(classes="cp-field"):
-                yield Static("Senha do arquivo:", classes="cp-field-label")
-                yield Input(placeholder="Senha usada na exportacao", password=True, id="cp-import-password")
+                yield Static(t("config_port.file_password"), classes="cp-field-label")
+                yield Input(placeholder=t("config_port.file_password_placeholder"), password=True, id="cp-import-password")
             with Horizontal(classes="cp-actions"):
-                yield Button("Importar", id="cp-do-import", variant="primary")
+                yield Button(t("config_port.import_mode"), id="cp-do-import", variant="primary")
 
     def on_mount(self) -> None:
         lista = self.query_one("#cp-mode-list", OptionList)
         lista.clear_options()
-        for chave, identidade, desambiguacao in self.MODOS:
+        for chave, identidade, desambiguacao in self.modos():
             lista.add_option(
                 NamedOption(hierarchical_item(identidade, desambiguacao), chave)
             )
@@ -244,11 +248,11 @@ class ConfigPortScreen(Vertical):
         password_confirm = self.query_one("#cp-export-password-confirm", Input).value.strip()
 
         if not password:
-            self.notify("Senha obrigatoria para exportar.", severity="warning")
+            self.notify(t("config_port.password_required"), severity="warning")
             return
 
         if password != password_confirm:
-            self.notify("Senhas nao conferem.", severity="error")
+            self.notify(t("config_port.passwords_differ"), severity="error")
             return
 
         include_connections = self.query_one("#cp-chk-connections", Checkbox).value
@@ -256,7 +260,7 @@ class ConfigPortScreen(Vertical):
         include_groups = self.query_one("#cp-chk-groups", Checkbox).value
 
         if not (include_connections or include_queries or include_groups):
-            self.notify("Selecione ao menos um item para exportar.", severity="warning")
+            self.notify(t("config_port.pick_one_item"), severity="warning")
             return
 
         self._run_export(password, include_connections, include_queries, include_groups)
@@ -279,12 +283,12 @@ class ConfigPortScreen(Vertical):
                 include_groups=include_groups,
             )
             self.app.call_from_thread(
-                self.notify, f"Configuracoes exportadas: {path}", severity="information", timeout=8
+                self.notify, t("bundle.exported", caminho=path), severity="information", timeout=8
             )
             self.app.call_from_thread(self._clear_export_form)
         except Exception as e:
             self.app.call_from_thread(
-                self.notify, f"Erro ao exportar: {e}", severity="error", timeout=8
+                self.notify, t("group_run.export_failed", erro=e), severity="error", timeout=8
             )
 
     def _clear_export_form(self) -> None:
@@ -300,15 +304,15 @@ class ConfigPortScreen(Vertical):
         password = self.query_one("#cp-import-password", Input).value.strip()
 
         if not filepath:
-            self.notify("Informe o caminho do arquivo .dbqm.", severity="warning")
+            self.notify(t("config_port.path_required"), severity="warning")
             return
 
         if not Path(filepath).exists():
-            self.notify("Arquivo nao encontrado.", severity="error")
+            self.notify(t("config_port.file_not_found"), severity="error")
             return
 
         if not password:
-            self.notify("Informe a senha do arquivo.", severity="warning")
+            self.notify(t("config_port.password_required_import"), severity="warning")
             return
 
         self._run_import(filepath, password)
@@ -322,19 +326,20 @@ class ConfigPortScreen(Vertical):
             total = summary["connections"] + summary["queries"] + summary["groups"]
             parts = []
             if summary["connections"]:
-                parts.append(f'{summary["connections"]} conexoes')
+                parts.append(t("config_port.count_connections",
+                               quantidade=summary["connections"]))
             if summary["queries"]:
-                parts.append(f'{summary["queries"]} consultas')
+                parts.append(t("config_port.count_queries", quantidade=summary["queries"]))
             if summary["groups"]:
-                parts.append(f'{summary["groups"]} grupos')
+                parts.append(t("config_port.count_groups", quantidade=summary["groups"]))
             if summary["skipped"]:
-                parts.append(f'{summary["skipped"]} ignorados (duplicados)')
+                parts.append(t("config_port.count_skipped", quantidade=summary["skipped"]))
 
             if total > 0:
-                msg = f"Importado: {', '.join(parts)}"
+                msg = t("config_port.imported", itens=", ".join(parts))
                 self.app.call_from_thread(self.notify, msg, severity="information", timeout=8)
             else:
-                msg = f"Nenhuma configuracao nova importada. {summary['skipped']} duplicados ignorados."
+                msg = t("config_port.nothing_new", ignorados=summary["skipped"])
                 self.app.call_from_thread(self.notify, msg, severity="warning", timeout=8)
 
             self.app.call_from_thread(self._clear_import_form)

@@ -274,7 +274,7 @@ async def test_config_port_only_the_export_passes_the_fold(tmp_config_dir, modo,
             await pilot.pause()
             await pilot.wait_for_scheduled_animations()
             await pilot.pause()
-            assert "Exportar" in rendered_text(app)
+            assert "Export" in rendered_text(app)
 
 
 # ---------------------------------------------------------------------------
