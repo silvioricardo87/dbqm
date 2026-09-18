@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Header, TabbedContent, TabPane
 
+from dbqm.i18n import t
 from dbqm.ui.theme import INERT_STATES_CSS, TEXTUAL_THEMES, get_theme
 from dbqm.ui.widgets.status_bar import StatusBar
 from dbqm.ui.widgets.action_bar import ActionBar, ActionSelected
@@ -99,19 +100,22 @@ class DBQMApp(App):
         self.theme = get_theme(configuracao.theme).name
 
     BINDINGS = [
-        Binding("f1", "switch_tab('tab-coleta')", "Coleta", show=False),
-        Binding("f2", "switch_tab('tab-conexoes')", "Conexoes", show=False),
-        Binding("f3", "switch_tab('tab-objetos')", "Objetos", show=False),
+        # Descriptions in English: `BINDINGS` is built at import time, before
+        # the language is resolved, and every entry below carries
+        # `show=False` -- none of this text has ever reached a screen.
+        Binding("f1", "switch_tab('tab-coleta')", "Collect", show=False),
+        Binding("f2", "switch_tab('tab-conexoes')", "Connections", show=False),
+        Binding("f3", "switch_tab('tab-objetos')", "Objects", show=False),
         Binding("f4", "switch_tab('tab-multiexec')", "Multi-Exec", show=False),
-        Binding("f5", "switch_tab('tab-historico')", "Historico", show=False),
-        Binding("f6", "switch_tab('tab-config')", "Configuracoes", show=False),
-        Binding("f7", "switch_tab('tab-consultas')", "Consultas", show=False),
-        Binding("f8", "switch_tab('tab-ferramentas')", "Ferramentas", show=False),
+        Binding("f5", "switch_tab('tab-historico')", "History", show=False),
+        Binding("f6", "switch_tab('tab-config')", "Settings", show=False),
+        Binding("f7", "switch_tab('tab-consultas')", "Queries", show=False),
+        Binding("f8", "switch_tab('tab-ferramentas')", "Tools", show=False),
         Binding("ctrl+b", "toggle_sidebar", "Templates"),
         Binding("ctrl+q", "quit", "Quit"),
         Binding("escape", "go_back", "Back"),
-        Binding("question_mark", "show_help", "Ajuda", show=False),
-        Binding("slash", "search", "Buscar", show=False),
+        Binding("question_mark", "show_help", "Help", show=False),
+        Binding("slash", "search", "Search", show=False),
         # Action bar shortcut keys — bound at app level to guarantee they work
         # regardless of which widget has focus. The action_shortcut handler
         # checks if the key matches a current action bar entry.
@@ -147,28 +151,28 @@ class DBQMApp(App):
         with Horizontal(id="body"):
             yield TemplatesSidebar(id="templates-sidebar")
             with MainTabs(id="main-tabs", initial=initial_tab):
-                with TabPane("🔍  Coleta", id="tab-coleta"):
+                with TabPane(t("tab.collect"), id="tab-coleta"):
                     from dbqm.ui.screens.adhoc import AdhocScreen
                     yield AdhocScreen(id="adhoc-screen")
-                with TabPane("🔌  Conexoes", id="tab-conexoes"):
+                with TabPane(t("tab.connections"), id="tab-conexoes"):
                     from dbqm.ui.screens.connections import ConnectionsScreen
                     yield ConnectionsScreen(id="connections-screen")
-                with TabPane("📂  Objetos", id="tab-objetos"):
+                with TabPane(t("tab.objects"), id="tab-objetos"):
                     from dbqm.ui.screens.browser import BrowserScreen
                     yield BrowserScreen(id="browser-screen")
-                with TabPane("📊  Multi-Exec", id="tab-multiexec"):
+                with TabPane(t("tab.multiexec"), id="tab-multiexec"):
                     from dbqm.ui.screens.group_exec import GroupExecScreen
                     yield GroupExecScreen(id="group-exec-screen")
-                with TabPane("📜  Historico", id="tab-historico"):
+                with TabPane(t("tab.history"), id="tab-historico"):
                     from dbqm.ui.screens.history import HistoryScreen
                     yield HistoryScreen(id="history-screen")
-                with TabPane("⚙️  Configuracoes", id="tab-config"):
+                with TabPane(t("tab.settings"), id="tab-config"):
                     from dbqm.ui.screens.settings import SettingsScreen
                     yield SettingsScreen(id="settings-screen")
-                with TabPane("📝  Consultas", id="tab-consultas"):
+                with TabPane(t("tab.queries"), id="tab-consultas"):
                     from dbqm.ui.screens.query_exec import QueryExecScreen
                     yield QueryExecScreen(id="query-exec-screen")
-                with TabPane("🧰  Ferramentas", id="tab-ferramentas"):
+                with TabPane(t("tab.tools"), id="tab-ferramentas"):
                     from dbqm.ui.screens.tools import ToolsScreen
                     yield ToolsScreen(id="ferramentas-screen")
         yield ActionBar()
@@ -224,8 +228,7 @@ class DBQMApp(App):
         # active (chosen in compose); just welcome the user.
         if not connections:
             self.notify(
-                "Bem-vindo! Nenhuma conexao configurada. "
-                "Crie uma conexao para comecar.",
+                t("app.welcome"),
                 severity="warning",
                 timeout=10,
             )
@@ -392,7 +395,7 @@ class DBQMApp(App):
             editor = screen.query(TextArea).first()
             editor.text = message.sql
         except Exception:
-            self.notify("Aba atual nao aceita template.", severity="warning")
+            self.notify(t("app.tab_rejects_template"), severity="warning")
 
     # ------------------------------------------------------------------
     # Keyboard navigation

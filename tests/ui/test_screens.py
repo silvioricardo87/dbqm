@@ -5735,8 +5735,8 @@ async def test_group_run_paints_two_groups_with_the_same_name(tmp_config_dir):
         assert group_list.option_count == 2
         assert rendered_names(group_list) == ["dup", "dup"]
         pintado = [group_list.get_option_at_index(i).prompt.plain for i in range(2)]
-        assert "primeiro" in pintado[0] and "1 consulta" in pintado[0]
-        assert "segundo" in pintado[1] and "2 consultas" in pintado[1]
+        assert "primeiro" in pintado[0] and "1 query" in pintado[0]
+        assert "segundo" in pintado[1] and "2 queries" in pintado[1]
 
 
 @pytest.mark.asyncio
@@ -5848,7 +5848,7 @@ async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
 
         linhas = texto.split(chr(10))
         assert linhas[0] == "grupo_faturamento", "identidade sozinha na 1a linha"
-        assert linhas[1] == "  3 consultas", "desambiguacao recuada na 2a"
+        assert linhas[1] == "  3 queries", "desambiguacao recuada na 2a"
         assert len(linhas) > 2, "a descricao tem linha propria"
         assert all(linha.startswith("  ") for linha in linhas[2:]), (
             "toda linha de descricao paga o recuo, inclusive a continuacao: %r"
@@ -5865,7 +5865,7 @@ async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
         assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
 
         assert cor_no_offset(conteudo, texto.index("grupo_faturamento")) == cor_forte
-        assert cor_no_offset(conteudo, texto.index("3 consultas")) == cor_apoio
+        assert cor_no_offset(conteudo, texto.index("3 queries")) == cor_apoio
         assert cor_no_offset(conteudo, texto.index("Compara")) == cor_desabilitado
 
 

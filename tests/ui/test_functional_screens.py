@@ -130,8 +130,8 @@ async def test_group_run_runs_a_group_and_shows_the_verdict(local2_db, capsys):
 
         assert screen.query_one("#gr-results-phase").display is True
         info = str(screen.query_one("#gr-result-info", Static).content)
-        assert "pedidos" in info and "2 consultas" in info
-        assert "DIVERGENTE" in info
+        assert "pedidos" in info and "2 queries" in info
+        assert "DIVERGENT" in info
         gr = screen.query_one("#gr-group-result", GroupResultWidget).group_result
         assert gr is not None and gr.all_match is False
         assert [c.column for c in gr.comparisons] == ["valor"]
