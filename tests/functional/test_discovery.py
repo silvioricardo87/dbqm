@@ -77,7 +77,7 @@ def test_describe_of_an_unknown_object_is_not_found(local_db, capsys):
     code, body = envelope(["describe", "nao_existe", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "'nao_existe' nao e uma tabela nem uma view em local."
+    assert body["error"]["message"] == '"nao_existe" is neither a table nor a view in local.'
 
 
 # QA-DISC-009
@@ -116,8 +116,8 @@ def test_rows_pages_with_limit_and_offset(local_db, capsys):
 
 # QA-DISC-012
 @pytest.mark.parametrize("flag,valor,mensagem", [
-    ("--limit", "0", "--limit deve ser maior que zero."),
-    ("--offset", "-1", "--offset nao pode ser negativo."),
+    ("--limit", "0", "--limit must be greater than zero."),
+    ("--offset", "-1", "--offset cannot be negative."),
 ])
 def test_rows_refuses_a_bad_page(local_db, capsys, flag, valor, mensagem):
     code, body = envelope(["rows", "clientes", "local", flag, valor, "-f", "json"], capsys)
@@ -131,7 +131,7 @@ def test_rows_of_an_unknown_table_is_not_found(local_db, capsys):
     code, body = envelope(["rows", "nao_existe", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Tabela 'nao_existe' nao encontrada em local."
+    assert body["error"]["message"] == 'Table "nao_existe" not found in local.'
 
 
 # QA-DISC-014
@@ -149,4 +149,4 @@ def test_objects_of_an_unknown_connection_is_not_found(local_db, capsys):
     code, body = envelope(["objects", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Conexao 'nope' nao encontrada."
+    assert body["error"]["message"] == 'Connection "nope" not found.'

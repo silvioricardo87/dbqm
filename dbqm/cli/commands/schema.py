@@ -8,6 +8,7 @@ from typing import NoReturn
 from rich.markup import escape
 from rich.table import Table
 
+from dbqm.i18n import t
 from dbqm.cli import deps, render
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
@@ -70,7 +71,7 @@ def cmd_objects(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         _fail_or_print(args, "objects", "not_found",
-                       f"Conexao '{args.connection}' nao encontrada.")
+                       t("connection.not_found_named", nome=args.connection))
 
     obj_type = args.type.upper()
     nomes = _with_open_connection(
@@ -83,12 +84,12 @@ def cmd_objects(args: argparse.Namespace) -> None:
                        "objects": nomes})
         return
 
-    tabela = Table(title=f"{obj_type} em {conn.name}")
-    tabela.add_column("Nome")
+    tabela = Table(title=t("objects.list_title", tipo=obj_type, conexao=conn.name))
+    tabela.add_column(t("common.name"))
     for nome in nomes:
         tabela.add_row(escape(nome))
     console.print(tabela)
-    console.print(f"{len(nomes)} objeto(s).")
+    console.print(t("objects.count", quantidade=len(nomes)))
 
 
 def cmd_describe(args: argparse.Namespace) -> None:
@@ -102,7 +103,7 @@ def cmd_describe(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         _fail_or_print(args, "describe", "not_found",
-                       f"Conexao '{args.connection}' nao encontrada.")
+                       t("connection.not_found_named", nome=args.connection))
 
     def acao(db):
         estrutura = deps.get_table_structure(db, conn.db_type, args.object)
@@ -124,8 +125,7 @@ def cmd_describe(args: argparse.Namespace) -> None:
         # routine of that name may well exist. All this call establishes is
         # that it is not a table and not a view.
         _fail_or_print(args, "describe", "not_found",
-                       f"'{args.object}' nao e uma tabela nem uma view em "
-                       f"{conn.name}.")
+                       t("describe.not_table_nor_view", nome=args.object, conexao=conn.name))
 
     tipo = "VIEW" if e_view else "TABLE"
     data = estrutura.to_dict()
@@ -145,24 +145,24 @@ def cmd_describe(args: argparse.Namespace) -> None:
     console.print(f"{escape(estrutura.table)} ({tipo})")
 
     colunas = Table(show_header=True)
-    colunas.add_column("Coluna")
-    colunas.add_column("Tipo")
-    colunas.add_column("Nulo")
-    colunas.add_column("Chave")
+    colunas.add_column(t("common.column"))
+    colunas.add_column(t("common.type"))
+    colunas.add_column(t("common.nullable"))
+    colunas.add_column(t("common.key"))
     for c in estrutura.columns:
         chave = "PK" if c.is_pk else (f"-> {c.fk_ref}" if c.fk_ref else "")
         colunas.add_row(escape(c.name), escape(c.data_type),
-                        "SIM" if c.nullable else "NAO", escape(chave))
+                        t("common.yes_short") if c.nullable else t("common.no_short"), escape(chave))
     console.print(colunas)
 
     if estrutura.indexes:
-        console.print("\nINDICES")
+        console.print("\n" + t("describe.indexes_header"))
         for i in estrutura.indexes:
             marca = "UNIQUE " if i.is_unique else ""
             console.print(f"  {escape(i.name)}  {marca}({', '.join(i.columns)})")
 
     if definicao:
-        console.print("\nDEFINICAO")
+        console.print("\n" + t("describe.definition_header"))
         console.print(definicao, markup=False, highlight=False)
 
 
@@ -173,14 +173,14 @@ def cmd_rows(args: argparse.Namespace) -> None:
     expression here would be injection surface bought for nothing.
     """
     if args.limit < 1:
-        _fail_or_print(args, "rows", "usage", "--limit deve ser maior que zero.")
+        _fail_or_print(args, "rows", "usage", t("rows.limit_positive"))
     if args.offset < 0:
-        _fail_or_print(args, "rows", "usage", "--offset nao pode ser negativo.")
+        _fail_or_print(args, "rows", "usage", t("rows.offset_not_negative"))
 
     conn = deps.find_connection(args.connection)
     if not conn:
         _fail_or_print(args, "rows", "not_found",
-                       f"Conexao '{args.connection}' nao encontrada.")
+                       t("connection.not_found_named", nome=args.connection))
 
     def acao(db):
         try:
@@ -208,7 +208,7 @@ def cmd_rows(args: argparse.Namespace) -> None:
                 raise original from None
             if args.table.upper() not in tabelas | vistas:
                 raise deps.ObjectNotFound(
-                    f"Tabela '{args.table}' nao encontrada em {conn.name}."
+                    t("rows.table_not_found", nome=args.table, conexao=conn.name)
                 ) from original
             raise
 
@@ -238,6 +238,5 @@ def cmd_rows(args: argparse.Namespace) -> None:
     vistas = resultado.offset + resultado.row_count
     if args.format == "table" and resultado.total_count > vistas:
         console.print(
-            f"Mostrando {vistas} de {resultado.total_count} linhas. "
-            f"Use --offset {vistas} para as proximas."
+            t("rows.showing_page", vistas=vistas, total=resultado.total_count)
         )
