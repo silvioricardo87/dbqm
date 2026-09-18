@@ -81,3 +81,52 @@ def test_set_a_string_changes_only_that_key(tmp_config_dir, capsys):
     assert {k: v for k, v in depois["data"].items() if k != "theme"} == {
         k: v for k, v in antes["data"].items() if k != "theme"
     }
+
+
+# QA-CFG-008
+def test_the_language_is_stored_and_validated(tmp_config_dir, capsys):
+    """Valid languages come from the catalogue at runtime, like themes come
+    from the design tokens."""
+    code, body = envelope(["config", "get", "language", "-f", "json"], capsys)
+    assert code == 0
+    assert body["data"]["value"] == "en"
+
+    code, body = envelope(["config", "set", "language", "pt", "-f", "json"], capsys)
+    assert code == 0
+    assert body["data"] == {"key": "language", "value": "pt"}
+
+    # the refusal arrives in the language just chosen -- the setting takes
+    # effect on the very next command, including the one that rejects a bad
+    # value for it
+    code, body = envelope(["config", "set", "language", "klingon", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["code"] == "validation"
+    assert body["error"]["message"] == 'Idioma "klingon" nao existe. Idiomas validos: en, pt.'
+    code, body = envelope(["config", "get", "language", "-f", "json"], capsys)
+    assert body["data"]["value"] == "pt"
+
+
+# QA-CFG-009
+def test_the_stored_language_changes_what_a_command_says(tmp_config_dir, capsys, monkeypatch):
+    """The point of the whole catalogue, end to end: the same refusal, read
+    by the same caller, in the language they chose."""
+    monkeypatch.delenv("DBQM_LANG", raising=False)
+    code, body = envelope(["connection", "add", "x", "--type", "h2", "--no-password", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["message"].startswith("Invalid database type: h2.")
+
+    code, _ = envelope(["config", "set", "language", "pt", "-f", "json"], capsys)
+    assert code == 0
+    code, body = envelope(["connection", "add", "x", "--type", "h2", "--no-password", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["message"].startswith("Tipo de banco invalido: h2.")
+
+
+# QA-CFG-010
+def test_DBQM_LANG_overrides_the_stored_language(tmp_config_dir, capsys, monkeypatch):
+    code, _ = envelope(["config", "set", "language", "pt", "-f", "json"], capsys)
+    assert code == 0
+    monkeypatch.setenv("DBQM_LANG", "en")
+    code, body = envelope(["connection", "add", "x", "--type", "h2", "--no-password", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["message"].startswith("Invalid database type: h2.")

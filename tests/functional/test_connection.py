@@ -58,7 +58,7 @@ def test_sqlite_needs_a_database(tmp_config_dir, capsys):
     code, body = envelope(["connection", "add", "semdb", "--type", "sqlite", "--no-password", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "Informe o arquivo do banco SQLite (ou :memory:)."
+    assert body["error"]["message"] == "Give the SQLite database file (or :memory:)."
 
 
 # QA-CONN-004
@@ -66,7 +66,7 @@ def test_sqlite_refuses_a_host(arquivo, capsys):
     code, body = _add_local(arquivo, capsys, name="comhost", host="x")
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "SQLite nao usa host; deixe em branco."
+    assert body["error"]["message"] == "SQLite does not use host; leave it blank."
 
 
 # QA-CONN-005

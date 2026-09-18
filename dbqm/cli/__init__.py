@@ -437,8 +437,28 @@ COMMAND_MAP = {
 }
 
 
+def _resolver_idioma() -> None:
+    """`DBQM_LANG`, else the stored setting, else English.
+
+    A settings file that cannot be read must not stop a command from running:
+    the language is the least important thing about this invocation.
+    """
+    from dbqm.i18n import resolve_language
+
+    try:
+        from dbqm.models.settings import load_settings
+
+        resolve_language(load_settings().language)
+    except Exception:
+        resolve_language("")
+
+
 def run_cli(argv: list[str] | None = None) -> bool:
     """Parse CLI args and execute command. Returns True if a command was handled."""
+    # Before the parser: `--help` renders flag descriptions, which are
+    # user-facing text like any other.
+    _resolver_idioma()
+
     parser = build_parser()
     args = parser.parse_args(argv)
 

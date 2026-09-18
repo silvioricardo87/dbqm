@@ -89,11 +89,14 @@ class DBQMApp(App):
         # swapped in on_mount, any `$token` that is not also a Textual
         # built-in variable (e.g. $ds-border) would fail to resolve on the
         # first render.
+        from dbqm.i18n import resolve_language
         from dbqm.models.settings import load_settings
 
+        configuracao = load_settings()
+        resolve_language(configuracao.language)
         for tema in TEXTUAL_THEMES.values():
             self.register_theme(tema)
-        self.theme = get_theme(load_settings().theme).name
+        self.theme = get_theme(configuracao.theme).name
 
     BINDINGS = [
         Binding("f1", "switch_tab('tab-coleta')", "Coleta", show=False),

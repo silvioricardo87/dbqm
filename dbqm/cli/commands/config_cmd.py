@@ -25,6 +25,7 @@ from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
+from dbqm.i18n import t
 from dbqm.design.tokens import THEMES
 from dbqm.models.settings import Settings
 
@@ -85,6 +86,21 @@ def _parse_theme(args: argparse.Namespace, command: str, raw: str) -> str:
     return raw
 
 
+def _parse_language(args: argparse.Namespace, command: str, raw: str) -> str:
+    """Valid languages come from the catalogue at runtime, the same way valid
+    themes come from the design tokens: a language added later needs no edit
+    here, and one that does not exist cannot be stored."""
+    from dbqm.i18n import available_languages
+
+    idiomas = available_languages()
+    if raw not in idiomas:
+        _fail_or_print(
+            args, command, "validation",
+            t("config.language_invalid", idioma=raw, validos=", ".join(idiomas)),
+        )
+    return raw
+
+
 def _parse_dir(args: argparse.Namespace, command: str, key: str, raw: str) -> str:
     # Empty means "auto-detect" (oracle_client_dir) / "usar o diretorio atual"
     # (default_export_dir) and must stay settable.
@@ -103,6 +119,8 @@ def _convert(args: argparse.Namespace, command: str, key: str, raw: str) -> Any:
         return _parse_bool(args, command, key, raw)
     if key == "theme":
         return _parse_theme(args, command, raw)
+    if key == "language":
+        return _parse_language(args, command, raw)
     if key in _DIR_KEYS:
         return _parse_dir(args, command, key, raw)
     # Unreachable for the six known `Settings` fields: `_require_known_key`

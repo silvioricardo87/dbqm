@@ -13,7 +13,7 @@ exit codes: [output-contract.md](output-contract.md).
 
 | ID | Cenario | Camada | Engine | Teste |
 |---|---|---|---|---|
-| QA-RO-001 | Dado `ro` / Quando `dbqm sql "UPDATE clientes SET status='X' WHERE id=1" ro -f json` / Entao exit 2, `error.code == "read_only"`, mensagem `Conexao 'ro' e somente leitura. Use --force-write para enviar assim mesmo.` e a linha continua `A` | functional | all | tests/functional/test_read_only.py::test_an_update_is_refused_and_nothing_changes |
+| QA-RO-001 | Dado `ro` / Quando `dbqm sql "UPDATE clientes SET status='X' WHERE id=1" ro -f json` / Entao exit 2, `error.code == "read_only"`, mensagem `Connection 'ro' is read-only. Use --force-write to send it anyway.` e a linha continua `A` | functional | all | tests/functional/test_read_only.py::test_an_update_is_refused_and_nothing_changes |
 | QA-RO-002 | Dado `ro` / Quando o mesmo UPDATE com `--force-write --commit` / Entao exit 0, `rows_affected == 1` e a linha le `X` numa chamada seguinte | functional | all | tests/functional/test_read_only.py::test_force_write_lifts_the_guard_for_one_call |
 | QA-RO-003 | Dado `ro` / Quando `dbqm sql "SELECT nome FROM clientes WHERE id=1" ro -f json` / Entao exit 0 e `data.rows == [["Ana"]]` | functional | all | tests/functional/test_read_only.py::test_a_select_passes |
 | QA-RO-004 | Dado `ro` / Quando `dbqm sql "SELECT id FROM clientes" ro --explain -f json` / Entao exit 0 e `data.plan` nao vazio | functional | all | tests/functional/test_read_only.py::test_explain_passes |

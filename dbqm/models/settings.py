@@ -12,6 +12,10 @@ from dbqm.core.paths import CONFIG_DIR, SETTINGS_FILE
 class Settings:
     audit_log_enabled: bool = False
     theme: str = "plano-escuro"
+    # The language every user-facing string is rendered in. English is the
+    # source language; `DBQM_LANG` overrides this for one run without
+    # writing to the file. See `dbqm/i18n/__init__.py`.
+    language: str = "en"
     # Export configuration
     default_export_dir: str = ""  # empty = use current working directory
     export_dir_prompted: bool = False  # has the user been asked about the dir?
@@ -26,14 +30,17 @@ class Settings:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Settings:
-        return cls(
-            audit_log_enabled=data.get("audit_log_enabled", False),
-            theme=data.get("theme", "plano-escuro"),
-            default_export_dir=data.get("default_export_dir", ""),
-            export_dir_prompted=data.get("export_dir_prompted", False),
-            create_export_subdirs=data.get("create_export_subdirs", True),
-            oracle_client_dir=data.get("oracle_client_dir", ""),
-        )
+        """Read whatever fields this class declares, defaults and all.
+
+        Was a hand-written argument per field, which meant a field added to
+        the class was written to the file by `to_dict` and silently dropped
+        on the way back -- `language` landed that way and the setting simply
+        did not take. `Connection.from_dict` has always derived the list;
+        this one does too now. Unknown keys are ignored, so a settings file
+        written by a newer dbqm still loads on an older one.
+        """
+        campos = {f.name for f in cls.__dataclass_fields__.values()}
+        return cls(**{k: v for k, v in data.items() if k in campos})
 
 
 def load_settings() -> Settings:

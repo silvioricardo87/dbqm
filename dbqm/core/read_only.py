@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from dbqm.i18n import t
 import sqlparse
 
 if TYPE_CHECKING:
@@ -100,24 +101,14 @@ def check_read_only(sql: str, conn: "Connection") -> None:
     if not conn.read_only:
         return
 
-    recusa = (
-        f"Conexao '{conn.name}' e somente leitura. "
-        "Use --force-write para enviar assim mesmo."
-    )
+    recusa = t("read_only.refused", nome=conn.name)
 
     if statement_count(sql) > 1:
-        raise ReadOnlyViolation(
-            f"Conexao '{conn.name}' e somente leitura e o comando tem mais de "
-            "um statement, que nao podem ser verificados separadamente. "
-            "Use --force-write para enviar assim mesmo."
-        )
+        raise ReadOnlyViolation(t("read_only.multiple_statements", nome=conn.name))
 
     tipo = classify_sql(sql)
     if tipo not in ALLOWED:
         raise ReadOnlyViolation(recusa)
 
     if tipo == "EXPLAIN" and not _explains_a_query(sql):
-        raise ReadOnlyViolation(
-            f"Conexao '{conn.name}' e somente leitura e este EXPLAIN executa o "
-            "comando que explica. Use --force-write para enviar assim mesmo."
-        )
+        raise ReadOnlyViolation(t("read_only.explain_executes", nome=conn.name))

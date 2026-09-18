@@ -2209,7 +2209,7 @@ class TestCmdConfig:
         corpo = json.loads(capsys.readouterr().out)
         assert corpo["command"] == "config.list"
         assert set(corpo["data"].keys()) == {
-            "audit_log_enabled", "theme", "default_export_dir",
+            "audit_log_enabled", "theme", "language", "default_export_dir",
             "export_dir_prompted", "create_export_subdirs", "oracle_client_dir",
         }
 
@@ -2897,7 +2897,7 @@ class TestConnectionAdd:
                 "connection", "add", "x", "--type", "h2", "--no-password",
             ], monkeypatch)
         assert exc.value.code == 2
-        assert "Tipo de banco invalido" in capsys.readouterr().out
+        assert "Invalid database type" in capsys.readouterr().out
 
     def test_missing_db_type_exits_2(self, tmp_config_dir, monkeypatch):
         with pytest.raises(SystemExit) as exc:
