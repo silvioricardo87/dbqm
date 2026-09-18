@@ -142,9 +142,9 @@ def validate_oracle_client_dir(path: str) -> str | None:
         return None
     p = Path(path).expanduser()
     if not p.exists():
-        return t("oracle_client.dir_missing", caminho=p)
+        return t("path.dir_missing", caminho=p)
     if not p.is_dir():
-        return t("oracle_client.not_a_dir", caminho=p)
+        return t("path.not_a_dir", caminho=p)
     if sys.platform != "win32":
         return None
     dll = _find_oci_dll(p)

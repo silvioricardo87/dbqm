@@ -8,6 +8,7 @@ from textual.message import Message
 from textual.widgets import Button, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.empty_state import EmptyState
 
 
@@ -44,12 +45,12 @@ class TemplatesSidebar(Vertical):
             super().__init__()
 
     def compose(self) -> ComposeResult:
-        yield Label("📄  TEMPLATES", id="tpl-title")
+        yield Label(t("templates_sidebar.title"), id="tpl-title")
         yield OptionList(id="tpl-list")
         yield EmptyState(
-            what="Templates",
-            why="Crie templates na aba Ferramentas para reaproveitar consultas com parametros",
-            action_label="Abrir Ferramentas",
+            what=t("template.list_title"),
+            why=t("templates_sidebar.empty_why"),
+            action_label=t("templates_sidebar.open_tools"),
             action_id="abrir-ferramentas",
             id="tpl-empty",
         )

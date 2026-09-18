@@ -13,6 +13,7 @@ any input outside their own vocabulary. The whole axis (`$ds-verdict-*`/
 """
 from __future__ import annotations
 
+from dbqm.i18n import t
 from dbqm.ui.utils import escape_markup
 
 VERDICTS: dict[str, tuple[str, str]] = {
@@ -55,8 +56,8 @@ def mark_verdict(status: str, *, label: str | None = None) -> str:
     text = escape_markup(label) if label is not None else {
         "match": "OK",
         "match-normalized": "OK*",
-        "diff": "DIFERE",
-        "absent": "AUSENTE",
+        "diff": t("verdict.differs"),
+        "absent": t("verdict.absent"),
     }[status]
     return f"[{token}]{glyph} {text}[/]"
 

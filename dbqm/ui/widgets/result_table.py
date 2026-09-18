@@ -10,6 +10,7 @@ from textual.content import Content
 from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
+from dbqm.i18n import t
 from dbqm.core.query_engine import QueryResult
 from dbqm.ui.utils import escape_markup
 
@@ -84,17 +85,14 @@ class ResultTable(Vertical, can_focus=False):
         page = self.current_page + 1
         total = self.total_pages
         count = self.row_count
-        return f"Pagina {page}/{total} ({count} registros)"
+        return t("result_table.page_info", pagina=page, total=total, linhas=count)
 
     @property
     def result_info(self) -> str:
         if self._result is None:
             return ""
-        return (
-            f"{self._result.row_count} registros"
-            f" | {self._result.elapsed:.2f}s"
-            f" | {self._result.connection_name}"
-        )
+        linhas = t("result_table.rows_count", linhas=self._result.row_count)
+        return f"{linhas} | {self._result.elapsed:.2f}s | {self._result.connection_name}"
 
     def load_result(self, result: QueryResult) -> None:
         """Load a QueryResult into the table."""
@@ -170,11 +168,11 @@ class ResultTable(Vertical, can_focus=False):
             return
         columns = self._result.columns
         if not columns:
-            self._vertical_view.update("(sem resultados)")
+            self._vertical_view.update(t("result_table.no_results"))
             return
         rows = self._current_page_rows()
         if not rows:
-            self._vertical_view.update("(sem resultados)")
+            self._vertical_view.update(t("result_table.no_results"))
             return
         str_columns = [str(c) for c in columns]
         # The width comes from the ORIGINAL text (the real column

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from textual.widgets import Static
+from dbqm.i18n import t
 
 
 class StatusBar(Static):
@@ -47,15 +48,15 @@ class StatusBar(Static):
         if self._connection:
             left = f"[$background]●[/] {self._connection}"
         else:
-            left = "[dim]●[/dim] sem conexão"
+            left = f'[dim]●[/dim] {t("status_bar.no_connection")}'
 
         right_parts: list[str] = []
         if self._queries:
-            right_parts.append(f"{self._queries} queries")
+            right_parts.append(t("status_bar.queries", quantidade=self._queries))
         if self._connections:
-            right_parts.append(f"{self._connections} conexões")
+            right_parts.append(t("status_bar.connections", quantidade=self._connections))
         if self._groups:
-            right_parts.append(f"{self._groups} grupos")
+            right_parts.append(t("status_bar.groups", quantidade=self._groups))
 
         right = "  ".join(right_parts)
         if right:
@@ -69,14 +70,14 @@ class StatusBar(Static):
         if self._connection:
             parts.append(f"● {self._connection}")
         else:
-            parts.append("● sem conexão")
+            parts.append("● " + t("status_bar.no_connection"))
         counts: list[str] = []
         if self._queries:
-            counts.append(f"{self._queries} queries")
+            counts.append(t("status_bar.queries", quantidade=self._queries))
         if self._connections:
-            counts.append(f"{self._connections} conexões")
+            counts.append(t("status_bar.connections", quantidade=self._connections))
         if self._groups:
-            counts.append(f"{self._groups} grupos")
+            counts.append(t("status_bar.groups", quantidade=self._groups))
         if counts:
             parts.append("  ".join(counts))
         return "  │  ".join(parts) if len(parts) > 1 else parts[0]

@@ -9,6 +9,7 @@ from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
@@ -82,34 +83,31 @@ class OracleClientDirModal(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         with Dialog("Oracle Instant Client", width="lg", id="dialog"):
             yield Static(
-                "Informe o diretorio do Instant Client que o dbqm deve carregar. "
-                "Definir aqui evita conflito com a variavel ORACLE_HOME do sistema, "
-                "que outras ferramentas (como o PL/SQL Developer) podem apontar "
-                "para um client de arquitetura diferente.",
+                t("oracle_client_dir.explain"),
                 id="description",
                 markup=False,
             )
             yield Checkbox(
-                "Detectar automaticamente",
+                t("oracle_client_dir.auto_detect"),
                 value=not self._initial_path,
                 id="use-auto-checkbox",
             )
             with Vertical(id="path-row"):
                 yield Input(
                     value=self._initial_path,
-                    placeholder="Ex: C:\\Users\\you\\.dbqm\\clients\\instantclient_19_x64",
+                    placeholder=t("oracle_client_dir.path_placeholder"),
                     id="oracle-client-dir-input",
                     disabled=not self._initial_path,
                 )
             yield Static(
-                "A troca passa a valer na proxima vez que o dbqm for aberto.",
+                t("oracle_client_dir.takes_effect_next_run"),
                 id="restart-note",
                 markup=False,
             )
             yield Static("", id="error-msg")
             with Horizontal(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         if self._initial_path:
@@ -153,7 +151,7 @@ class OracleClientDirModal(ModalScreen[bool]):
             new_path = ""
         else:
             if not raw_path:
-                self._show_error("Informe um caminho ou marque 'Detectar automaticamente'.")
+                self._show_error(t("oracle_client_dir.need_path"))
                 return
             problem = validate_oracle_client_dir(raw_path)
             if problem:

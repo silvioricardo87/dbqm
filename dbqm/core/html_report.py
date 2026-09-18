@@ -77,8 +77,8 @@ def _status_class(status: str) -> str:
 
 
 def _status_label(status: str) -> str:
-    return {"OK": "OK", "OK*": "OK*", "DIFF": t("report.status_diff"),
-            "ABSENT": t("report.status_absent")}.get(status, status)
+    return {"OK": "OK", "OK*": "OK*", "DIFF": t("verdict.differs"),
+            "ABSENT": t("verdict.absent")}.get(status, status)
 
 
 def _build_html(group_result: GroupResult, query_names: list[str], params: dict[str, str] | None) -> str:

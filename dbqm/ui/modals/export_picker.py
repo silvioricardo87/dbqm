@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Button
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
@@ -42,7 +43,7 @@ class ExportPickerModal(ModalScreen[str | None]):
             yield Button("CSV", variant="primary", id="fmt-csv")
             yield Button("JSON", variant="primary", id="fmt-json")
             yield Button("TXT", variant="primary", id="fmt-txt")
-            yield Button("Cancelar", variant="default", id="cancel")
+            yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         """Focus the first format button."""

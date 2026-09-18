@@ -10,6 +10,7 @@ from textual.content import Content
 from textual.message import Message
 from textual.widgets import Button, Input, OptionList, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.hierarchical_list import (
     NamedOption,
@@ -159,11 +160,11 @@ class QueryListWidget(Vertical, can_focus=False):
 
     def compose(self):
         with Horizontal(id="ql-search"):
-            yield Input(placeholder="Filtrar consultas...", id="ql-search-input")
+            yield Input(placeholder=t("query_list.filter_placeholder"), id="ql-search-input")
         yield EmptyState(
-            what="Consultas",
-            why="Os filtros aplicados escondem as consultas que existem",
-            action_label="Limpar filtros",
+            what=t("query.list_title"),
+            why=t("query_list.empty_why"),
+            action_label=t("common.clear_filters"),
             action_id="limpar-filtros-consultas",
             id="ql-filter-empty",
         )

@@ -400,11 +400,11 @@ async def test_result_table_pagination():
     async with app.run_test() as pilot:
         table = app.query_one(ResultTable)
         table.load_result(result)
-        assert table.page_info == "Pagina 1/3 (250 registros)"
+        assert table.page_info == "Page 1/3 (250 rows)"
         table.next_page()
-        assert "Pagina 2/3" in table.page_info
+        assert "Page 2/3" in table.page_info
         table.prev_page()
-        assert "Pagina 1/3" in table.page_info
+        assert "Page 1/3" in table.page_info
 
 
 @pytest.mark.asyncio
@@ -475,8 +475,8 @@ async def test_result_table_page_info_and_result_info():
     async with app.run_test() as pilot:
         table = app.query_one(ResultTable)
         table.load_result(result)
-        assert table.result_info == "250 registros | 0.34s | ORACLE-PRD"
-        assert table.page_info == "Pagina 1/3 (250 registros)"
+        assert table.result_info == "250 rows | 0.34s | ORACLE-PRD"
+        assert table.page_info == "Page 1/3 (250 rows)"
 
 
 @pytest.mark.asyncio
@@ -496,11 +496,11 @@ async def test_result_table_pagination_boundary():
         table = app.query_one(ResultTable)
         table.load_result(result)
         table.prev_page()  # already at page 0
-        assert "Pagina 1/3" in table.page_info
+        assert "Page 1/3" in table.page_info
         table.next_page()
         table.next_page()
         table.next_page()  # should stop at page 3
-        assert "Pagina 3/3" in table.page_info
+        assert "Page 3/3" in table.page_info
 
 
 def _result(columns, rows):
@@ -1146,7 +1146,7 @@ async def test_group_result_filter_status_clear(sample_group_result):
 
 @pytest.mark.asyncio
 async def test_group_result_key_stays_rendered_while_scrolling():
-    """The "Chave" column of the comparison table does not go out of sight
+    """The "Key" column of the comparison table does not go out of sight
     when scrolling.
 
     The same rule as `ResultTable` (section 6 of the grammar) applied where
@@ -1210,7 +1210,7 @@ async def test_group_result_key_stays_rendered_while_scrolling():
 
         # The scenario only proves something if it really does not fit.
         antes = app.export_screenshot()
-        assert "Chave" in antes
+        assert "Key" in antes
         assert "FIM_DA_TABELA" not in antes
 
         for _ in range(60):
@@ -1219,7 +1219,7 @@ async def test_group_result_key_stays_rendered_while_scrolling():
         assert tabela.scroll_x > 0
 
         depois = app.export_screenshot()
-        assert "Chave" in depois
+        assert "Key" in depois
         assert "REG-0001" in depois
         # The last column's name is short on purpose: scrolling all the way
         # to the end, a column with a long header would show up clipped
@@ -1239,7 +1239,7 @@ async def test_group_result_summary_shows(sample_group_result):
         from textual.widgets import Static
         summary = w.query_one("#gr-summary", Static)
         rendered = str(summary._Static__content)
-        assert "DIVERGENTE" in rendered
+        assert "DIVERGENT" in rendered
         assert "status" in rendered
 
 

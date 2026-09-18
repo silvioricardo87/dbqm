@@ -7,6 +7,7 @@ from textual.containers import Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
@@ -51,8 +52,8 @@ class ConfirmModal(ModalScreen[bool]):
         with Dialog(self._title_text, id="dialog"):
             yield Static(self._message, id="message")
             with Horizontal(id="buttons"):
-                yield Button("Sim", variant="primary", id="confirm")
-                yield Button("Nao", variant="default", id="cancel")
+                yield Button(t("common.yes"), variant="primary", id="confirm")
+                yield Button(t("common.no"), variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm":

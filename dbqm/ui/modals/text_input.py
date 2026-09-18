@@ -7,6 +7,7 @@ from textual.containers import Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
@@ -60,8 +61,8 @@ class TextInputModal(ModalScreen[str | None]):
                 yield Static(self._message, id="message")
             yield Input(value=self._default, id="text-input")
             with Horizontal(id="buttons"):
-                yield Button("OK", variant="primary", id="submit")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.ok"), variant="primary", id="submit")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         self.query_one("#text-input", Input).focus()
