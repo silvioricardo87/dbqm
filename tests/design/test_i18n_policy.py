@@ -38,7 +38,7 @@ MARCA = re.compile(r"\b(" + "|".join(PALAVRAS) + r")\b", re.IGNORECASE)
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
-MAX_LITERAIS = 748
+MAX_LITERAIS = 626
 
 #: The catalogue itself is Portuguese by definition, and the design tokens
 #: carry Portuguese token names that are identifiers, not screen text.
@@ -118,7 +118,10 @@ def test_no_language_invents_a_key():
 
 @pytest.mark.parametrize("idioma", sorted(CATALOGOS))
 def test_every_translation_keeps_the_placeholders(idioma):
-    campos = re.compile(r"\{(\w+)\}")
+    # `{{campo}}` is not a placeholder: it is dbqm's own template syntax,
+    # shown as an example, and the example name is meant to be translated.
+    # `(?<!\{)\{(\w+)\}(?!\})` reads a single brace pair only.
+    campos = re.compile(r"(?<!\{)\{(\w+)\}(?!\})")
     divergentes = {}
     for chave, fonte in en.TEXTOS.items():
         traduzido = CATALOGOS[idioma].get(chave)

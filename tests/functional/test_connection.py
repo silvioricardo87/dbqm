@@ -87,7 +87,7 @@ def test_update_of_an_unknown_name_is_not_found(tmp_config_dir, capsys):
     code, body = envelope(["connection", "update", "nope", "--read-only", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == 'Conexao "nope" nao encontrada.'
+    assert body["error"]["message"] == 'Connection "nope" not found.'
 
 
 # QA-CONN-007
@@ -114,7 +114,7 @@ def test_rm_without_yes_off_a_tty_is_refused_and_keeps_it(local, capsys):
     code, body = envelope(["connection", "rm", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "Use --yes para remover sem confirmacao."
+    assert body["error"]["message"] == "Use --yes to remove without confirming."
     code, _ = envelope(["connection", "show", "local", "-f", "json"], capsys)
     assert code == 0
 

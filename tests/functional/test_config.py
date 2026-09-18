@@ -39,7 +39,7 @@ def test_a_bad_value_is_refused_and_the_old_one_stays(tmp_config_dir, capsys):
     assert code == 2
     assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == (
-        'Valor invalido para "audit_log_enabled": "talvez". Use true/false, 1/0 ou sim/nao.'
+        'Invalid value for "audit_log_enabled": "talvez". Use true/false, 1/0 or yes/no.'
     )
     _, body = envelope(["config", "get", "audit_log_enabled", "-f", "json"], capsys)
     assert body["data"]["value"] is True
@@ -51,7 +51,7 @@ def test_an_unknown_key_names_the_valid_ones(tmp_config_dir, capsys):
     assert code == 2
     assert body["error"]["code"] == "not_found"
     assert body["error"]["message"] == (
-        'Chave "nao_existe" nao existe. Chaves validas: ' + ", ".join(CHAVES) + "."
+        'Key "nao_existe" does not exist. Valid keys: ' + ", ".join(CHAVES) + "."
     )
 
 
@@ -60,7 +60,7 @@ def test_a_theme_that_does_not_exist_is_refused(tmp_config_dir, capsys):
     code, body = envelope(["config", "set", "theme", "inexistente", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == 'Tema "inexistente" nao existe. Temas validos: plano-claro, plano-escuro.'
+    assert body["error"]["message"] == 'Theme "inexistente" does not exist. Valid themes: plano-claro, plano-escuro.'
 
 
 # QA-CFG-006

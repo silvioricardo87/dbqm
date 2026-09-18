@@ -2960,7 +2960,7 @@ class TestConnectionAdd:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Criar uma conexao" in out, \
+        assert "Create a connection" in out, \
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
     def test_empty_password_stdin_exits_2_and_saves_nothing(self, tmp_config_dir, monkeypatch):
@@ -3175,9 +3175,34 @@ class TestConnectionRemoveAndList:
 
         self._seed(monkeypatch)
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+        run_cli(["connection", "rm", "alvo"])
+        assert find_connection("alvo") is None
+
+    def test_the_affirmative_is_the_one_of_the_language_in_use(self, tmp_config_dir, monkeypatch):
+        """"s" confirms in Portuguese and "y" in English. A confirmation that
+        only ever accepted one language would ignore the answer half its
+        users give it."""
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setenv("DBQM_LANG", "pt")
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda prompt="": "s")
         run_cli(["connection", "rm", "alvo"])
         assert find_connection("alvo") is None
+
+    def test_the_other_language_affirmative_is_not_taken_as_yes(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.delenv("DBQM_LANG", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "s")
+        run_cli(["connection", "rm", "alvo"])
+        assert find_connection("alvo") is not None
 
     def test_rm_unknown_name_exits_2(self, tmp_config_dir, monkeypatch):
         from dbqm.cli import run_cli
@@ -3924,7 +3949,7 @@ class TestCmdGroup:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Criar um grupo" in out, \
+        assert "Create a group" in out, \
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
 
@@ -4205,7 +4230,7 @@ class TestCmdTemplate:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Criar um template" in out, \
+        assert "Create a template" in out, \
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
 
@@ -5779,7 +5804,7 @@ class TestCmdOracleClient:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Baixar e instalar um Oracle Instant Client" in out, \
+        assert "Download and install an Oracle Instant Client" in out, \
             "expected each subcommand's own help text, e.g. install's, to be listed"
 
 

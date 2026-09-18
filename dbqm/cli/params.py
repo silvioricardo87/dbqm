@@ -9,6 +9,7 @@ from typing import Literal, overload
 
 from rich.markup import escape
 
+from dbqm.i18n import t
 from dbqm.cli.envelope import fail
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
@@ -47,35 +48,35 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
     meets one error vocabulary instead of argparse's next to dbqm's.
     """
     parser.add_argument("--type", dest="db_type",
-                        help="Tipo de banco: oracle, sqlserver, postgresql, mysql ou sqlite")
-    parser.add_argument("--mode", help="Modo Oracle: direct ou tns (padrao: direct)")
-    parser.add_argument("--host", help="Host do servidor")
-    parser.add_argument("--port", help="Porta (padrao: a do tipo de banco)")
+                        help=t("help.connection.type"))
+    parser.add_argument("--mode", help=t("help.connection.mode"))
+    parser.add_argument("--host", help=t("help.connection.host"))
+    parser.add_argument("--port", help=t("help.connection.port"))
     parser.add_argument("--service", dest="service_name",
-                        help="Service name (Oracle, modo direct)")
-    parser.add_argument("--database", help="Nome do banco (SQL Server/PostgreSQL/MySQL)")
+                        help=t("help.connection.service"))
+    parser.add_argument("--database", help=t("help.connection.database"))
     parser.add_argument("--tns-path", dest="tns_path",
-                        help="Caminho do tnsnames.ora (Oracle, modo tns)")
+                        help=t("help.connection.tns_path"))
     parser.add_argument("--tns-name", dest="tns_name",
-                        help="Entrada do tnsnames.ora (Oracle, modo tns)")
-    parser.add_argument("--user", help="Usuario do banco")
-    parser.add_argument("--description", help="Anotacao livre sobre a conexao")
+                        help=t("help.connection.tns_name"))
+    parser.add_argument("--user", help=t("help.connection.user"))
+    parser.add_argument("--description", help=t("help.connection.description"))
     senha = parser.add_mutually_exclusive_group()
     senha.add_argument("--password-stdin", action="store_true", dest="password_stdin",
-                       help="Ler a senha de uma linha na entrada padrao")
+                       help=t("help.connection.password_stdin"))
     senha.add_argument("--no-password", action="store_true", dest="no_password",
-                       help="Gravar sem senha (ou, em update, apagar a guardada)")
+                       help=t("help.connection.no_password"))
     grupo_ro = parser.add_mutually_exclusive_group()
     grupo_ro.add_argument("--read-only", dest="read_only", action="store_true",
                           default=None,
-                          help="Marcar a conexao como somente leitura")
+                          help=t("help.connection.read_only"))
     grupo_ro.add_argument("--no-read-only", dest="read_only",
                           action="store_false",
-                          help="Permitir escrita nesta conexao")
+                          help=t("help.connection.no_read_only"))
     parser.add_argument("--test", action="store_true", dest="test_before_save",
-                        help="Testar a conexao antes de gravar; se falhar, nao grava")
+                        help=t("help.connection.test"))
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
-                        help="Formato de saida")
+                        help=t("help.template.format"))
 
 
 def _add_query_fields(parser: argparse.ArgumentParser) -> None:
@@ -86,20 +87,20 @@ def _add_query_fields(parser: argparse.ArgumentParser) -> None:
     to `connection_builder.validate`. `--sql` and `--sql-file` are mutually
     exclusive -- only one way to say what the query runs.
     """
-    parser.add_argument("--connection", help="Nome da conexao associada")
+    parser.add_argument("--connection", help=t("help.query.connection"))
     sql_grupo = parser.add_mutually_exclusive_group()
-    sql_grupo.add_argument("--sql", help="SQL da consulta")
+    sql_grupo.add_argument("--sql", help=t("help.query.sql"))
     sql_grupo.add_argument("--sql-file", dest="sql_file",
-                           help="Arquivo contendo o SQL da consulta")
-    parser.add_argument("--description", help="Anotacao livre sobre a consulta")
-    parser.add_argument("--folder", help="Pasta da consulta")
+                           help=t("help.query.sql_file"))
+    parser.add_argument("--description", help=t("help.query.description"))
+    parser.add_argument("--folder", help=t("help.query.folder"))
     fav_grupo = parser.add_mutually_exclusive_group()
     fav_grupo.add_argument("--favorite", dest="is_favorite", action="store_true",
-                           default=None, help="Marcar como favorita")
+                           default=None, help=t("help.query.favorite"))
     fav_grupo.add_argument("--no-favorite", dest="is_favorite", action="store_false",
-                           help="Desmarcar como favorita")
+                           help=t("help.query.no_favorite"))
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
-                        help="Formato de saida")
+                        help=t("help.template.format"))
 
 
 def _add_group_fields(parser: argparse.ArgumentParser) -> None:
@@ -115,14 +116,14 @@ def _add_group_fields(parser: argparse.ArgumentParser) -> None:
     group that already has them.
     """
     parser.add_argument("--query", dest="query", action="append", metavar="NOME",
-                        help="Consulta do grupo (repita; minimo 2)")
+                        help=t("help.group.query"))
     parser.add_argument("--compare-column", dest="compare_column", action="append",
-                        metavar="COLUNA", help="Coluna a comparar (pode repetir)")
-    parser.add_argument("--join-key", dest="join_key", help="Coluna de juncao")
-    parser.add_argument("--description", help="Anotacao livre sobre o grupo")
-    parser.add_argument("--folder", help="Pasta do grupo")
+                        metavar="COLUNA", help=t("help.group.compare_column"))
+    parser.add_argument("--join-key", dest="join_key", help=t("help.group.join_key"))
+    parser.add_argument("--description", help=t("help.group.description"))
+    parser.add_argument("--folder", help=t("help.group.folder"))
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
-                        help="Formato de saida")
+                        help=t("help.template.format"))
 
 
 def _add_template_fields(parser: argparse.ArgumentParser) -> None:
@@ -135,12 +136,12 @@ def _add_template_fields(parser: argparse.ArgumentParser) -> None:
     `--sql`/`--sql-file`.
     """
     content_grupo = parser.add_mutually_exclusive_group()
-    content_grupo.add_argument("--content", help="Conteudo do template (use {{campo}} para placeholders)")
+    content_grupo.add_argument("--content", help=t("help.template.content"))
     content_grupo.add_argument("--content-file", dest="content_file",
-                               help="Arquivo contendo o conteudo do template")
-    parser.add_argument("--description", help="Anotacao livre sobre o template")
+                               help=t("help.template.content_file"))
+    parser.add_argument("--description", help=t("help.template.description"))
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
-                        help="Formato de saida")
+                        help=t("help.template.format"))
 
 
 @overload

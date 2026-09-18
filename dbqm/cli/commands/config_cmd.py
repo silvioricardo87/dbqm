@@ -60,7 +60,7 @@ def _require_known_key(args: argparse.Namespace, command: str, key: str) -> None
     if key not in _KEYS:
         _fail_or_print(
             args, command, "not_found",
-            f'Chave "{key}" nao existe. Chaves validas: {", ".join(_KEYS)}.',
+            t("config.key_unknown", chave=key, validas=", ".join(_KEYS)),
         )
 
 
@@ -72,7 +72,7 @@ def _parse_bool(args: argparse.Namespace, command: str, key: str, raw: str) -> b
         return False
     _fail_or_print(
         args, command, "validation",
-        f'Valor invalido para "{key}": "{raw}". Use true/false, 1/0 ou sim/nao.',
+        t("config.bool_invalid", chave=key, valor=raw),
     )
 
 
@@ -81,7 +81,7 @@ def _parse_theme(args: argparse.Namespace, command: str, raw: str) -> str:
         temas = ", ".join(sorted(THEMES.keys()))
         _fail_or_print(
             args, command, "validation",
-            f'Tema "{raw}" nao existe. Temas validos: {temas}.',
+            t("config.theme_invalid", tema=raw, validos=temas),
         )
     return raw
 
@@ -109,7 +109,7 @@ def _parse_dir(args: argparse.Namespace, command: str, key: str, raw: str) -> st
     if not Path(raw).is_dir():
         _fail_or_print(
             args, command, "validation",
-            f'Diretorio nao encontrado para "{key}": "{raw}".',
+            t("config.dir_not_found", chave=key, caminho=raw),
         )
     return raw
 
@@ -134,9 +134,9 @@ def _cmd_config_list(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("config.list", data)
         return
-    table = Table(title="Configuracoes")
-    table.add_column("Chave")
-    table.add_column("Valor")
+    table = Table(title=t("config.list_title"))
+    table.add_column(t("common.key"))
+    table.add_column(t("common.value"))
     for key, value in data.items():
         table.add_row(key, escape(str(value)))
     console.print(table)
@@ -184,7 +184,7 @@ def cmd_config(args: argparse.Namespace) -> None:
             _config_parser.print_help()
         else:
             console.print(
-                "[ds.op.failure]Use: dbqm config list|get|set[/ds.op.failure]"
+                f"[ds.op.failure]{t('config.usage')}[/ds.op.failure]"
             )
         sys.exit(int(exit_for("validation")))
     handler(args)

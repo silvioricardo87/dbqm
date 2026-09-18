@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.theme import Theme as _RichTheme
 
+from dbqm.i18n import t
 from dbqm.core.group_engine import ComparisonResult
 from dbqm.design.tokens import DARK_TOKENS
 
@@ -66,7 +67,9 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
         for row in result.rows:
             table.add_row(*[str(v) if v is not None else "" for v in row])
         console.print(table)
-        console.print(f"[dim]{result.row_count} registros em {result.elapsed:.2f}s[/dim]")
+        console.print(
+            f"[dim]{t('result.rows_in_seconds', linhas=result.row_count, segundos=f'{result.elapsed:.2f}')}[/dim]"
+        )
 
 
 def _colored_comparison_lines(comparisons: list[ComparisonResult]) -> list[str]:
@@ -79,10 +82,16 @@ def _colored_comparison_lines(comparisons: list[ComparisonResult]) -> list[str]:
     """
     linhas: list[str] = []
     for comp in comparisons:
-        linhas.append(f"Coluna: {comp.column}")
-        linhas.append(f"  [ds.verdict.match]Iguais:[/]       {comp.equal_count}")
+        linhas.append(t("group.summary_column", coluna=comp.column))
+        # The labels differ in length between languages, so the column is
+        # aligned from the widest of them rather than from typed-in spaces.
+        rotulos = [t("comparison.equal"), t("comparison.normalized"),
+                   t("comparison.different"), t("comparison.absent")]
+        largura = max(len(r) for r in rotulos)
+        linhas.append(f"  [ds.verdict.match]{rotulos[0]:<{largura}}[/] {comp.equal_count}")
         if comp.normalized_count > 0:
-            linhas.append(f"  [ds.verdict.match]Iguais (norm):[/] {comp.normalized_count}")
-        linhas.append(f"  [ds.verdict.diff]Diferentes:[/]   {comp.diff_count}")
-        linhas.append(f"  [ds.verdict.absent]Ausentes:[/]     {comp.absent_count}")
+            linhas.append(
+                f"  [ds.verdict.match]{rotulos[1]:<{largura}}[/] {comp.normalized_count}")
+        linhas.append(f"  [ds.verdict.diff]{rotulos[2]:<{largura}}[/] {comp.diff_count}")
+        linhas.append(f"  [ds.verdict.absent]{rotulos[3]:<{largura}}[/] {comp.absent_count}")
     return linhas
