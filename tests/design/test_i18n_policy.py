@@ -38,11 +38,20 @@ MARCA = re.compile(r"\b(" + "|".join(PALAVRAS) + r")\b", re.IGNORECASE)
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
-MAX_LITERAIS = 456
+MAX_LITERAIS = 413
 
 #: The catalogue itself is Portuguese by definition, and the design tokens
 #: carry Portuguese token names that are identifiers, not screen text.
 FORA = ("dbqm/i18n/",)
+
+#: Portuguese that must stay Portuguese in every language. These two name
+#: directories on the user's disk; translating them would write the next
+#: export into a new folder beside the ones already there, and everything
+#: exported until now would simply stop being where it was.
+NOMES_EM_DISCO = {
+    ("dbqm/core/exporter.py", "consultas"),
+    ("dbqm/core/exporter.py", "grupos"),
+}
 
 
 def _e_docstring(no, docstrings) -> bool:
@@ -76,7 +85,9 @@ def literais_de_tela() -> list[tuple[str, int, str]]:
             if (isinstance(no, ast.Constant) and isinstance(no.value, str)
                     and not _e_docstring(no, docstrings)):
                 texto = no.value.strip()
-                if len(texto) > 3 and "\n" not in texto and MARCA.search(texto):
+                if (len(texto) > 3 and "\n" not in texto
+                        and MARCA.search(texto)
+                        and (relativo, texto) not in NOMES_EM_DISCO):
                     achados.append((relativo, no.lineno, texto))
     return achados
 
