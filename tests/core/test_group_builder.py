@@ -129,3 +129,16 @@ def test_upsert_creates_then_replaces(tmp_config_dir):
     groups = load_groups()
     assert len(groups) == 1
     assert groups[0].join_key == "codigo"
+
+
+def test_the_same_query_twice_is_refused(tmp_config_dir):
+    """Two names, not two entries: the comparison keys its index by name, so
+    a repeat collapses to one side and can only report agreement."""
+    _seed_queries("q1")
+    errors = validate({"name": "g", "queries": ["q1", "q1"], "join_key": "id"})
+    assert errors == ['Consulta "q1" repetida. Um grupo compara consultas distintas.']
+
+
+def test_two_distinct_queries_pass(tmp_config_dir):
+    _seed_queries("q1", "q2")
+    assert validate({"name": "g", "queries": ["q1", "q2"], "join_key": "id"}) == []

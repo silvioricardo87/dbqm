@@ -89,3 +89,25 @@ def test_table_format_prints_the_entries(ativos, capsys):
     assert code == 0
     assert "ativos" in out
     assert err == ""
+
+
+# QA-HIST-007
+@pytest.mark.parametrize("valor", ["0", "-5"])
+def test_a_limit_below_one_is_refused(ativos, capsys, valor):
+    """`-n 0` fell through `args.limit or 20` and silently meant the
+    default; `-n -5` reached `entries[:-5]` and silently meant "all but the
+    last five". `rows` validates its own limits the same way."""
+    code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+    assert code == 0
+    code, body = envelope(["history", "-n", valor, "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["code"] == "usage"
+    assert body["error"]["message"] == "-n deve ser maior que zero."
+
+
+# QA-HIST-008
+def test_a_limit_of_one_returns_one(ativos, capsys):
+    for _ in range(2):
+        code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+        assert code == 0
+    assert len(_history(capsys, "-n", "1")) == 1

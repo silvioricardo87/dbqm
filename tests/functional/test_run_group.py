@@ -210,3 +210,80 @@ def test_the_warning_reaches_the_table_format_too(por_cliente, capsys):
     code, out, _ = invoke(["run-group", por_cliente], capsys)
     assert code == 5
     assert "valores repetidos em 'pc_local'" in out
+
+
+@pytest.fixture
+def sem_colunas(local2_db, capsys) -> str:
+    """A group that names no `--compare-column` -- the flag is optional, so
+    this is the plain `group add` anyone would type."""
+    _add_query("ped_local", "local", PED, capsys)
+    _add_query("ped_local2", "local2", PED, capsys)
+    code, _ = envelope(
+        ["group", "add", "sem_colunas", "--query", "ped_local", "--query", "ped_local2",
+         "--join-key", "id", "-f", "json"],
+        capsys,
+    )
+    assert code == 0
+    return "sem_colunas"
+
+
+# QA-GROUP-017
+def test_a_group_with_no_compare_columns_still_compares(sem_colunas, capsys):
+    """It answered `all_match: true` with `comparisons: []` and exit 0 --
+    CONSISTENTE over data nothing had looked at, while the equivalent
+    `multi` exited 5 on the same rows."""
+    code, out, _ = invoke(["run-group", sem_colunas, "-f", "json"], capsys)
+    body = json.loads(out)
+    assert code == 5
+    assert body["data"]["all_match"] is False
+    assert [c["column"] for c in body["data"]["comparisons"]] == ["valor"]
+    assert body["data"]["comparisons"][0]["diff_count"] == 1
+
+
+# QA-GROUP-018
+def test_deriving_the_columns_is_said_out_loud(sem_colunas, capsys):
+    code, out, _ = invoke(["run-group", sem_colunas, "-f", "json"], capsys)
+    assert code == 5
+    assert json.loads(out)["warnings"][0] == (
+        "Grupo 'sem_colunas' nao define colunas para comparar; "
+        "comparando as comuns: valor."
+    )
+
+
+# QA-GROUP-019
+def test_nothing_common_beyond_the_key_is_refused(local2_db, capsys):
+    """Deriving cannot invent a column. With only the key in common there
+    is nothing to compare, and a verdict would be vacuous."""
+    _add_query("so_id_local", "local", "SELECT id FROM pedidos", capsys)
+    _add_query("so_id_local2", "local2", "SELECT id FROM pedidos", capsys)
+    code, _ = envelope(
+        ["group", "add", "so_id", "--query", "so_id_local", "--query", "so_id_local2",
+         "--join-key", "id", "-f", "json"],
+        capsys,
+    )
+    assert code == 0
+    code, body = envelope(["run-group", "so_id", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["code"] == "validation"
+    assert body["error"]["message"] == (
+        "Grupo 'so_id' nao define colunas para comparar e as consultas nao "
+        "tem nenhuma coluna comum alem de 'id'."
+    )
+
+
+# QA-GROUP-020
+def test_a_group_cannot_name_the_same_query_twice(local_db, capsys):
+    """`run_comparison` keys its index by query name, so the same name
+    twice collapses to one side and the comparison agrees with itself.
+    `multi` refuses the same shape for a repeated `-c`."""
+    _add_query("ped_local", "local", PED, capsys)
+    code, body = envelope(
+        ["group", "add", "repetida", "--query", "ped_local", "--query", "ped_local",
+         "--join-key", "id", "--compare-column", "valor", "-f", "json"],
+        capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "validation"
+    assert body["error"]["message"] == (
+        'Consulta "ped_local" repetida. Um grupo compara consultas distintas.'
+    )

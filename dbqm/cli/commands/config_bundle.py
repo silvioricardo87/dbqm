@@ -16,6 +16,20 @@ from dbqm.cli.render import console
 
 def cmd_export_config(args: argparse.Namespace) -> None:
     """Export configurations to a .dbqm bundle."""
+    # Asked to exclude everything, this still wrote a file: a bundle
+    # carrying nothing but its own salt, reported as a successful export.
+    # Refused before the password is asked for -- there is nothing to
+    # encrypt.
+    if args.no_connections and args.no_queries and args.no_groups:
+        message = (
+            "Nada a exportar: --no-connections, --no-queries e --no-groups "
+            "excluem tudo que o bundle carrega."
+        )
+        if args.format == "json":
+            fail("export-config", "usage", message)
+        console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
+        sys.exit(int(exit_for("usage")))
+
     password = resolve_password(
         args, "DBQM_BUNDLE_PASSWORD", "Senha para o bundle: ", required=True,
         command="export-config",

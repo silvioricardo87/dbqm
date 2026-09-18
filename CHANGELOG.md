@@ -14,6 +14,30 @@ stops answering about rows it never told apart.
 
 ### Fixed
 
+- **`run-group` answered CONSISTENTE without comparing anything.**
+  `--compare-column` is optional, and a group that names none produced zero
+  `ComparisonResult` — which makes `all(...)` vacuously true: `all_match`,
+  exit 0, over data nothing ever looked at, while the equivalent `multi`
+  exited 5 on the same rows. The columns are derived the way `multi` derives
+  them, the caller is told that is what happened, and a comparison with
+  nothing common beyond the key is refused instead of answered.
+- **A group could name the same query twice.** `run_comparison` keys its
+  index by query name, so the repeat collapsed to one side and the group
+  agreed with itself — `equal_count` over a comparison that never had two
+  sides. `multi` has always refused the same shape for a repeated `-c`.
+- **`-p` with a name the statement never declared was accepted and ignored.**
+  A typo ran unfiltered and the rows came back as a result. `run`, `sql` and
+  `multi` refuse it now, as `call` always has. `run-group` is deliberately
+  left alone: its `shared_params` cross several queries and a parameter some
+  of them do not use is the point.
+- **`history -n 0` meant 20 and `-n -5` meant "all but the last five".**
+  Both fell through to slicing. `-n` below one is `usage`, the way `rows`
+  has always validated `--limit` and `--offset`.
+- **A `.sql` path that does not exist was read as SQL**, so a typo in the
+  filename came back as "Tipo de SQL nao suportado". It is `not_found`,
+  naming the file.
+- **`export-config` excluding every kind still wrote a bundle** carrying
+  nothing but its own salt, and reported a successful export.
 - **`dbqm sql` accepted `--export` and silently wrote nothing.** The export
   block sits inside the SELECT branch, so `dbqm sql "UPDATE ..." c --commit
   -e csv` wrote the row, wrote no file, and said nothing about either. A
@@ -89,7 +113,7 @@ stops answering about rows it never told apart.
 - The QA traceability ratchet accepts `tests/ui/test_functional_screens.py`
   as a `functional` source: it drives the real screens against the real
   database and patches nothing, which is what makes a row functional. The
-  five TUI pilots are traced from the documents now — 203 scenarios, 173
+  five TUI pilots are traced from the documents now — 216 scenarios, 186
   functional.
 
 ---

@@ -73,6 +73,7 @@ from dbqm.core.oracle_client_installer import (
 from dbqm.core.query_engine import (
     QueryResult,
     classify_sql,
+    detect_params,
     execute_adhoc,
     execute_explain,
     execute_query,
@@ -97,6 +98,7 @@ __all__ = [
     "build_group_result",
     "check_read_only",
     "classify_sql",
+    "detect_params",
     "clear_history",
     "derive_comparison_columns",
     "detect_host_platform",

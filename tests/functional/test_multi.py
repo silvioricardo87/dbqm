@@ -180,3 +180,24 @@ def test_a_unique_derived_key_warns_about_nothing(local2_db, capsys):
     code, out, _ = invoke(["multi", CLI, "-c", "local", "-c", "local2", "-f", "json"], capsys)
     assert code == 0
     assert "warnings" not in json.loads(out)
+
+
+# QA-MULTI-017
+def test_a_param_the_statement_never_binds_is_refused(local2_db, capsys):
+    code, body = envelope(
+        ["multi", CLI, "-c", "local", "-c", "local2", "-p", "naoexiste=1", "-f", "json"], capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "validation"
+    assert body["error"]["message"] == "O SQL nao usa o parametro 'naoexiste'."
+
+
+# QA-MULTI-018
+def test_a_missing_sql_file_says_so(local2_db, tmp_path, capsys):
+    caminho = tmp_path / "nao_existe.sql"
+    code, body = envelope(
+        ["multi", str(caminho), "-c", "local", "-c", "local2", "-f", "json"], capsys,
+    )
+    assert code == 2
+    assert body["error"]["code"] == "not_found"
+    assert body["error"]["message"] == f"Arquivo '{caminho}' nao encontrado."
