@@ -25,7 +25,7 @@ in the standard library, so `dbqm connection add local --type sqlite --database
 
 > **Windows on ARM:** some drivers have no `win-arm64` wheel and are skipped
 > automatically. Use Python AMD64 (it runs under x64 emulation) — see the
-> [README](https://github.com/silvioricardo87/dbqm#windows-on-arm-win-arm64).
+> [installation notes](https://github.com/silvioricardo87/dbqm/blob/main/docs/INSTALL.md#windows-on-arm-win-arm64).
 
 Oracle connections additionally need the Oracle Instant Client. dbqm can
 download and install it for you from **Settings › Oracle Instant Client**.
