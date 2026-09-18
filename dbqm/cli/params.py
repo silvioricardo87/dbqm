@@ -30,7 +30,7 @@ def _parse_params(param_list: list[str] | None, args: argparse.Namespace | None 
     params = {}
     for p in param_list:
         if "=" not in p:
-            message = f"Parametro invalido (use chave=valor): {p}"
+            message = t("param.invalid", texto=p)
             if fmt == "json":
                 fail(command, "usage", message)
             console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
@@ -115,10 +115,10 @@ def _add_group_fields(parser: argparse.ArgumentParser) -> None:
     but `group_builder.build` still preserves them on an `update` of a
     group that already has them.
     """
-    parser.add_argument("--query", dest="query", action="append", metavar="NOME",
+    parser.add_argument("--query", dest="query", action="append", metavar=t("metavar.name"),
                         help=t("help.group.query"))
     parser.add_argument("--compare-column", dest="compare_column", action="append",
-                        metavar="COLUNA", help=t("help.group.compare_column"))
+                        metavar=t("metavar.column"), help=t("help.group.compare_column"))
     parser.add_argument("--join-key", dest="join_key", help=t("help.group.join_key"))
     parser.add_argument("--description", help=t("help.group.description"))
     parser.add_argument("--folder", help=t("help.group.folder"))
@@ -195,7 +195,7 @@ def resolve_password(
     fmt = getattr(args, "format", "table")
 
     if from_stdin and direct:
-        message = "Use --password-stdin ou --password, nao os dois."
+        message = t("password.both_sources")
         if fmt == "json":
             fail(command, "usage", message)
         console.print(f"[ds.op.failure]{message}[/ds.op.failure]")
@@ -211,11 +211,11 @@ def resolve_password(
             # of which command has which flag is a second truth waiting to
             # drift.
             dica = (
-                " Use --no-password para gravar sem senha."
+                t("password.no_password_hint")
                 if getattr(args, "no_password", None) is not None
                 else ""
             )
-            message = f"Senha vazia na entrada padrao.{dica}"
+            message = t("password.empty_on_stdin") + dica
             if fmt == "json":
                 fail(command, "usage", message)
             console.print(f"[ds.op.failure]{message}[/ds.op.failure]")
@@ -235,7 +235,7 @@ def resolve_password(
     if sys.stdin.isatty():
         return getpass.getpass(prompt)
 
-    message = f"Senha nao informada. Use --password-stdin ou defina {env_var}."
+    message = t("password.not_given", variavel=env_var)
     if fmt == "json":
         fail(command, "usage", message)
     console.print(f"[ds.op.failure]{message}[/ds.op.failure]")

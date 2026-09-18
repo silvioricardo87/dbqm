@@ -37,7 +37,7 @@ from dbqm.cli.render import _print_query_result, console, rich_theme
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dbqm",
-        description="DB Query Manager — ferramenta CLI para consultas em banco de dados",
+        description=t("cli.description"),
     )
     subparsers = parser.add_subparsers(dest="command")
     # `cmd_describe_cli` (in `dbqm.cli.commands.describe_cli`) walks this same
@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = subparsers.add_parser("run", help=t("help.cmd.run"))
     p_run.add_argument("query", help=t("help.query_rm.name"))
     p_run.add_argument("-c", "--connection", help=t("help.run.connection"))
-    p_run.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
+    p_run.add_argument("-p", "--param", action="append", metavar=t("metavar.key_value"),
                        help=t("help.sql.param"))
     p_run.add_argument("-f", "--format", choices=["table", "json", "csv", "raw"], default="table",
                        help=t("help.run.format"))
@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     # --- run-group ---
     p_grp = subparsers.add_parser("run-group", help=t("help.cmd.run_group"))
     p_grp.add_argument("group", help=t("help.group_rm.name"))
-    p_grp.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
+    p_grp.add_argument("-p", "--param", action="append", metavar=t("metavar.key_value"),
                        help=t("help.grp.param"))
     p_grp.add_argument("-f", "--format", choices=["table", "json"], default="table",
                        help=t("help.describe_cli.format"))
@@ -74,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_multi.add_argument("sql", help=t("help.multi.sql"))
     p_multi.add_argument("-c", "--connection", action="append", metavar="NOME",
                          help=t("help.multi.connection"))
-    p_multi.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
+    p_multi.add_argument("-p", "--param", action="append", metavar=t("metavar.key_value"),
                          help=t("help.sql.param"))
     p_multi.add_argument("--key", help=t("help.multi.key"))
     p_multi.add_argument("-f", "--format", choices=["table", "json"], default="table",
@@ -96,7 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_sql.add_argument("connection", help=t("help.conn_rm.name"))
-    p_sql.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
+    p_sql.add_argument("-p", "--param", action="append", metavar=t("metavar.key_value"),
                        help=t("help.sql.param"))
     p_sql.add_argument("-f", "--format", choices=["table", "json", "csv", "raw"], default="table",
                        help=t("help.sql.format"))
@@ -116,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
         "call", help=t("help.cmd.call"))
     p_call.add_argument("routine", help=t("help.call.routine"))
     p_call.add_argument("connection", help=t("help.conn_rm.name"))
-    p_call.add_argument("-p", "--param", action="append", metavar="CHAVE=VALOR",
+    p_call.add_argument("-p", "--param", action="append", metavar=t("metavar.key_value"),
                         help=t("help.call.param"))
     p_call.add_argument("-f", "--format", choices=["table", "json"], default="table",
                         help=t("help.describe_cli.format"))

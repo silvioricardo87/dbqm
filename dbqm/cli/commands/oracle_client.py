@@ -28,6 +28,7 @@ from typing import NoReturn
 from rich.markup import escape
 from rich.table import Table
 
+from dbqm.i18n import t
 from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
@@ -65,13 +66,13 @@ def _oracle_client_list(args: argparse.Namespace) -> None:
         return
 
     if not items:
-        console.print("[ds.text.muted]Nenhum client Oracle instalado.[/ds.text.muted]")
+        console.print(f'[ds.text.muted]{t("oracle_client.none_installed")}[/ds.text.muted]')
         return
 
-    table = Table(title="Clients Oracle instalados")
-    table.add_column("Nome")
-    table.add_column("Versao")
-    table.add_column("Caminho")
+    table = Table(title=t("oracle_client.list_title"))
+    table.add_column(t("common.name"))
+    table.add_column(t("oracle_client.version_column"))
+    table.add_column(t("oracle_client.path_column"))
     for c in items:
         table.add_row(escape(c.path.name), escape(c.version or "-"), escape(str(c.path)))
     console.print(table)
@@ -91,7 +92,7 @@ def _available_or_fail(
     if not packages:
         _fail_or_print(
             args, command, "usage",
-            f"Nenhum pacote catalogado para {deps.host_platform_label(host)}.",
+            t("oracle_client.no_packages", plataforma=deps.host_platform_label(host)),
         )
     return host, packages
 
@@ -108,10 +109,11 @@ def _oracle_client_available(args: argparse.Namespace) -> None:
         ok("oracle-client.available", data)
         return
 
-    table = Table(title=f"Pacotes disponiveis ({deps.host_platform_label(host)})")
-    table.add_column("Versao")
-    table.add_column("Arquitetura")
-    table.add_column("Formato")
+    table = Table(title=t("oracle_client.available_title",
+                          plataforma=deps.host_platform_label(host)))
+    table.add_column(t("oracle_client.version_column"))
+    table.add_column(t("oracle_client.arch_column"))
+    table.add_column(t("oracle_client.format_column"))
     for p in packages:
         table.add_row(p.version, p.arch_key, p.archive_type)
     console.print(table)
@@ -126,14 +128,15 @@ def _oracle_client_install(args: argparse.Namespace) -> None:
         versoes = ", ".join(p.version for p in packages)
         _fail_or_print(
             args, command, "usage",
-            f"Versao '{args.version}' nao esta no catalogo para "
-            f"{deps.host_platform_label(host)}. Disponiveis: {versoes}.",
+            t("oracle_client.version_unknown", versao=args.version,
+              plataforma=deps.host_platform_label(host), disponiveis=versoes),
         )
 
     def on_progress(done: int, total: int | None) -> None:
         mb = done // (1024 * 1024)
-        texto = f"  Baixando... {(done * 100) // total}% ({mb} MB)" if total else \
-            f"  Baixando... {mb} MB"
+        texto = (t("oracle_client.downloading_pct",
+                   porcento=(done * 100) // total, mb=mb) if total
+                 else t("oracle_client.downloading", mb=mb))
         if args.format == "json":
             print(texto, file=sys.stderr)
         else:
@@ -156,7 +159,8 @@ def _oracle_client_install(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok(command, {"version": pkg.version, "path": str(path)})
         return
-    console.print(f'Client "{escape(pkg.version)}" instalado em {escape(str(path))}.')
+    console.print(escape(t("oracle_client.installed", versao=pkg.version,
+                           caminho=str(path))))
 
 
 def _oracle_client_rm(args: argparse.Namespace) -> None:
@@ -165,30 +169,31 @@ def _oracle_client_rm(args: argparse.Namespace) -> None:
     item = next((c for c in items if c.path.name == args.name), None)
     if item is None:
         _fail_or_print(args, command, "not_found",
-                        f'Client "{args.name}" nao encontrado.')
+                        t("oracle_client.not_found_named", nome=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
         # hangs on an unanswerable question is worse than one that fails.
         if not sys.stdin.isatty():
             _fail_or_print(args, command, "usage",
-                            "Use --yes para remover sem confirmacao.")
+                            t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(f'Remover o client "{args.name}"? [s/N] ', end="", file=sys.stderr, flush=True)
+        print(t("oracle_client.confirm_remove", nome=args.name), end="",
+              file=sys.stderr, flush=True)
         resposta = input().strip().lower()
-        if resposta not in ("s", "sim"):
+        if resposta not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok(command, {"name": args.name, "removed": False})
             else:
-                console.print("Cancelado.")
+                console.print(t("common.cancelled"))
             return
 
     deps.remove_client(item.path)
     if args.format == "json":
         ok(command, {"name": args.name, "removed": True})
         return
-    console.print(f'Client "{escape(args.name)}" removido.')
+    console.print(escape(t("oracle_client.removed", nome=args.name)))
 
 
 _ORACLE_CLIENT_SUBCOMMANDS = {

@@ -163,7 +163,7 @@ def _connection_update(args: argparse.Namespace) -> None:
         # did not pass does not change. --password-stdin or --no-password
         # are the only ways to change the stored password here.
         password = resolve_password(
-            args, "DBQM_PASSWORD", "Senha da conexao: ", required=False,
+            args, "DBQM_PASSWORD", t("connection.password_prompt"), required=False,
             use_env=False, command="connection.update",
         )
 

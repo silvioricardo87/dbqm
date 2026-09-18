@@ -2440,7 +2440,7 @@ class TestCmdImportConfig:
         assert saida.out == ""
         erro = json.loads(saida.err)["error"]
         assert erro["code"] == "not_found"
-        assert erro["message"] == f"Arquivo '{caminho}' nao encontrado."
+        assert erro["message"] == f'File "{caminho}" not found.'
         spy.assert_not_called()
 
 
@@ -4304,7 +4304,7 @@ class TestEmptyStdinHint:
                 self._args(), "DBQM_BUNDLE_PASSWORD", "p: ", required=True
             )
         saida = capsys.readouterr().out
-        assert "Senha vazia" in saida
+        assert "Empty password" in saida
         assert "--no-password" not in saida
 
     def test_the_real_parsers_agree_with_that_split(self):

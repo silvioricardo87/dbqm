@@ -136,7 +136,7 @@ def test_a_param_without_equals_is_usage(local_db, capsys):
     code, body = envelope(["sql", "SELECT 1", "local", "-p", "semigual", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "Parametro invalido (use chave=valor): semigual"
+    assert body["error"]["message"] == "Invalid parameter (use key=value): semigual"
 
 
 # QA-SQL-013
