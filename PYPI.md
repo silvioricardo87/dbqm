@@ -1,5 +1,7 @@
 # dbqm — Database Query Manager
 
+[![PyPI Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
+
 A fullscreen terminal app **and** a scriptable CLI for running SQL across
 **Oracle**, **SQL Server**, **PostgreSQL** and **MySQL** — from one place, with
 one set of saved connections.

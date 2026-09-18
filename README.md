@@ -1,5 +1,7 @@
 # DB Query Manager (dbqm)
 
+[![PyPI Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
+
 Fullscreen terminal application for managing and executing SQL queries across multiple databases. Supports **Oracle**, **SQL Server**, **PostgreSQL**, **MySQL**, and **SQLite**. Built with [Textual](https://textual.textualize.io/) for a modern TUI experience with a single tabbed dashboard, keyboard shortcuts, and theme support.
 
 ## Features
