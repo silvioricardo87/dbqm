@@ -220,6 +220,14 @@ tier spent five sub-projects removing. The id is retired and not reused.
 
 ## Suite hygiene
 
+- **CI proves one Python version; the package claims five.**
+  `requires-python = ">=3.10"` and the classifiers added in 2.10.0 say 3.10
+  through 3.14, while `checks.yml` runs whatever `.python-version` pins
+  (3.14.7 today) and `publish.yml` builds on 3.12. Nothing has ever run the
+  suite on 3.10 or 3.11, so the floor is a claim rather than a measurement.
+  A matrix over the declared range is the fix; dropping the floor to what is
+  tested is the other honest answer. Effort: S.
+
 - **`rendered_text` after a thread worker can come back frame-only.** The
   adhoc pilot in `tests/ui/test_functional_screens.py` read the screenshot
   after `wait_for_complete()` + one `pause()`; run after `test_screens.py`'s
