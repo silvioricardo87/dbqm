@@ -5135,7 +5135,7 @@ async def test_exec_routine_refuses_on_read_only_connection(tmp_config_dir):
         assert screen._db.cursor.call_count == 0
         messages = [str(n.message) for n in app._notifications]
         assert any(
-            "ro" in m and "somente leitura" in m.lower() for m in messages
+            "ro" in m and "read-only" in m.lower() for m in messages
         )
 
 
@@ -5961,7 +5961,7 @@ async def test_settings_screen_reports_unusable_configured_client(tmp_config_dir
     async with app.run_test():
         screen = app.query_one(SettingsScreen)
         rendered = screen.query_one("#settings-oracle-client-current", Static).render().plain
-        assert "nao existe" in rendered.lower()
+        assert "does not exist" in rendered.lower()
 
 
 @pytest.mark.asyncio

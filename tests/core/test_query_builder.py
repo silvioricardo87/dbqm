@@ -12,9 +12,9 @@ def _seed_connection(name: str = "c1") -> None:
 
 def test_validate_names_every_empty_required_field(tmp_config_dir):
     errors = validate({"name": "", "connection": "", "sql": ""})
-    assert any("nome" in e.lower() for e in errors)
+    assert any("name" in e.lower() for e in errors)
     assert any("sql" in e.lower() for e in errors)
-    assert any("conexao" in e.lower() for e in errors)
+    assert any("connection" in e.lower() for e in errors)
 
 
 def test_validate_rejects_a_connection_that_does_not_exist(tmp_config_dir):

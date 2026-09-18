@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.core.read_only import ReadOnlyViolation
 
 
@@ -247,7 +248,7 @@ def _sqlite_ident(name: str) -> str:
     catalogue is the one place a table name reaches SQL as text.
     """
     if not _SQLITE_IDENT.fullmatch(name):
-        raise ValueError(f"Nome de objeto invalido: {name}")
+        raise ValueError(t("object.invalid_name", nome=name))
     return f'"{name}"'
 
 
@@ -275,13 +276,11 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
     obj_upper = obj_type.upper()
 
     if db_type != "oracle" and obj_upper == "PACKAGE":
-        raise UnsupportedEngine(
-            f"Packages so existem no Oracle. Conexao e {db_type}."
-        )
+        raise UnsupportedEngine(t("engine.packages_oracle_only", tipo=db_type))
     if db_type == "sqlite" and obj_upper in ("ROUTINE", "PROCEDURE", "FUNCTION"):
         # SQLite has no stored routines at all. An empty list would read as
         # "none here" instead of "this question does not apply here".
-        raise UnsupportedEngine("SQLite nao tem rotinas armazenadas.")
+        raise UnsupportedEngine(t("engine.sqlite_no_routines"))
 
     cursor = db.cursor()
     try:
@@ -895,9 +894,7 @@ def list_package_routines(db, db_type: str, package: str) -> PackageInfo:
     Uses all_source to get the package spec, then parses declarations.
     """
     if db_type != "oracle":
-        raise UnsupportedEngine(
-            f"Packages e rotinas so existem no Oracle. Conexao e {db_type}."
-        )
+        raise UnsupportedEngine(t("engine.packages_and_routines_oracle_only", tipo=db_type))
     cursor = db.cursor()
     try:
         owner = _detect_owner(cursor, db_type, package, "PACKAGE")
@@ -972,9 +969,7 @@ def get_standalone_routine_info(
     guessing from a command line.
     """
     if db_type != "oracle":
-        raise UnsupportedEngine(
-            f"Rotinas armazenadas so existem no Oracle. Conexao e {db_type}."
-        )
+        raise UnsupportedEngine(t("engine.routines_oracle_only", tipo=db_type))
     cursor = db.cursor()
     try:
         owner, tipo_real = _resolve_standalone_routine(cursor, routine_name)
@@ -1033,9 +1028,7 @@ def get_package_source(db, db_type: str, package: str, source_type: str = "PACKA
     source_type: 'PACKAGE' for spec, 'PACKAGE BODY' for body.
     """
     if db_type != "oracle":
-        raise UnsupportedEngine(
-            f"Packages e rotinas so existem no Oracle. Conexao e {db_type}."
-        )
+        raise UnsupportedEngine(t("engine.packages_and_routines_oracle_only", tipo=db_type))
     cursor = db.cursor()
     try:
         owner = _detect_owner(cursor, db_type, package, "PACKAGE")
@@ -1176,11 +1169,7 @@ def execute_routine(
             f"Rotinas armazenadas so existem no Oracle. Conexao e {conn.db_type}."
         )
     if conn is not None and conn.read_only:
-        raise ReadOnlyViolation(
-            f"Conexao '{conn.name}' e somente leitura e uma rotina pode "
-            "escrever independente do texto do comando. "
-            "Desmarque 'Somente leitura' na conexao para executar."
-        )
+        raise ReadOnlyViolation(t("read_only.routine_refused", nome=conn.name))
     start = time.time()
     cursor = db.cursor()
 

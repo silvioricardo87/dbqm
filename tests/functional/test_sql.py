@@ -103,7 +103,7 @@ def test_an_unknown_verb_is_usage_not_sql_error(local_db, capsys):
     code, body = envelope(["sql", "SELEC 1", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"].startswith("Tipo de SQL nao suportado.")
+    assert body["error"]["message"].startswith("Unsupported SQL type.")
 
 
 # QA-SQL-010

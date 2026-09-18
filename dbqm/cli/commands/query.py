@@ -19,28 +19,6 @@ from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
 from dbqm.core.object_browser import RoutineInfo
 from dbqm.models.connection import Connection
 
-# `core/` reports these two conditions as a plain `AdhocResult`/`QueryResult`
-# error string — the statement was never sent to the driver, so calling it
-# `sql_error` (the database rejected something) would be a lie. `core/` stays
-# free of `errors.py`'s vocabulary, so the CLI recognizes the exact wording
-# by text and remaps it here; anything else really is `sql_error`.
-_USAGE_SQL_MESSAGES = (
-    "Apenas comandos SELECT sao permitidos.",
-    (
-        "Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL "
-        "(CREATE/ALTER/DROP...) ou EXPLAIN PLAN."
-    ),
-    "Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
-)
-
-#: `--explain` on an engine that has none. A capability the engine does not
-#: have, which `schema.py` already answers with `usage` for the same class of
-#: condition -- reporting it as `sql_error` would say a statement was
-#: rejected when none was ever sent. Matched by prefix because the message
-#: names the engine.
-_UNSUPPORTED_EXPLAIN_PREFIX = "--explain ainda nao e suportado para "
-
-
 def _sql_error_code(message: str | None, error_kind: str = "") -> str:
     """The token for a failed result.
 
@@ -49,17 +27,19 @@ def _sql_error_code(message: str | None, error_kind: str = "") -> str:
     refused to send the statement at all, which `cmd_sql` already reports as
     `read_only`/exit 2, and `execute_across` (`group_engine.py`) tags the
     same way so the two commands agree about what the same event is.
-    Otherwise `usage` for the two known bad-input messages `core/` can
-    return, and `sql_error` for the rest -- the driver rejected or failed on
-    a statement actually sent.
+    Otherwise `usage` when `core/` tagged the result that way -- bad input
+    that never reached a driver -- and `sql_error` for the rest, which the
+    driver rejected or failed on.
+
+    Read from `error_kind` rather than by recognising the message: the
+    message is a translation now, so matching its wording would classify
+    correctly in one language and silently wrongly in every other.
     """
     if error_kind == "connection":
         return "connection_failed"
     if error_kind == "read_only":
         return "read_only"
-    if message in _USAGE_SQL_MESSAGES:
-        return "usage"
-    if message and message.startswith(_UNSUPPORTED_EXPLAIN_PREFIX):
+    if error_kind == "usage":
         return "usage"
     return "sql_error"
 

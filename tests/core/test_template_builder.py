@@ -7,15 +7,15 @@ from dbqm.models.template import Template, load_templates
 
 def test_validate_names_every_empty_required_field(tmp_config_dir):
     errors = validate({"name": "", "content": ""})
-    assert any("nome" in e.lower() for e in errors)
-    assert any("conteudo" in e.lower() for e in errors)
+    assert any("name" in e.lower() for e in errors)
+    assert any("content" in e.lower() for e in errors)
 
 
 def test_validate_treats_whitespace_only_content_as_empty(tmp_config_dir):
     """`validate` checks the trimmed form -- a template made only of
     whitespace is exactly as useless as an empty one."""
     errors = validate({"name": "t", "content": "   \n  "})
-    assert any("conteudo" in e.lower() for e in errors)
+    assert any("content" in e.lower() for e in errors)
 
 
 def test_validate_accepts_a_complete_template(tmp_config_dir):

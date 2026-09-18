@@ -49,7 +49,7 @@ class TestGetConnection:
 
     def test_unknown_raises(self):
         conn = Connection(name="t", db_type="unknown", user="u", password="p")
-        with pytest.raises(ValueError, match="desconhecido"):
+        with pytest.raises(ValueError, match="Unknown database type"):
             get_connection(conn)
 
 
@@ -77,7 +77,7 @@ class TestTestConnection:
             success, msg = db_test_connection(conn)
 
         assert success is False
-        assert "Erro" in msg
+        assert "Could not connect" in msg
 
 
 class TestEnsureUtf8NlsLang:

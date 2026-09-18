@@ -137,23 +137,18 @@ def cmd_list(args: argparse.Namespace) -> None:
         sys.exit(int(exit_for("usage")))
 
 
-#: What `ddl_extractor` writes into `result.errors` when the object is simply
-#: not there. Matched by text because dbqm wrote it itself -- the same trick
-#: `_USAGE_SQL_MESSAGES` uses in `commands/query.py`, and guarded by a test
-#: that fails if `ddl_extractor` rewords it.
-_DDL_NOT_FOUND = " nao encontrado."
-
-
-def _ddl_error_code(errors: list[str]) -> str:
+def _ddl_error_code(result: Any) -> str:
     """`not_found` when the object is absent, `sql_error` otherwise.
 
     `describe` and `rows` both answer `not_found` for a name that is not
     there; `ddl` said `sql_error`, which is the same disagreement B2 fixed
     one command over.
+
+    Reads `result.not_found`. It used to match the end of the error text,
+    which worked only while that text was one fixed sentence in one
+    language.
     """
-    if all(e.endswith(_DDL_NOT_FOUND) for e in errors):
-        return "not_found"
-    return "sql_error"
+    return "not_found" if result.not_found else "sql_error"
 
 
 def _fail_or_print(
@@ -207,7 +202,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
 
     if args.format == "json":
         if result.errors and not result.objects:
-            fail("ddl", _ddl_error_code(result.errors), "; ".join(result.errors))
+            fail("ddl", _ddl_error_code(result), "; ".join(result.errors))
         if args.stdout:
             path = None
         else:

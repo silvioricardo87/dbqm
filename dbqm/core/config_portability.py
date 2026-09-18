@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from dbqm.i18n import t
 from dbqm.core.crypto import (
     decrypt,
     encrypt,
@@ -73,7 +74,7 @@ def import_configs(filepath: str, password: str) -> dict:
     """
     bundle_path = Path(filepath).resolve()
     if bundle_path.stat().st_size > MAX_BUNDLE_SIZE:
-        raise ValueError(f"Arquivo excede o tamanho maximo de {MAX_BUNDLE_SIZE // (1024*1024)} MB.")
+        raise ValueError(t("bundle.too_large", mb=MAX_BUNDLE_SIZE // (1024 * 1024)))
     data = json.loads(bundle_path.read_text(encoding="utf-8"))
     salt = base64.b64decode(data["salt"])
 

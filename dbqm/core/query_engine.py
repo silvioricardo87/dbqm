@@ -8,6 +8,7 @@ from typing import Any
 
 import sqlparse
 
+from dbqm.i18n import t
 from dbqm.core.db_manager import get_connection
 from dbqm.core.read_only import check_read_only
 from dbqm.models.connection import Connection
@@ -194,7 +195,8 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
             row_count=0,
             elapsed=0,
             success=False,
-            error="Apenas comandos SELECT sao permitidos.",
+            error=t("sql.select_only"),
+            error_kind="usage",
         )
 
     db = None
@@ -370,13 +372,10 @@ def _collect_result_sets(cursor) -> tuple[list[str], list[list[Any]], list[str]]
     if len(sets) == 1:
         return columns, rows, []
 
-    notas = [
-        f"{len(sets)} conjuntos de resultado retornados; exibindo o ultimo.",
-    ]
+    notas = [t("sql.result_sets_returned", quantidade=len(sets))]
     for i, (cols, linhas) in enumerate(sets[:-1], start=1):
-        notas.append(
-            f"  conjunto {i}: {len(linhas)} linha(s), colunas: {', '.join(cols)}"
-        )
+        notas.append(t("sql.result_set_shape", indice=f"  {i}", linhas=len(linhas),
+                       colunas=", ".join(cols)))
     return columns, rows, notas
 
 
@@ -430,7 +429,8 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             sql=original_sql,
             db_type=conn.db_type,
             success=False,
-            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, DELETE, DDL (CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+            error=t("sql.unsupported_type"),
+            error_kind="usage",
         )
 
     db = None
@@ -629,7 +629,8 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
             sql=sql,
             db_type=conn.db_type,
             success=False,
-            error="Passe apenas a query (sem EXPLAIN PLAN FOR) ao usar --explain.",
+            error=t("sql.explain_takes_the_query_only"),
+            error_kind="usage",
         )
 
     if conn.db_type == "oracle":
@@ -733,7 +734,8 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
         sql=sql,
         db_type=conn.db_type,
         success=False,
-        error=f"--explain ainda nao e suportado para {conn.db_type}.",
+        error=t("sql.explain_unsupported", tipo=conn.db_type),
+        error_kind="usage",
     )
 
 

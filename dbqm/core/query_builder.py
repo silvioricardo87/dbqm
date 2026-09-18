@@ -17,6 +17,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.core.query_engine import detect_params, parse_sql
 from dbqm.models.connection import find_connection
 from dbqm.models.query import Query, QueryParam, load_queries, save_queries
@@ -38,16 +39,16 @@ def validate(values: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
     if not _text(values, "sql"):
-        errors.append("Informe o SQL.")
+        errors.append(t("query.sql_required"))
 
     if not _text(values, "name"):
-        errors.append("Informe o nome da consulta.")
+        errors.append(t("query.name_required"))
 
     connection = _text(values, "connection")
     if not connection:
-        errors.append("Selecione uma conexao.")
+        errors.append(t("query.connection_required"))
     elif find_connection(connection) is None:
-        errors.append(f'Conexao "{connection}" nao encontrada.')
+        errors.append(t("query.connection_not_found", nome=connection))
 
     return errors
 

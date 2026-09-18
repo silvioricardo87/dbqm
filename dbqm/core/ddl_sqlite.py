@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from dbqm.i18n import t
 from dbqm.core.ddl_extractor import ExtractedObject, ExtractionResult
 
 ProgressCallback = Callable[[int, int, str, str], None]
@@ -36,7 +37,8 @@ def extract_sqlite_ddl(
         )
         row = cursor.fetchone()
         if row is None:
-            result.errors.append(f"Objeto '{object_name}' nao encontrado.")
+            result.errors.append(t("ddl.object_not_found", nome=object_name))
+            result.not_found = True
             return
 
         obj_type = str(row[0]).upper()

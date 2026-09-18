@@ -55,7 +55,8 @@ class TestExtractSqliteDdl:
         r = _result("nada")
         extract_sqlite_ddl(db, "nada", r)
         assert r.objects == []
-        assert r.errors == ["Objeto 'nada' nao encontrado."]
+        assert r.errors == ["Object 'nada' not found."]
+        assert r.not_found is True
 
     def test_progress_counts_the_table_and_its_children(self, catalog):
         db, _ = catalog

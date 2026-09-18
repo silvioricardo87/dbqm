@@ -16,6 +16,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.models.group import Group, load_groups, save_groups
 from dbqm.models.query import find_query
 
@@ -36,31 +37,28 @@ def validate(values: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
     if not _text(values, "name"):
-        errors.append("Informe o nome do grupo.")
+        errors.append(t("group.name_required"))
 
     queries = values.get("queries") or []
     if len(queries) < 2:
-        errors.append("Selecione pelo menos 2 consultas.")
+        errors.append(t("group.two_queries_required"))
     else:
         # Only when the count is right: "needs two queries" and "this one does
         # not exist" are one mistake reported twice otherwise, and `-f json`
         # joins them with "; ". `query_builder` chains the same way.
         for qname in queries:
             if qname and find_query(qname) is None:
-                errors.append(f'Consulta "{qname}" nao encontrada.')
+                errors.append(t("group.query_not_found", nome=qname))
         # Distinct, not merely two: `run_comparison` keys its index by query
         # name, so the same name twice collapses to one side and the
         # comparison can only ever report agreement -- with itself. `multi`
         # refuses the same shape for a repeated `-c`.
         repetidas = sorted({q for q in queries if queries.count(q) > 1})
         if repetidas:
-            errors.append(
-                f'Consulta "{repetidas[0]}" repetida. Um grupo compara '
-                "consultas distintas."
-            )
+            errors.append(t("group.query_repeated", nome=repetidas[0]))
 
     if not _text(values, "join_key"):
-        errors.append("Informe a coluna de juncao.")
+        errors.append(t("group.join_key_required"))
 
     return errors
 

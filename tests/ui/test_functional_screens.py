@@ -208,8 +208,8 @@ async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, caps
 
         avisos = [n.message for n in app._notifications]
         assert avisos == [
-            "Chave 'id' tem valores repetidos em 'pc_local': 2 linha(s) fora da comparacao.",
-            "Chave 'id' tem valores repetidos em 'pc_local2': 2 linha(s) fora da comparacao.",
+            "Key 'id' has repeated values in 'pc_local': 2 row(s) left out of the comparison.",
+            "Key 'id' has repeated values in 'pc_local2': 2 row(s) left out of the comparison.",
         ]
 
 

@@ -1398,8 +1398,9 @@ class TestCmdSql:
         adhoc = AdhocResult(
             sql_type="UNKNOWN", connection_name="test_conn",
             success=False,
-            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, "
-                  "DELETE, DDL (CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+            error="Unsupported SQL type. Use SELECT, INSERT, UPDATE, "
+                  "DELETE, DDL (CREATE/ALTER/DROP...) or EXPLAIN PLAN.",
+            error_kind="usage",
         )
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.classify_sql", return_value="UNKNOWN"), \
@@ -2162,7 +2163,7 @@ class TestCmdDdl:
         result = ExtractionResult(
             object_name="MISSING", object_type="UNKNOWN",
             owner="", connection_name="test_conn",
-            errors=["Objeto 'MISSING' nao encontrado."],
+            errors=["Objeto 'MISSING' not found."],
         )
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.extract_ddl", return_value=result):
@@ -5173,18 +5174,16 @@ class TestConnectionFailedIsReachable:
         assert saiu.value.code == 3
 
     def test_the_bad_input_messages_still_map_to_usage(self, capsys):
-        """`_sql_error_code`'s existing job must survive: two messages `core/`
-        returns are usage errors, not statement failures."""
+        """`_sql_error_code`'s existing job must survive: input `core/` never
+        sent to a driver is a usage error, not a statement failure.
+
+        Read from `error_kind`, not from the message: the message is a
+        translation now, and a classifier that reads one would be right in
+        one language and wrong in the others.
+        """
         from dbqm.cli.commands.query import _sql_error_code
 
-        # The literals, not the constant. Feeding `_USAGE_SQL_MESSAGES` back
-        # into the function that reads it passes for any content, including
-        # content `core/` no longer produces. `tests/cli/test_usage_sql_messages.py`
-        # is what keeps these strings and `core/`'s in step.
-        assert _sql_error_code("Apenas comandos SELECT sao permitidos.",
-                               "statement") == "usage"
-        assert _sql_error_code("--explain ainda nao e suportado para mysql.",
-                               "statement") == "usage"
+        assert _sql_error_code("qualquer coisa", "usage") == "usage"
         assert _sql_error_code("ORA-00942: tabela inexistente",
                                "statement") == "sql_error"
 
@@ -5342,12 +5341,13 @@ class TestDdlAgreesWithTheRest:
     unreachable database escaped as an unhandled exception -- exit 1, "a bug
     in dbqm", for a database that was merely down."""
 
-    def _extracao(self, errors):
+    def _extracao(self, errors, nao_encontrado=False):
         from dbqm.core.ddl_extractor import ExtractionResult
 
         r = ExtractionResult(object_name="OBJ", object_type="TABLE",
                              owner="", connection_name="conexao")
         r.errors = errors
+        r.not_found = nao_encontrado
         return r
 
     def test_an_unreachable_database_exits_three(self, capsys):
@@ -5375,7 +5375,8 @@ class TestDdlAgreesWithTheRest:
         from dbqm.cli import run_cli
 
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
-                   return_value=self._extracao(["Objeto 'OBJ' nao encontrado."])):
+                   return_value=self._extracao(["Object 'OBJ' not found."],
+                                               nao_encontrado=True)):
             with pytest.raises(SystemExit) as saiu:
                 run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
 

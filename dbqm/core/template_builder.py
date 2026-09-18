@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.models.template import Template, load_templates, save_templates
 
 
@@ -41,10 +42,10 @@ def validate(values: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
     if not _text(values, "name"):
-        errors.append("Informe o nome do template.")
+        errors.append(t("template.name_required"))
 
     if not _text(values, "content"):
-        errors.append("O conteudo do template nao pode estar vazio.")
+        errors.append(t("template.content_required"))
 
     return errors
 

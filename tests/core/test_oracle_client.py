@@ -158,7 +158,7 @@ class TestValidateOracleClientDir:
     def test_rejects_missing_dir(self, client_env):
         from dbqm.core.db_manager import validate_oracle_client_dir
 
-        assert "existe" in validate_oracle_client_dir(str(client_env / "nope"))
+        assert "does not exist" in validate_oracle_client_dir(str(client_env / "nope"))
 
     def test_rejects_wrong_architecture(self, client_env):
         from dbqm.core.db_manager import validate_oracle_client_dir

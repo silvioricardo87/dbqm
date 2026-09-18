@@ -1,55 +1,82 @@
-"""The CLI remaps two of `core/`'s error messages from `sql_error` to `usage`,
-because in both cases the statement was never sent to the database. The remap
-matches the message verbatim, so it goes silently dead if `core/` rewords one.
-This guard fails instead."""
+"""How the CLI tells one kind of failure from another.
 
-from pathlib import Path
+It used to read the message: `core/` wrote a sentence, and
+`commands/query.py` kept a copy of that sentence to recognise it by. The
+whole file was a guard against `core/` rewording one and the remap going
+silently dead.
 
-import dbqm.core.query_engine as query_engine
-from dbqm.cli.commands.query import _USAGE_SQL_MESSAGES, _sql_error_code
+A catalogue ends that arrangement, and not only because the wording moved.
+The message is a translation now, so matching it would have classified
+correctly for one language and silently wrongly for every other -- a
+`sql_error` where the caller should have read `usage`, in the language the
+caller chose. What travels instead is `error_kind`, which no translation
+touches. These tests guard that.
+"""
+from __future__ import annotations
 
+import pytest
 
-def test_every_remapped_message_still_exists_in_core():
-    fonte = Path(query_engine.__file__).read_text(encoding="utf-8")
-    for mensagem in _USAGE_SQL_MESSAGES:
-        assert mensagem in fonte, (
-            f"query_engine.py no longer contains {mensagem!r}; the CLI still "
-            "remaps it to `usage`, so the remap is now dead code"
-        )
-
-
-def test_a_remapped_message_is_usage():
-    for mensagem in _USAGE_SQL_MESSAGES:
-        assert _sql_error_code(mensagem) == "usage"
-
-
-def test_anything_else_is_sql_error():
-    assert _sql_error_code("ORA-00942: table or view does not exist") == "sql_error"
-    assert _sql_error_code(None) == "sql_error"
+from dbqm.cli.commands.inspect import _ddl_error_code
+from dbqm.cli.commands.query import _sql_error_code
+from dbqm.core.ddl_extractor import ExtractionResult
+from dbqm.i18n import set_language, t
 
 
-def test_the_unsupported_explain_prefix_still_exists_in_core():
-    """`--explain` on an engine that has none is a usage error, matched by
-    prefix because the message names the engine. A reword in `query_engine`
-    would make that remap dead code with nothing failing."""
-    from dbqm.cli.commands.query import _UNSUPPORTED_EXPLAIN_PREFIX
-
-    fonte = Path(query_engine.__file__).read_text(encoding="utf-8")
-    assert _UNSUPPORTED_EXPLAIN_PREFIX in fonte
+@pytest.fixture(autouse=True)
+def _restaurar_idioma():
+    anterior = set_language(None)
+    yield
+    set_language(anterior)
 
 
-def test_the_ddl_not_found_suffix_still_exists_in_its_extractor():
-    """`ddl` answers `not_found` by matching what `ddl_extractor` writes when
-    the object is absent. Same fragility, same guard."""
-    import dbqm.core.ddl_extractor as ddl_extractor
-    from dbqm.cli.commands.inspect import _DDL_NOT_FOUND
+class TestSqlFailures:
+    def test_bad_input_core_never_sent_is_usage(self):
+        assert _sql_error_code("whatever", "usage") == "usage"
 
-    fonte = Path(ddl_extractor.__file__).read_text(encoding="utf-8")
-    assert _DDL_NOT_FOUND in fonte
+    def test_a_statement_the_driver_rejected_is_sql_error(self):
+        assert _sql_error_code("ORA-00942: table or view does not exist", "") == "sql_error"
+        assert _sql_error_code(None, "") == "sql_error"
+
+    def test_the_database_never_answering_outranks_everything(self):
+        assert _sql_error_code("anything", "connection") == "connection_failed"
+
+    def test_the_guard_refusing_is_its_own_token(self):
+        assert _sql_error_code("anything", "read_only") == "read_only"
+
+    @pytest.mark.parametrize("idioma", ["en", "pt"])
+    def test_the_classification_does_not_depend_on_the_language(self, idioma):
+        """The point of the change: the same condition, read by a caller in
+        either language, is the same token."""
+        set_language(idioma)
+        assert _sql_error_code(t("sql.select_only"), "usage") == "usage"
+        assert _sql_error_code(t("sql.unsupported_type"), "usage") == "usage"
+        assert _sql_error_code(t("sql.explain_unsupported", tipo="mysql"), "usage") == "usage"
 
 
-def test_the_explain_prefix_is_usage_and_a_driver_error_is_not():
-    from dbqm.cli.commands.query import _UNSUPPORTED_EXPLAIN_PREFIX
+class TestDdlFailures:
+    @staticmethod
+    def _resultado(**kwargs) -> ExtractionResult:
+        base = {"object_name": "T", "object_type": "TABLE", "owner": "", "connection_name": "c"}
+        return ExtractionResult(**{**base, **kwargs})
 
-    assert _sql_error_code(_UNSUPPORTED_EXPLAIN_PREFIX + "mysql.", "") == "usage"
-    assert _sql_error_code("ORA-00942: tabela inexistente", "") == "sql_error"
+    def test_an_object_that_is_not_there_is_not_found(self):
+        assert _ddl_error_code(self._resultado(not_found=True)) == "not_found"
+
+    def test_an_extraction_that_failed_is_sql_error(self):
+        assert _ddl_error_code(self._resultado(errors=["ORA-01031"])) == "sql_error"
+
+    @pytest.mark.parametrize("idioma", ["en", "pt"])
+    def test_it_does_not_depend_on_the_language_either(self, idioma):
+        set_language(idioma)
+        resultado = self._resultado(errors=[t("ddl.object_not_found", nome="T")],
+                                    not_found=True)
+        assert _ddl_error_code(resultado) == "not_found"
+
+
+def test_core_no_longer_needs_the_cli_to_recognise_its_sentences():
+    """The two constants this file was built around are gone. If either comes
+    back, the coupling it represents came back with it."""
+    import dbqm.cli.commands.query as query
+
+    assert not hasattr(query, "_USAGE_SQL_MESSAGES")
+    assert not hasattr(query, "_UNSUPPORTED_EXPLAIN_PREFIX")

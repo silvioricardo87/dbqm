@@ -168,11 +168,11 @@ def test_query_add_needs_a_registered_connection(local, capsys):
     code, body = envelope(["query", "add", "q2", "--sql", "SELECT 1", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "Selecione uma conexao."
+    assert body["error"]["message"] == "Choose a connection."
     code, body = envelope(["query", "add", "q3", "--connection", "nope", "--sql", "SELECT 1", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == 'Conexao "nope" nao encontrada.'
+    assert body["error"]["message"] == 'Connection "nope" not found.'
 
 
 # QA-CONN-014

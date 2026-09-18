@@ -396,8 +396,8 @@ class TestDuplicateKeyWarnings:
             [[1, "x"], [1, "y"], [2, "z"]], [[1, "y"], [1, "w"], [2, "z"]],
         )
         assert duplicate_key_warnings(resultado) == [
-            "Chave 'id' tem valores repetidos em 'a': 1 linha(s) fora da comparacao.",
-            "Chave 'id' tem valores repetidos em 'b': 1 linha(s) fora da comparacao.",
+            "Key 'id' has repeated values in 'a': 1 row(s) left out of the comparison.",
+            "Key 'id' has repeated values in 'b': 1 row(s) left out of the comparison.",
         ]
 
     def test_a_unique_key_says_nothing(self):
@@ -409,7 +409,7 @@ class TestDuplicateKeyWarnings:
         so the warning names the real column instead of a caller\'s guess."""
         resultado = self._group_result([[1, "x"], [1, "y"]], [[1, "x"]])
         assert resultado.join_key == "id"
-        assert "Chave 'id'" in duplicate_key_warnings(resultado)[0]
+        assert "Key 'id'" in duplicate_key_warnings(resultado)[0]
 
     def test_no_comparison_at_all_warns_about_nothing(self):
         """A group with nothing to compare produces no `ComparisonResult`,

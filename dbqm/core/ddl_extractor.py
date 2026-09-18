@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.core.db_manager import get_connection
 from dbqm.models.connection import Connection
 from dbqm.core.paths import EXPORTS_DIR
@@ -45,6 +46,11 @@ class ExtractionResult:
     dependencies: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     saved_files: list[str] = field(default_factory=list)
+    #: The object simply is not there, as opposed to an extraction that
+    #: failed. The CLI used to tell the two apart by matching the end of
+    #: the error text, which stopped being possible once that text became
+    #: a translation -- and had never worked in any other language.
+    not_found: bool = False
 
     def to_dict(self) -> dict:
         """Wire shape. Nested dataclasses serialise through their own to_dict."""
@@ -756,7 +762,8 @@ def extract_ddl(
                 object_name=name_upper, object_type="UNKNOWN",
                 owner="", connection_name=conn.name,
             )
-            result.errors.append(f"Objeto '{name_upper}' nao encontrado.")
+            result.errors.append(t("ddl.object_not_found", nome=name_upper))
+            result.not_found = True
             return result
 
         obj = matches[0]

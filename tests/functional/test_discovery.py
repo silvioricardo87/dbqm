@@ -27,7 +27,7 @@ def test_packages_on_sqlite_is_usage_naming_the_engine(local_db, capsys):
     code, body = envelope(["objects", "local", "--type", "PACKAGE", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "Packages so existem no Oracle. Conexao e sqlite."
+    assert body["error"]["message"] == "Packages only exist on Oracle. This connection is sqlite."
 
 
 # QA-DISC-004
@@ -35,7 +35,7 @@ def test_routines_on_sqlite_is_usage(local_db, capsys):
     code, body = envelope(["objects", "local", "--type", "ROUTINE", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "SQLite nao tem rotinas armazenadas."
+    assert body["error"]["message"] == "SQLite has no stored routines."
 
 
 def _columns(body: dict) -> dict[str, dict]:

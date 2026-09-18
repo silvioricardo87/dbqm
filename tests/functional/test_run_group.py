@@ -135,7 +135,7 @@ def test_a_group_needs_two_queries(local_db, capsys):
     code, body = envelope(["group", "add", "um", "--query", "cli_local", "--join-key", "id", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "Selecione pelo menos 2 consultas."
+    assert body["error"]["message"] == "Choose at least 2 queries."
 
 
 # QA-GROUP-009
@@ -188,8 +188,8 @@ def test_a_repeated_join_key_is_reported_not_swallowed(por_cliente, capsys):
     code, out, _ = invoke(["run-group", por_cliente, "-f", "json"], capsys)
     body = json.loads(out)
     assert body["warnings"] == [
-        "Chave 'id' tem valores repetidos em 'pc_local': 2 linha(s) fora da comparacao.",
-        "Chave 'id' tem valores repetidos em 'pc_local2': 2 linha(s) fora da comparacao.",
+        "Key 'id' has repeated values in 'pc_local': 2 row(s) left out of the comparison.",
+        "Key 'id' has repeated values in 'pc_local2': 2 row(s) left out of the comparison.",
     ]
     assert body["data"]["comparisons"][0]["duplicate_rows"] == {"pc_local": 2, "pc_local2": 2}
     assert body["data"]["comparisons"][0]["total_keys"] == 2
@@ -209,7 +209,7 @@ def test_a_unique_join_key_warns_about_nothing(pedidos, capsys):
 def test_the_warning_reaches_the_table_format_too(por_cliente, capsys):
     code, out, _ = invoke(["run-group", por_cliente], capsys)
     assert code == 5
-    assert "valores repetidos em 'pc_local'" in out
+    assert "repeated values in 'pc_local'" in out
 
 
 @pytest.fixture
@@ -285,5 +285,5 @@ def test_a_group_cannot_name_the_same_query_twice(local_db, capsys):
     assert code == 2
     assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == (
-        'Consulta "ped_local" repetida. Um grupo compara consultas distintas.'
+        'Query "ped_local" is repeated. A group compares distinct queries.'
     )

@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
+from dbqm.i18n import t
 from dbqm.core.crypto import decrypt
 from dbqm.models.connection import Connection
 
@@ -24,12 +25,7 @@ def _missing_driver_message(db_label: str, package: str) -> str:
     import platform
     import sys
     plat = f"{sys.platform}/{platform.machine()}"
-    return (
-        f"Driver para {db_label} ({package}) nao esta instalado neste ambiente "
-        f"({plat}). Instale manualmente com `pip install {package}` se houver "
-        f"wheel disponivel para sua plataforma; em Windows ARM, este driver "
-        f"nao tem wheel publicada e foi omitido por padrao."
-    )
+    return t("driver.not_installed", banco=db_label, pacote=package, plataforma=plat)
 
 
 def _parse_tns_entry(tns_path: str, tns_name: str) -> dict | None:
@@ -137,17 +133,14 @@ def validate_oracle_client_dir(path: str) -> str | None:
         return None
     p = Path(path).expanduser()
     if not p.exists():
-        return f"Diretorio nao existe: {p}"
+        return t("oracle_client.dir_missing", caminho=p)
     if not p.is_dir():
-        return f"O caminho nao e um diretorio: {p}"
+        return t("oracle_client.not_a_dir", caminho=p)
     if sys.platform != "win32":
         return None
     dll = _find_oci_dll(p)
     if dll is None:
-        return (
-            f"oci.dll nao encontrado em {p} nem em {p / 'bin'}: "
-            "o diretorio nao parece um Oracle Client."
-        )
+        return t("oracle_client.no_oci_dll", caminho=p, pasta_bin=p / "bin")
     machine = _pe_machine(dll)
     if machine is None:
         return None
@@ -470,7 +463,7 @@ def get_connection(conn: Connection) -> Any:
         return get_mysql_connection(conn)
     if conn.db_type == "sqlite":
         return get_sqlite_connection(conn)
-    raise ValueError(f"Tipo de banco desconhecido: {conn.db_type}")
+    raise ValueError(t("connection.unknown_db_type", tipo=conn.db_type))
 
 
 def fetch_table_columns(conn: Connection, table: str) -> list[str]:
@@ -570,18 +563,16 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
             cursor.close()
 
         elapsed = _time.time() - start
-        return True, (
-            f'Conexao "{conn.name}" OK! ({elapsed:.2f}s)\n'
-            f"  Versao: {version}"
-        )
+        return True, t("connection.test_ok", nome=conn.name,
+                       segundos=f"{elapsed:.2f}", versao=version)
     except Exception as e:
         err_msg = str(e)
         if _CLIENT_GUIDANCE in err_msg:
             # Our Instant Client guidance is multi-line by design; truncating to
             # the first line would hide exactly what the user has to act on.
-            return False, f"Erro ao conectar: {err_msg}"
+            return False, t("connection.connect_failed", erro=err_msg)
         sanitized = err_msg.split('\n')[0][:200]
-        return False, f"Erro ao conectar: {sanitized}"
+        return False, t("connection.connect_failed", erro=sanitized)
     finally:
         if db is not None:
             try:

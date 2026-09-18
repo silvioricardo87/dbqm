@@ -168,8 +168,8 @@ def test_a_repeated_derived_key_is_reported(local2_db, capsys):
     body = json.loads(out)
     assert body["data"]["join_key"] == "id"
     assert body["warnings"] == [
-        "Chave 'id' tem valores repetidos em 'local': 2 linha(s) fora da comparacao.",
-        "Chave 'id' tem valores repetidos em 'local2': 2 linha(s) fora da comparacao.",
+        "Key 'id' has repeated values in 'local': 2 row(s) left out of the comparison.",
+        "Key 'id' has repeated values in 'local2': 2 row(s) left out of the comparison.",
     ]
     assert body["data"]["comparisons"][0]["duplicate_rows"] == {"local": 2, "local2": 2}
     assert code == 5

@@ -18,9 +18,9 @@ def _seed_queries(*names: str) -> None:
 
 def test_validate_names_every_empty_required_field(tmp_config_dir):
     errors = validate({"name": "", "queries": [], "join_key": ""})
-    assert any("nome" in e.lower() for e in errors)
-    assert any("consultas" in e.lower() for e in errors)
-    assert any("juncao" in e.lower() for e in errors)
+    assert any("name" in e.lower() for e in errors)
+    assert any("queries" in e.lower() for e in errors)
+    assert any("join" in e.lower() for e in errors)
 
 
 def test_validate_requires_at_least_two_queries(tmp_config_dir):
@@ -28,7 +28,7 @@ def test_validate_requires_at_least_two_queries(tmp_config_dir):
     `dbqm multi` require two connections."""
     _seed_queries("q1")
     errors = validate({"name": "g", "queries": ["q1"], "join_key": "id"})
-    assert any("2 consultas" in e for e in errors)
+    assert any("2 queries" in e for e in errors)
 
 
 def test_validate_rejects_a_query_that_does_not_exist(tmp_config_dir):
@@ -136,7 +136,7 @@ def test_the_same_query_twice_is_refused(tmp_config_dir):
     a repeat collapses to one side and can only report agreement."""
     _seed_queries("q1")
     errors = validate({"name": "g", "queries": ["q1", "q1"], "join_key": "id"})
-    assert errors == ['Consulta "q1" repetida. Um grupo compara consultas distintas.']
+    assert errors == ['Query "q1" is repeated. A group compares distinct queries.']
 
 
 def test_two_distinct_queries_pass(tmp_config_dir):

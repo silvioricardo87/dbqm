@@ -131,5 +131,5 @@ def test_run_of_a_writing_query_is_refused(read_only_db, capsys):
     code, body = envelope(["run", "atualiza", "-c", "ro", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "Apenas comandos SELECT sao permitidos."
+    assert body["error"]["message"] == "Only SELECT statements are allowed."
     assert _status_of_1(capsys) == "A"
