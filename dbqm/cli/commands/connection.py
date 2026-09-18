@@ -113,7 +113,7 @@ def _connection_add(args: argparse.Namespace) -> None:
         # `validation`, like query/group/template: a name collision is not a
         # malformed invocation. Was `usage` until 2.9.0.
         _fail_or_print(args, "connection.add", "validation",
-                        f'Conexao "{args.name}" ja existe.')
+                        t("connection.already_exists", nome=args.name))
 
     # Validate everything but the password first: a terminal user should
     # learn about a bad --type before being asked to type a secret that
@@ -240,7 +240,7 @@ def _connection_rm(args: argparse.Namespace) -> None:
             if args.format == "json":
                 ok("connection.rm", {"name": args.name, "removed": False})
             else:
-                console.print("Cancelado.")
+                console.print(t("common.cancelled"))
             return
 
     delete_connection(args.name)

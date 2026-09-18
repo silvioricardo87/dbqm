@@ -30,7 +30,7 @@ def test_add_refuses_a_duplicate_and_keeps_the_original(t1, capsys):
     code, body = envelope(["template", "add", t1, "--content", "x", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == 'Template "t1" ja existe.'
+    assert body["error"]["message"] == 'Template "t1" already exists.'
     _, body = envelope(["template", "show", t1, "-f", "json"], capsys)
     assert body["data"]["content"] == CONTEUDO
 
@@ -74,7 +74,7 @@ def test_rm_without_yes_off_a_tty_is_refused(t1, capsys):
     code, body = envelope(["template", "rm", t1, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "Use --yes para remover sem confirmacao."
+    assert body["error"]["message"] == "Use --yes to remove without confirming."
     code, _ = envelope(["template", "show", t1, "-f", "json"], capsys)
     assert code == 0
 

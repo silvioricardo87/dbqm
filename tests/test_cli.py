@@ -2440,7 +2440,7 @@ class TestCmdImportConfig:
         assert saida.out == ""
         erro = json.loads(saida.err)["error"]
         assert erro["code"] == "not_found"
-        assert erro["message"] == f'File "{caminho}" not found.'
+        assert erro["message"] == f"Arquivo '{caminho}' nao encontrado."
         spy.assert_not_called()
 
 

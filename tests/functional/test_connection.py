@@ -50,7 +50,7 @@ def test_add_refuses_a_duplicate(local, capsys):
     code, body = _add_local(local, capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == 'Conexao "local" ja existe.'
+    assert body["error"]["message"] == 'Connection "local" already exists.'
 
 
 # QA-CONN-003
@@ -158,7 +158,7 @@ def test_query_add_refuses_a_duplicate(q1, capsys):
     code, body = envelope(["query", "add", q1, "--connection", "local", "--sql", "SELECT 2", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == 'Consulta "q1" ja existe.'
+    assert body["error"]["message"] == 'Query "q1" already exists.'
     _, body = envelope(["query", "show", q1, "-f", "json"], capsys)
     assert body["data"]["sql"] == "SELECT 1"
 
@@ -211,7 +211,7 @@ def test_query_rm_needs_yes_off_a_tty(q1, capsys):
     code, body = envelope(["query", "show", q1, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == 'Consulta "q1" nao encontrada.'
+    assert body["error"]["message"] == 'Query "q1" not found.'
 
 
 # --- group ---------------------------------------------------------------
@@ -247,7 +247,7 @@ def test_group_add_refuses_a_duplicate(g1, capsys):
     code, body = envelope(["group", "add", g1, "--query", "qa", "--query", "qb", "--join-key", "id", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == 'Grupo "g1" ja existe.'
+    assert body["error"]["message"] == 'Group "g1" already exists.'
 
 
 # QA-CONN-019
