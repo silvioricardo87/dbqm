@@ -3,8 +3,8 @@
 [![PyPI Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
 
 A fullscreen terminal app **and** a scriptable CLI for running SQL across
-**Oracle**, **SQL Server**, **PostgreSQL** and **MySQL** — from one place, with
-one set of saved connections.
+**Oracle**, **SQL Server**, **PostgreSQL**, **MySQL** and **SQLite** — from one
+place, with one set of saved connections.
 
 Built with [Textual](https://textual.textualize.io/). Credentials are encrypted
 at rest; nothing is ever written to your shell history.
@@ -19,7 +19,9 @@ at rest; nothing is ever written to your shell history.
 pip install dbqm
 ```
 
-Python 3.10+. Database drivers come with it.
+Python 3.10+. Database drivers come with it, and SQLite needs none — it is
+in the standard library, so `dbqm connection add local --type sqlite --database
+./meu.db --no-password` works on a fresh install with nothing else to set up.
 
 > **Windows on ARM:** some drivers have no `win-arm64` wheel and are skipped
 > automatically. Use Python AMD64 (it runs under x64 emulation) — see the
@@ -61,6 +63,14 @@ dbqm run pedidos-em-aberto -p data_inicio=2026-01-01
 # Compare the same logical query across environments.
 dbqm run-group conciliacao-diaria -p data=2026-01-01
 
+# Or compare one ad-hoc statement across connections, without saving anything.
+# Exits 5 when they diverge, so a script can branch on the verdict.
+dbqm multi "SELECT id, total FROM pedidos WHERE dia = :d" \
+    -c prod -c homolog -p d=2026-01-01 -f json
+
+# Call an Oracle routine, with OUT parameters and the return value as data.
+dbqm call PKG_FATURAMENTO.FECHAR <conn> -p p_mes=1 --commit -f json
+
 # Get an execution plan in one step (no EXPLAIN PLAN FOR boilerplate).
 dbqm sql "SELECT * FROM pedidos WHERE cliente_id = :id" prod --explain -p id=42
 
@@ -86,7 +96,9 @@ dbqm history -n 20
   connections and get a per-row `OK` / `DIFF` / `ABSENT` verdict, as a table or
   an interactive HTML report.
 - **Object browser** — tables, views, routines and Oracle packages: columns,
-  primary keys, foreign keys and indexes, without writing catalogue SQL.
+  primary keys, foreign keys and indexes, without writing catalogue SQL. Works
+  on every engine, SQLite included, which makes it a zero-setup way to try the
+  whole tool against a local file.
 - **Ad-hoc SQL** — SELECT, CTEs, DML, DDL with compilation-error detection, and
   anonymous PL/SQL blocks with `DBMS_OUTPUT` captured and shown.
 - **Execute routines** — packages, procedures and functions, with parameter

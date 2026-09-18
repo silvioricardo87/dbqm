@@ -13,7 +13,16 @@ authors = [
     {name = "Silvio Chagas"},
 ]
 classifiers = [
+    # Per version, not just "3": without these the metadata says nothing about
+    # the floor, and a downstream tool (or a pyversions badge) reads it as
+    # bare Python 3. Mirrors `requires-python` above -- these two disagreeing
+    # is worse than either being absent.
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
     "Environment :: Console",
     "Topic :: Database",
