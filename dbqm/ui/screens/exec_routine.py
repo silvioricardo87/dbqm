@@ -555,17 +555,16 @@ class ExecRoutineScreen(Vertical):
                 for nome, valor in result.out_values.items():
                     lines.append(f"  {escape_markup(nome)} = {escape_markup(str(valor))}")
             if result.output_lines:
-                lines.append("\n[bold]Output:[/]")
+                lines.append(f'\n[bold]{t("exec_routine.output")}[/]')
                 for line in result.output_lines:
                     lines.append(f"  {escape_markup(line)}")
             if not result.return_value and not result.out_values and not result.output_lines:
-                lines.append("\n[dim]Sem retorno ou output DBMS_OUTPUT[/]")
+                lines.append(f'\n[dim]{t("exec_routine.no_return")}[/]')
             # What happened to the work, always -- the screen used to say
             # "sucesso" over a transaction the driver then threw away.
-            lines.append(
-                "\n[dim]Transacao confirmada (commit).[/]" if committed
-                else "\n[dim]Transacao desfeita (rollback) -- nada foi gravado.[/]"
-            )
+            desfecho = (t("exec_routine.committed") if committed
+                        else t("exec_routine.rolled_back"))
+            lines.append(f"\n[dim]{desfecho}[/]")
         else:
             lines = [
                 f'[bold $ds-op-failure]{t("exec_routine.run_failed")}[/] ({result.elapsed:.2f}s)',

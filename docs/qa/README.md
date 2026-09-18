@@ -13,21 +13,21 @@ wish.
 ## Format
 
 ```markdown
-| ID | Cenario | Camada | Engine | Teste |
+| ID | Scenario | Layer | Engine | Test |
 |---|---|---|---|---|
-| QA-RUN-001 | Dado ... / Quando `dbqm run ...` / Entao exit 0 e ... | functional | all | tests/functional/test_run.py::test_x |
-| QA-CALL-004 | Dado ... / Quando ... / Entao ... | manual | oracle | — |
+| QA-RUN-001 | Given ... / When `dbqm run ...` / Then exit 0 and ... | functional | all | tests/functional/test_run.py::test_x |
+| QA-CALL-004 | Given ... / When ... / Then ... | manual | oracle | — |
 ```
 
 - **ID** — `QA-<FEATURE>-<NNN>`, three digits, stable, never reused.
-- **Cenario** — `Dado … / Quando … / Entao …` on one line, slashes as
-  separators, in Portuguese without accents, quoting the exact command and the
-  exact token or string expected. It is read by a person, not parsed.
-- **Camada** — `unit` (an existing mocked test proves the orchestration),
+- **Scenario** — `Given … / When … / Then …` on one line, slashes as
+  separators, quoting the exact command and the exact token or string
+  expected. It is read by a person, not parsed.
+- **Layer** — `unit` (an existing mocked test proves the orchestration),
   `functional` (runs against a real SQLite database through `run_cli`, nothing
   patched), or `manual` (needs an engine the suite does not have).
 - **Engine** — `all`, `sqlite`, `oracle`.
-- **Teste** — `tests/<path>::<test>` (class-qualified when inside a class), or
+- **Test** — `tests/<path>::<test>` (class-qualified when inside a class), or
   `—` for `manual` only.
 
 A `manual` row is followed by a fenced block with the exact commands and the

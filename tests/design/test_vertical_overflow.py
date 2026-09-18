@@ -325,7 +325,7 @@ async def test_package_editor_compilation_errors_fit_and_scroll(tmp_config_dir):
         )
 
         pintado = rendered_text(app)
-        assert "erro(s) de compilacao" in pintado
+        assert "compilation error(s)" in pintado
         assert "erro 3" in pintado, "so o cabecalho e um erro cabem no painel"
 
         assert corpo.max_scroll_y > 0

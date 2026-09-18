@@ -452,7 +452,8 @@ class BrowserScreen(Vertical):
 
             table.add_row(
                 str(col.name), str(col.data_type), str(size),
-                "Y" if col.nullable else "N", " ".join(key_parts),
+                t("common.yes_initial") if col.nullable else t("common.no_initial"),
+                " ".join(key_parts),
             )
 
     def _on_preview_loaded(self, result, append: bool) -> None:

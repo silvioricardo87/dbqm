@@ -258,7 +258,7 @@ class GroupRunScreen(Vertical):
                 options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
             sem_pasta = sum(1 for g in groups if not g.folder)
             if sem_pasta:
-                options.append((f"Sem pasta ({sem_pasta})", None))
+                options.append((t("common.no_folder_count", quantidade=sem_pasta), None))
             selection.mount(
                 NavSelect(options, allow_blank=False, id="gr-folder-select")
             )

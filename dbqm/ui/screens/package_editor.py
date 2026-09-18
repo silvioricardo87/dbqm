@@ -860,13 +860,12 @@ class PackageEditorScreen(Vertical):
 
         if errors:
             # Show compilation errors
-            lines = [
-                f"[bold $ds-op-failure]  {len(errors)} erro(s) de compilacao ({target.upper()})[/]"
-            ]
+            contagem = t("package_editor.error_count", quantidade=len(errors),
+                         alvo=target.upper())
+            lines = [f"[bold $ds-op-failure]  {contagem}[/]"]
             for err in errors:
-                lines.append(
-                    f"  Linha {err['line']}, Col {err['col']}: {err['message']}"
-                )
+                lines.append("  " + t("package_editor.error_at", linha=err["line"],
+                                      coluna=err["col"], mensagem=err["message"]))
             error_texto.update("\n".join(lines))
             error_panel.display = True
         elif not success:

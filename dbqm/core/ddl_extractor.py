@@ -827,7 +827,7 @@ def _extract_non_oracle(
     try:
         extractor(db, object_name, result, on_progress)
     except Exception as e:
-        result.errors.append(f"Erro ao extrair: {e}")
+        result.errors.append(t("ddl.extract_failed_plain", erro=e))
     finally:
         db.close()
     return result
@@ -953,7 +953,8 @@ def extract_dependencies_ddl(
             try:
                 EXTRACT_MAP[dep_type](cursor, dep_owner, dep_name, result)
             except Exception as e:
-                result.errors.append(f"Erro ao extrair {dep_type} {dep_owner}.{dep_name}: {e}")
+                result.errors.append(t("ddl.extract_failed_dependency", tipo=dep_type,
+                                   dono=dep_owner, nome=dep_name, erro=e))
 
         result.dependencies.clear()
         return result

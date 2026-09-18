@@ -345,6 +345,18 @@ SINKS_KEYWORD = frozenset({
     "what", "why", "action_label", "message", "tooltip",
 })
 
+#: Files that build code rather than screens: PL/SQL templates, generated
+#: SQL comments in an extracted `.sql`. Their `append`s are the artifact,
+#: not a message, so only the keyword/positional sinks are checked there.
+FORA_DO_APPEND = frozenset({
+    "dbqm/core/package_editor.py",   # PL/SQL skeletons
+    "dbqm/core/object_browser.py",   # the anonymous block `call` sends
+    "dbqm/core/ddl_extractor.py",    # `-- Type:` headers inside the .sql
+    "dbqm/core/exporter.py",         # the txt export's own table drawing
+    "dbqm/core/html_report.py",      # HTML fragments
+    "dbqm/cli/render.py",            # table rows assembled for Rich
+})
+
 #: Words that are the same in every language: product names, formats,
 #: SQL keywords, symbols. A sink may take one of these directly.
 NEUTROS = frozenset({
@@ -352,6 +364,7 @@ NEUTROS = frozenset({
     "Spec", "Body", "Wizard", "PROCEDURE", "FUNCTION", "PACKAGE", "TABLE",
     "VIEW", "COMMIT", "ROLLBACK", "Oracle", "PostgreSQL", "MySQL",
     "SQL Server", "SQLite", "Oracle Instant Client", "Multi-Exec",
+    "PK", "FK ->",  # database terms, not words
     "Flat/Pivot", "+", "-", "#", "*", "",
 })
 
@@ -376,6 +389,9 @@ def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
             return sem_markup if re.search(r"[A-Za-z]{2,}", sem_markup) else None
         return None
 
+    relativo = py.relative_to(RAIZ).as_posix()
+    checa_append = relativo not in FORA_DO_APPEND
+
     for no in ast.walk(arvore):
         if not isinstance(no, ast.Call):
             continue
@@ -385,6 +401,14 @@ def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
         alvos = []
         if nome in SINKS_POSICIONAIS and no.args:
             alvos.append((nome, no.args[0]))
+        # Text accumulated in a list and rendered later. A sentence appended
+        # to `lines` is a message; a fragment of SQL being assembled is not,
+        # which is what `FORA_DO_APPEND` separates.
+        if checa_append and nome in ("append", "extend", "insert") and no.args:
+            for arg in no.args:
+                pecas = arg.elts if isinstance(arg, (ast.List, ast.Tuple)) else [arg]
+                for peca in pecas:
+                    alvos.append((nome, peca))
         for kw in no.keywords:
             if kw.arg in SINKS_KEYWORD:
                 alvos.append((f"{nome}.{kw.arg}", kw.value))
@@ -393,8 +417,12 @@ def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
             texto = _texto_cru(alvo)
             if texto is None:
                 continue
-            limpo = texto.strip()
+            limpo = re.sub(r"\[[^]]*]", "", texto).strip()
             if not re.search(r"[A-Za-z]{2,}", limpo) or limpo in NEUTROS:
+                continue
+            if rotulo in ("append", "extend", "insert") and " " not in limpo:
+                # A single word appended to a list is a column key or a
+                # token, not a sentence someone reads.
                 continue
             achados.append((alvo.lineno, rotulo, limpo))
     return achados
