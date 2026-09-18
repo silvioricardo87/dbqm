@@ -304,3 +304,60 @@ class TestSqliteConnection:
         db = get_connection(conn)
         assert db.execute("SELECT 1").fetchone() == (1,)
         db.close()
+
+
+class TestGuidanceSurvivesTruncation:
+    """dbqm shortens a driver error to its first line; its own guidance is
+    multi-line on purpose and must come through whole.
+
+    The mark used to be the phrase "Config > Oracle Instant Client" inside
+    the message, matched by the caller. That survived translation only by
+    accident -- nothing stopped a catalogue from localising a menu path, and
+    the day one did, the one message the user has to read in full would have
+    been silently cut. It is a type now, which no translation touches.
+    """
+
+    def _conexao(self):
+        from dbqm.models.connection import Connection
+
+        return Connection(name="ora", db_type="oracle", user="u", password="p",
+                          host="h", port=1521, service_name="s")
+
+    def test_a_driver_error_is_shortened_to_its_first_line(self):
+        from unittest.mock import patch
+
+        from dbqm.core.db_manager import test_connection
+
+        with patch("dbqm.core.db_manager.get_connection",
+                   side_effect=RuntimeError("ORA-12541: TNS:no listener\nlinha 2\nlinha 3")):
+            ok, mensagem = test_connection(self._conexao())
+        assert ok is False
+        assert "linha 2" not in mensagem
+
+    def test_our_own_guidance_comes_through_whole(self):
+        from unittest.mock import patch
+
+        from dbqm.core.db_manager import GuidanceError, test_connection
+
+        with patch("dbqm.core.db_manager.get_connection",
+                   side_effect=GuidanceError("primeira\nsegunda\nterceira")):
+            ok, mensagem = test_connection(self._conexao())
+        assert ok is False
+        assert "segunda" in mensagem and "terceira" in mensagem
+
+    def test_it_does_not_depend_on_what_the_message_says(self):
+        """The whole point: a message with none of the old marker wording is
+        still recognised, in any language."""
+        from unittest.mock import patch
+
+        from dbqm.core.db_manager import GuidanceError, test_connection
+
+        with patch("dbqm.core.db_manager.get_connection",
+                   side_effect=GuidanceError("nothing here names a menu\nsecond line")):
+            ok, mensagem = test_connection(self._conexao())
+        assert "second line" in mensagem
+
+    def test_the_configured_client_error_is_guidance(self):
+        from dbqm.core.db_manager import GuidanceError, OracleClientConfigError
+
+        assert issubclass(OracleClientConfigError, GuidanceError)

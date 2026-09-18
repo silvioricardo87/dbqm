@@ -73,9 +73,18 @@ from dbqm.core.paths import CLIENTS_DIR
 _PKG_CLIENTS_DIR = Path(__file__).resolve().parent.parent.parent / "clients"
 
 _INSTANT_CLIENT_URL = "https://www.oracle.com/database/technologies/instant-client/downloads.html"
-# Marks the messages that carry actionable Instant Client guidance, so callers
-# that shorten errors know not to cut it away.
-_CLIENT_GUIDANCE = "Config > Oracle Instant Client"
+
+
+class GuidanceError(RuntimeError):
+    """An error whose message dbqm wrote: multi-line on purpose, and carrying
+    the action the user has to take.
+
+    Callers that shorten a driver error to its first line must not shorten
+    this one. It used to be marked by containing the phrase "Config > Oracle
+    Instant Client", which the caller matched -- a mark that survived
+    translation only by accident, since nothing stopped a catalogue from
+    localising a menu path. A type cannot be translated.
+    """
 
 # COFF machine identifiers from the PE header of oci.dll.
 _PE_MACHINE_I386 = 0x014C
@@ -83,7 +92,7 @@ _PE_MACHINE_AMD64 = 0x8664
 _PE_MACHINE_ARM64 = 0xAA64
 
 
-class OracleClientConfigError(RuntimeError):
+class OracleClientConfigError(GuidanceError):
     """The Oracle client directory configured in dbqm settings is unusable.
 
     Raised instead of falling back to the other sources: an explicit setting
@@ -322,11 +331,7 @@ def _thick_mode_detail() -> str:
     """
     if not _thick_mode_error:
         return ""
-    return (
-        "\n\n[!] O Oracle Instant Client nao foi carregado - o dbqm esta em thin mode.\n"
-        f"    Motivo: {_thick_mode_error}\n"
-        f"    Configure o caminho em {_CLIENT_GUIDANCE}."
-    )
+    return t("oracle_client.thin_mode_detail", motivo=_thick_mode_error)
 
 
 # Eagerly initialize thick mode at import time — must happen before any connection
@@ -374,17 +379,13 @@ def get_oracle_connection(conn: Connection) -> Any:
     except Exception as err:
         if _needs_thick_mode(err):
             # DPY-3015 in thin mode and thick mode was not available
-            raise RuntimeError(
-                "Thin mode nao suportado por este servidor (DPY-3015). "
-                "E preciso um Oracle Instant Client compativel para usar thick mode.\n"
-                "Configure o caminho em Config > Oracle Instant Client "
-                "(a mesma tela permite baixar e instalar um client).\n"
-                f"Download: {_INSTANT_CLIENT_URL}"
-                f"{_thick_mode_detail()}"
+            raise GuidanceError(
+                t("oracle_client.thin_mode_unsupported", url=_INSTANT_CLIENT_URL)
+                + _thick_mode_detail()
             ) from err
         detail = _thick_mode_detail()
         if detail:
-            raise RuntimeError(f"{err}{detail}") from err
+            raise GuidanceError(f"{err}{detail}") from err
         raise
 
 
@@ -567,9 +568,9 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
                        segundos=f"{elapsed:.2f}", versao=version)
     except Exception as e:
         err_msg = str(e)
-        if _CLIENT_GUIDANCE in err_msg:
-            # Our Instant Client guidance is multi-line by design; truncating to
-            # the first line would hide exactly what the user has to act on.
+        if isinstance(e, GuidanceError):
+            # Our own guidance is multi-line by design; truncating to the
+            # first line would hide exactly what the user has to act on.
             return False, t("connection.connect_failed", erro=err_msg)
         sanitized = err_msg.split('\n')[0][:200]
         return False, t("connection.connect_failed", erro=sanitized)

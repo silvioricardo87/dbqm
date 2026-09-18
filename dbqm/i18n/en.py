@@ -87,4 +87,6 @@ TEXTOS: Final[dict[str, str]] = {
     "group.summary_different": '  Different:    {n}',
     "group.summary_absent": '  Absent:       {n}',
     "sql.explain_takes_the_query_only": 'Pass the query only (no EXPLAIN PLAN FOR) when using --explain.',
+    "oracle_client.thin_mode_unsupported": 'Thin mode is not supported by this server (DPY-3015). A compatible Oracle Instant Client is required to use thick mode.\nSet the path in Config > Oracle Instant Client (the same screen downloads and installs one).\nDownload: {url}',
+    "oracle_client.thin_mode_detail": '\n\n[!] The Oracle Instant Client did not load - dbqm is in thin mode.\n    Reason: {motivo}\n    Set the path in Config > Oracle Instant Client.',
 }
