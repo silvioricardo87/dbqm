@@ -115,7 +115,7 @@ def _identificadores(arvore) -> set[int]:
                     if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                         ids.add(id(arg))
         if isinstance(no, ast.Compare):
-            # `event.button.id == "criar-consulta"`: the literal is the id
+            # `event.button.id == "create-query"`: the literal is the id
             # being matched, whatever side of the operator it sits on.
             lados = [no.left, *no.comparators]
             fonte = " ".join(ast.unparse(x) for x in lados)
@@ -142,7 +142,7 @@ def _identificadores(arvore) -> set[int]:
             # Nothing a screen shows is written that way.
             if re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)+", texto):
                 ids.add(id(no))
-            # A Textual action string: `switch_tab('tab-conexoes')`.
+            # A Textual action string: `switch_tab('tab-connections')`.
             if re.fullmatch(r"[a-z_]+\(.*\)", texto):
                 ids.add(id(no))
     return ids
@@ -453,3 +453,47 @@ def test_no_screen_takes_a_literal_instead_of_a_key():
         f"screen text written straight into a widget: {ofensores}. "
         f"It belongs in dbqm/i18n/, reached through t()."
     )
+
+
+def test_every_call_site_passes_the_fields_its_key_declares():
+    """`t("x.y", name=...)` against what `x.y` actually spells.
+
+    `str.format` raises `KeyError` for a field the caller did not pass, and
+    the caller only finds out when that message renders -- which for an
+    error path can be the first time anything goes wrong in production. A
+    field passed but not declared is the quieter half: it is silently
+    dropped, so a message loses the value it was supposed to carry and
+    nothing says so.
+
+    This also makes renaming a placeholder safe: the text in `en.py`, the
+    same key in `pt.py` and the call's keywords are the three places that
+    have to agree, and two of them are checked here and by
+    `test_the_same_placeholders_in_every_language`.
+
+    Only literal keys are checked. A key built at runtime (`_OUTCOME_KEY[x]`)
+    is out of reach of a static check, by nature.
+    """
+    problemas = []
+    for py in sorted((RAIZ / "dbqm").rglob("*.py")):
+        relativo = py.relative_to(RAIZ).as_posix()
+        if relativo.startswith(FORA):
+            continue
+        for no in ast.walk(ast.parse(py.read_text(encoding="utf-8"))):
+            if not (isinstance(no, ast.Call) and isinstance(no.func, ast.Name)
+                    and no.func.id == "t" and no.args):
+                continue
+            chave = no.args[0]
+            if not (isinstance(chave, ast.Constant) and isinstance(chave.value, str)):
+                continue
+            if chave.value not in en.TEXTOS:
+                problemas.append(f"{relativo}:{no.lineno} unknown key {chave.value!r}")
+                continue
+            campos = re.compile(r"(?<!\{)\{(\w+)\}(?!\})")
+            declarados = set(campos.findall(en.TEXTOS[chave.value]))
+            passados = {kw.arg for kw in no.keywords if kw.arg}
+            if declarados != passados:
+                problemas.append(
+                    f"{relativo}:{no.lineno} {chave.value}: declares "
+                    f"{sorted(declarados)}, receives {sorted(passados)}"
+                )
+    assert not problemas, "t() calls that do not match their key: " + "; ".join(problemas)

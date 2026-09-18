@@ -46,7 +46,7 @@ def _print_connection_outcome(output_format: str, name: str, outcome: str) -> No
         verbo = _CONNECTION_OUTCOME_VERB[outcome]
         ok(f"connection.{verbo}", {"name": name, outcome: True})
         return
-    console.print(escape(t(_CONNECTION_OUTCOME_KEY[outcome], nome=name)))
+    console.print(escape(t(_CONNECTION_OUTCOME_KEY[outcome], name=name)))
 
 
 def _fail_or_print(
@@ -113,7 +113,7 @@ def _connection_add(args: argparse.Namespace) -> None:
         # `validation`, like query/group/template: a name collision is not a
         # malformed invocation. Was `usage` until 2.9.0.
         _fail_or_print(args, "connection.add", "validation",
-                        t("connection.already_exists", nome=args.name))
+                        t("connection.already_exists", name=args.name))
 
     # Validate everything but the password first: a terminal user should
     # learn about a bad --type before being asked to type a secret that
@@ -153,7 +153,7 @@ def _connection_update(args: argparse.Namespace) -> None:
     existing = deps.find_connection(args.name)
     if existing is None:
         _fail_or_print(args, "connection.update", "not_found",
-                        t("connection.not_found_named", nome=args.name))
+                        t("connection.not_found_named", name=args.name))
 
     if args.no_password:
         password = ""  # an explicit empty value clears the stored password
@@ -199,7 +199,7 @@ def _connection_show(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.name)
     if conn is None:
         _fail_or_print(args, "connection.show", "not_found",
-                        t("connection.not_found_named", nome=args.name))
+                        t("connection.not_found_named", name=args.name))
 
     data = conn.to_dict()
     # Never the ciphertext: the Fernet key lives next to the config, so
@@ -210,7 +210,7 @@ def _connection_show(args: argparse.Namespace) -> None:
         ok("connection.show", data)
         return
 
-    table = Table(title=t("connection.show_title", nome=escape(conn.name)))
+    table = Table(title=t("connection.show_title", name=escape(conn.name)))
     table.add_column(t("common.field"))
     table.add_column(t("common.value"))
     for key, value in data.items():
@@ -223,7 +223,7 @@ def _connection_rm(args: argparse.Namespace) -> None:
 
     if deps.find_connection(args.name) is None:
         _fail_or_print(args, "connection.rm", "not_found",
-                        t("connection.not_found_named", nome=args.name))
+                        t("connection.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
@@ -233,7 +233,7 @@ def _connection_rm(args: argparse.Namespace) -> None:
                             t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(t("connection.confirm_remove", nome=args.name), end="",
+        print(t("connection.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
         resposta = input().strip().lower()
         if resposta not in t("common.yes_answers").split(","):

@@ -30,7 +30,7 @@ def _parse_params(param_list: list[str] | None, args: argparse.Namespace | None 
     params = {}
     for p in param_list:
         if "=" not in p:
-            message = t("param.invalid", texto=p)
+            message = t("param.invalid", text=p)
             if fmt == "json":
                 fail(command, "usage", message)
             console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
@@ -235,7 +235,7 @@ def resolve_password(
     if sys.stdin.isatty():
         return getpass.getpass(prompt)
 
-    message = t("password.not_given", variavel=env_var)
+    message = t("password.not_given", variable=env_var)
     if fmt == "json":
         fail(command, "usage", message)
     console.print(f"[ds.op.failure]{message}[/ds.op.failure]")

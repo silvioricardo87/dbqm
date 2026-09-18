@@ -39,11 +39,11 @@ class ToolsScreen(Vertical):
         before the app resolves the language, so labels built there
         would stay in the default one for the life of the process."""
         return (
-            ("grupos", t("tools.manage_groups"), t("tools.manage_groups_hint")),
+            ("groups", t("tools.manage_groups"), t("tools.manage_groups_hint")),
             ("templates", t("tools.manage_templates"), t("tools.manage_templates_hint")),
             ("packages", t("tools.package_editor"), t("tools.package_editor_hint")),
-            ("rotina", t("tools.run_routine"), t("tools.run_routine_hint")),
-            ("executar", t("tools.run_group"), t("tools.run_group_hint")),
+            ("routine", t("tools.run_routine"), t("tools.run_routine_hint")),
+            ("run-group", t("tools.run_group"), t("tools.run_group_hint")),
         )
 
     DEFAULT_CSS = """
@@ -53,14 +53,14 @@ class ToolsScreen(Vertical):
     ToolsScreen ContentSwitcher {
         height: 1fr;
     }
-    ToolsScreen #ferr-menu {
+    ToolsScreen #tools-menu {
         height: 1fr;
         margin: 1 2;
     }
     /* `auto`: a lista mede as cinco entradas e para.
        Medido, e nao suposto: com `1fr` a REGIAO da lista cresce (altura
        10 -> 28 a 120x40), mas o pintado fica byte a byte igual, porque
-       `#ferr-menu` ja e `height: 1fr` e as linhas extras sao vazias sobre
+       `#tools-menu` ja e `height: 1fr` e as linhas extras sao vazias sobre
        o mesmo fundo. Apagar a regra tambem nao muda nada: `auto` e o
        padrao do OptionList. A redacao anterior dizia que com `1fr` "a
        moldura viraria uma caixa quase vazia com o conteudo no topo" — o
@@ -70,10 +70,10 @@ class ToolsScreen(Vertical):
        A regra fica por ser a unica coisa que prende a altura da lista ao
        conteudo dela: no dia em que algo for montado abaixo da lista
        dentro deste painel, `1fr` engoliria o espaco e `auto` nao. */
-    ToolsScreen #ferr-menu-list {
+    ToolsScreen #tools-menu-list {
         height: auto;
     }
-    ToolsScreen .ferr-tool-container {
+    ToolsScreen .tools-container {
         height: 1fr;
     }
     """
@@ -83,22 +83,22 @@ class ToolsScreen(Vertical):
         self._loaded_tools: set[str] = set()
 
     def compose(self) -> ComposeResult:
-        with ContentSwitcher(initial="ferr-menu"):
+        with ContentSwitcher(initial="tools-menu"):
             # Only the menu gets a frame. Each tool pane hosts a whole
             # SCREEN, which is already composed of Panels — framing it
             # again here would be a box inside a box (guideline 5).
-            with Panel(t("panel.tools"), id="ferr-menu"):
-                yield OptionList(id="ferr-menu-list")
+            with Panel(t("panel.tools"), id="tools-menu"):
+                yield OptionList(id="tools-menu-list")
 
             for chave, _identidade, _desambiguacao in self.tools():
                 # Empty: the screen is mounted here on first opening, and
                 # nothing else lives in this container — the "Voltar" that
                 # lived here left with section 7 (the exit is now the `Esc`,
                 # see `_set_actions`).
-                yield Vertical(id=f"ferr-{chave}", classes="ferr-tool-container")
+                yield Vertical(id=f"tool-{chave}", classes="tools-container")
 
     def on_mount(self) -> None:
-        lista = self.query_one("#ferr-menu-list", OptionList)
+        lista = self.query_one("#tools-menu-list", OptionList)
         lista.clear_options()
         for chave, identidade, desambiguacao in self.tools():
             lista.add_option(
@@ -108,21 +108,21 @@ class ToolsScreen(Vertical):
 
     def _build_tool(self, name: str):
         """Lazily import and instantiate the tool screen widget for `name`."""
-        if name == "grupos":
+        if name == "groups":
             from dbqm.ui.screens.group_manage import GroupManageScreen
-            return GroupManageScreen(id="ferr-grupos-inner")
+            return GroupManageScreen(id="tools-groups-inner")
         if name == "templates":
             from dbqm.ui.screens.template_manage import TemplateManageScreen
-            return TemplateManageScreen(id="ferr-templates-inner")
+            return TemplateManageScreen(id="tools-templates-inner")
         if name == "packages":
             from dbqm.ui.screens.package_editor import PackageEditorScreen
-            return PackageEditorScreen(id="ferr-packages-inner")
-        if name == "rotina":
+            return PackageEditorScreen(id="tools-packages-inner")
+        if name == "routine":
             from dbqm.ui.screens.exec_routine import ExecRoutineScreen
-            return ExecRoutineScreen(id="ferr-rotina-inner")
-        if name == "executar":
+            return ExecRoutineScreen(id="tools-routine-inner")
+        if name == "run-group":
             from dbqm.ui.screens.group_run import GroupRunScreen
-            return GroupRunScreen(id="ferr-executar-inner")
+            return GroupRunScreen(id="tools-rungroup-inner")
         raise ValueError(f"Unknown tool: {name}")
 
     def open_tool(self, name: str) -> None:
@@ -134,10 +134,10 @@ class ToolsScreen(Vertical):
         there is nothing to run yet.
         """
         if name not in self._loaded_tools:
-            container = self.query_one(f"#ferr-{name}", Vertical)
+            container = self.query_one(f"#tool-{name}", Vertical)
             container.mount(self._build_tool(name))
             self._loaded_tools.add(name)
-        self.query_one(ContentSwitcher).current = f"ferr-{name}"
+        self.query_one(ContentSwitcher).current = f"tool-{name}"
         self._set_actions()
 
     def back_to_menu(self) -> None:
@@ -150,15 +150,15 @@ class ToolsScreen(Vertical):
         mean cancelling.
         """
         switcher = self.query_one(ContentSwitcher)
-        if switcher.current == "ferr-menu":
+        if switcher.current == "tools-menu":
             return
-        switcher.current = "ferr-menu"
+        switcher.current = "tools-menu"
         self._set_actions()
         self.call_after_refresh(self._focus_list)
 
     def _focus_list(self) -> None:
         try:
-            self.query_one("#ferr-menu-list", OptionList).focus()
+            self.query_one("#tools-menu-list", OptionList).focus()
         except Exception:
             pass
 
@@ -194,8 +194,8 @@ class ToolsScreen(Vertical):
         try:
             atual = self.query_one(ContentSwitcher).current
         except Exception:
-            atual = "ferr-menu"
-        dentro = atual != "ferr-menu"
+            atual = "tools-menu"
+        dentro = atual != "tools-menu"
 
         # Clears the screen's list BEFORE pinning: without this, coming back
         # to this tab with a tool open would leave the previous tab's actions
@@ -203,7 +203,7 @@ class ToolsScreen(Vertical):
         # reactivating the tab).
         barra.set_actions([])
         barra.set_pinned_action(
-            Action(t("action.back"), "Esc", "ferramentas-voltar") if dentro else None
+            Action(t("action.back"), "Esc", "tools-back") if dentro else None
         )
         if dentro:
             self._reask_tool(atual)
@@ -232,7 +232,7 @@ class ToolsScreen(Vertical):
                 return
 
     def on_action_selected(self, message: ActionSelected) -> None:
-        if message.action_id == "ferramentas-voltar":
+        if message.action_id == "tools-back":
             self.back_to_menu()
 
     def on_option_list_option_selected(
@@ -240,7 +240,7 @@ class ToolsScreen(Vertical):
     ) -> None:
         # Filtered by id: the hosted tools have `OptionList`s of their own,
         # and their events bubble up through here.
-        if event.option_list.id != "ferr-menu-list":
+        if event.option_list.id != "tools-menu-list":
             return
         event.stop()
         chave = getattr(event.option, "name", "")

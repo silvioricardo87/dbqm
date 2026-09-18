@@ -85,13 +85,13 @@ class ResultTable(Vertical, can_focus=False):
         page = self.current_page + 1
         total = self.total_pages
         count = self.row_count
-        return t("result_table.page_info", pagina=page, total=total, linhas=count)
+        return t("result_table.page_info", page=page, total=total, rows=count)
 
     @property
     def result_info(self) -> str:
         if self._result is None:
             return ""
-        linhas = t("result_table.rows_count", linhas=self._result.row_count)
+        linhas = t("result_table.rows_count", rows=self._result.row_count)
         return f"{linhas} | {self._result.elapsed:.2f}s | {self._result.connection_name}"
 
     def load_result(self, result: QueryResult) -> None:

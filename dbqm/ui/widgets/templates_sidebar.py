@@ -51,7 +51,7 @@ class TemplatesSidebar(Vertical):
             what=t("template.list_title"),
             why=t("templates_sidebar.empty_why"),
             action_label=t("templates_sidebar.open_tools"),
-            action_id="abrir-ferramentas",
+            action_id="open-tools",
             id="tpl-empty",
         )
 
@@ -88,10 +88,10 @@ class TemplatesSidebar(Vertical):
             self.post_message(self.TemplateChosen(sql))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "abrir-ferramentas":
+        if event.button.id == "open-tools":
             # Guarded: TemplatesSidebar is also mounted standalone in tests,
             # where self.app has no action_switch_tab (that lives on
             # DBQMApp only).
             switch = getattr(self.app, "action_switch_tab", None)
             if callable(switch):
-                switch("tab-ferramentas")
+                switch("tab-tools")

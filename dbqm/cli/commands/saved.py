@@ -60,7 +60,7 @@ def _print_query_outcome(output_format: str, name: str, outcome: str) -> None:
         verbo = _QUERY_OUTCOME_VERB[outcome]
         ok(f"query.{verbo}", {"name": name, outcome: True})
         return
-    console.print(escape(t(_QUERY_OUTCOME_KEY[outcome], nome=name)))
+    console.print(escape(t(_QUERY_OUTCOME_KEY[outcome], name=name)))
 
 
 def _fail_or_print(
@@ -107,7 +107,7 @@ def _resolve_sql(args: argparse.Namespace, command: str) -> str | None:
             return Path(sql_file).read_text(encoding="utf-8")
         except OSError as exc:
             _fail_or_print(args, command, "usage",
-                            t("file.unreadable", nome=sql_file, erro=exc))
+                            t("file.unreadable", name=sql_file, error=exc))
     return getattr(args, "sql", None)
 
 
@@ -136,7 +136,7 @@ def _query_add(args: argparse.Namespace) -> None:
     from dbqm.models.query import save_queries
 
     if deps.find_query(args.name) is not None:
-        _exit_with_errors(args, "query.add", [t("query.already_exists", nome=args.name)])
+        _exit_with_errors(args, "query.add", [t("query.already_exists", name=args.name)])
 
     sql = _resolve_sql(args, "query.add")
     values = _query_values(args, sql)
@@ -160,7 +160,7 @@ def _query_update(args: argparse.Namespace) -> None:
     existing = deps.find_query(args.name)
     if existing is None:
         _fail_or_print(args, "query.update", "not_found",
-                        t("query.not_found_named", nome=args.name))
+                        t("query.not_found_named", name=args.name))
 
     sql = _resolve_sql(args, "query.update")
     values = _query_values(args, sql)
@@ -194,7 +194,7 @@ def _query_show(args: argparse.Namespace) -> None:
     query = deps.find_query(args.name)
     if query is None:
         _fail_or_print(args, "query.show", "not_found",
-                        t("query.not_found_named", nome=args.name))
+                        t("query.not_found_named", name=args.name))
 
     data = query.to_dict()
 
@@ -202,7 +202,7 @@ def _query_show(args: argparse.Namespace) -> None:
         ok("query.show", data)
         return
 
-    table = Table(title=escape(t("query.show_title", nome=query.name)))
+    table = Table(title=escape(t("query.show_title", name=query.name)))
     table.add_column(t("common.field"))
     table.add_column(t("common.value"))
     for key, value in data.items():
@@ -215,7 +215,7 @@ def _query_rm(args: argparse.Namespace) -> None:
 
     if deps.find_query(args.name) is None:
         _fail_or_print(args, "query.rm", "not_found",
-                        t("query.not_found_named", nome=args.name))
+                        t("query.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
@@ -225,7 +225,7 @@ def _query_rm(args: argparse.Namespace) -> None:
                             t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(t("query.confirm_remove", nome=args.name), end="",
+        print(t("query.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
         resposta = input().strip().lower()
         if resposta not in t("common.yes_answers").split(","):
@@ -325,7 +325,7 @@ def _print_group_outcome(output_format: str, name: str, outcome: str) -> None:
         verbo = _GROUP_OUTCOME_VERB[outcome]
         ok(f"group.{verbo}", {"name": name, outcome: True})
         return
-    console.print(escape(t(_GROUP_OUTCOME_KEY[outcome], nome=name)))
+    console.print(escape(t(_GROUP_OUTCOME_KEY[outcome], name=name)))
 
 
 def _group_values(args: argparse.Namespace) -> dict[str, object]:
@@ -355,7 +355,7 @@ def _group_add(args: argparse.Namespace) -> None:
     from dbqm.models.group import save_groups
 
     if deps.find_group(args.name) is not None:
-        _exit_with_errors(args, "group.add", [t("group.already_exists", nome=args.name)])
+        _exit_with_errors(args, "group.add", [t("group.already_exists", name=args.name)])
 
     values = _group_values(args)
 
@@ -378,7 +378,7 @@ def _group_update(args: argparse.Namespace) -> None:
     existing = deps.find_group(args.name)
     if existing is None:
         _fail_or_print(args, "group.update", "not_found",
-                        t("group.not_found_named", nome=args.name))
+                        t("group.not_found_named", name=args.name))
 
     values = _group_values(args)
 
@@ -413,7 +413,7 @@ def _group_show(args: argparse.Namespace) -> None:
     group = deps.find_group(args.name)
     if group is None:
         _fail_or_print(args, "group.show", "not_found",
-                        t("group.not_found_named", nome=args.name))
+                        t("group.not_found_named", name=args.name))
 
     data = group.to_dict()
 
@@ -421,7 +421,7 @@ def _group_show(args: argparse.Namespace) -> None:
         ok("group.show", data)
         return
 
-    table = Table(title=escape(t("group.show_title", nome=group.name)))
+    table = Table(title=escape(t("group.show_title", name=group.name)))
     table.add_column(t("common.field"))
     table.add_column(t("common.value"))
     for key, value in data.items():
@@ -434,7 +434,7 @@ def _group_rm(args: argparse.Namespace) -> None:
 
     if deps.find_group(args.name) is None:
         _fail_or_print(args, "group.rm", "not_found",
-                        t("group.not_found_named", nome=args.name))
+                        t("group.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
@@ -444,7 +444,7 @@ def _group_rm(args: argparse.Namespace) -> None:
                             t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(t("group.confirm_remove", nome=args.name), end="",
+        print(t("group.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
         resposta = input().strip().lower()
         if resposta not in t("common.yes_answers").split(","):
@@ -535,7 +535,7 @@ def _print_template_outcome(output_format: str, name: str, outcome: str) -> None
         verbo = _TEMPLATE_OUTCOME_VERB[outcome]
         ok(f"template.{verbo}", {"name": name, outcome: True})
         return
-    console.print(escape(t(_TEMPLATE_OUTCOME_KEY[outcome], nome=name)))
+    console.print(escape(t(_TEMPLATE_OUTCOME_KEY[outcome], name=name)))
 
 
 def _resolve_content(args: argparse.Namespace, command: str) -> str | None:
@@ -557,7 +557,7 @@ def _resolve_content(args: argparse.Namespace, command: str) -> str | None:
             return Path(content_file).read_text(encoding="utf-8")
         except OSError as exc:
             _fail_or_print(args, command, "usage",
-                            t("file.unreadable", nome=content_file, erro=exc))
+                            t("file.unreadable", name=content_file, error=exc))
     return getattr(args, "content", None)
 
 
@@ -589,7 +589,7 @@ def _template_add(args: argparse.Namespace) -> None:
     from dbqm.models.template import save_templates
 
     if deps.find_template(args.name) is not None:
-        _exit_with_errors(args, "template.add", [t("template.already_exists", nome=args.name)])
+        _exit_with_errors(args, "template.add", [t("template.already_exists", name=args.name)])
 
     content = _resolve_content(args, "template.add")
     values = _template_values(args, content)
@@ -613,7 +613,7 @@ def _template_update(args: argparse.Namespace) -> None:
     existing = deps.find_template(args.name)
     if existing is None:
         _fail_or_print(args, "template.update", "not_found",
-                        t("template.not_found_named", nome=args.name))
+                        t("template.not_found_named", name=args.name))
 
     content = _resolve_content(args, "template.update")
     values = _template_values(args, content)
@@ -647,7 +647,7 @@ def _template_show(args: argparse.Namespace) -> None:
     template = deps.find_template(args.name)
     if template is None:
         _fail_or_print(args, "template.show", "not_found",
-                        t("template.not_found_named", nome=args.name))
+                        t("template.not_found_named", name=args.name))
 
     data = template.to_dict()
 
@@ -655,7 +655,7 @@ def _template_show(args: argparse.Namespace) -> None:
         ok("template.show", data)
         return
 
-    table = Table(title=escape(t("template.show_title", nome=template.name)))
+    table = Table(title=escape(t("template.show_title", name=template.name)))
     table.add_column(t("common.field"))
     table.add_column(t("common.value"))
     for key, value in data.items():
@@ -668,7 +668,7 @@ def _template_rm(args: argparse.Namespace) -> None:
 
     if deps.find_template(args.name) is None:
         _fail_or_print(args, "template.rm", "not_found",
-                        t("template.not_found_named", nome=args.name))
+                        t("template.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
@@ -678,7 +678,7 @@ def _template_rm(args: argparse.Namespace) -> None:
                             t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(t("template.confirm_remove", nome=args.name), end="",
+        print(t("template.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
         resposta = input().strip().lower()
         if resposta not in t("common.yes_answers").split(","):

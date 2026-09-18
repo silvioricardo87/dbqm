@@ -68,7 +68,7 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
             table.add_row(*[str(v) if v is not None else "" for v in row])
         console.print(table)
         console.print(
-            f"[dim]{t('result.rows_in_seconds', linhas=result.row_count, segundos=f'{result.elapsed:.2f}')}[/dim]"
+            f"[dim]{t('result.rows_in_seconds', rows=result.row_count, seconds=f'{result.elapsed:.2f}')}[/dim]"
         )
 
 
@@ -82,7 +82,7 @@ def _colored_comparison_lines(comparisons: list[ComparisonResult]) -> list[str]:
     """
     linhas: list[str] = []
     for comp in comparisons:
-        linhas.append(t("group.summary_column", coluna=comp.column))
+        linhas.append(t("group.summary_column", column=comp.column))
         # The labels differ in length between languages, so the column is
         # aligned from the widest of them rather than from typed-in spaces.
         rotulos = [t("comparison.equal"), t("comparison.normalized"),

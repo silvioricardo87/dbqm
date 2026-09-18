@@ -59,7 +59,7 @@ def extract_mysql_ddl(db: Any, object_name: str, result: ExtractionResult, on_pr
         except Exception:
             pass
 
-        result.errors.append(t("ddl.object_not_found", nome=object_name))
+        result.errors.append(t("ddl.object_not_found", name=object_name))
         result.not_found = True
     finally:
         cursor.close()

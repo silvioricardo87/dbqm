@@ -38,11 +38,11 @@ async def test_f_keys_switch_tabs(tmp_config_dir):
         await pilot.press("f6")
         assert app.query_one("#main-tabs", TabbedContent).active == "tab-config"
         await pilot.press("f2")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-conexoes"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-connections"
         await pilot.press("f3")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-objetos"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-objects"
         await pilot.press("f8")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-ferramentas"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-tools"
 
 
 @pytest.mark.asyncio
@@ -64,7 +64,7 @@ async def test_first_run_switches_to_connections_tab(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-conexoes"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-connections"
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,7 @@ async def test_all_panes_enabled_after_mount(tmp_config_dir):
         for tab_id in DBQMApp.TAB_TO_SCREEN:
             pane = app.query_one(f"#{tab_id}", TabPane)
             assert not pane.disabled, f"{tab_id} is unexpectedly disabled"
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-conexoes"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-connections"
 
 
 @pytest.mark.asyncio
@@ -129,10 +129,10 @@ async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
     async with app.run_test() as pilot:
         await pilot.pause()
         tabs = app.query_one("#main-tabs", TabbedContent)
-        tabs.active = "tab-historico"
+        tabs.active = "tab-history"
         await pilot.pause()
-        assert tabs.active == "tab-historico"
-        pane = app.query_one("#tab-historico", TabPane)
+        assert tabs.active == "tab-history"
+        pane = app.query_one("#tab-history", TabPane)
         assert not pane.disabled
 
 
@@ -160,7 +160,7 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
     async with app.run_test() as pilot:
         await pilot.pause()
         tabs = app.query_one("#main-tabs", TabbedContent)
-        tabs.active = "tab-historico"
+        tabs.active = "tab-history"
         await pilot.pause()
 
         intruso = next(
@@ -169,7 +169,7 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
         intruso.focus()
         await pilot.pause()
 
-        assert tabs.active == "tab-historico"
+        assert tabs.active == "tab-history"
         pintado = rendered_text(app)
         assert "HISTORY" in pintado
         assert "CONEXOES" not in pintado
@@ -180,7 +180,7 @@ async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir)
     """An `F5` pressed BEFORE the mount settles must not be swallowed.
 
     Measured in the product before the fix: `f5` with zero pauses ended up
-    at `active='tab-conexoes'` with seven panes still disabled — the key
+    at `active='tab-connections'` with seven panes still disabled — the key
     looked as if it had never existed. Here the key is pressed at the
     earliest possible instant, with no settling pause before it.
     """
@@ -197,7 +197,7 @@ async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir)
         intruso.focus()
         for _ in range(4):
             await pilot.pause()
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
 
 
 def test_dbqm_app_registers_and_activates_theme_on_construction(tmp_config_dir):
@@ -247,7 +247,7 @@ async def _open_config_tool(pilot, app, key):
 
     await pilot.press("f6")
     await pilot.pause()
-    lista = app.query_one("#settings-ferramentas-list", OptionList)
+    lista = app.query_one("#settings-tools-list", OptionList)
     lista.focus()
     await pilot.pause()
     alvo = next(
@@ -297,7 +297,7 @@ async def test_settings_opens_export_import(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
 
         assert app.query(ConfigPortScreen), (
             "a tela de Exportar/Importar nao foi montada pela rota real"
@@ -351,7 +351,7 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
         tela = app.query_one(ConfigPortScreen)
 
         # Enter a DEEP phase: that is where going back has to work from.
@@ -389,7 +389,7 @@ async def test_no_settings_route_fails_silently(tmp_config_dir):
     from tests.ui._helpers import rendered_text
 
     esperado = {
-        "portabilidade": "EXPORT OR IMPORT",
+        "portability": "EXPORT OR IMPORT",
         "oracle-clients": "DETECTED PLATFORM",
     }
     app = DBQMApp()
@@ -497,7 +497,7 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
         tela = app.query_one(ConfigPortScreen)
         tela._show_export_phase()
         await pilot.pause()
@@ -505,7 +505,7 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
 
         await pilot.press("escape")
         await pilot.pause()
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
 
         pintado = rendered_text(app).upper()
         assert "EXPORT OR IMPORT" in pintado, (
@@ -643,7 +643,7 @@ async def _open_tool(pilot, app, key):
 
     await pilot.press("f8")
     await pilot.pause()
-    lista = app.query_one("#ferr-menu-list", OptionList)
+    lista = app.query_one("#tools-menu-list", OptionList)
     lista.focus()
     await pilot.pause()
     alvo = next(
@@ -992,7 +992,7 @@ async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        await _open_tool(pilot, app, "executar")
+        await _open_tool(pilot, app, "run-group")
         lista = app.query_one("#gr-group-list", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o teste so prova o pior caso se a lista estiver realmente "
@@ -1029,7 +1029,7 @@ async def test_group_description_never_falls_into_the_identity_column(
 
     app = DBQMApp()
     async with app.run_test(size=tamanho) as pilot:
-        await _open_tool(pilot, app, "executar")
+        await _open_tool(pilot, app, "run-group")
         lista = app.query_one("#gr-group-list", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o defeito so aparece com a lista rolando (a barra rouba 2 "

@@ -56,9 +56,9 @@ async def test_query_exec_empty_state_action_switches_to_coleta(tmp_config_dir):
     app = _QueryExecWithSwitch()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
-        screen.query_one("#criar-consulta-coleta", Button).press()
+        screen.query_one("#create-query-collect", Button).press()
         await pilot.pause()
-        assert switched == ["tab-coleta"]
+        assert switched == ["tab-collect"]
 
 
 @pytest.mark.asyncio
@@ -552,7 +552,7 @@ async def test_connections_empty_state_action_focuses_new_form(tmp_config_dir):
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ConnectionsScreen)
-        screen.query_one("#adicionar-conexao", Button).press()
+        screen.query_one("#add-connection", Button).press()
         await pilot.pause()
         assert app.focused is screen.query_one("#conn-form-name", Input)
 
@@ -1156,7 +1156,7 @@ async def test_query_manage_empty_state_action_opens_new_query(tmp_config_dir):
     app = QueryManageTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryManageScreen)
-        screen.query_one("#criar-consulta", Button).press()
+        screen.query_one("#create-query", Button).press()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # SqlPasteModal opened
 
@@ -1281,7 +1281,7 @@ async def test_group_manage_empty_state_action_opens_new_group(tmp_config_dir):
     app = GroupManageTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupManageScreen)
-        screen.query_one("#criar-grupo", Button).press()
+        screen.query_one("#create-group", Button).press()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # GroupCreateModal opened
 
@@ -2059,7 +2059,7 @@ async def test_browser_shows_empty_state_until_connection_chosen(tmp_config_dir)
         assert empty.display is True
         assert screen.query_one("#obj-list", OptionList).display is False
 
-        screen.query_one("#escolher-conexao", Button).press()
+        screen.query_one("#choose-connection", Button).press()
         await pilot.pause()
         assert app.focused is screen.query_one("#obj-conn", Select)
 
@@ -2548,9 +2548,9 @@ async def test_history_empty_state_action_switches_to_query_exec(tmp_config_dir)
     app = _HistoryWithSwitch()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
-        screen.query_one("#executar-consulta", Button).press()
+        screen.query_one("#run-query", Button).press()
         await pilot.pause()
-        assert switched == ["tab-consultas"]
+        assert switched == ["tab-queries"]
 
 
 @pytest.mark.asyncio
@@ -2612,7 +2612,7 @@ async def test_empty_history_paints_identity_and_no_table(
     app = DBQMApp()
     async with app.run_test(size=tamanho) as pilot:
         await pilot.pause()
-        app.action_switch_tab("tab-historico")
+        app.action_switch_tab("tab-history")
         for _ in range(3):
             await pilot.pause()
 
@@ -2645,7 +2645,7 @@ async def test_empty_history_focuses_the_exit_it_offers(tmp_config_dir):
     async with app.run_test() as pilot:
         await pilot.pause()
         screen = app.query_one(HistoryScreen)
-        assert app.focused is screen.query_one("#executar-consulta", Button)
+        assert app.focused is screen.query_one("#run-query", Button)
 
 
 # ======================================================================
@@ -2944,8 +2944,8 @@ async def test_settings_at_80x24_what_does_not_fit_scrolls(tmp_config_dir):
 
         tela = app.query_one(SettingsScreen)
         colunas = [
-            tela.query_one("#settings-col-esquerda"),
-            tela.query_one("#settings-col-direita"),
+            tela.query_one("#settings-col-left"),
+            tela.query_one("#settings-col-right"),
         ]
         for coluna in colunas:
             assert coluna.max_scroll_y > 0, (
@@ -3009,7 +3009,7 @@ async def test_settings_widgets_live_inside_a_panel(tmp_config_dir):
             screen.query_one("#settings-theme-select", Select),
             screen.query_one("#btn-export-dir", Button),
             screen.query_one("#btn-oracle-client-dir", Button),
-            screen.query_one("#settings-ferramentas-list", OptionList),
+            screen.query_one("#settings-tools-list", OptionList),
         ]
         for widget in alvos:
             panel = next(a for a in widget.ancestors if isinstance(a, Panel))
@@ -3041,7 +3041,7 @@ async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir, id
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         tela = app.query_one(SettingsScreen)
-        lista = tela.query_one("#settings-ferramentas-list", OptionList)
+        lista = tela.query_one("#settings-tools-list", OptionList)
         lista.focus()
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
@@ -3295,7 +3295,7 @@ async def test_no_path_overflows_the_label_box(
 
         # And the prefix and the end of the path come out on the SAME
         # PAINTED line.
-        coluna = tela.query_one("#settings-col-direita")
+        coluna = tela.query_one("#settings-col-right")
         coluna.scroll_end(animate=False)
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
@@ -4409,7 +4409,7 @@ async def test_wizard_routine_modal_empty_state_action_focuses_name_input(tmp_co
         assert modal.query_one("#wizard-empty", EmptyState).display is True
         assert modal.query_one("#wizard-list", Static).display is False
 
-        modal.query_one("#informar-nome-rotina", Button).press()
+        modal.query_one("#name-the-routine", Button).press()
         await pilot.pause()
         assert app.focused is modal.query_one("#wizard-routine-name", Input)
 
@@ -4501,9 +4501,9 @@ async def test_f_keys_switch_between_tabs(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("f1")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-coleta"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-collect"
         await pilot.press("f5")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
 
 
 @pytest.mark.asyncio
@@ -4817,7 +4817,7 @@ async def test_template_manage_empty_state_action_opens_new_template(tmp_config_
     app = TemplateManageTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(TemplateManageScreen)
-        screen.query_one("#criar-template", Button).press()
+        screen.query_one("#create-template", Button).press()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # TemplateEditModal opened
 
@@ -5007,7 +5007,7 @@ async def test_oracle_clients_empty_state_action_focuses_available_table(
         installed = screen.query_one("#oc-installed-table", DataTable)
         assert installed.display is False
 
-        screen.query_one("#escolher-client", Button).press()
+        screen.query_one("#choose-client", Button).press()
         await pilot.pause()
         assert app.focused is screen.query_one("#oc-available-table", DataTable)
 
@@ -5025,7 +5025,7 @@ async def test_esc_at_top_level_is_harmless(tmp_config_dir):
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
 
 
 # ======================================================================
@@ -5060,7 +5060,7 @@ async def test_escape_from_query_list_at_selection_is_noop(tmp_config_dir):
         await pilot.press("escape")
         await pilot.pause()
 
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-consultas"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-queries"
         assert app.query_one(QueryExecScreen) is not None
 
 
@@ -5171,7 +5171,7 @@ async def test_action_go_back_at_top_level_is_noop(tmp_config_dir):
         app.action_go_back()
         await pilot.pause()
 
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
         assert app.query_one(HistoryScreen) is not None
 
 
@@ -5192,7 +5192,7 @@ async def _choose_tool(pilot, screen, key):
     """Opens a tool through the real path: highlight in the list + Enter."""
     from textual.widgets import OptionList
 
-    lista = screen.query_one("#ferr-menu-list", OptionList)
+    lista = screen.query_one("#tools-menu-list", OptionList)
     lista.focus()
     await pilot.pause()
     lista.highlighted = next(
@@ -5221,7 +5221,7 @@ async def test_tools_is_a_list_and_not_full_width_buttons(tmp_config_dir):
     app = ToolsTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ToolsScreen)
-        menu = screen.query_one("#ferr-menu")
+        menu = screen.query_one("#tools-menu")
         lista = menu.query_one(OptionList)
         assert rendered_names(lista) == [
             "\U0001F465  Manage Groups",
@@ -5240,7 +5240,7 @@ async def test_tools_screen_starts_on_the_menu(tmp_config_dir):
     app = ToolsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ToolsScreen)
-        assert screen.query_one(ContentSwitcher).current == "ferr-menu"
+        assert screen.query_one(ContentSwitcher).current == "tools-menu"
 
 
 @pytest.mark.asyncio
@@ -5260,8 +5260,8 @@ async def test_tools_screen_does_not_load_tools_on_mount(tmp_config_dir):
         screen = app.query_one(ToolsScreen)
         # Empty: the "Voltar" that used to live here was navigation done
         # with a button.
-        assert not list(screen.query_one("#ferr-packages").children)
-        assert not list(screen.query_one("#ferr-executar").children)
+        assert not list(screen.query_one("#tool-packages").children)
+        assert not list(screen.query_one("#tool-run-group").children)
 
 
 @pytest.mark.asyncio
@@ -5277,14 +5277,14 @@ async def test_tools_screen_open_and_back(tmp_config_dir):
         switcher = screen.query_one(ContentSwitcher)
 
         await _choose_tool(pilot, screen, "packages")
-        assert switcher.current == "ferr-packages"
+        assert switcher.current == "tool-packages"
 
-        packages_container = screen.query_one("#ferr-packages")
+        packages_container = screen.query_one("#tool-packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
 
         screen.back_to_menu()
         await pilot.pause()
-        assert switcher.current == "ferr-menu"
+        assert switcher.current == "tools-menu"
 
         await _choose_tool(pilot, screen, "packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
@@ -5292,7 +5292,7 @@ async def test_tools_screen_open_and_back(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_tools_screen_open_group_run(tmp_config_dir):
-    """Choosing 'Run Group' mounts a GroupRunScreen in #ferr-executar."""
+    """Choosing 'Run Group' mounts a GroupRunScreen in #tool-run-group."""
     from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.group_run import GroupRunScreen
 
@@ -5301,17 +5301,17 @@ async def test_tools_screen_open_group_run(tmp_config_dir):
         screen = app.query_one(ToolsScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        await _choose_tool(pilot, screen, "executar")
-        assert switcher.current == "ferr-executar"
+        await _choose_tool(pilot, screen, "run-group")
+        assert switcher.current == "tool-run-group"
 
-        executar_container = screen.query_one("#ferr-executar")
+        executar_container = screen.query_one("#tool-run-group")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
         screen.back_to_menu()
         await pilot.pause()
-        assert switcher.current == "ferr-menu"
+        assert switcher.current == "tools-menu"
 
-        await _choose_tool(pilot, screen, "executar")
+        await _choose_tool(pilot, screen, "run-group")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
 
@@ -5331,18 +5331,18 @@ async def test_tools_group_run_empty_state_action_opens_group_management(
         screen = app.query_one(ToolsScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        await _choose_tool(pilot, screen, "executar")
-        assert switcher.current == "ferr-executar"
+        await _choose_tool(pilot, screen, "run-group")
+        assert switcher.current == "tool-run-group"
 
         run_screen = screen.query_one(GroupRunScreen)
         empty = run_screen.query_one("#gr-empty-message", EmptyState)
         assert empty.display is True
 
-        run_screen.query_one("#gerenciar-grupos", Button).press()
+        run_screen.query_one("#manage-groups", Button).press()
         await pilot.pause()
 
-        assert switcher.current == "ferr-grupos"
-        assert len(screen.query_one("#ferr-grupos").query(GroupManageScreen)) == 1
+        assert switcher.current == "tool-groups"
+        assert len(screen.query_one("#tool-groups").query(GroupManageScreen)) == 1
 
 
 # ======================================================================
@@ -5589,7 +5589,7 @@ async def test_group_run_filtered_empty_state_action_resets_filter(tmp_config_di
         assert empty.display is True
         assert screen.query_one("#gr-group-list", OptionList).display is False
 
-        screen.query_one("#ver-todos-grupos", Button).press()
+        screen.query_one("#show-all-groups", Button).press()
         await pilot.pause()
 
         assert empty.display is False
@@ -6046,7 +6046,7 @@ async def test_history_table_is_usable_at_the_default_terminal_size(tmp_config_d
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
-        app.action_switch_tab("tab-historico")
+        app.action_switch_tab("tab-history")
         await pilot.pause()
         await pilot.pause()
 

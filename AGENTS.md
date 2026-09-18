@@ -105,15 +105,17 @@ translation, still without accents, because the labels always omitted them.
 from dbqm.i18n import t
 
 yield Button(t("common.save"), id="save")
-self.notify(t("query_manage.created", nome=query.name))
+self.notify(t("query_manage.created", name=query.name))
 ```
 
 The rules, each with the failure that earned it:
 
 - **Add the key to `en.py` and `pt.py` together.** A key present in one and
-  missing in the other is caught by
-  `tests/design/test_i18n_policy.py`, with the placeholders compared too: a
-  translation that drops a `{nome}` renders a sentence with a hole in it.
+  missing in the other is caught by `tests/design/test_i18n_policy.py`, with
+  the placeholders compared too: a translation that drops a `{name}` renders
+  a sentence with a hole in it. A third guard checks every call site against
+  its key's fields, because `str.format` only raises for a missing one when
+  that message renders -- which on an error path can be in production.
 - **Markup stays at the call site.** Write
   `f'[dim]{t("some.key")}[/dim]'`, never `[dim]` inside the catalogue value.
   A translator editing prose has no way to know the brackets are structural,

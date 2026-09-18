@@ -41,7 +41,7 @@ def cmd_export_config(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("export-config", {"path": str(path)})
         return
-    console.print(t("bundle.exported", caminho=path))
+    console.print(t("bundle.exported", path=path))
 
 
 def cmd_import_config(args: argparse.Namespace) -> None:
@@ -50,7 +50,7 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     # `not_found` in the CLI's own words, not the OS's localised error text
     # surfacing through the generic `validation` arm below.
     if not Path(args.file).is_file():
-        message = t("file.not_found_named", nome=args.file)
+        message = t("file.not_found_named", name=args.file)
         if args.format == "json":
             fail("import-config", "not_found", message)
         console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
@@ -62,7 +62,7 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     try:
         summary = deps.import_configs(args.file, password)
     except Exception as e:
-        message = t("bundle.import_failed", erro=e)
+        message = t("bundle.import_failed", error=e)
         if args.format == "json":
             fail("import-config", "validation", message)
         console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
@@ -71,6 +71,6 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("import-config", summary)
         return
-    console.print(t("bundle.imported", conexoes=summary["connections"],
-                    consultas=summary["queries"], grupos=summary["groups"],
-                    ignorados=summary["skipped"]))
+    console.print(t("bundle.imported", connections=summary["connections"],
+                    queries=summary["queries"], groups=summary["groups"],
+                    skipped=summary["skipped"]))

@@ -372,10 +372,10 @@ def _collect_result_sets(cursor) -> tuple[list[str], list[list[Any]], list[str]]
     if len(sets) == 1:
         return columns, rows, []
 
-    notas = [t("sql.result_sets_returned", quantidade=len(sets))]
+    notas = [t("sql.result_sets_returned", count=len(sets))]
     for i, (cols, linhas) in enumerate(sets[:-1], start=1):
-        notas.append(t("sql.result_set_shape", indice=f"  {i}", linhas=len(linhas),
-                       colunas=", ".join(cols)))
+        notas.append(t("sql.result_set_shape", index=f"  {i}", rows=len(linhas),
+                       columns=", ".join(cols)))
     return columns, rows, notas
 
 
@@ -734,7 +734,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
         sql=sql,
         db_type=conn.db_type,
         success=False,
-        error=t("sql.explain_unsupported", tipo=conn.db_type),
+        error=t("sql.explain_unsupported", type=conn.db_type),
         error_kind="usage",
     )
 

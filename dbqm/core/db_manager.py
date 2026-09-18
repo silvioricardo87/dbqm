@@ -25,7 +25,7 @@ def _missing_driver_message(db_label: str, package: str) -> str:
     import platform
     import sys
     plat = f"{sys.platform}/{platform.machine()}"
-    return t("driver.not_installed", banco=db_label, pacote=package, plataforma=plat)
+    return t("driver.not_installed", database=db_label, package=package, platform=plat)
 
 
 def _parse_tns_entry(tns_path: str, tns_name: str) -> dict | None:
@@ -142,14 +142,14 @@ def validate_oracle_client_dir(path: str) -> str | None:
         return None
     p = Path(path).expanduser()
     if not p.exists():
-        return t("path.dir_missing", caminho=p)
+        return t("path.dir_missing", path=p)
     if not p.is_dir():
-        return t("path.not_a_dir", caminho=p)
+        return t("path.not_a_dir", path=p)
     if sys.platform != "win32":
         return None
     dll = _find_oci_dll(p)
     if dll is None:
-        return t("oracle_client.no_oci_dll", caminho=p, pasta_bin=p / "bin")
+        return t("oracle_client.no_oci_dll", path=p, bin_folder=p / "bin")
     machine = _pe_machine(dll)
     if machine is None:
         return None
@@ -241,7 +241,7 @@ def resolve_oracle_client_dir() -> tuple[str | None, str]:
         problem = validate_oracle_client_dir(configured)
         if problem:
             raise OracleClientConfigError(
-                t("oracle_client.unusable", problema=problem)
+                t("oracle_client.unusable", problem=problem)
             )
         return str(Path(configured).expanduser()), "config"
 
@@ -330,7 +330,7 @@ def _thick_mode_detail() -> str:
     """
     if not _thick_mode_error:
         return ""
-    return t("oracle_client.thin_mode_detail", motivo=_thick_mode_error)
+    return t("oracle_client.thin_mode_detail", reason=_thick_mode_error)
 
 
 # Eagerly initialize thick mode at import time — must happen before any connection
@@ -463,7 +463,7 @@ def get_connection(conn: Connection) -> Any:
         return get_mysql_connection(conn)
     if conn.db_type == "sqlite":
         return get_sqlite_connection(conn)
-    raise ValueError(t("connection.unknown_db_type", tipo=conn.db_type))
+    raise ValueError(t("connection.unknown_db_type", type=conn.db_type))
 
 
 def fetch_table_columns(conn: Connection, table: str) -> list[str]:
@@ -563,16 +563,16 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
             cursor.close()
 
         elapsed = _time.time() - start
-        return True, t("connection.test_ok", nome=conn.name,
-                       segundos=f"{elapsed:.2f}", versao=version)
+        return True, t("connection.test_ok", name=conn.name,
+                       seconds=f"{elapsed:.2f}", version=version)
     except Exception as e:
         err_msg = str(e)
         if isinstance(e, GuidanceError):
             # Our own guidance is multi-line by design; truncating to the
             # first line would hide exactly what the user has to act on.
-            return False, t("connection.connect_failed", erro=err_msg)
+            return False, t("connection.connect_failed", error=err_msg)
         sanitized = err_msg.split('\n')[0][:200]
-        return False, t("connection.connect_failed", erro=sanitized)
+        return False, t("connection.connect_failed", error=sanitized)
     finally:
         if db is not None:
             try:

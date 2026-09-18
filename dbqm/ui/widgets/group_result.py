@@ -155,7 +155,7 @@ class GroupResultWidget(Vertical, can_focus=False):
         for comp in gr.comparisons:
             # Section title
             container.mount(
-                Static(t("group_result.column_header", coluna=str(comp.column)),
+                Static(t("group_result.column_header", column=str(comp.column)),
                        classes="gr-section-title")
             )
 
@@ -227,7 +227,7 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         for key in all_keys:
             container.mount(
-                Static(t("group_result.key_header", chave=str(key)),
+                Static(t("group_result.key_header", key=str(key)),
                        classes="gr-section-title")
             )
 

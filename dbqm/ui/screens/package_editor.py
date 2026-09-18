@@ -174,7 +174,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
                 if not check_package_exists(db, pkg_name):
                     self.app.call_from_thread(
                         self._on_search_error,
-                        t("package_editor.package_not_found", nome=pkg_name.upper()),
+                        t("package_editor.package_not_found", name=pkg_name.upper()),
                     )
                     return
 
@@ -439,7 +439,7 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
                 what=t("package_editor.routines"),
                 why=t("package_editor.routines_why"),
                 action_label=t("package_editor.name_a_routine"),
-                action_id="informar-nome-rotina",
+                action_id="name-the-routine",
                 id="wizard-empty",
             )
             yield Static("", id="wizard-list")
@@ -455,7 +455,7 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
             self._handle_add()
         elif event.button.id == "wizard-done":
             self.dismiss(self._routines if self._routines else None)
-        elif event.button.id == "informar-nome-rotina":
+        elif event.button.id == "name-the-routine":
             # The label describes exactly what this button does: it takes
             # the cursor to the name field. "Adicionar rotina" would promise
             # the routine ready, but _handle_add requires the name filled
@@ -681,7 +681,7 @@ class PackageEditorScreen(Vertical):
 
         # Update info bar
         info = self.query_one("#pe-info-bar", Static)
-        info.update(t("package_editor.header", pacote=f"[bold]{pkg_name}[/bold]", conexao=conn_name))
+        info.update(t("package_editor.header", package=f"[bold]{pkg_name}[/bold]", connection=conn_name))
 
         # Show editor widgets, hide empty
         self.query_one("#pe-empty").display = False
@@ -820,7 +820,7 @@ class PackageEditorScreen(Vertical):
 
         if not sql.strip():
             self.notify(
-                t("package_editor.empty_content", alvo=target), severity="warning"
+                t("package_editor.empty_content", target=target), severity="warning"
             )
             return
 
@@ -860,30 +860,30 @@ class PackageEditorScreen(Vertical):
 
         if errors:
             # Show compilation errors
-            contagem = t("package_editor.error_count", quantidade=len(errors),
-                         alvo=target.upper())
+            contagem = t("package_editor.error_count", count=len(errors),
+                         target=target.upper())
             lines = [f"[bold $ds-op-failure]  {contagem}[/]"]
             for err in errors:
-                lines.append("  " + t("package_editor.error_at", linha=err["line"],
-                                      coluna=err["col"], mensagem=err["message"]))
+                lines.append("  " + t("package_editor.error_at", line=err["line"],
+                                      column=err["col"], message=err["message"]))
             error_texto.update("\n".join(lines))
             error_panel.display = True
         elif not success:
-            error_texto.update(f'[bold $ds-op-failure]{t("package_editor.error", erro=error_msg)}[/]')
+            error_texto.update(f'[bold $ds-op-failure]{t("package_editor.error", error=error_msg)}[/]')
             error_panel.display = True
         else:
             error_texto.update(
-                f'[bold]  {t("package_editor.compiled", alvo=target.capitalize())}[/]'
+                f'[bold]  {t("package_editor.compiled", target=target.capitalize())}[/]'
             )
             error_panel.display = True
             self.notify(
-                t("package_editor.compiled", alvo=target.capitalize()), timeout=5
+                t("package_editor.compiled", target=target.capitalize()), timeout=5
             )
 
     def _on_compile_error(self, msg: str) -> None:
         """Handle compilation exception."""
         self.query_one(ProgressIndicator).stop()
-        self.notify(t("package_editor.compile_failed", erro=msg), severity="error", timeout=8)
+        self.notify(t("package_editor.compile_failed", error=msg), severity="error", timeout=8)
 
     def _on_read_only_violation(self, msg: str) -> None:
         # A refusal, not a crash: stop the spinner and leave the editor as
@@ -923,9 +923,9 @@ class PackageEditorScreen(Vertical):
         try:
             label = self._pkg_name or "package"
             path = export_sql_file(combined, label)
-            self.notify(t("export.done", caminho=path), timeout=5)
+            self.notify(t("export.done", path=path), timeout=5)
         except Exception as e:
-            self.notify(t("group_run.export_failed", erro=e), severity="error")
+            self.notify(t("group_run.export_failed", error=e), severity="error")
 
     # ------------------------------------------------------------------
     # Action bar handlers

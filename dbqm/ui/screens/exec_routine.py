@@ -194,7 +194,7 @@ class ExecRoutineScreen(Vertical):
             self.query_one("#er-type-label").display = False
             self.query_one("#er-type-bar").display = False
             self.notify(
-                t("exec_routine.no_routine_types", tipo=db_type),
+                t("exec_routine.no_routine_types", type=db_type),
                 severity="warning",
             )
             return
@@ -250,7 +250,7 @@ class ExecRoutineScreen(Vertical):
 
     def _on_error(self, msg: str) -> None:
         self.query_one(ProgressIndicator).stop()
-        self.notify(t("adhoc.error", erro=msg), severity="error", timeout=8)
+        self.notify(t("adhoc.error", error=msg), severity="error", timeout=8)
 
     def _show_objects(self, objects: list[str]) -> None:
         self.query_one(ProgressIndicator).stop()
@@ -338,9 +338,9 @@ class ExecRoutineScreen(Vertical):
 
         info = self.query_one("#er-detail-info", Static)
         info.update(
-            t("exec_routine.package_info", nome=f"[bold]{pkg_info.name}[/]",
-              rotinas=t("exec_routine.routines_count",
-                        quantidade=len(pkg_info.routines)))
+            t("exec_routine.package_info", name=f"[bold]{pkg_info.name}[/]",
+              routines=t("exec_routine.routines_count",
+                        count=len(pkg_info.routines)))
         )
 
         # Show routines table
@@ -372,8 +372,8 @@ class ExecRoutineScreen(Vertical):
 
         info = self.query_one("#er-detail-info", Static)
         info.update(
-            t("exec_routine.routine_info", nome=f"[bold]{routine_info.name}[/]",
-              tipo=routine_info.routine_type, assinatura=routine_info.signature)
+            t("exec_routine.routine_info", name=f"[bold]{routine_info.name}[/]",
+              type=routine_info.routine_type, signature=routine_info.signature)
         )
 
         # Hide routines table (not needed for standalone)
@@ -397,8 +397,8 @@ class ExecRoutineScreen(Vertical):
                 info = self.query_one("#er-detail-info", Static)
                 info.update(
                     t("exec_routine.routine_info",
-                      nome=f"[bold]{self._package_info.name}.{r.name}[/]",
-                      tipo=r.routine_type, assinatura=r.signature)
+                      name=f"[bold]{self._package_info.name}.{r.name}[/]",
+                      type=r.routine_type, signature=r.signature)
                 )
                 self._build_param_inputs(r)
                 self._set_detail_actions()
@@ -548,7 +548,7 @@ class ExecRoutineScreen(Vertical):
         if result.success:
             lines = [f'[bold]{t("exec_routine.ran_ok")}[/] ({result.elapsed:.2f}s)']
             if result.return_value is not None:
-                lines.append(f'\n[bold]{t("call.return_value", valor="")}[/] '
+                lines.append(f'\n[bold]{t("call.return_value", value="")}[/] '
                              f"{result.return_value}")
             if result.out_values:
                 lines.append(f'\n[bold]{t("exec_routine.out_params")}[/]')

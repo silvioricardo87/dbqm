@@ -45,8 +45,8 @@ def cmd_test(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         if args.format == "json":
-            fail("test", "not_found", t("connection.not_found_named", nome=args.connection))
-        nao_achada = escape(t("connection.not_found_named", nome=args.connection))
+            fail("test", "not_found", t("connection.not_found_named", name=args.connection))
+        nao_achada = escape(t("connection.not_found_named", name=args.connection))
         console.print(f"[ds.op.failure]{nao_achada}[/ds.op.failure]")
         sys.exit(int(exit_for("not_found")))
 
@@ -134,8 +134,8 @@ def cmd_list(args: argparse.Namespace) -> None:
 
     else:
         if args.format == "json":
-            fail(f"list.{resource}", "usage", t("list.unknown_resource", recurso=resource))
-        desconhecido = escape(t("list.unknown_resource", recurso=resource))
+            fail(f"list.{resource}", "usage", t("list.unknown_resource", resource=resource))
+        desconhecido = escape(t("list.unknown_resource", resource=resource))
         console.print(f"[ds.op.failure]{desconhecido}[/ds.op.failure]")
         sys.exit(int(exit_for("usage")))
 
@@ -183,8 +183,8 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         if args.format == "json":
-            fail("ddl", "not_found", t("connection.not_found_named", nome=args.connection))
-        nao_achada = escape(t("connection.not_found_named", nome=args.connection))
+            fail("ddl", "not_found", t("connection.not_found_named", name=args.connection))
+        nao_achada = escape(t("connection.not_found_named", name=args.connection))
         console.print(f"[ds.op.failure]{nao_achada}[/ds.op.failure]")
         sys.exit(int(exit_for("not_found")))
 
@@ -232,7 +232,7 @@ def cmd_ddl(args: argparse.Namespace) -> None:
             print()
     else:
         dir_path, _ = deps.save_extraction(result)
-        console.print(t("ddl.saved_to", caminho=dir_path))
+        console.print(t("ddl.saved_to", path=dir_path))
 
 
 def cmd_history(args: argparse.Namespace) -> None:
@@ -268,7 +268,7 @@ def cmd_history(args: argparse.Namespace) -> None:
         ok("history", data)
         return
 
-    table = Table(title=t("history.title", quantidade=len(entries)))
+    table = Table(title=t("history.title", count=len(entries)))
     table.add_column(t("common.date"))
     table.add_column(t("common.type"))
     table.add_column(t("common.name"))

@@ -56,13 +56,13 @@ def validate(values: dict) -> list[str]:
     if not db_type:
         errors.append(t("connection.type_required"))
     elif db_type not in DB_TYPES:
-        errors.append(t("connection.type_invalid", tipo=db_type,
-                        validos=", ".join(DB_TYPES)))
+        errors.append(t("connection.type_invalid", type=db_type,
+                        valid=", ".join(DB_TYPES)))
 
     mode = _text(values, "mode")
     if db_type == "oracle" and mode and mode not in ORACLE_MODES:
-        errors.append(t("connection.oracle_mode_invalid", modo=mode,
-                        validos=", ".join(ORACLE_MODES)))
+        errors.append(t("connection.oracle_mode_invalid", mode=mode,
+                        valid=", ".join(ORACLE_MODES)))
 
     if db_type == "sqlite":
         # The whole configuration is one file. A host, port, user or mode
@@ -72,7 +72,7 @@ def validate(values: dict) -> list[str]:
             errors.append(t("connection.sqlite_database_required"))
         for campo in ("host", "port", "user", "mode"):
             if _text(values, campo):
-                errors.append(t("connection.sqlite_field_unused", campo=campo))
+                errors.append(t("connection.sqlite_field_unused", field=campo))
         if values.get("password"):
             errors.append(t("connection.sqlite_password_unused"))
 

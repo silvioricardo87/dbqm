@@ -52,11 +52,11 @@ class StatusBar(Static):
 
         right_parts: list[str] = []
         if self._queries:
-            right_parts.append(t("status_bar.queries", quantidade=self._queries))
+            right_parts.append(t("status_bar.queries", count=self._queries))
         if self._connections:
-            right_parts.append(t("status_bar.connections", quantidade=self._connections))
+            right_parts.append(t("status_bar.connections", count=self._connections))
         if self._groups:
-            right_parts.append(t("status_bar.groups", quantidade=self._groups))
+            right_parts.append(t("status_bar.groups", count=self._groups))
 
         right = "  ".join(right_parts)
         if right:
@@ -73,11 +73,11 @@ class StatusBar(Static):
             parts.append("● " + t("status_bar.no_connection"))
         counts: list[str] = []
         if self._queries:
-            counts.append(t("status_bar.queries", quantidade=self._queries))
+            counts.append(t("status_bar.queries", count=self._queries))
         if self._connections:
-            counts.append(t("status_bar.connections", quantidade=self._connections))
+            counts.append(t("status_bar.connections", count=self._connections))
         if self._groups:
-            counts.append(t("status_bar.groups", quantidade=self._groups))
+            counts.append(t("status_bar.groups", count=self._groups))
         if counts:
             parts.append("  ".join(counts))
         return "  │  ".join(parts) if len(parts) > 1 else parts[0]

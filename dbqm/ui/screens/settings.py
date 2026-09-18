@@ -193,7 +193,7 @@ class SettingsScreen(Vertical):
     SettingsScreen .settings-actions Button {
         margin: 0 1 0 0;
     }
-    SettingsScreen #settings-ferramentas-list {
+    SettingsScreen #settings-tools-list {
         height: auto;
     }
     """
@@ -228,14 +228,14 @@ class SettingsScreen(Vertical):
         return (
             ("oracle-clients", t("settings.oracle_clients_entry"),
              t("settings.oracle_clients_hint")),
-            ("portabilidade", t("settings.portability_entry"),
+            ("portability", t("settings.portability_entry"),
              t("settings.portability_hint")),
         )
 
     #: Key -> id of the container where that screen is mounted.
     _HOSTS = {
         "oracle-clients": "settings-host-oracle-clients",
-        "portabilidade": "settings-host-portabilidade",
+        "portability": "settings-host-portability",
     }
 
     def __init__(self, *args, **kwargs) -> None:
@@ -250,7 +250,7 @@ class SettingsScreen(Vertical):
         with ContentSwitcher(initial="settings-main"):
             with Horizontal(id="settings-main"):
                 with NavVerticalScroll(
-                    id="settings-col-esquerda", classes="settings-column"
+                    id="settings-col-left", classes="settings-column"
                 ):
                     with Panel(t("panel.theme"), id="settings-panel-tema", dense=True):
                         yield NavSelect(
@@ -297,7 +297,7 @@ class SettingsScreen(Vertical):
                             )
 
                 with NavVerticalScroll(
-                    id="settings-col-direita", classes="settings-column"
+                    id="settings-col-right", classes="settings-column"
                 ):
                     with Panel(
                         t("panel.oracle_client"),
@@ -327,10 +327,10 @@ class SettingsScreen(Vertical):
                     # someone want to open it.
                     with Panel(
                         t("panel.more_settings"),
-                        id="settings-panel-ferramentas",
+                        id="settings-panel-tools",
                         dense=True,
                     ):
-                        yield OptionList(id="settings-ferramentas-list")
+                        yield OptionList(id="settings-tools-list")
 
                     with Panel(
                         t("panel.fernet_key"),
@@ -340,7 +340,7 @@ class SettingsScreen(Vertical):
                         yield PathLabel("", id="settings-fernet-status", markup=True)
 
             yield Vertical(
-                id="settings-host-portabilidade", classes="settings-host"
+                id="settings-host-portability", classes="settings-host"
             )
             yield Vertical(
                 id="settings-host-oracle-clients", classes="settings-host"
@@ -360,7 +360,7 @@ class SettingsScreen(Vertical):
         subdirs_switch = self.query_one("#settings-export-subdirs-switch", Switch)
         subdirs_switch.value = settings.create_export_subdirs
 
-        lista = self.query_one("#settings-ferramentas-list", OptionList)
+        lista = self.query_one("#settings-tools-list", OptionList)
         lista.clear_options()
         for chave, identidade, desambiguacao in self.tools():
             lista.add_option(
@@ -519,7 +519,7 @@ class SettingsScreen(Vertical):
             from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 
             return OracleClientsScreen(id="settings-oracle-clients-screen")
-        if key == "portabilidade":
+        if key == "portability":
             from dbqm.ui.screens.config_port import ConfigPortScreen
 
             return ConfigPortScreen(id="settings-config-port-screen")
@@ -621,7 +621,7 @@ class SettingsScreen(Vertical):
 
     def _focus_tool_list(self) -> None:
         try:
-            self.query_one("#settings-ferramentas-list", OptionList).focus()
+            self.query_one("#settings-tools-list", OptionList).focus()
         except Exception:
             pass
 
@@ -655,15 +655,15 @@ class SettingsScreen(Vertical):
         except Exception:
             dentro = False
         barra.set_actions(
-            [Action(t("action.back"), "Esc", "settings-voltar")] if dentro else []
+            [Action(t("action.back"), "Esc", "settings-back")] if dentro else []
         )
 
     def on_action_selected(self, message: ActionSelected) -> None:
-        if message.action_id == "settings-voltar":
+        if message.action_id == "settings-back":
             self.back_to_start()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        if event.option_list.id != "settings-ferramentas-list":
+        if event.option_list.id != "settings-tools-list":
             return
         event.stop()
         chave = getattr(event.option, "name", "")
@@ -702,7 +702,7 @@ class SettingsScreen(Vertical):
             self.app.theme = settings.theme
         except Exception:
             pass
-        self.notify(t("settings.theme_changed", tema=settings.theme))
+        self.notify(t("settings.theme_changed", theme=settings.theme))
 
     def on_switch_changed(self, event: Switch.Changed) -> None:
         from dbqm.models.settings import load_settings, save_settings
@@ -729,7 +729,7 @@ class SettingsScreen(Vertical):
             settings.audit_log_enabled = event.value
             save_settings(settings)
             status = t("settings.enabled") if event.value else t("settings.disabled")
-            self.notify(t("settings.audit_toggled", estado=status))
+            self.notify(t("settings.audit_toggled", state=status))
         elif event.switch.id == "settings-export-subdirs-switch":
             settings = load_settings()
             if settings.create_export_subdirs == event.value:
@@ -737,7 +737,7 @@ class SettingsScreen(Vertical):
             settings.create_export_subdirs = event.value
             save_settings(settings)
             status = t("settings.enabled") if event.value else t("settings.disabled")
-            self.notify(t("settings.subdirs_toggled", estado=status))
+            self.notify(t("settings.subdirs_toggled", state=status))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-oracle-client-dir":

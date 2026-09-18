@@ -38,7 +38,7 @@ def _format_plsql_message(result: AdhocResult) -> str:
     """
     from dbqm.core.query_engine import block_label
 
-    rotulo = t("sql.block_ran_header", rotulo=block_label(result.db_type))
+    rotulo = t("sql.block_ran_header", label=block_label(result.db_type))
     return f"[bold]{rotulo}[/] ({result.elapsed:.2f}s)"
 
 
@@ -455,7 +455,7 @@ class AdhocScreen(Vertical):
     def _show_error(self, msg: str) -> None:
         """Show error notification and stop progress indicator."""
         self.query_one(ProgressIndicator).stop()
-        self.notify(t("adhoc.error", erro=msg), severity="error", timeout=8)
+        self.notify(t("adhoc.error", error=msg), severity="error", timeout=8)
 
     def _on_sql_result(self, result) -> None:
         """Handle SQL result back on the main thread."""
@@ -469,7 +469,7 @@ class AdhocScreen(Vertical):
             adhoc_result = result
 
         if not adhoc_result.success:
-            self.notify(t("adhoc.error", erro=adhoc_result.error), severity="error", timeout=8)
+            self.notify(t("adhoc.error", error=adhoc_result.error), severity="error", timeout=8)
             return
 
         self._current_adhoc_result = adhoc_result
@@ -558,10 +558,10 @@ class AdhocScreen(Vertical):
         # Show info bar
         info = self.query_one("#adhoc-result-info", Static)
         info.update(
-            t("adhoc.result_info", rotulo=f'[bold]{t("adhoc.label")}[/]',
-              conexao=result.connection_name,
-              linhas=t("result_table.rows_count", linhas=result.row_count),
-              segundos=f"{result.elapsed:.2f}")
+            t("adhoc.result_info", label=f'[bold]{t("adhoc.label")}[/]',
+              connection=result.connection_name,
+              rows=t("result_table.rows_count", rows=result.row_count),
+              seconds=f"{result.elapsed:.2f}")
         )
         info.display = True
 
@@ -608,8 +608,8 @@ class AdhocScreen(Vertical):
         dml_static.display = True
         dml_static.update(
             t("adhoc.rows_affected",
-              quantidade=f"[bold]{result.rows_affected}[/]",
-              segundos=f"{result.elapsed:.2f}")
+              count=f"[bold]{result.rows_affected}[/]",
+              seconds=f"{result.elapsed:.2f}")
         )
 
         if db_connection:
@@ -693,9 +693,9 @@ class AdhocScreen(Vertical):
                 result, self._current_sql, self._last_exec_at,
                 label, self._current_params,
             )
-            self.notify(t("adhoc.evidence_saved", caminho=path), timeout=5)
+            self.notify(t("adhoc.evidence_saved", path=path), timeout=5)
         except Exception as e:
-            self.notify(t("adhoc.save_failed", erro=e), severity="error")
+            self.notify(t("adhoc.save_failed", error=e), severity="error")
 
     def _copy_dbms_output(self) -> None:
         """Copy the execution evidence (SQL + date/time + DBMS_OUTPUT) to the clipboard."""
@@ -817,7 +817,7 @@ class AdhocScreen(Vertical):
 
         existing = load_queries()
         if any(q.name == name for q in existing):
-            self.notify(t("query.already_exists", nome=name), severity="error")
+            self.notify(t("query.already_exists", name=name), severity="error")
             return
 
         raw_sql = self._get_sql()
@@ -848,7 +848,7 @@ class AdhocScreen(Vertical):
 
         existing.append(query)
         save_queries(existing)
-        self.notify(t("adhoc.query_saved", nome=name), timeout=5)
+        self.notify(t("adhoc.query_saved", name=name), timeout=5)
 
     # ------------------------------------------------------------------
     # DML commit/rollback
@@ -860,7 +860,7 @@ class AdhocScreen(Vertical):
                 self._db_connection.commit()
                 self._db_connection.close()
             except Exception as e:
-                self.notify(t("adhoc.commit_failed", erro=e), severity="error")
+                self.notify(t("adhoc.commit_failed", error=e), severity="error")
                 return
             finally:
                 self._db_connection = None
@@ -873,7 +873,7 @@ class AdhocScreen(Vertical):
                 self._db_connection.rollback()
                 self._db_connection.close()
             except Exception as e:
-                self.notify(t("adhoc.rollback_failed", erro=e), severity="error")
+                self.notify(t("adhoc.rollback_failed", error=e), severity="error")
                 return
             finally:
                 self._db_connection = None
@@ -937,11 +937,11 @@ class AdhocScreen(Vertical):
             elif fmt == "txt":
                 path = export_query_txt(self._current_result, table=table, params=params)
             else:
-                self.notify(t("group_run.format_unsupported", formato=fmt), severity="warning")
+                self.notify(t("group_run.format_unsupported", format=fmt), severity="warning")
                 return
-            self.notify(t("export.done", caminho=path), timeout=5)
+            self.notify(t("export.done", path=path), timeout=5)
         except Exception as e:
-            self.notify(t("group_run.export_failed", erro=e), severity="error")
+            self.notify(t("group_run.export_failed", error=e), severity="error")
 
     def _handle_export_sql(self) -> None:
         """Export the generated SQL to a .sql file."""
@@ -950,9 +950,9 @@ class AdhocScreen(Vertical):
         try:
             label = self._table_name if self._table_name else "adhoc"
             path = export_sql_file(self._generated_sql, label, self._current_params)
-            self.notify(t("export.done", caminho=path), timeout=5)
+            self.notify(t("export.done", path=path), timeout=5)
         except Exception as e:
-            self.notify(t("group_run.export_failed", erro=e), severity="error")
+            self.notify(t("group_run.export_failed", error=e), severity="error")
 
     def _handle_reexecute(self) -> None:
         """Re-execute with new/same parameters."""

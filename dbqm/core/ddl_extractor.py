@@ -559,7 +559,7 @@ def extract_routine(conn: Connection, package_name: str, routine_name: str) -> R
                 matches = [{"owner": resolved[0], "name": resolved[1], "type": "PACKAGE"}]
 
         if not matches:
-            result.errors.append(t("ddl.package_not_found", nome=pkg))
+            result.errors.append(t("ddl.package_not_found", name=pkg))
             return result
 
         owner = matches[0]["owner"]
@@ -569,15 +569,15 @@ def extract_routine(conn: Connection, package_name: str, routine_name: str) -> R
         # Get body source and parse routines
         body_src = _get_source(cursor, owner, pkg_name, "PACKAGE BODY")
         if not body_src:
-            result.errors.append(t("ddl.package_body_not_found", nome=pkg_name))
+            result.errors.append(t("ddl.package_body_not_found", name=pkg_name))
             return result
 
         body_routines = _parse_routines(body_src)
         if routine not in body_routines:
             result.errors.append(
-                t("ddl.routine_not_in_body", rotina=routine, pacote=pkg_name) + " "
+                t("ddl.routine_not_in_body", routine=routine, package=pkg_name) + " "
                 + t("ddl.routines_available",
-                    rotinas=", ".join(sorted(body_routines.keys())))
+                    routines=", ".join(sorted(body_routines.keys())))
             )
             return result
 
@@ -763,7 +763,7 @@ def extract_ddl(
                 object_name=name_upper, object_type="UNKNOWN",
                 owner="", connection_name=conn.name,
             )
-            result.errors.append(t("ddl.object_not_found", nome=name_upper))
+            result.errors.append(t("ddl.object_not_found", name=name_upper))
             result.not_found = True
             return result
 
@@ -786,9 +786,9 @@ def extract_ddl(
                         on_progress(1, 1, obj_type, obj["name"])
                     extractor(cursor, obj["owner"], obj["name"], result)
                 else:
-                    result.errors.append(t("ddl.type_unsupported", tipo=obj_type))
+                    result.errors.append(t("ddl.type_unsupported", type=obj_type))
         except Exception as e:
-            result.errors.append(t("ddl.extract_failed_object", nome=obj_type, erro=e))
+            result.errors.append(t("ddl.extract_failed_object", name=obj_type, error=e))
 
         return result
     finally:
@@ -820,14 +820,14 @@ def _extract_non_oracle(
     elif conn.db_type == "mysql":
         from dbqm.core.ddl_mysql import extract_mysql_ddl as extractor
     else:
-        result.errors.append(t("ddl.engine_unsupported", tipo=conn.db_type))
+        result.errors.append(t("ddl.engine_unsupported", type=conn.db_type))
         return result
 
     db = get_connection(conn)
     try:
         extractor(db, object_name, result, on_progress)
     except Exception as e:
-        result.errors.append(t("ddl.extract_failed_plain", erro=e))
+        result.errors.append(t("ddl.extract_failed_plain", error=e))
     finally:
         db.close()
     return result
@@ -953,8 +953,8 @@ def extract_dependencies_ddl(
             try:
                 EXTRACT_MAP[dep_type](cursor, dep_owner, dep_name, result)
             except Exception as e:
-                result.errors.append(t("ddl.extract_failed_dependency", tipo=dep_type,
-                                   dono=dep_owner, nome=dep_name, erro=e))
+                result.errors.append(t("ddl.extract_failed_dependency", type=dep_type,
+                                   owner=dep_owner, name=dep_name, error=e))
 
         result.dependencies.clear()
         return result

@@ -48,14 +48,14 @@ def validate(values: dict[str, Any]) -> list[str]:
         # joins them with "; ". `query_builder` chains the same way.
         for qname in queries:
             if qname and find_query(qname) is None:
-                errors.append(t("group.query_not_found", nome=qname))
+                errors.append(t("group.query_not_found", name=qname))
         # Distinct, not merely two: `run_comparison` keys its index by query
         # name, so the same name twice collapses to one side and the
         # comparison can only ever report agreement -- with itself. `multi`
         # refuses the same shape for a repeated `-c`.
         repetidas = sorted({q for q in queries if queries.count(q) > 1})
         if repetidas:
-            errors.append(t("group.query_repeated", nome=repetidas[0]))
+            errors.append(t("group.query_repeated", name=repetidas[0]))
 
     if not _text(values, "join_key"):
         errors.append(t("group.join_key_required"))

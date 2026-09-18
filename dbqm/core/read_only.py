@@ -101,14 +101,14 @@ def check_read_only(sql: str, conn: "Connection") -> None:
     if not conn.read_only:
         return
 
-    recusa = t("read_only.refused", nome=conn.name)
+    recusa = t("read_only.refused", name=conn.name)
 
     if statement_count(sql) > 1:
-        raise ReadOnlyViolation(t("read_only.multiple_statements", nome=conn.name))
+        raise ReadOnlyViolation(t("read_only.multiple_statements", name=conn.name))
 
     tipo = classify_sql(sql)
     if tipo not in ALLOWED:
         raise ReadOnlyViolation(recusa)
 
     if tipo == "EXPLAIN" and not _explains_a_query(sql):
-        raise ReadOnlyViolation(t("read_only.explain_executes", nome=conn.name))
+        raise ReadOnlyViolation(t("read_only.explain_executes", name=conn.name))

@@ -24,16 +24,16 @@ class MainTabs(TabbedContent):
     ``self.active = event.tab_pane.id``. Any widget that takes focus
     inside an INACTIVE pane drags the tab along — including a pane that
     the `ContentSwitcher` has already hidden (measured: `pane.display`
-    False, and ``w.focus()`` still moves `active` from `tab-historico` to
-    `tab-conexoes`).
+    False, and ``w.focus()`` still moves `active` from `tab-history` to
+    `tab-connections`).
 
     That is exactly what every dbqm screen does: each one schedules its
     own initial focus with `call_after_refresh` in its `on_mount`. When
     the person switches tabs before the mount storm settles, the delayed
     focus of the PREVIOUS screen arrives later and undoes the switch — the
-    tab blinks `tab-conexoes` -> `tab-coleta` -> `tab-conexoes` and stops
+    tab blinks `tab-connections` -> `tab-collect` -> `tab-connections` and stops
     on the wrong one. That is what was measured with an `F5` right at
-    startup: `active='tab-conexoes'` with seven panes still disabled.
+    startup: `active='tab-connections'` with seven panes still disabled.
 
     Here the message dies. Switching tabs in dbqm is clicking the header
     or pressing the function key — both routes stay intact, because they
@@ -64,14 +64,14 @@ class DBQMApp(App):
 
     #: Maps each tab id to the id of the screen widget it hosts.
     TAB_TO_SCREEN: dict[str, str] = {
-        "tab-coleta": "adhoc-screen",
-        "tab-conexoes": "connections-screen",
-        "tab-objetos": "browser-screen",
+        "tab-collect": "adhoc-screen",
+        "tab-connections": "connections-screen",
+        "tab-objects": "browser-screen",
         "tab-multiexec": "group-exec-screen",
-        "tab-historico": "history-screen",
+        "tab-history": "history-screen",
         "tab-config": "settings-screen",
-        "tab-consultas": "query-exec-screen",
-        "tab-ferramentas": "ferramentas-screen",
+        "tab-queries": "query-exec-screen",
+        "tab-tools": "tools-screen",
     }
 
     def __init__(self, **kwargs):
@@ -103,14 +103,14 @@ class DBQMApp(App):
         # Descriptions in English: `BINDINGS` is built at import time, before
         # the language is resolved, and every entry below carries
         # `show=False` -- none of this text has ever reached a screen.
-        Binding("f1", "switch_tab('tab-coleta')", "Collect", show=False),
-        Binding("f2", "switch_tab('tab-conexoes')", "Connections", show=False),
-        Binding("f3", "switch_tab('tab-objetos')", "Objects", show=False),
+        Binding("f1", "switch_tab('tab-collect')", "Collect", show=False),
+        Binding("f2", "switch_tab('tab-connections')", "Connections", show=False),
+        Binding("f3", "switch_tab('tab-objects')", "Objects", show=False),
         Binding("f4", "switch_tab('tab-multiexec')", "Multi-Exec", show=False),
-        Binding("f5", "switch_tab('tab-historico')", "History", show=False),
+        Binding("f5", "switch_tab('tab-history')", "History", show=False),
         Binding("f6", "switch_tab('tab-config')", "Settings", show=False),
-        Binding("f7", "switch_tab('tab-consultas')", "Queries", show=False),
-        Binding("f8", "switch_tab('tab-ferramentas')", "Tools", show=False),
+        Binding("f7", "switch_tab('tab-queries')", "Queries", show=False),
+        Binding("f8", "switch_tab('tab-tools')", "Tools", show=False),
         Binding("ctrl+b", "toggle_sidebar", "Templates"),
         Binding("ctrl+q", "quit", "Quit"),
         Binding("escape", "go_back", "Back"),
@@ -143,38 +143,38 @@ class DBQMApp(App):
         # could race with early user input.
         from dbqm.models.connection import load_connections
         try:
-            initial_tab = "tab-coleta" if load_connections() else "tab-conexoes"
+            initial_tab = "tab-collect" if load_connections() else "tab-connections"
         except Exception:
-            initial_tab = "tab-coleta"
+            initial_tab = "tab-collect"
 
         yield Header()
         with Horizontal(id="body"):
             yield TemplatesSidebar(id="templates-sidebar")
             with MainTabs(id="main-tabs", initial=initial_tab):
-                with TabPane(t("tab.collect"), id="tab-coleta"):
+                with TabPane(t("tab.collect"), id="tab-collect"):
                     from dbqm.ui.screens.adhoc import AdhocScreen
                     yield AdhocScreen(id="adhoc-screen")
-                with TabPane(t("tab.connections"), id="tab-conexoes"):
+                with TabPane(t("tab.connections"), id="tab-connections"):
                     from dbqm.ui.screens.connections import ConnectionsScreen
                     yield ConnectionsScreen(id="connections-screen")
-                with TabPane(t("tab.objects"), id="tab-objetos"):
+                with TabPane(t("tab.objects"), id="tab-objects"):
                     from dbqm.ui.screens.browser import BrowserScreen
                     yield BrowserScreen(id="browser-screen")
                 with TabPane(t("tab.multiexec"), id="tab-multiexec"):
                     from dbqm.ui.screens.group_exec import GroupExecScreen
                     yield GroupExecScreen(id="group-exec-screen")
-                with TabPane(t("tab.history"), id="tab-historico"):
+                with TabPane(t("tab.history"), id="tab-history"):
                     from dbqm.ui.screens.history import HistoryScreen
                     yield HistoryScreen(id="history-screen")
                 with TabPane(t("tab.settings"), id="tab-config"):
                     from dbqm.ui.screens.settings import SettingsScreen
                     yield SettingsScreen(id="settings-screen")
-                with TabPane(t("tab.queries"), id="tab-consultas"):
+                with TabPane(t("tab.queries"), id="tab-queries"):
                     from dbqm.ui.screens.query_exec import QueryExecScreen
                     yield QueryExecScreen(id="query-exec-screen")
-                with TabPane(t("tab.tools"), id="tab-ferramentas"):
+                with TabPane(t("tab.tools"), id="tab-tools"):
                     from dbqm.ui.screens.tools import ToolsScreen
-                    yield ToolsScreen(id="ferramentas-screen")
+                    yield ToolsScreen(id="tools-screen")
         yield ActionBar()
         yield StatusBar()
 
@@ -206,7 +206,7 @@ class DBQMApp(App):
         # intended tab always wins. Once mounting has settled, every pane is
         # re-enabled (see ``_finish_initial_mount``) so the tab bar stays
         # fully mouse-clickable for the rest of the app's life.
-        initial_tab = "tab-coleta"
+        initial_tab = "tab-collect"
         try:
             initial_tab = self.query_one("#main-tabs", TabbedContent).active
             self._sync_panes(initial_tab)
@@ -606,7 +606,7 @@ class DBQMApp(App):
                 # tab. And a back button would be a button doing
                 # navigation, which section 7 of the grammar forbids.
                 screen.back_to_start()
-            elif screen_id == "ferramentas-screen":
+            elif screen_id == "tools-screen":
                 # Same reason: the five "Voltar" that lived inside the
                 # tool panes were navigation done by button and left in
                 # Task 8. `ToolsScreen._set_actions` draws the `Esc` in the

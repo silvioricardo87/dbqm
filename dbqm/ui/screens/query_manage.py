@@ -149,7 +149,7 @@ class SqlViewerModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from dbqm.ui.widgets.sql_viewer import SqlViewer
 
-        with Dialog(t("query_manage.sql_dialog_title", nome=self._query_name), width="lg", id="dialog"):
+        with Dialog(t("query_manage.sql_dialog_title", name=self._query_name), width="lg", id="dialog"):
             yield SqlViewer(self._sql, id="sql-display")
             with Horizontal(id="buttons"):
                 yield Button(t("common.close"), variant="primary", id="close-btn")
@@ -302,7 +302,7 @@ class FolderModal(ModalScreen[str | None]):
         with Dialog(t("query_manage.folder_dialog_title"), id="dialog"):
             if self._existing:
                 folders_text = ", ".join(self._existing)
-                yield Static(f'[dim]{t("query_manage.existing_folders", pastas=folders_text)}[/dim]', id="existing", markup=True)
+                yield Static(f'[dim]{t("query_manage.existing_folders", folders=folders_text)}[/dim]', id="existing", markup=True)
             yield Input(value=self._current, placeholder=t("query_manage.folder_placeholder"), id="folder-input")
             with Horizontal(id="buttons"):
                 yield Button(t("common.ok"), variant="primary", id="ok")
@@ -411,7 +411,7 @@ class QueryManageScreen(Vertical):
                 what=t("query.list_title"),
                 why=t("query_manage.empty_why"),
                 action_label=t("query_manage.create_query"),
-                action_id="criar-consulta",
+                action_id="create-query",
                 id="qm-empty",
             )
             yield DataTable(id="qm-table")
@@ -423,7 +423,7 @@ class QueryManageScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "criar-consulta":
+        if event.button.id == "create-query":
             self._handle_new()
 
     def _set_initial_focus(self) -> None:
@@ -545,7 +545,7 @@ class QueryManageScreen(Vertical):
 
         # Check duplicate name
         if any(q.name == result["name"] for q in queries):
-            self.notify(t("query.already_exists", nome=result["name"]), severity="error")
+            self.notify(t("query.already_exists", name=result["name"]), severity="error")
             return
 
         params = [
@@ -567,7 +567,7 @@ class QueryManageScreen(Vertical):
         save_queries(queries)
         self._load_queries()
         self._update_status_bar()
-        self.notify(t("query_manage.created", nome=query.name))
+        self.notify(t("query_manage.created", name=query.name))
 
     # -- View SQL --
 
@@ -581,7 +581,7 @@ class QueryManageScreen(Vertical):
 
         query = find_query(name)
         if query is None:
-            self.notify(t("query.not_found_named", nome=name), severity="error")
+            self.notify(t("query.not_found_named", name=name), severity="error")
             return
 
         modal = SqlViewerModal(query.name, query.sql)
@@ -599,7 +599,7 @@ class QueryManageScreen(Vertical):
 
         query = find_query(name)
         if query is None:
-            self.notify(t("query.not_found_named", nome=name), severity="error")
+            self.notify(t("query.not_found_named", name=name), severity="error")
             return
 
         self._edit_query_name = name
@@ -621,7 +621,7 @@ class QueryManageScreen(Vertical):
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
                 title=t("query_manage.edit_description_title"),
-                message=t("query_manage.description_for", nome=name),
+                message=t("query_manage.description_for", name=name),
                 default=query.description,
             )
             self.app.push_screen(modal, callback=self._on_edit_description)
@@ -643,7 +643,7 @@ class QueryManageScreen(Vertical):
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
                 title=t("query_manage.edit_table_title"),
-                message=t("query_manage.table_for", nome=name),
+                message=t("query_manage.table_for", name=name),
                 default=query.table,
             )
             self.app.push_screen(modal, callback=self._on_edit_table)
@@ -685,7 +685,7 @@ class QueryManageScreen(Vertical):
                 break
         save_queries(queries)
         self._load_queries()
-        self.notify(t("query_manage.sql_updated", nome=self._edit_query_name))
+        self.notify(t("query_manage.sql_updated", name=self._edit_query_name))
 
     def _on_edit_table(self, value: str | None) -> None:
         if value is None:
@@ -702,7 +702,7 @@ class QueryManageScreen(Vertical):
                 break
         save_queries(queries)
         self._load_queries()
-        self.notify(t("query_manage.updated", nome=name))
+        self.notify(t("query_manage.updated", name=name))
 
     # -- DE-PARA --
 
@@ -716,7 +716,7 @@ class QueryManageScreen(Vertical):
 
         query = find_query(name)
         if query is None:
-            self.notify(t("query.not_found_named", nome=name), severity="error")
+            self.notify(t("query.not_found_named", name=name), severity="error")
             return
 
         if not query.columns:
@@ -741,7 +741,7 @@ class QueryManageScreen(Vertical):
                 q.column_maps = maps
                 break
         save_queries(queries)
-        self.notify(t("query_manage.depara_saved", nome=self._depara_query_name))
+        self.notify(t("query_manage.depara_saved", name=self._depara_query_name))
 
     # -- Rename --
 
@@ -756,7 +756,7 @@ class QueryManageScreen(Vertical):
         self._rename_old_name = name
         modal = TextInputModal(
             title=t("query_manage.rename_title"),
-            message=t("common.new_name_for", nome=name),
+            message=t("common.new_name_for", name=name),
             default=name,
         )
         self.app.push_screen(modal, callback=self._on_rename_result)
@@ -776,7 +776,7 @@ class QueryManageScreen(Vertical):
         queries = load_queries()
 
         if any(q.name == new_name for q in queries):
-            self.notify(t("query.already_exists", nome=new_name), severity="error")
+            self.notify(t("query.already_exists", name=new_name), severity="error")
             return
 
         for q in queries:
@@ -798,7 +798,7 @@ class QueryManageScreen(Vertical):
             save_groups(groups)
 
         self._load_queries()
-        self.notify(t("query_manage.renamed", antigo=old_name, novo=new_name))
+        self.notify(t("query_manage.renamed", old=old_name, new=new_name))
 
     # -- Favorite --
 
@@ -818,12 +818,12 @@ class QueryManageScreen(Vertical):
                           else t("query_manage.unfavorited"))
                 break
         else:
-            self.notify(t("query.not_found_named", nome=name), severity="error")
+            self.notify(t("query.not_found_named", name=name), severity="error")
             return
 
         save_queries(queries)
         self._load_queries()
-        self.notify(t("query_manage.status_changed", nome=name, estado=status))
+        self.notify(t("query_manage.status_changed", name=name, state=status))
 
     # -- Folder --
 
@@ -837,7 +837,7 @@ class QueryManageScreen(Vertical):
 
         query = find_query(name)
         if query is None:
-            self.notify(t("query.not_found_named", nome=name), severity="error")
+            self.notify(t("query.not_found_named", name=name), severity="error")
             return
 
         # Collect existing folder names
@@ -862,7 +862,7 @@ class QueryManageScreen(Vertical):
         save_queries(queries)
         self._load_queries()
         label = f'"{folder}"' if folder else t("query_manage.no_folder")
-        self.notify(t("query_manage.moved_to", nome=self._folder_query_name, pasta=label))
+        self.notify(t("query_manage.moved_to", name=self._folder_query_name, folder=label))
 
     # -- Duplicate --
 
@@ -877,7 +877,7 @@ class QueryManageScreen(Vertical):
         self._dup_source_name = name
         modal = TextInputModal(
             title=t("query_manage.duplicate_title"),
-            message=t("query_manage.name_for_copy", nome=name),
+            message=t("query_manage.name_for_copy", name=name),
             default=f"{name}_copia",
         )
         self.app.push_screen(modal, callback=self._on_dup_name_result)
@@ -892,12 +892,12 @@ class QueryManageScreen(Vertical):
 
         queries = load_queries()
         if any(q.name == new_name for q in queries):
-            self.notify(t("query.already_exists", nome=new_name), severity="error")
+            self.notify(t("query.already_exists", name=new_name), severity="error")
             return
 
         source = find_query(self._dup_source_name)
         if source is None:
-            self.notify(t("query.not_found_named", nome=self._dup_source_name), severity="error")
+            self.notify(t("query.not_found_named", name=self._dup_source_name), severity="error")
             return
 
         # Ask for connection change
@@ -932,7 +932,7 @@ class QueryManageScreen(Vertical):
         save_queries(queries)
         self._load_queries()
         self._update_status_bar()
-        self.notify(t("query_manage.duplicated", nome=new_name))
+        self.notify(t("query_manage.duplicated", name=new_name))
 
     # -- Remove --
 
@@ -945,7 +945,7 @@ class QueryManageScreen(Vertical):
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=t("query_manage.confirm_remove", nome=name))
+        modal = ConfirmModal(message=t("query_manage.confirm_remove", name=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -958,9 +958,9 @@ class QueryManageScreen(Vertical):
         if delete_query(name):
             self._load_queries()
             self._update_status_bar()
-            self.notify(t("query_manage.removed", nome=name))
+            self.notify(t("query_manage.removed", name=name))
         else:
-            self.notify(t("query.not_found_named", nome=name), severity="error")
+            self.notify(t("query.not_found_named", name=name), severity="error")
 
     # ------------------------------------------------------------------
     # Helpers

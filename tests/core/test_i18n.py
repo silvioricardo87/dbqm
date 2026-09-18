@@ -34,16 +34,16 @@ class TestLookup:
 
     def test_placeholders_are_filled_by_name(self):
         set_language("en")
-        assert t("read_only.refused", nome="prod") == (
+        assert t("read_only.refused", name="prod") == (
             "Connection 'prod' is read-only. Use --force-write to send it anyway."
         )
 
     def test_the_same_key_in_two_languages_keeps_the_value(self):
         """The sentence changes; what was interpolated into it does not."""
         set_language("en")
-        ingles = t("read_only.refused", nome="prod")
+        ingles = t("read_only.refused", name="prod")
         set_language("pt")
-        portugues = t("read_only.refused", nome="prod")
+        portugues = t("read_only.refused", name="prod")
         assert ingles != portugues
         assert "'prod'" in ingles and "'prod'" in portugues
 

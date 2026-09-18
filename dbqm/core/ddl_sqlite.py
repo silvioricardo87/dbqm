@@ -37,7 +37,7 @@ def extract_sqlite_ddl(
         )
         row = cursor.fetchone()
         if row is None:
-            result.errors.append(t("ddl.object_not_found", nome=object_name))
+            result.errors.append(t("ddl.object_not_found", name=object_name))
             result.not_found = True
             return
 

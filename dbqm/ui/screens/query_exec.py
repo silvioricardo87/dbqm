@@ -113,7 +113,7 @@ class QueryExecScreen(Vertical):
                 what=t("query.list_title"),
                 why=t("query_manage.empty_why"),
                 action_label=t("query_manage.create_query"),
-                action_id="criar-consulta-coleta",
+                action_id="create-query-collect",
                 id="empty-message",
             )
         # Progress indicator (hidden by default)
@@ -208,7 +208,7 @@ class QueryExecScreen(Vertical):
                 options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
             sem_pasta = sum(1 for q in queries if not q.folder)
             if sem_pasta:
-                options.append((t("common.no_folder_count", quantidade=sem_pasta), None))
+                options.append((t("common.no_folder_count", count=sem_pasta), None))
             selection.mount(
                 NavSelect(options, allow_blank=False, id="folder-select")
             )
@@ -220,7 +220,7 @@ class QueryExecScreen(Vertical):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle the empty-state action."""
         btn_id = event.button.id or ""
-        if btn_id == "criar-consulta-coleta":
+        if btn_id == "create-query-collect":
             # Queries are created from the Coleta tab ("Salvar como
             # consulta" there), not from this screen — guarded because
             # QueryExecScreen is also mounted standalone in tests, where
@@ -228,7 +228,7 @@ class QueryExecScreen(Vertical):
             # only).
             switch = getattr(self.app, "action_switch_tab", None)
             if callable(switch):
-                switch("tab-coleta")
+                switch("tab-collect")
             return
 
     # ------------------------------------------------------------------
@@ -310,13 +310,13 @@ class QueryExecScreen(Vertical):
 
         query = find_query(message.query_name)
         if query is None:
-            self.notify(t("query_exec.query_not_found", nome=message.query_name), severity="error")
+            self.notify(t("query_exec.query_not_found", name=message.query_name), severity="error")
             return
 
         conn = find_connection(query.connection)
         if conn is None:
             self.notify(
-                t("query_exec.connection_not_found", conexao=query.connection, consulta=query.name),
+                t("query_exec.connection_not_found", connection=query.connection, query=query.name),
                 severity="error",
             )
             return
@@ -415,7 +415,7 @@ class QueryExecScreen(Vertical):
         """Show error notification and stop progress indicator."""
         self.query_one(ProgressIndicator).stop()
         self._abort_first_load_if_pending()
-        self.notify(t("adhoc.error", erro=msg), severity="error", timeout=8)
+        self.notify(t("adhoc.error", error=msg), severity="error", timeout=8)
 
     def _on_result(self, query, conn, params: dict[str, str], result: QueryResult, raw_rows: list[list] | None = None) -> None:
         """Handle query result back on the main thread."""
@@ -423,7 +423,7 @@ class QueryExecScreen(Vertical):
 
         if not result.success:
             self._abort_first_load_if_pending()
-            self.notify(t("adhoc.error", erro=result.error), severity="error", timeout=8)
+            self.notify(t("adhoc.error", error=result.error), severity="error", timeout=8)
             return
 
         self._current_result = result
@@ -446,10 +446,10 @@ class QueryExecScreen(Vertical):
         # Update info bar
         info = self.query_one("#result-info", Static)
         info.update(
-            t("query_exec.result_info", nome=f"[bold]{query.name}[/]",
-              conexao=conn.name,
-              linhas=t("result_table.rows_count", linhas=result.row_count),
-              segundos=f"{result.elapsed:.2f}")
+            t("query_exec.result_info", name=f"[bold]{query.name}[/]",
+              connection=conn.name,
+              rows=t("result_table.rows_count", rows=result.row_count),
+              seconds=f"{result.elapsed:.2f}")
         )
 
         # Load result into table
@@ -597,12 +597,12 @@ class QueryExecScreen(Vertical):
             elif fmt == "txt":
                 path = export_query_txt(self._current_result, table=table, params=params)
             else:
-                self.notify(t("group_run.format_unsupported", formato=fmt), severity="warning")
+                self.notify(t("group_run.format_unsupported", format=fmt), severity="warning")
                 return
 
-            self.notify(t("export.done", caminho=path), timeout=5)
+            self.notify(t("export.done", path=path), timeout=5)
         except Exception as e:
-            self.notify(t("group_run.export_failed", erro=e), severity="error")
+            self.notify(t("group_run.export_failed", error=e), severity="error")
 
     def _handle_reexecute(self) -> None:
         if self._current_query is None:

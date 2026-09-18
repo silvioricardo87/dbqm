@@ -755,16 +755,16 @@ NAVIGATION = {"action_switch_tab", "open_tool"}
 NAVIGATION_EXEMPT = {
     # "Run query" -> Consultas tab. There is no history to create
     # here; it is born from an execution in another tab.
-    ("dbqm/ui/screens/history.py", "executar-consulta"),
+    ("dbqm/ui/screens/history.py", "run-query"),
     # "Create query" -> Coleta tab. A query is saved from there ("Salvar
     # como consulta"), never from this screen.
-    ("dbqm/ui/screens/query_exec.py", "criar-consulta-coleta"),
+    ("dbqm/ui/screens/query_exec.py", "create-query-collect"),
     # "Manage groups" -> Grupos tool. This screen EXECUTES groups;
     # creating is the job of the tool next door.
-    ("dbqm/ui/screens/group_run.py", "gerenciar-grupos"),
+    ("dbqm/ui/screens/group_run.py", "manage-groups"),
     # "Open Tools" -> Ferramentas tab. The templates sidebar shows
     # templates; they are created in the Templates tool.
-    ("dbqm/ui/widgets/templates_sidebar.py", "abrir-ferramentas"),
+    ("dbqm/ui/widgets/templates_sidebar.py", "open-tools"),
 }
 
 # Known limits, chosen:
@@ -793,7 +793,7 @@ NAVIGATION_EXEMPT = {
 #     ABOVE this one. Before the fix, a navigating branch whose id sorted
 #     AFTER an exempt id in the same file inherited that exemption and passed
 #     in silence. Verified by breakage both ways: an `elif "zzz-fuga"` beside
-#     the exempt `"executar-consulta"` in `history.py` escaped before and
+#     the exempt `"run-query"` in `history.py` escaped before and
 #     FAILS now. What the climb still cannot see is a branch whose id is not
 #     a literal — that is reported with an empty id, which matches no
 #     exemption and therefore fails, the safe side;

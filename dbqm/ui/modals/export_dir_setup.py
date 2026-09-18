@@ -146,10 +146,10 @@ class ExportDirSetupModal(ModalScreen[bool]):
                 return
             path_obj = Path(raw_path).expanduser()
             if not path_obj.exists():
-                self._show_error(t("path.dir_missing", caminho=path_obj))
+                self._show_error(t("path.dir_missing", path=path_obj))
                 return
             if not path_obj.is_dir():
-                self._show_error(t("path.not_a_dir", caminho=path_obj))
+                self._show_error(t("path.not_a_dir", path=path_obj))
                 return
             new_path = str(path_obj)
 

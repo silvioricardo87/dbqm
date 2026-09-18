@@ -283,12 +283,12 @@ class ConfigPortScreen(Vertical):
                 include_groups=include_groups,
             )
             self.app.call_from_thread(
-                self.notify, t("bundle.exported", caminho=path), severity="information", timeout=8
+                self.notify, t("bundle.exported", path=path), severity="information", timeout=8
             )
             self.app.call_from_thread(self._clear_export_form)
         except Exception as e:
             self.app.call_from_thread(
-                self.notify, t("group_run.export_failed", erro=e), severity="error", timeout=8
+                self.notify, t("group_run.export_failed", error=e), severity="error", timeout=8
             )
 
     def _clear_export_form(self) -> None:
@@ -327,19 +327,19 @@ class ConfigPortScreen(Vertical):
             parts = []
             if summary["connections"]:
                 parts.append(t("config_port.count_connections",
-                               quantidade=summary["connections"]))
+                               count=summary["connections"]))
             if summary["queries"]:
-                parts.append(t("config_port.count_queries", quantidade=summary["queries"]))
+                parts.append(t("config_port.count_queries", count=summary["queries"]))
             if summary["groups"]:
-                parts.append(t("config_port.count_groups", quantidade=summary["groups"]))
+                parts.append(t("config_port.count_groups", count=summary["groups"]))
             if summary["skipped"]:
-                parts.append(t("config_port.count_skipped", quantidade=summary["skipped"]))
+                parts.append(t("config_port.count_skipped", count=summary["skipped"]))
 
             if total > 0:
-                msg = t("config_port.imported", itens=", ".join(parts))
+                msg = t("config_port.imported", items=", ".join(parts))
                 self.app.call_from_thread(self.notify, msg, severity="information", timeout=8)
             else:
-                msg = t("config_port.nothing_new", ignorados=summary["skipped"])
+                msg = t("config_port.nothing_new", skipped=summary["skipped"])
                 self.app.call_from_thread(self.notify, msg, severity="warning", timeout=8)
 
             self.app.call_from_thread(self._clear_import_form)

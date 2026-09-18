@@ -126,7 +126,7 @@ class OracleClientsScreen(Vertical):
                 what=t("oracle_clients.installed"),
                 why=t("oracle_clients.empty_why"),
                 action_label=t("oracle_clients.choose_client"),
-                action_id="escolher-client",
+                action_id="choose-client",
                 id="oc-installed-empty",
             )
             yield DataTable(id="oc-installed-table", cursor_type="row")
@@ -232,7 +232,7 @@ class OracleClientsScreen(Vertical):
             self._start_remove()
         elif event.button.id == "oc-use-btn":
             self._use_selected()
-        elif event.button.id == "escolher-client":
+        elif event.button.id == "choose-client":
             # The label describes exactly what this button does: it takes
             # the focus to the list of available packages. Actually
             # installing requires a row selected there (_start_install), so
@@ -290,7 +290,7 @@ class OracleClientsScreen(Vertical):
         dest = CLIENTS_DIR / pkg.install_dirname
         if dest.exists() and any(dest.iterdir()):
             self.notify(
-                t("oracle_clients.already_installed", pasta=dest.name),
+                t("oracle_clients.already_installed", folder=dest.name),
                 severity="warning",
                 timeout=6,
             )
@@ -329,13 +329,13 @@ class OracleClientsScreen(Vertical):
     def _on_install_done(self, pkg: oci.ClientPackage, path: Path) -> None:
         self._set_busy(False)
         self._set_status(f"Instalado: {path}", level="ok")
-        self.notify(t("oracle_clients.installed_ok", versao=pkg.version))
+        self.notify(t("oracle_clients.installed_ok", version=pkg.version))
         self._refresh_installed()
 
     def _on_install_error(self, pkg: oci.ClientPackage, msg: str) -> None:
         self._set_busy(False)
         self._set_status(f"Falha ao instalar {pkg.version}: {msg}", level="err")
-        self.notify(t("adhoc.error", erro=msg), severity="error", timeout=8)
+        self.notify(t("adhoc.error", error=msg), severity="error", timeout=8)
 
     def _start_remove(self) -> None:
         if self._busy:
@@ -354,11 +354,11 @@ class OracleClientsScreen(Vertical):
                 self.notify(t("oracle_clients.removed"))
                 self._refresh_installed()
             except Exception as e:
-                self.notify(t("oracle_clients.remove_failed", erro=e), severity="error")
+                self.notify(t("oracle_clients.remove_failed", error=e), severity="error")
 
         self.app.push_screen(
             ConfirmModal(
-                t("oracle_clients.confirm_remove_path", nome=item.path.name),
+                t("oracle_clients.confirm_remove_path", name=item.path.name),
                 title=t("oracle_clients.confirm_remove_title"),
             ),
             _decide,

@@ -264,7 +264,7 @@ class GroupFolderModal(ModalScreen[str | None]):
         with Dialog(t("group_manage.folder_dialog_title"), id="dialog"):
             if self._existing:
                 folders_text = ", ".join(self._existing)
-                yield Static(f'[dim]{t("query_manage.existing_folders", pastas=folders_text)}[/dim]', id="existing", markup=True)
+                yield Static(f'[dim]{t("query_manage.existing_folders", folders=folders_text)}[/dim]', id="existing", markup=True)
             yield Input(value=self._current, placeholder=t("query_manage.folder_placeholder"), id="folder-input")
             with Horizontal(id="buttons"):
                 yield Button(t("common.ok"), variant="primary", id="ok")
@@ -467,7 +467,7 @@ class GroupManageScreen(Vertical):
                 what=t("group.list_title"),
                 why=t("group_manage.empty_why"),
                 action_label=t("group_manage.create_group"),
-                action_id="criar-grupo",
+                action_id="create-group",
                 id="gm-empty",
             )
             yield DataTable(id="gm-table")
@@ -479,7 +479,7 @@ class GroupManageScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "criar-grupo":
+        if event.button.id == "create-group":
             self._handle_new()
 
     def _set_initial_focus(self) -> None:
@@ -596,7 +596,7 @@ class GroupManageScreen(Vertical):
         groups = load_groups()
 
         if any(g.name == result["name"] for g in groups):
-            self.notify(t("group.already_exists", nome=result["name"]), severity="error")
+            self.notify(t("group.already_exists", name=result["name"]), severity="error")
             return
 
         group = Group(
@@ -610,7 +610,7 @@ class GroupManageScreen(Vertical):
         save_groups(groups)
         self._load_groups()
         self._update_status_bar()
-        self.notify(t("group_manage.created", nome=group.name))
+        self.notify(t("group_manage.created", name=group.name))
 
     # -- Edit --
 
@@ -624,7 +624,7 @@ class GroupManageScreen(Vertical):
 
         group = find_group(name)
         if group is None:
-            self.notify(t("group.not_found_named", nome=name), severity="error")
+            self.notify(t("group.not_found_named", name=name), severity="error")
             return
 
         self._edit_group_name = name
@@ -646,7 +646,7 @@ class GroupManageScreen(Vertical):
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
                 title=t("query_manage.edit_description_title"),
-                message=t("query_manage.description_for", nome=name),
+                message=t("query_manage.description_for", name=name),
                 default=group.description,
             )
             self.app.push_screen(modal, callback=self._on_edit_description)
@@ -659,7 +659,7 @@ class GroupManageScreen(Vertical):
             from dbqm.ui.modals.text_input import TextInputModal
             modal = TextInputModal(
                 title=t("group_manage.edit_join_key_title"),
-                message=t("group_manage.join_key_for", nome=name),
+                message=t("group_manage.join_key_for", name=name),
                 default=group.join_key,
             )
             self.app.push_screen(modal, callback=self._on_edit_join_key)
@@ -669,7 +669,7 @@ class GroupManageScreen(Vertical):
             current = ", ".join(group.compare_columns)
             modal = TextInputModal(
                 title=t("group_manage.edit_compare_cols_title"),
-                message=t("group_manage.compare_cols_for", nome=name),
+                message=t("group_manage.compare_cols_for", name=name),
                 default=current,
             )
             self.app.push_screen(modal, callback=self._on_edit_compare_columns)
@@ -734,7 +734,7 @@ class GroupManageScreen(Vertical):
 
         template = find_template(group.template)
         if template is None:
-            self.notify(t("template.not_found_named", nome=group.template), severity="error")
+            self.notify(t("template.not_found_named", name=group.template), severity="error")
             return
 
         placeholders = extract_placeholders(template.content)
@@ -764,7 +764,7 @@ class GroupManageScreen(Vertical):
                 break
         save_groups(groups)
         self._load_groups()
-        self.notify(t("group_manage.updated", nome=name))
+        self.notify(t("group_manage.updated", name=name))
 
     # -- Rename --
 
@@ -779,7 +779,7 @@ class GroupManageScreen(Vertical):
         self._rename_old_name = name
         modal = TextInputModal(
             title=t("group_manage.rename_title"),
-            message=t("common.new_name_for", nome=name),
+            message=t("common.new_name_for", name=name),
             default=name,
         )
         self.app.push_screen(modal, callback=self._on_rename_result)
@@ -799,7 +799,7 @@ class GroupManageScreen(Vertical):
         groups = load_groups()
 
         if any(g.name == new_name for g in groups):
-            self.notify(t("group.already_exists", nome=new_name), severity="error")
+            self.notify(t("group.already_exists", name=new_name), severity="error")
             return
 
         for g in groups:
@@ -808,7 +808,7 @@ class GroupManageScreen(Vertical):
                 break
         save_groups(groups)
         self._load_groups()
-        self.notify(t("group_manage.renamed", antigo=old_name, novo=new_name))
+        self.notify(t("group_manage.renamed", old=old_name, new=new_name))
 
     # -- Folder --
 
@@ -822,7 +822,7 @@ class GroupManageScreen(Vertical):
 
         group = find_group(name)
         if group is None:
-            self.notify(t("group.not_found_named", nome=name), severity="error")
+            self.notify(t("group.not_found_named", name=name), severity="error")
             return
 
         all_groups = load_groups()
@@ -846,7 +846,7 @@ class GroupManageScreen(Vertical):
         save_groups(groups)
         self._load_groups()
         label = f'"{folder}"' if folder else "(sem pasta)"
-        self.notify(t("group_manage.moved_to", nome=self._folder_group_name, pasta=label))
+        self.notify(t("group_manage.moved_to", name=self._folder_group_name, folder=label))
 
     # -- Remove --
 
@@ -859,7 +859,7 @@ class GroupManageScreen(Vertical):
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=t("group_manage.confirm_remove", nome=name))
+        modal = ConfirmModal(message=t("group_manage.confirm_remove", name=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -872,9 +872,9 @@ class GroupManageScreen(Vertical):
         if delete_group(name):
             self._load_groups()
             self._update_status_bar()
-            self.notify(t("group_manage.removed", nome=name))
+            self.notify(t("group_manage.removed", name=name))
         else:
-            self.notify(t("group.not_found_named", nome=name), severity="error")
+            self.notify(t("group.not_found_named", name=name), severity="error")
 
     # ------------------------------------------------------------------
     # Helpers

@@ -133,7 +133,7 @@ class BrowserScreen(Vertical):
                     what=t("browser.objects_title"),
                     why=t("browser.empty_why"),
                     action_label=t("browser.choose_connection"),
-                    action_id="escolher-conexao",
+                    action_id="choose-connection",
                     id="obj-list-empty",
                 )
                 # The shape of the list that is coming, not a spinner: it
@@ -382,7 +382,7 @@ class BrowserScreen(Vertical):
         if conn.db_type != "oracle":
             self.app.call_from_thread(
                 self._on_source_unavailable,
-                t("browser.source_unavailable", tipo=conn.db_type),
+                t("browser.source_unavailable", type=conn.db_type),
             )
             return
 
@@ -522,7 +522,7 @@ class BrowserScreen(Vertical):
         # the first of those leaves the skeleton up, but resetting here is
         # a harmless no-op for the other three (idempotent on `has_conn`).
         self._update_obj_list_visibility()
-        self.notify(t("adhoc.error", erro=error), severity="error", timeout=8)
+        self.notify(t("adhoc.error", error=error), severity="error", timeout=8)
 
     # ------------------------------------------------------------------
     # Buttons: Extrair DDL / Carregar mais
@@ -534,7 +534,7 @@ class BrowserScreen(Vertical):
             self._handle_extract_ddl()
         elif btn_id == "obj-more":
             self._handle_load_more()
-        elif btn_id == "escolher-conexao":
+        elif btn_id == "choose-connection":
             self.query_one("#obj-conn", Select).focus()
 
     def _handle_extract_ddl(self) -> None:
@@ -542,7 +542,7 @@ class BrowserScreen(Vertical):
             self.notify(t("browser.select_object"), severity="warning")
             return
         conn = self._current_conn
-        self.notify(t("browser.extracting", nome=self._selected_object))
+        self.notify(t("browser.extracting", name=self._selected_object))
         self._run_ddl(conn, self._selected_object)
 
     @work(thread=True, group="obj-ddl")
@@ -588,10 +588,10 @@ class BrowserScreen(Vertical):
     def _on_ddl_saved(self, dir_path: str, saved_files: list[str]) -> None:
         if saved_files:
             self.notify(
-                t("browser.ddl_saved_files", arquivos=", ".join(saved_files), pasta=dir_path), timeout=6
+                t("browser.ddl_saved_files", files=", ".join(saved_files), folder=dir_path), timeout=6
             )
         else:
-            self.notify(t("browser.ddl_saved", pasta=dir_path), timeout=6)
+            self.notify(t("browser.ddl_saved", folder=dir_path), timeout=6)
 
     def _handle_load_more(self) -> None:
         if not self._selected_object or self._current_conn is None:

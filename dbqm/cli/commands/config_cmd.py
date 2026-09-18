@@ -60,7 +60,7 @@ def _require_known_key(args: argparse.Namespace, command: str, key: str) -> None
     if key not in _KEYS:
         _fail_or_print(
             args, command, "not_found",
-            t("config.key_unknown", chave=key, validas=", ".join(_KEYS)),
+            t("config.key_unknown", key=key, valid=", ".join(_KEYS)),
         )
 
 
@@ -72,7 +72,7 @@ def _parse_bool(args: argparse.Namespace, command: str, key: str, raw: str) -> b
         return False
     _fail_or_print(
         args, command, "validation",
-        t("config.bool_invalid", chave=key, valor=raw),
+        t("config.bool_invalid", key=key, value=raw),
     )
 
 
@@ -81,7 +81,7 @@ def _parse_theme(args: argparse.Namespace, command: str, raw: str) -> str:
         temas = ", ".join(sorted(THEMES.keys()))
         _fail_or_print(
             args, command, "validation",
-            t("config.theme_invalid", tema=raw, validos=temas),
+            t("config.theme_invalid", theme=raw, valid=temas),
         )
     return raw
 
@@ -96,7 +96,7 @@ def _parse_language(args: argparse.Namespace, command: str, raw: str) -> str:
     if raw not in idiomas:
         _fail_or_print(
             args, command, "validation",
-            t("config.language_invalid", idioma=raw, validos=", ".join(idiomas)),
+            t("config.language_invalid", language=raw, valid=", ".join(idiomas)),
         )
     return raw
 
@@ -109,7 +109,7 @@ def _parse_dir(args: argparse.Namespace, command: str, key: str, raw: str) -> st
     if not Path(raw).is_dir():
         _fail_or_print(
             args, command, "validation",
-            t("config.dir_not_found", chave=key, caminho=raw),
+            t("config.dir_not_found", key=key, path=raw),
         )
     return raw
 

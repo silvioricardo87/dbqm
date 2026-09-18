@@ -48,7 +48,7 @@ def validate(values: dict[str, Any]) -> list[str]:
     if not connection:
         errors.append(t("query.connection_required"))
     elif find_connection(connection) is None:
-        errors.append(t("query.connection_not_found", nome=connection))
+        errors.append(t("query.connection_not_found", name=connection))
 
     return errors
 

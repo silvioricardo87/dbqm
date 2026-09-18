@@ -165,7 +165,7 @@ class QueryListWidget(Vertical, can_focus=False):
             what=t("query.list_title"),
             why=t("query_list.empty_why"),
             action_label=t("common.clear_filters"),
-            action_id="limpar-filtros-consultas",
+            action_id="clear-query-filters",
             id="ql-filter-empty",
         )
         yield OptionList(id="ql-listview")
@@ -236,7 +236,7 @@ class QueryListWidget(Vertical, can_focus=False):
         self.post_message(QuerySelected(event.option.name))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "limpar-filtros-consultas":
+        if event.button.id == "clear-query-filters":
             # Clear what the widget owns itself (its own inline search);
             # folder/connection/text filters living in the host screen are
             # its own to reset, hence the message.

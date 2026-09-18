@@ -174,12 +174,12 @@ class GroupExecScreen(Vertical):
 
         group = find_group(name)
         if group is None or not group.adhoc_sql:
-            self.notify(t("group.not_found_named", nome=name), severity="error")
+            self.notify(t("group.not_found_named", name=name), severity="error")
             return
 
         self.query_one("#group-sql", TextArea).load_text(group.adhoc_sql)
         self._populate_connections(set(group.connections))
-        self.notify(t("group_exec.loaded", nome=name), timeout=3)
+        self.notify(t("group_exec.loaded", name=name), timeout=3)
 
     def _save_selection(self) -> None:
         sql = self.query_one("#group-sql", TextArea).text
@@ -227,7 +227,7 @@ class GroupExecScreen(Vertical):
         save_groups(groups)
 
         self._refresh_saved_groups()
-        self.notify(t("group_exec.saved", nome=name), timeout=3)
+        self.notify(t("group_exec.saved", name=name), timeout=3)
 
     # ------------------------------------------------------------------
     # Execution + comparison
@@ -245,7 +245,7 @@ class GroupExecScreen(Vertical):
 
         self.query_one(ProgressIndicator).start(
             t("group_exec.running",
-              conexoes=t("group_exec.connections_count", quantidade=len(checked)))
+              connections=t("group_exec.connections_count", count=len(checked)))
         )
         # Shape of the comparison that is coming, in place of whatever the
         # panel showed before (empty on first run, a stale comparison on a
@@ -283,7 +283,7 @@ class GroupExecScreen(Vertical):
         def on_missing(cname: str) -> None:
             self.app.call_from_thread(
                 self.notify,
-                t("connection.not_found_named", nome=cname),
+                t("connection.not_found_named", name=cname),
                 severity="warning",
             )
 

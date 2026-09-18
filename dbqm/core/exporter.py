@@ -185,15 +185,15 @@ _EVIDENCE_SUB = "-" * 70
 def _evidence_status(result: AdhocResult) -> str:
     """One-line outcome summary for the evidence footer."""
     if not result.success:
-        return t("export.status_error", erro=result.error)
+        return t("export.status_error", error=result.error)
     tipo = result.sql_type
     if tipo == "PLSQL":
         return t("export.status_plsql")
     if tipo in ("INSERT", "UPDATE", "DELETE"):
         commit = t("export.commit_done") if result.committed else t("export.commit_pending")
-        return t("export.status_dml", quantidade=result.rows_affected, commit=commit)
+        return t("export.status_dml", count=result.rows_affected, commit=commit)
     if tipo == "SELECT":
-        return t("export.status_select", linhas=result.row_count)
+        return t("export.status_select", rows=result.row_count)
     if tipo == "DDL":
         return t("export.status_ddl")
     return t("export.status_ok")

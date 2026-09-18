@@ -73,7 +73,7 @@ class HistoryScreen(Vertical):
                 what=t("history.list_title"),
                 why=t("history.empty_why"),
                 action_label=t("history.run_query"),
-                action_id="executar-consulta",
+                action_id="run-query",
                 id="hist-empty",
             )
             yield DataTable(id="hist-table")
@@ -279,10 +279,10 @@ class HistoryScreen(Vertical):
             self._handle_clear()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "executar-consulta":
+        if event.button.id == "run-query":
             # Guarded: HistoryScreen is also mounted standalone in tests,
             # where self.app has no action_switch_tab (that lives on
             # DBQMApp only).
             switch = getattr(self.app, "action_switch_tab", None)
             if callable(switch):
-                switch("tab-consultas")
+                switch("tab-queries")

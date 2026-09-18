@@ -375,7 +375,7 @@ def duplicate_key_warnings(group_result: GroupResult) -> list[str]:
     if not group_result.comparisons:
         return []
     return [
-        t("group.duplicate_key_rows", chave=group_result.join_key, lado=nome, linhas=n)
+        t("group.duplicate_key_rows", key=group_result.join_key, side=nome, rows=n)
         for nome, n in sorted(group_result.comparisons[0].duplicate_rows.items())
     ]
 
@@ -400,7 +400,7 @@ def build_group_result(
 
     summary_lines = []
     for comp in comparisons:
-        summary_lines.append(t("group.summary_column", coluna=comp.column))
+        summary_lines.append(t("group.summary_column", column=comp.column))
         summary_lines.append(t("group.summary_equal", n=comp.equal_count))
         if comp.normalized_count > 0:
             summary_lines.append(t("group.summary_normalized", n=comp.normalized_count))

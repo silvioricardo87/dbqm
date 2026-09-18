@@ -165,7 +165,7 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
         "package_editor.py": [
             (
                 'f\'[bold]  {t("package_editor.compiled", '
-                'alvo=target.capitalize())}[/]\''
+                'target=target.capitalize())}[/]\''
             ),
         ],
     }
@@ -763,7 +763,7 @@ async def test_query_list_filtered_empty_state_clears_search_and_notifies_host()
         assert ql.query_one("#ql-filter-empty", EmptyState).display is True
         assert ql.query_one("#ql-listview", OptionList).display is False
 
-        ql.query_one("#limpar-filtros-consultas", Button).press()
+        ql.query_one("#clear-query-filters", Button).press()
         await pilot.pause()
 
         assert ql._search_text == ""
@@ -1535,9 +1535,9 @@ async def test_templates_sidebar_empty_state_action_switches_to_tools():
         sb = app.query_one("#tpl", TemplatesSidebar)
         sb._reload()  # no templates in the test config
         await pilot.pause()
-        sb.query_one("#abrir-ferramentas", Button).press()
+        sb.query_one("#open-tools", Button).press()
         await pilot.pause()
-        assert switched == ["tab-ferramentas"]
+        assert switched == ["tab-tools"]
 
 
 @pytest.mark.asyncio
@@ -1591,12 +1591,12 @@ async def test_empty_state_offers_the_first_action():
                 what="Consultas",
                 why="Voce ainda nao salvou nenhuma consulta",
                 action_label="Criar consulta",
-                action_id="criar-consulta",
+                action_id="create-query",
             )
 
     app = _EmptyStateApp()
     async with app.run_test():
-        botao = app.query_one("#criar-consulta", Button)
+        botao = app.query_one("#create-query", Button)
         assert botao.label.plain == "Criar consulta"
 
 

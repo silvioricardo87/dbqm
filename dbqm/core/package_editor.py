@@ -55,7 +55,7 @@ def compile_package(db, sql: str, conn=None) -> tuple[bool, str]:
     and read-only it refuses outright.
     """
     if conn is not None and conn.read_only:
-        raise ReadOnlyViolation(t("read_only.package_compile_refused", nome=conn.name))
+        raise ReadOnlyViolation(t("read_only.package_compile_refused", name=conn.name))
     cursor = db.cursor()
     try:
         cursor.execute(sql)

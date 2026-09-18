@@ -71,7 +71,7 @@ def cmd_objects(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         _fail_or_print(args, "objects", "not_found",
-                       t("connection.not_found_named", nome=args.connection))
+                       t("connection.not_found_named", name=args.connection))
 
     obj_type = args.type.upper()
     nomes = _with_open_connection(
@@ -84,12 +84,12 @@ def cmd_objects(args: argparse.Namespace) -> None:
                        "objects": nomes})
         return
 
-    tabela = Table(title=t("objects.list_title", tipo=obj_type, conexao=conn.name))
+    tabela = Table(title=t("objects.list_title", type=obj_type, connection=conn.name))
     tabela.add_column(t("common.name"))
     for nome in nomes:
         tabela.add_row(escape(nome))
     console.print(tabela)
-    console.print(t("objects.count", quantidade=len(nomes)))
+    console.print(t("objects.count", count=len(nomes)))
 
 
 def cmd_describe(args: argparse.Namespace) -> None:
@@ -103,7 +103,7 @@ def cmd_describe(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         _fail_or_print(args, "describe", "not_found",
-                       t("connection.not_found_named", nome=args.connection))
+                       t("connection.not_found_named", name=args.connection))
 
     def acao(db):
         estrutura = deps.get_table_structure(db, conn.db_type, args.object)
@@ -125,7 +125,7 @@ def cmd_describe(args: argparse.Namespace) -> None:
         # routine of that name may well exist. All this call establishes is
         # that it is not a table and not a view.
         _fail_or_print(args, "describe", "not_found",
-                       t("describe.not_table_nor_view", nome=args.object, conexao=conn.name))
+                       t("describe.not_table_nor_view", name=args.object, connection=conn.name))
 
     tipo = "VIEW" if e_view else "TABLE"
     data = estrutura.to_dict()
@@ -180,7 +180,7 @@ def cmd_rows(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.connection)
     if not conn:
         _fail_or_print(args, "rows", "not_found",
-                       t("connection.not_found_named", nome=args.connection))
+                       t("connection.not_found_named", name=args.connection))
 
     def acao(db):
         try:
@@ -208,7 +208,7 @@ def cmd_rows(args: argparse.Namespace) -> None:
                 raise original from None
             if args.table.upper() not in tabelas | vistas:
                 raise deps.ObjectNotFound(
-                    t("rows.table_not_found", nome=args.table, conexao=conn.name)
+                    t("rows.table_not_found", name=args.table, connection=conn.name)
                 ) from original
             raise
 
@@ -238,5 +238,5 @@ def cmd_rows(args: argparse.Namespace) -> None:
     vistas = resultado.offset + resultado.row_count
     if args.format == "table" and resultado.total_count > vistas:
         console.print(
-            t("rows.showing_page", vistas=vistas, total=resultado.total_count)
+            t("rows.showing_page", seen=vistas, total=resultado.total_count)
         )

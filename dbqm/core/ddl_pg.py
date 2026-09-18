@@ -38,7 +38,7 @@ def extract_pg_ddl(db, object_name: str, result: ExtractionResult, on_progress=N
             _extract_pg_routine(cursor, name_lower, result, on_progress)
             return
 
-        result.errors.append(t("ddl.object_not_found", nome=object_name))
+        result.errors.append(t("ddl.object_not_found", name=object_name))
         result.not_found = True
     finally:
         cursor.close()
@@ -132,7 +132,7 @@ def _extract_pg_routine(cursor, routine: str, result: ExtractionResult, on_progr
     if row:
         result.objects.append(ExtractedObject(routine, "ROUTINE", row[0] + ";"))
     else:
-        result.errors.append(t("ddl.routine_not_found_or_denied", nome=routine))
+        result.errors.append(t("ddl.routine_not_found_or_denied", name=routine))
 
 
 def _pg_format_type(dtype: str, char_len, num_prec, num_scale) -> str:

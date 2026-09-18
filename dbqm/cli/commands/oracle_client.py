@@ -92,7 +92,7 @@ def _available_or_fail(
     if not packages:
         _fail_or_print(
             args, command, "usage",
-            t("oracle_client.no_packages", plataforma=deps.host_platform_label(host)),
+            t("oracle_client.no_packages", platform=deps.host_platform_label(host)),
         )
     return host, packages
 
@@ -110,7 +110,7 @@ def _oracle_client_available(args: argparse.Namespace) -> None:
         return
 
     table = Table(title=t("oracle_client.available_title",
-                          plataforma=deps.host_platform_label(host)))
+                          platform=deps.host_platform_label(host)))
     table.add_column(t("oracle_client.version_column"))
     table.add_column(t("oracle_client.arch_column"))
     table.add_column(t("oracle_client.format_column"))
@@ -128,14 +128,14 @@ def _oracle_client_install(args: argparse.Namespace) -> None:
         versoes = ", ".join(p.version for p in packages)
         _fail_or_print(
             args, command, "usage",
-            t("oracle_client.version_unknown", versao=args.version,
-              plataforma=deps.host_platform_label(host), disponiveis=versoes),
+            t("oracle_client.version_unknown", version=args.version,
+              platform=deps.host_platform_label(host), available=versoes),
         )
 
     def on_progress(done: int, total: int | None) -> None:
         mb = done // (1024 * 1024)
         texto = (t("oracle_client.downloading_pct",
-                   porcento=(done * 100) // total, mb=mb) if total
+                   percent=(done * 100) // total, mb=mb) if total
                  else t("oracle_client.downloading", mb=mb))
         if args.format == "json":
             print(texto, file=sys.stderr)
@@ -159,8 +159,8 @@ def _oracle_client_install(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok(command, {"version": pkg.version, "path": str(path)})
         return
-    console.print(escape(t("oracle_client.installed", versao=pkg.version,
-                           caminho=str(path))))
+    console.print(escape(t("oracle_client.installed", version=pkg.version,
+                           path=str(path))))
 
 
 def _oracle_client_rm(args: argparse.Namespace) -> None:
@@ -169,7 +169,7 @@ def _oracle_client_rm(args: argparse.Namespace) -> None:
     item = next((c for c in items if c.path.name == args.name), None)
     if item is None:
         _fail_or_print(args, command, "not_found",
-                        t("oracle_client.not_found_named", nome=args.name))
+                        t("oracle_client.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
@@ -179,7 +179,7 @@ def _oracle_client_rm(args: argparse.Namespace) -> None:
                             t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(t("oracle_client.confirm_remove", nome=args.name), end="",
+        print(t("oracle_client.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
         resposta = input().strip().lower()
         if resposta not in t("common.yes_answers").split(","):
@@ -193,7 +193,7 @@ def _oracle_client_rm(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok(command, {"name": args.name, "removed": True})
         return
-    console.print(escape(t("oracle_client.removed", nome=args.name)))
+    console.print(escape(t("oracle_client.removed", name=args.name)))
 
 
 _ORACLE_CLIENT_SUBCOMMANDS = {

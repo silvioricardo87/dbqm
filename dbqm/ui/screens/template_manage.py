@@ -152,7 +152,7 @@ class TemplateManageScreen(Vertical):
                 what=t("template.list_title"),
                 why=t("template_manage.empty_why"),
                 action_label=t("template_manage.create"),
-                action_id="criar-template",
+                action_id="create-template",
                 id="tm-empty",
             )
             yield DataTable(id="tm-table")
@@ -164,7 +164,7 @@ class TemplateManageScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "criar-template":
+        if event.button.id == "create-template":
             self._handle_new()
 
     def _set_initial_focus(self) -> None:
@@ -268,14 +268,14 @@ class TemplateManageScreen(Vertical):
         templates = load_templates()
 
         if any(t.name == result["name"] for t in templates):
-            self.notify(t("template.already_exists", nome=result["name"]), severity="error")
+            self.notify(t("template.already_exists", name=result["name"]), severity="error")
             return
 
         template = build(result)
         templates.append(template)
         save_templates(templates)
         self._load_templates()
-        self.notify(t("template_manage.created", nome=template.name))
+        self.notify(t("template_manage.created", name=template.name))
 
     # -- Edit --
 
@@ -289,12 +289,12 @@ class TemplateManageScreen(Vertical):
 
         template = find_template(name)
         if template is None:
-            self.notify(t("template.not_found_named", nome=name), severity="error")
+            self.notify(t("template.not_found_named", name=name), severity="error")
             return
 
         self._edit_template_name = name
         modal = TemplateEditModal(
-            title=t("template_manage.edit_title", nome=name),
+            title=t("template_manage.edit_title", name=name),
             name_value=template.name,
             description_value=template.description,
             content_value=template.content,
@@ -316,7 +316,7 @@ class TemplateManageScreen(Vertical):
                 break
         save_templates(templates)
         self._load_templates()
-        self.notify(t("template_manage.updated", nome=self._edit_template_name))
+        self.notify(t("template_manage.updated", name=self._edit_template_name))
 
     # -- Rename --
 
@@ -331,7 +331,7 @@ class TemplateManageScreen(Vertical):
         self._rename_old_name = name
         modal = TextInputModal(
             title=t("template_manage.rename_title"),
-            message=t("common.new_name_for", nome=name),
+            message=t("common.new_name_for", name=name),
             default=name,
         )
         self.app.push_screen(modal, callback=self._on_rename_result)
@@ -351,7 +351,7 @@ class TemplateManageScreen(Vertical):
         templates = load_templates()
 
         if any(t.name == new_name for t in templates):
-            self.notify(t("template.already_exists", nome=new_name), severity="error")
+            self.notify(t("template.already_exists", name=new_name), severity="error")
             return
 
         for t in templates:
@@ -360,7 +360,7 @@ class TemplateManageScreen(Vertical):
                 break
         save_templates(templates)
         self._load_templates()
-        self.notify(t("template_manage.renamed", antigo=old_name, novo=new_name))
+        self.notify(t("template_manage.renamed", old=old_name, new=new_name))
 
     # -- Remove --
 
@@ -373,7 +373,7 @@ class TemplateManageScreen(Vertical):
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=t("template_manage.confirm_remove", nome=name))
+        modal = ConfirmModal(message=t("template_manage.confirm_remove", name=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -385,6 +385,6 @@ class TemplateManageScreen(Vertical):
         name = self._remove_name
         if delete_template(name):
             self._load_templates()
-            self.notify(t("template_manage.removed", nome=name))
+            self.notify(t("template_manage.removed", name=name))
         else:
-            self.notify(t("template.not_found_named", nome=name), severity="error")
+            self.notify(t("template.not_found_named", name=name), severity="error")

@@ -50,7 +50,7 @@ class TestSqlFailures:
         set_language(idioma)
         assert _sql_error_code(t("sql.select_only"), "usage") == "usage"
         assert _sql_error_code(t("sql.unsupported_type"), "usage") == "usage"
-        assert _sql_error_code(t("sql.explain_unsupported", tipo="mysql"), "usage") == "usage"
+        assert _sql_error_code(t("sql.explain_unsupported", type="mysql"), "usage") == "usage"
 
 
 class TestDdlFailures:
@@ -68,7 +68,7 @@ class TestDdlFailures:
     @pytest.mark.parametrize("idioma", ["en", "pt"])
     def test_it_does_not_depend_on_the_language_either(self, idioma):
         set_language(idioma)
-        resultado = self._resultado(errors=[t("ddl.object_not_found", nome="T")],
+        resultado = self._resultado(errors=[t("ddl.object_not_found", name="T")],
                                     not_found=True)
         assert _ddl_error_code(resultado) == "not_found"
 

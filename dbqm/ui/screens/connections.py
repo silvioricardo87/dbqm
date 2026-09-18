@@ -207,7 +207,7 @@ class ConnectionsScreen(Vertical):
                     what=t("connection.list_title"),
                     why=t("connections.empty_why"),
                     action_label=t("connections.add_connection"),
-                    action_id="adicionar-conexao",
+                    action_id="add-connection",
                     id="conn-empty",
                 )
                 yield OptionList(id="conn-list")
@@ -363,7 +363,7 @@ class ConnectionsScreen(Vertical):
 
         conn = find_connection(name)
         if conn is None:
-            self.notify(t("connection.not_found_named", nome=name), severity="error")
+            self.notify(t("connection.not_found_named", name=name), severity="error")
             return
         self._load_into_form(conn)
 
@@ -428,7 +428,7 @@ class ConnectionsScreen(Vertical):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
-        if btn_id in ("conn-btn-new", "adicionar-conexao"):
+        if btn_id in ("conn-btn-new", "add-connection"):
             self._handle_new()
         elif btn_id == "conn-btn-test":
             self._handle_test()
@@ -588,7 +588,7 @@ class ConnectionsScreen(Vertical):
         if not name:
             self.notify(t("connections.name_required"), severity="warning")
             return
-        self.notify(t("connections.testing", nome=name))
+        self.notify(t("connections.testing", name=name))
         self._run_test(name)
 
     @work(thread=True)
@@ -600,7 +600,7 @@ class ConnectionsScreen(Vertical):
             conn = find_connection(name)
             if conn is None:
                 self.app.call_from_thread(
-                    self.notify, t("connection.not_found_named", nome=name), severity="error"
+                    self.notify, t("connection.not_found_named", name=name), severity="error"
                 )
                 return
 
@@ -609,7 +609,7 @@ class ConnectionsScreen(Vertical):
             self.app.call_from_thread(self.notify, msg, severity=severity, timeout=6)
         except Exception as e:
             self.app.call_from_thread(
-                self.notify, t("connections.test_failed", erro=e), severity="error", timeout=8
+                self.notify, t("connections.test_failed", error=e), severity="error", timeout=8
             )
 
     # ------------------------------------------------------------------
@@ -688,7 +688,7 @@ class ConnectionsScreen(Vertical):
         self._update_status_bar()
         self._select_in_list(conn.name)
         chave = "connection.created" if created else "connection.updated"
-        self.notify(t(chave, nome=conn.name))
+        self.notify(t(chave, name=conn.name))
 
     # ------------------------------------------------------------------
     # Rename
@@ -702,7 +702,7 @@ class ConnectionsScreen(Vertical):
 
         from dbqm.ui.modals.text_input import TextInputModal
 
-        modal = TextInputModal(title=t("connections.rename_title"), message=t("common.new_name_for", nome=name), default=name)
+        modal = TextInputModal(title=t("connections.rename_title"), message=t("common.new_name_for", name=name), default=name)
         self._rename_old_name = name
         self.app.push_screen(modal, callback=self._on_rename_result)
 
@@ -721,7 +721,7 @@ class ConnectionsScreen(Vertical):
         connections = load_connections()
 
         if any(c.name == new_name for c in connections):
-            self.notify(t("connection.already_exists", nome=new_name), severity="error")
+            self.notify(t("connection.already_exists", name=new_name), severity="error")
             return
 
         for conn in connections:
@@ -745,7 +745,7 @@ class ConnectionsScreen(Vertical):
         self._load_connections()
         if self._loaded_name == old_name:
             self._select_in_list(new_name)
-        self.notify(t("connections.renamed", antigo=old_name, novo=new_name))
+        self.notify(t("connections.renamed", old=old_name, new=new_name))
 
     # ------------------------------------------------------------------
     # Delete
@@ -760,7 +760,7 @@ class ConnectionsScreen(Vertical):
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=t("connections.confirm_remove", nome=name))
+        modal = ConfirmModal(message=t("connections.confirm_remove", name=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -775,9 +775,9 @@ class ConnectionsScreen(Vertical):
                 self._clear_form()
             self._load_connections()
             self._update_status_bar()
-            self.notify(t("connection.removed", nome=name))
+            self.notify(t("connection.removed", name=name))
         else:
-            self.notify(t("connection.not_found_named", nome=name), severity="error")
+            self.notify(t("connection.not_found_named", name=name), severity="error")
 
     # ------------------------------------------------------------------
     # Helpers
