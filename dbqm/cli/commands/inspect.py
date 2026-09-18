@@ -8,6 +8,7 @@ from typing import NoReturn
 from rich.markup import escape
 from rich.table import Table
 
+from dbqm.core.history import kind_label
 from dbqm.i18n import t
 from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
@@ -283,7 +284,7 @@ def cmd_history(args: argparse.Namespace) -> None:
             status = (f"[ds.verdict.match]{t('verdict.consistent')}[/]" if e.all_match
                       else f"[ds.verdict.diff]{t('verdict.divergent')}[/]")
         table.add_row(
-            e.timestamp, e.entry_type, e.name,
+            e.timestamp, kind_label(e.entry_type), e.name,
             f"[ds.identity]{e.connection}[/]" if e.connection else "-",
             str(e.row_count) if e.entry_type == "query" else "-",
             f"{e.elapsed:.2f}s", status,

@@ -7,7 +7,21 @@ from datetime import datetime
 from pathlib import Path
 
 from dbqm.core.paths import HISTORY_DIR
+from dbqm.i18n import t
+
 MAX_HISTORY = 100
+
+
+def kind_label(entry_type: str) -> str:
+    """The word a reader sees for an entry's type.
+
+    Three surfaces render this field -- the history table in the TUI, the
+    detail panel beside it, and `dbqm history -f table` -- and until now
+    each spelled it for itself: one said "grupo", the other two printed
+    the stored value. The value on disk and in `-f json` stays English,
+    because that is what a caller parses; only the word on screen moves.
+    """
+    return t("history.type_group") if entry_type == "group" else t("history.type_query")
 
 
 @dataclass

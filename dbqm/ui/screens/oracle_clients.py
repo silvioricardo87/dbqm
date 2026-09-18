@@ -201,7 +201,7 @@ class OracleClientsScreen(Vertical):
         table.clear()
         if not self._available:
             table.add_row(
-                "[dim]Sem pacotes catalogados para esta plataforma.[/]", "", "",
+                f'[dim]{t("oracle_clients.no_packages")}[/]', "", "",
             )
             return
         for pkg in self._available:

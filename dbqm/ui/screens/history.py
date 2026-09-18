@@ -6,6 +6,7 @@ from textual.containers import Vertical
 from textual.content import Content
 from textual.widgets import Button, DataTable, Static
 
+from dbqm.core.history import kind_label
 from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
@@ -145,7 +146,6 @@ class HistoryScreen(Vertical):
 
         for i, e in enumerate(self._entries, 1):
             if e.entry_type == "group":
-                tipo = "grupo"
                 if e.all_match is True:
                     status = mark_verdict("match")
                 elif e.all_match is False:
@@ -153,13 +153,12 @@ class HistoryScreen(Vertical):
                 else:
                     status = "-"
             else:
-                tipo = "query"
                 status = mark_operation("ok") if e.success else mark_operation("failure")
 
             table.add_row(
                 str(e.timestamp) if e.timestamp else "",
                 str(e.connection) if e.connection else "-",
-                tipo,
+                kind_label(e.entry_type),
                 str(e.name) if e.name else "",
                 f"{e.elapsed:.1f}s",
                 # DataTable formats string cells with Rich's plain parser,
@@ -207,7 +206,7 @@ class HistoryScreen(Vertical):
             return
 
         lines = []
-        lines.append(f'[bold]{t("common.type")}:[/bold] {entry.entry_type}')
+        lines.append(f'[bold]{t("common.type")}:[/bold] {kind_label(entry.entry_type)}')
         lines.append(f'[bold]{t("common.name")}:[/bold] {entry.name}')
         lines.append(f'[bold]{t("common.date")}:[/bold] {entry.timestamp}')
         if entry.connection:

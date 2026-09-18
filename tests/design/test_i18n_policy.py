@@ -339,6 +339,11 @@ SINKS_POSICIONAIS = frozenset({
     "EmptyState", "Panel", "PathLabel", "Digits",
 })
 
+#: Calls where *every* positional argument becomes a cell someone reads.
+#: `add_row` is how the history table said "grupo" while the CLI printed
+#: "group" for the same field -- a row is as much screen text as a label.
+SINKS_TODOS_POSICIONAIS = frozenset({"add_row"})
+
 #: Keyword arguments whose value is rendered.
 SINKS_KEYWORD = frozenset({
     "placeholder", "title", "border_title", "prompt", "sub_title",
@@ -369,11 +374,73 @@ NEUTROS = frozenset({
 })
 
 
+#: Nodes that open a scope of their own. A name assigned inside one is not
+#: the same name outside it.
+ESCOPOS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+def _literais_visiveis(arvore) -> dict[ast.Call, dict[str, list[ast.Constant]]]:
+    """For every call, the plain string literals its scope binds to a name.
+
+    Three strings reached a screen through a variable and neither half of
+    this guard saw them: `tipo = "grupo"` handed to `add_row`, and a
+    version that fell back to `"desconhecida"` before going into a
+    translated sentence as a field. The sink check reads the argument at
+    the call site, and the argument was a name.
+
+    Only `x = "literal"` counts, and a name that is *also* assigned an
+    expression anywhere in its scope counts for nothing -- what it holds
+    at the call is then a question of control flow, not of reading. Scope
+    matters for the same reason: `build()` sets `mode = "direct"` as a
+    default and `validate()` echoes the user's own `mode` back in an error
+    message, and they are two different names that happen to share
+    spelling.
+    """
+    def _proprios(escopo):
+        """The nodes of one scope, without descending into a nested one."""
+        pilha = list(ast.iter_child_nodes(escopo))
+        while pilha:
+            no = pilha.pop()
+            yield no
+            if not isinstance(no, ESCOPOS):
+                pilha.extend(ast.iter_child_nodes(no))
+
+    def _atribuicoes(nos):
+        constantes: dict[str, list[ast.Constant]] = {}
+        calculados: set[str] = set()
+        for no in nos:
+            if isinstance(no, ast.Assign):
+                alvos = no.targets
+            elif isinstance(no, ast.AnnAssign) and no.value is not None:
+                alvos = [no.target]
+            else:
+                continue
+            for alvo in alvos:
+                if not isinstance(alvo, ast.Name):
+                    continue
+                if isinstance(no.value, ast.Constant) and isinstance(no.value.value, str):
+                    constantes.setdefault(alvo.id, []).append(no.value)
+                else:
+                    calculados.add(alvo.id)
+        return {nome: cs for nome, cs in constantes.items() if nome not in calculados}
+
+    do_modulo = _atribuicoes(_proprios(arvore))
+    por_chamada: dict[ast.Call, dict[str, list[ast.Constant]]] = {}
+    for escopo in [arvore] + [n for n in ast.walk(arvore) if isinstance(n, ESCOPOS)]:
+        nos = list(_proprios(escopo))
+        visivel = {**do_modulo, **_atribuicoes(nos)}
+        for no in nos:
+            if isinstance(no, ast.Call):
+                por_chamada[no] = visivel
+    return por_chamada
+
+
 def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
     """`(line, sink, text)` for every bare literal handed to a screen."""
     fonte = py.read_text(encoding="utf-8")
     arvore = ast.parse(fonte)
     achados = []
+    visiveis = _literais_visiveis(arvore)
 
     def _texto_cru(no):
         """The literal text, or None when the value is not a bare literal."""
@@ -401,6 +468,8 @@ def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
         alvos = []
         if nome in SINKS_POSICIONAIS and no.args:
             alvos.append((nome, no.args[0]))
+        if nome in SINKS_TODOS_POSICIONAIS:
+            alvos += [(nome, arg) for arg in no.args]
         # Text accumulated in a list and rendered later. A sentence appended
         # to `lines` is a message; a fragment of SQL being assembled is not,
         # which is what `FORA_DO_APPEND` separates.
@@ -412,15 +481,34 @@ def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
         for kw in no.keywords:
             if kw.arg in SINKS_KEYWORD:
                 alvos.append((f"{nome}.{kw.arg}", kw.value))
+            # A field handed to `t()` is rendered inside the translated
+            # sentence, so it is screen text too -- and it is the one spot
+            # where a hard-coded word hides behind a key that looks right.
+            elif nome == "t" and kw.arg:
+                alvos.append((f"t.{kw.arg}", kw.value))
 
+        # A name is followed one step back to what its scope assigns it.
+        literais = visiveis.get(no, {})
+        expandidos = []
         for rotulo, alvo in alvos:
+            if isinstance(alvo, ast.Name) and alvo.id in literais:
+                expandidos += [(f"{rotulo} <- {alvo.id}", c)
+                               for c in literais[alvo.id]]
+            else:
+                expandidos.append((rotulo, alvo))
+
+        for rotulo, alvo in expandidos:
             texto = _texto_cru(alvo)
             if texto is None:
                 continue
             limpo = re.sub(r"\[[^]]*]", "", texto).strip()
             if not re.search(r"[A-Za-z]{2,}", limpo) or limpo in NEUTROS:
                 continue
-            if rotulo in ("append", "extend", "insert") and " " not in limpo:
+            if re.fullmatch(r"https?://\S+", limpo):
+                # A URL has letters in it and is the same in every
+                # language; the sentence around it is what gets translated.
+                continue
+            if rotulo.split(" <- ")[0] in ("append", "extend", "insert") and " " not in limpo:
                 # A single word appended to a list is a column key or a
                 # token, not a sentence someone reads.
                 continue

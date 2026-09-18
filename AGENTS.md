@@ -138,8 +138,9 @@ The rules, each with the failure that earned it:
   in one language and silently wrong in every other; three such bugs were
   found during the migration.
 - **Identifiers are not screen text.** Widget ids, CSS selectors and route
-  keys stay as they are (many are still Portuguese) and the guard knows the
-  difference by role, not by wording.
+  keys are English like the rest of the code, and the guard tells them from
+  labels by role rather than by wording -- so renaming one is never a
+  translation.
 
 Two guards enforce this, and the split matters:
 `test_no_screen_takes_a_literal_instead_of_a_key` asks where a string goes
@@ -147,6 +148,12 @@ Two guards enforce this, and the split matters:
 word-list ratchet, kept at zero, looks everywhere rather than only at known
 sinks. The first is the one that generalises; the second catches a helper
 that builds a sentence for someone else to render.
+
+The sink guard follows a name one step: `kind = "grupo"` handed to
+`add_row(kind)` is the same defect as the literal written inline, and it is
+how the history table said "grupo" while the CLI printed "group" for the
+same field. It also reads the *fields* of a `t()` call, because a hard-coded
+word passed as `version=` renders inside a sentence that looks translated.
 
 The user picks the language with `dbqm config set language en|pt`, or per
 run with `DBQM_LANG`.

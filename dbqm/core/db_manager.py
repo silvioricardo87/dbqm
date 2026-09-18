@@ -551,9 +551,10 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
                 else:
                     cursor.execute("SELECT version()")
                 version_row = cursor.fetchone()
-                version = version_row[0][:80] if version_row else "desconhecida"
+                version = (version_row[0][:80] if version_row
+                           else t("connection.version_unknown"))
             except Exception:
-                version = "indisponivel"
+                version = t("connection.version_unavailable")
                 if conn.db_type == "oracle":
                     cursor.execute("SELECT 1 FROM DUAL")
                 else:
