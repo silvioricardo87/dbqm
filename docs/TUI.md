@@ -17,6 +17,29 @@ python -m dbqm
 
 On first launch, the app creates its data directory (`~/.dbqm`), prompts you to configure your first database connection, and generates an encryption key.
 
+## The screens
+
+**Coleta** (`F1`) — ad-hoc SQL against one connection, `Ctrl+Enter` to run.
+Parameters are detected in the text; `Saida DBMS` opts the run into
+DBMS_OUTPUT capture.
+
+![The ad-hoc SQL screen, with a query and its result](img/adhoc.svg)
+
+**Consultas** (`F7`) — saved queries, filtered by folder, by connection or by
+free text, and their results.
+
+![A saved query and its result table](img/consultas.svg)
+
+**Multi-Exec** (`F4`) — one statement across the connections you tick, compared
+row by row. The verdict and the per-column counts sit under the table.
+
+![A comparison across two databases reported as DIVERGENTE](img/comparacao.svg)
+
+**Conexoes** (`F2`) — the connections, their engine, their target and their
+description.
+
+![The connections screen, listing two SQLite connections](img/conexoes.svg)
+
 ## Keyboard Navigation
 
 The application is fully keyboard-driven:

@@ -10,6 +10,8 @@ place, with one set of saved connections. Built with
 Every operation is available without a TTY, so the same tool serves a person at
 a terminal and a script, a CI job or an AI agent.
 
+![A saved query running against a connection, with its result table](docs/img/consultas.svg)
+
 ## Install
 
 ```bash
@@ -77,6 +79,8 @@ has to remember to update.
   every engine that has one
 - **Execute routines** — Oracle packages, procedures and functions, with
   parameters in and OUT values and the return value back as data
+
+![The same statement run against two databases, reported as DIVERGENTE with per-column counts](docs/img/comparacao.svg)
 
 **Look around**
 
