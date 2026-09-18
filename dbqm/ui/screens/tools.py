@@ -20,6 +20,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import ContentSwitcher, OptionList
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
 from dbqm.ui.widgets.panel import Panel
@@ -28,37 +29,22 @@ from dbqm.ui.widgets.panel import Panel
 class ToolsScreen(Vertical):
     """Launcher that hosts five existing tool screens behind a list."""
 
-    #: (key, identity, disambiguation). The key travels as DATA in the
-    #: option (`NamedOption.nome`), never as `id` — the reason is in
-    #: `NamedOption`'s docstring. The order is the screen's: first what is
-    #: managed, then what is run.
-    TOOLS = (
-        (
-            "grupos",
-            "\U0001F465  Gerenciar Grupos",
-            "criar, editar e remover grupos de consultas",
-        ),
-        (
-            "templates",
-            "\U0001F4C4  Gerenciar Templates",
-            "modelos de SQL com parametros",
-        ),
-        (
-            "packages",
-            "\U0001F4E6  Package Editor",
-            "editar spec e body de um package no banco",
-        ),
-        (
-            "rotina",
-            "▶  Executar Rotina",
-            "chamar procedure ou function",
-        ),
-        (
-            "executar",
-            "▶  Executar Grupo",
-            "rodar um grupo e comparar os resultados",
-        ),
-    )
+    def tools(self) -> tuple[tuple[str, str, str], ...]:
+        """(key, identity, disambiguation) per tool. The key travels as
+        DATA in the option (`NamedOption.nome`), never as `id` -- the
+        reason is in `NamedOption`'s docstring. The order is the
+        screen's: first what is managed, then what is run.
+
+        A method, not a class attribute: a class body runs at import,
+        before the app resolves the language, so labels built there
+        would stay in the default one for the life of the process."""
+        return (
+            ("grupos", t("tools.manage_groups"), t("tools.manage_groups_hint")),
+            ("templates", t("tools.manage_templates"), t("tools.manage_templates_hint")),
+            ("packages", t("tools.package_editor"), t("tools.package_editor_hint")),
+            ("rotina", t("tools.run_routine"), t("tools.run_routine_hint")),
+            ("executar", t("tools.run_group"), t("tools.run_group_hint")),
+        )
 
     DEFAULT_CSS = """
     ToolsScreen {
@@ -101,10 +87,10 @@ class ToolsScreen(Vertical):
             # Only the menu gets a frame. Each tool pane hosts a whole
             # SCREEN, which is already composed of Panels — framing it
             # again here would be a box inside a box (guideline 5).
-            with Panel("\U0001F9F0  FERRAMENTAS", id="ferr-menu"):
+            with Panel(t("panel.tools"), id="ferr-menu"):
                 yield OptionList(id="ferr-menu-list")
 
-            for chave, _identidade, _desambiguacao in self.TOOLS:
+            for chave, _identidade, _desambiguacao in self.tools():
                 # Empty: the screen is mounted here on first opening, and
                 # nothing else lives in this container — the "Voltar" that
                 # lived here left with section 7 (the exit is now the `Esc`,
@@ -114,7 +100,7 @@ class ToolsScreen(Vertical):
     def on_mount(self) -> None:
         lista = self.query_one("#ferr-menu-list", OptionList)
         lista.clear_options()
-        for chave, identidade, desambiguacao in self.TOOLS:
+        for chave, identidade, desambiguacao in self.tools():
             lista.add_option(
                 NamedOption(hierarchical_item(identidade, desambiguacao), chave)
             )
@@ -217,7 +203,7 @@ class ToolsScreen(Vertical):
         # reactivating the tab).
         barra.set_actions([])
         barra.set_pinned_action(
-            Action("Voltar", "Esc", "ferramentas-voltar") if dentro else None
+            Action(t("action.back"), "Esc", "ferramentas-voltar") if dentro else None
         )
         if dentro:
             self._reask_tool(atual)
@@ -258,5 +244,5 @@ class ToolsScreen(Vertical):
             return
         event.stop()
         chave = getattr(event.option, "name", "")
-        if any(chave == c for c, _i, _d in self.TOOLS):
+        if any(chave == c for c, _i, _d in self.tools()):
             self.open_tool(chave)

@@ -229,7 +229,7 @@ async def test_oracle_clients_sections_do_not_each_eat_the_screen(monkeypatch):
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        assert "Instalar selecionado" in rendered_text(app)
+        assert "Install the selected one" in rendered_text(app)
 
 
 # ---------------------------------------------------------------------------

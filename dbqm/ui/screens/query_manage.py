@@ -406,7 +406,7 @@ class QueryManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        with Panel("📋  CONSULTAS", id="qm-panel"):
+        with Panel(t("panel.queries"), id="qm-panel"):
             yield EmptyState(
                 what=t("query.list_title"),
                 why=t("query_manage.empty_why"),
@@ -439,7 +439,10 @@ class QueryManageScreen(Vertical):
     def _setup_table(self) -> None:
         table = self.query_one("#qm-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("#", "Pasta", "Nome", "Descricao", "Conexao", "Tabela", "Params", "Fav")
+        table.add_columns("#", t("common.folder"), t("common.name"),
+                          t("common.description"), t("common.connection"),
+                          t("common.table"), t("common.params_short"),
+                          t("common.favorite_short"))
 
     def _load_queries(self) -> None:
         from dbqm.models.query import load_queries

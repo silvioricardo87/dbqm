@@ -11,6 +11,7 @@ from textual.widgets import Button, Select, SelectionList, TextArea
 from textual.widgets.selection_list import Selection
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.ui.utils import escape_markup
 from dbqm.ui.widgets.skeleton import Skeleton
 from dbqm.ui.widgets.panel import Panel
@@ -82,21 +83,21 @@ class GroupExecScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="ge-body"):
-            with Panel("🎯  ALVO DA EXECUCAO", accent=True, id="ge-target-panel"):
-                yield Select([], prompt="Grupo salvo", id="group-saved-select")
+            with Panel(t("panel.run_target"), accent=True, id="ge-target-panel"):
+                yield Select([], prompt=t("group_exec.saved_group"), id="group-saved-select")
                 with Horizontal(id="ge-group-btns"):
-                    yield Button("Carregar", id="ge-load-group")
-                    yield Button("Salvar selecao", id="ge-save-group")
+                    yield Button(t("group_exec.load"), id="ge-load-group")
+                    yield Button(t("group_exec.save_selection"), id="ge-save-group")
                 yield SelectionList(id="conn-checklist")
                 yield Button(
-                    "Executar (Ctrl+Enter)",
+                    t("adhoc.run_button"),
                     variant="primary",
                     id="ge-execute",
                 )
             with Vertical(id="ge-right"):
-                with Panel("✏️  SQL DO GRUPO", id="ge-editor-panel"):
+                with Panel(t("panel.group_sql"), id="ge-editor-panel"):
                     yield TextArea("", language="sql", id="group-sql")
-                with Panel("📊  COMPARACAO DE RESULTADOS", id="ge-results-panel"):
+                with Panel(t("panel.result_comparison"), id="ge-results-panel"):
                     # The shape of the comparison to come, not a spinner: it
                     # reserves the right amount of space while the
                     # connections execute.
@@ -168,33 +169,33 @@ class GroupExecScreen(Vertical):
         select = self.query_one("#group-saved-select", Select)
         name = select.value
         if name is Select.BLANK or not isinstance(name, str):
-            self.notify("Selecione um grupo salvo.", severity="warning")
+            self.notify(t("group_exec.select_saved"), severity="warning")
             return
 
         group = find_group(name)
         if group is None or not group.adhoc_sql:
-            self.notify(f"Grupo '{name}' nao encontrado.", severity="error")
+            self.notify(t("group.not_found_named", nome=name), severity="error")
             return
 
         self.query_one("#group-sql", TextArea).load_text(group.adhoc_sql)
         self._populate_connections(set(group.connections))
-        self.notify(f"Grupo '{name}' carregado.", timeout=3)
+        self.notify(t("group_exec.loaded", nome=name), timeout=3)
 
     def _save_selection(self) -> None:
         sql = self.query_one("#group-sql", TextArea).text
         checked = list(self.query_one("#conn-checklist", SelectionList).selected)
         if not sql.strip():
-            self.notify("Digite o SQL antes de salvar.", severity="warning")
+            self.notify(t("group_exec.sql_before_saving"), severity="warning")
             return
         if not checked:
-            self.notify("Marque ao menos uma conexao.", severity="warning")
+            self.notify(t("group_exec.pick_a_connection"), severity="warning")
             return
 
         from dbqm.ui.modals.text_input import TextInputModal
 
         modal = TextInputModal(
-            "Salvar selecao como grupo",
-            message="Nome do grupo",
+            t("group_exec.save_as_group_title"),
+            message=t("group_manage.name_placeholder"),
         )
         self.app.push_screen(modal, callback=self._on_save_name)
 
@@ -203,7 +204,7 @@ class GroupExecScreen(Vertical):
             return
         name = name.strip()
         if not name:
-            self.notify("Nome invalido.", severity="warning")
+            self.notify(t("group_exec.invalid_name"), severity="warning")
             return
 
         from dbqm.models.group import Group, load_groups, save_groups
@@ -226,7 +227,7 @@ class GroupExecScreen(Vertical):
         save_groups(groups)
 
         self._refresh_saved_groups()
-        self.notify(f"Grupo '{name}' salvo.", timeout=3)
+        self.notify(t("group_exec.saved", nome=name), timeout=3)
 
     # ------------------------------------------------------------------
     # Execution + comparison
@@ -236,14 +237,15 @@ class GroupExecScreen(Vertical):
         sql = self.query_one("#group-sql", TextArea).text.strip()
         checked = list(self.query_one("#conn-checklist", SelectionList).selected)
         if not sql:
-            self.notify("Digite o SQL a executar.", severity="warning")
+            self.notify(t("group_exec.sql_to_run"), severity="warning")
             return
         if len(checked) < 1:
-            self.notify("Marque ao menos uma conexao.", severity="warning")
+            self.notify(t("group_exec.pick_a_connection"), severity="warning")
             return
 
         self.query_one(ProgressIndicator).start(
-            f"Executando em {len(checked)} conexao(oes)..."
+            t("group_exec.running",
+              conexoes=t("group_exec.connections_count", quantidade=len(checked)))
         )
         # Shape of the comparison that is coming, in place of whatever the
         # panel showed before (empty on first run, a stale comparison on a
@@ -281,7 +283,7 @@ class GroupExecScreen(Vertical):
         def on_missing(cname: str) -> None:
             self.app.call_from_thread(
                 self.notify,
-                f"Conexao '{cname}' nao encontrada.",
+                t("connection.not_found_named", nome=cname),
                 severity="warning",
             )
 
@@ -297,7 +299,7 @@ class GroupExecScreen(Vertical):
 
             if len(results) < 1:
                 self.app.call_from_thread(
-                    self._on_error, "Nenhuma conexao executou com sucesso."
+                    self._on_error, t("group_exec.none_succeeded")
                 )
                 return
 
@@ -305,7 +307,7 @@ class GroupExecScreen(Vertical):
                 group_result = build_adhoc_group_result(results)
             except NoComparableColumns:
                 self.app.call_from_thread(
-                    self._on_error, "Consultas nao retornaram colunas comparaveis."
+                    self._on_error, t("group_exec.no_comparable_columns")
                 )
                 return
 

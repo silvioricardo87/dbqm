@@ -8,6 +8,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Select, Static, TextArea
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
@@ -43,10 +44,10 @@ class _PackageChoiceModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("Package Editor", width="sm", id="pkg-choice-dialog"):
+        with Dialog(t("package_editor.title"), width="sm", id="pkg-choice-dialog"):
             with Horizontal(id="pkg-choice-buttons"):
-                yield Button("Editar existente", variant="primary", id="pkg-choice-edit")
-                yield Button("Criar novo", variant="default", id="pkg-choice-new")
+                yield Button(t("package_editor.edit_existing"), variant="primary", id="pkg-choice-edit")
+                yield Button(t("package_editor.create_new"), variant="default", id="pkg-choice-new")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "pkg-choice-edit":
@@ -96,16 +97,16 @@ class _PackageSearchModal(ModalScreen[dict | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("Buscar Package", id="pkg-search-dialog"):
+        with Dialog(t("package_editor.find_title"), id="pkg-search-dialog"):
             with Horizontal(classes="pkg-search-row"):
-                yield Select([], prompt="Selecione a conexao Oracle", id="pkg-search-conn")
+                yield Select([], prompt=t("package_editor.select_oracle"), id="pkg-search-conn")
             with Horizontal(classes="pkg-search-row"):
-                yield Input(placeholder="Nome do package", id="pkg-search-name")
+                yield Input(placeholder=t("package_editor.name_placeholder"), id="pkg-search-name")
             yield Static("", id="pkg-search-error")
             yield ProgressIndicator()
             with Horizontal(id="pkg-search-buttons"):
-                yield Button("Buscar", variant="primary", id="pkg-search-go")
-                yield Button("Cancelar", variant="default", id="pkg-search-cancel")
+                yield Button(t("package_editor.find"), variant="primary", id="pkg-search-go")
+                yield Button(t("common.cancel"), variant="default", id="pkg-search-cancel")
 
     def on_mount(self) -> None:
         self._load_oracle_connections()
@@ -124,7 +125,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
 
         if not oracle_conns:
             self.query_one("#pkg-search-error", Static).update(
-                "Conexao Oracle necessaria — adicione uma na aba Conexoes."
+                t("package_editor.oracle_required")
             )
             self.query_one("#pkg-search-error").display = True
 
@@ -142,13 +143,13 @@ class _PackageSearchModal(ModalScreen[dict | None]):
         select = self.query_one("#pkg-search-conn", Select)
         conn_name = select.value
         if conn_name is Select.BLANK:
-            self.query_one("#pkg-search-error", Static).update("Selecione uma conexao.")
+            self.query_one("#pkg-search-error", Static).update(t("package_editor.select_connection"))
             self.query_one("#pkg-search-error").display = True
             return
 
         pkg_name = self.query_one("#pkg-search-name", Input).value.strip()
         if not pkg_name:
-            self.query_one("#pkg-search-error", Static).update("Informe o nome do package.")
+            self.query_one("#pkg-search-error", Static).update(t("package_editor.name_required"))
             self.query_one("#pkg-search-error").display = True
             return
 
@@ -165,7 +166,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
         try:
             conn = find_connection(conn_name)
             if not conn:
-                self.app.call_from_thread(self._on_search_error, "Conexao nao encontrada.")
+                self.app.call_from_thread(self._on_search_error, t("adhoc.connection_not_found"))
                 return
 
             db = get_connection(conn)
@@ -173,7 +174,7 @@ class _PackageSearchModal(ModalScreen[dict | None]):
                 if not check_package_exists(db, pkg_name):
                     self.app.call_from_thread(
                         self._on_search_error,
-                        f"Package '{pkg_name.upper()}' nao encontrado.",
+                        t("package_editor.package_not_found", nome=pkg_name.upper()),
                     )
                     return
 
@@ -254,22 +255,22 @@ class _PackageCreateModal(ModalScreen[dict | None]):
         self._mode = "blank"
 
     def compose(self) -> ComposeResult:
-        with Dialog("Criar Package", id="pkg-create-dialog"):
+        with Dialog(t("package_editor.create_title"), id="pkg-create-dialog"):
             with Horizontal(classes="pkg-create-row"):
-                yield Select([], prompt="Selecione a conexao Oracle", id="pkg-create-conn")
+                yield Select([], prompt=t("package_editor.select_oracle"), id="pkg-create-conn")
             with Horizontal(classes="pkg-create-row"):
-                yield Input(placeholder="Nome do package", id="pkg-create-name")
+                yield Input(placeholder=t("package_editor.name_placeholder"), id="pkg-create-name")
             with Horizontal(id="pkg-create-mode-bar"):
                 yield Button(
-                    "Em branco", variant="primary", id="pkg-create-mode-blank"
+                    t("package_editor.blank"), variant="primary", id="pkg-create-mode-blank"
                 )
                 yield Button(
-                    "Wizard", variant="default", id="pkg-create-mode-wizard"
+                    t("package_editor.wizard"), variant="default", id="pkg-create-mode-wizard"
                 )
             yield Static("", id="pkg-create-error")
             with Horizontal(id="pkg-create-buttons"):
-                yield Button("Criar", variant="primary", id="pkg-create-go")
-                yield Button("Cancelar", variant="default", id="pkg-create-cancel")
+                yield Button(t("package_editor.create"), variant="primary", id="pkg-create-go")
+                yield Button(t("common.cancel"), variant="default", id="pkg-create-cancel")
 
     def on_mount(self) -> None:
         self._load_oracle_connections()
@@ -288,7 +289,7 @@ class _PackageCreateModal(ModalScreen[dict | None]):
 
         if not oracle_conns:
             self.query_one("#pkg-create-error", Static).update(
-                "Conexao Oracle necessaria — adicione uma na aba Conexoes."
+                t("package_editor.oracle_required")
             )
             self.query_one("#pkg-create-error").display = True
 
@@ -313,14 +314,14 @@ class _PackageCreateModal(ModalScreen[dict | None]):
         select = self.query_one("#pkg-create-conn", Select)
         conn_name = select.value
         if conn_name is Select.BLANK:
-            self.query_one("#pkg-create-error", Static).update("Selecione uma conexao.")
+            self.query_one("#pkg-create-error", Static).update(t("package_editor.select_connection"))
             self.query_one("#pkg-create-error").display = True
             return
 
         pkg_name = self.query_one("#pkg-create-name", Input).value.strip()
         if not pkg_name:
             self.query_one("#pkg-create-error", Static).update(
-                "Informe o nome do package."
+                t("package_editor.name_required")
             )
             self.query_one("#pkg-create-error").display = True
             return
@@ -415,9 +416,9 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
         self._routines: list[dict] = []
 
     def compose(self) -> ComposeResult:
-        with Dialog("Wizard - Adicionar Rotinas", id="wizard-dialog"):
+        with Dialog(t("package_editor.wizard_title"), id="wizard-dialog"):
             with Horizontal(classes="wizard-row"):
-                yield Input(placeholder="Nome da rotina", id="wizard-routine-name")
+                yield Input(placeholder=t("package_editor.routine_name"), id="wizard-routine-name")
             with Horizontal(classes="wizard-row"):
                 yield Select(
                     [("PROCEDURE", "PROCEDURE"), ("FUNCTION", "FUNCTION")],
@@ -426,25 +427,25 @@ class _WizardRoutineModal(ModalScreen[list[dict] | None]):
                 )
             with Horizontal(classes="wizard-row"):
                 yield Input(
-                    placeholder="Parametros (ex: p_id IN NUMBER, p_name IN VARCHAR2)",
+                    placeholder=t("package_editor.routine_params"),
                     id="wizard-routine-params",
                 )
             with Horizontal(classes="wizard-row"):
                 yield Input(
-                    placeholder="Tipo de retorno (apenas para FUNCTION)",
+                    placeholder=t("package_editor.return_type"),
                     id="wizard-routine-return",
                 )
             yield EmptyState(
-                what="Rotinas",
-                why="Cada rotina adicionada aqui vira uma entrada no esqueleto do pacote",
-                action_label="Informar nome da rotina",
+                what=t("package_editor.routines"),
+                why=t("package_editor.routines_why"),
+                action_label=t("package_editor.name_a_routine"),
                 action_id="informar-nome-rotina",
                 id="wizard-empty",
             )
             yield Static("", id="wizard-list")
             with Horizontal(id="wizard-buttons"):
-                yield Button("Adicionar", variant="primary", id="wizard-add")
-                yield Button("Concluir", variant="default", id="wizard-done")
+                yield Button(t("package_editor.add"), variant="primary", id="wizard-add")
+                yield Button(t("package_editor.finish"), variant="default", id="wizard-done")
 
     def on_mount(self) -> None:
         self.query_one("#wizard-list", Static).display = False
@@ -593,7 +594,7 @@ class PackageEditorScreen(Vertical):
         self._db = None
 
     def compose(self) -> ComposeResult:
-        with Panel("📦  PACKAGE", id="pe-editor-panel"):
+        with Panel(t("panel.package"), id="pe-editor-panel"):
             yield Static("", id="pe-info-bar")
             with Horizontal(id="pe-tab-bar"):
                 yield Button("Spec", variant="primary", id="pe-tab-spec")
@@ -602,7 +603,7 @@ class PackageEditorScreen(Vertical):
         # The id `#pe-error-panel` moved from the Static to the frame,
         # because it is the frame that the display points switch on and
         # off; the text lives in `#pe-error-text`.
-        with Panel("⚠  COMPILACAO", id="pe-error-panel", dense=True):
+        with Panel(t("panel.compilation"), id="pe-error-panel", dense=True):
             yield Static("", id="pe-error-text")
         # LOOSE on purpose, outside any panel — the exception to §4
         # ("nothing stays loose on the background") is written out in full
@@ -612,7 +613,7 @@ class PackageEditorScreen(Vertical):
         # whichever panel hosted it.
         yield ProgressIndicator()
         yield Static(
-            "[dim]Carregando editor de packages...[/dim]",
+            f'[dim]{t("package_editor.loading")}[/dim]',
             id="pe-empty",
         )
 
@@ -629,7 +630,7 @@ class PackageEditorScreen(Vertical):
     def _on_choice_result(self, result: str | None) -> None:
         if result is None:
             self.query_one("#pe-empty", Static).update(
-                "[dim]Editor de packages cancelado. Pressione ESC para voltar.[/dim]"
+                f'[dim]{t("package_editor.cancelled")}[/dim]'
             )
             return
 
@@ -645,7 +646,7 @@ class PackageEditorScreen(Vertical):
     def _on_search_result(self, result: dict | None) -> None:
         if result is None:
             self.query_one("#pe-empty", Static).update(
-                "[dim]Busca cancelada. Pressione ESC para voltar.[/dim]"
+                f'[dim]{t("package_editor.search_cancelled")}[/dim]'
             )
             return
         self._setup_editor(
@@ -658,7 +659,7 @@ class PackageEditorScreen(Vertical):
     def _on_create_result(self, result: dict | None) -> None:
         if result is None:
             self.query_one("#pe-empty", Static).update(
-                "[dim]Criacao cancelada. Pressione ESC para voltar.[/dim]"
+                f'[dim]{t("package_editor.create_cancelled")}[/dim]'
             )
             return
         self._setup_editor(
@@ -680,7 +681,7 @@ class PackageEditorScreen(Vertical):
 
         # Update info bar
         info = self.query_one("#pe-info-bar", Static)
-        info.update(f"[bold]{pkg_name}[/bold]  |  {conn_name}")
+        info.update(t("package_editor.header", pacote=f"[bold]{pkg_name}[/bold]", conexao=conn_name))
 
         # Show editor widgets, hide empty
         self.query_one("#pe-empty").display = False
@@ -717,9 +718,9 @@ class PackageEditorScreen(Vertical):
     def _set_editor_actions(self) -> None:
         """Set up the action bar for the editor."""
         actions = [
-            Action("Compilar Spec", "C", "pe_compile_spec"),
-            Action("Compilar Body", "B", "pe_compile_body"),
-            Action("Salvar .sql", "S", "pe_save_sql"),
+            Action(t("package_editor.compile_spec"), "C", "pe_compile_spec"),
+            Action(t("package_editor.compile_body"), "B", "pe_compile_body"),
+            Action(t("package_editor.save_sql"), "S", "pe_save_sql"),
         ]
         try:
             action_bar = self.app.query_one(ActionBar)
@@ -796,7 +797,7 @@ class PackageEditorScreen(Vertical):
         """Compile spec or body."""
         if not self._db:
             self.notify(
-                "Conexao de banco nao disponivel. Aguarde ou reabra a tela.",
+                t("package_editor.no_connection"),
                 severity="error",
             )
             return
@@ -819,7 +820,7 @@ class PackageEditorScreen(Vertical):
 
         if not sql.strip():
             self.notify(
-                f"Conteudo do {target} esta vazio.", severity="warning"
+                t("package_editor.empty_content", alvo=target), severity="warning"
             )
             return
 
@@ -869,21 +870,21 @@ class PackageEditorScreen(Vertical):
             error_texto.update("\n".join(lines))
             error_panel.display = True
         elif not success:
-            error_texto.update(f"[bold $ds-op-failure]Erro: {error_msg}[/]")
+            error_texto.update(f'[bold $ds-op-failure]{t("package_editor.error", erro=error_msg)}[/]')
             error_panel.display = True
         else:
             error_texto.update(
-                f"[bold]  {target.capitalize()} compilado com sucesso![/]"
+                f'[bold]  {t("package_editor.compiled", alvo=target.capitalize())}[/]'
             )
             error_panel.display = True
             self.notify(
-                f"{target.capitalize()} compilado com sucesso!", timeout=5
+                t("package_editor.compiled", alvo=target.capitalize()), timeout=5
             )
 
     def _on_compile_error(self, msg: str) -> None:
         """Handle compilation exception."""
         self.query_one(ProgressIndicator).stop()
-        self.notify(f"Erro na compilacao: {msg}", severity="error", timeout=8)
+        self.notify(t("package_editor.compile_failed", erro=msg), severity="error", timeout=8)
 
     def _on_read_only_violation(self, msg: str) -> None:
         # A refusal, not a crash: stop the spinner and leave the editor as
@@ -915,7 +916,7 @@ class PackageEditorScreen(Vertical):
             parts.append(self._body_content.strip())
 
         if not parts:
-            self.notify("Nenhum conteudo para salvar.", severity="warning")
+            self.notify(t("package_editor.nothing_to_save"), severity="warning")
             return
 
         combined = "\n\n/\n\n".join(parts)
@@ -923,9 +924,9 @@ class PackageEditorScreen(Vertical):
         try:
             label = self._pkg_name or "package"
             path = export_sql_file(combined, label)
-            self.notify(f"Exportado: {path}", timeout=5)
+            self.notify(t("export.done", caminho=path), timeout=5)
         except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
+            self.notify(t("group_run.export_failed", erro=e), severity="error")
 
     # ------------------------------------------------------------------
     # Action bar handlers

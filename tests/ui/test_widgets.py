@@ -157,10 +157,16 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
             'f"[bold]{t(\'adhoc.ddl_ok\')}[/] ({result.elapsed:.2f}s)"',
         ],
         "exec_routine.py": [
-            'lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]',
+            (
+                'lines = [f\'[bold]{t("exec_routine.ran_ok")}[/] '
+                '({result.elapsed:.2f}s)\']'
+            ),
         ],
         "package_editor.py": [
-            'f"[bold]  {target.capitalize()} compilado com sucesso![/]"',
+            (
+                'f\'[bold]  {t("package_editor.compiled", '
+                'alvo=target.capitalize())}[/]\''
+            ),
         ],
     }
     for nome_arquivo, trechos in sites.items():
@@ -1512,7 +1518,7 @@ async def test_templates_sidebar_shows_hint_when_empty():
 
 @pytest.mark.asyncio
 async def test_templates_sidebar_empty_state_action_switches_to_tools():
-    """The EmptyState's "Abrir Ferramentas" button must not be a dead end."""
+    """The EmptyState's "Open Tools" button must not be a dead end."""
     from textual.widgets import Button
 
     switched = []

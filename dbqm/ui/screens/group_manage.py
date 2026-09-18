@@ -495,7 +495,8 @@ class GroupManageScreen(Vertical):
     def _setup_table(self) -> None:
         table = self.query_one("#gm-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("#", "Nome", "Consultas", "Descricao", "Pasta")
+        table.add_columns("#", t("common.name"), t("query.list_title"),
+                          t("common.description"), t("common.folder"))
 
     def _load_groups(self) -> None:
         from dbqm.models.group import load_groups

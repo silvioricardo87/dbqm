@@ -8,6 +8,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Select, Static
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.ui.utils import escape_markup, NavSelect, common_folder_prefix
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
@@ -107,18 +108,18 @@ class QueryExecScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Selection phase
-        with Panel("📋  CONSULTAS", id="selection-phase"):
+        with Panel(t("panel.queries"), id="selection-phase"):
             yield EmptyState(
-                what="Consultas",
-                why="Consultas salvas ficam aqui e podem ser reexecutadas quando voce quiser",
-                action_label="Criar consulta",
+                what=t("query.list_title"),
+                why=t("query_manage.empty_why"),
+                action_label=t("query_manage.create_query"),
                 action_id="criar-consulta-coleta",
                 id="empty-message",
             )
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
         # Results phase (hidden initially)
-        with Panel("📊  RESULTADO", id="results-phase"):
+        with Panel(t("panel.result"), id="results-phase"):
             yield Static("", id="result-info")
             # The shape of the table that is coming, not a spinner: reserves
             # the right space for the first execution, hidden until
@@ -178,10 +179,10 @@ class QueryExecScreen(Vertical):
                     # the text came out clipped as "...descricao..", which
                     # looks like a defect. 29 characters fit whole in the
                     # narrowest width the product supports.
-                    placeholder="Filtrar por nome ou descricao",
+                    placeholder=t("query_exec.filter_placeholder"),
                     id="qe-filter-text",
                 ),
-                NavSelect(conn_options, prompt="Todas as conexoes", id="qe-filter-conn"),
+                NavSelect(conn_options, prompt=t("query_exec.all_connections"), id="qe-filter-conn"),
                 id="qe-filter-bar",
             )
         )
@@ -309,13 +310,13 @@ class QueryExecScreen(Vertical):
 
         query = find_query(message.query_name)
         if query is None:
-            self.notify(f"Consulta '{message.query_name}' nao encontrada.", severity="error")
+            self.notify(t("query_exec.query_not_found", nome=message.query_name), severity="error")
             return
 
         conn = find_connection(query.connection)
         if conn is None:
             self.notify(
-                f"Conexao '{query.connection}' nao encontrada para '{query.name}'.",
+                t("query_exec.connection_not_found", conexao=query.connection, consulta=query.name),
                 severity="error",
             )
             return
@@ -414,7 +415,7 @@ class QueryExecScreen(Vertical):
         """Show error notification and stop progress indicator."""
         self.query_one(ProgressIndicator).stop()
         self._abort_first_load_if_pending()
-        self.notify(f"Erro: {msg}", severity="error", timeout=8)
+        self.notify(t("adhoc.error", erro=msg), severity="error", timeout=8)
 
     def _on_result(self, query, conn, params: dict[str, str], result: QueryResult, raw_rows: list[list] | None = None) -> None:
         """Handle query result back on the main thread."""
@@ -422,7 +423,7 @@ class QueryExecScreen(Vertical):
 
         if not result.success:
             self._abort_first_load_if_pending()
-            self.notify(f"Erro: {result.error}", severity="error", timeout=8)
+            self.notify(t("adhoc.error", erro=result.error), severity="error", timeout=8)
             return
 
         self._current_result = result
@@ -445,8 +446,10 @@ class QueryExecScreen(Vertical):
         # Update info bar
         info = self.query_one("#result-info", Static)
         info.update(
-            f"[bold]{query.name}[/] | {conn.name} | "
-            f"{result.row_count} registros | {result.elapsed:.2f}s"
+            t("query_exec.result_info", nome=f"[bold]{query.name}[/]",
+              conexao=conn.name,
+              linhas=t("result_table.rows_count", linhas=result.row_count),
+              segundos=f"{result.elapsed:.2f}")
         )
 
         # Load result into table
@@ -464,18 +467,18 @@ class QueryExecScreen(Vertical):
             return
 
         actions = [
-            Action("Vertical", "V", "toggle_vertical"),
+            Action(t("action.vertical"), "V", "toggle_vertical"),
         ]
         if self._raw_rows is not None:
             label = "Original" if self._showing_mapped else "De-Para"
             actions.append(Action(label, "M", "toggle_mapping"))
         actions.extend([
-            Action("Exportar", "E", "export"),
-            Action("Reexecutar", "R", "reexecute"),
+            Action(t("action.export"), "E", "export"),
+            Action(t("action.rerun"), "R", "reexecute"),
         ])
         if result_table.total_pages > 1:
-            actions.append(Action("Pag.Ant", "PgUp", "prev_page"))
-            actions.append(Action("Prox.Pag", "PgDn", "next_page"))
+            actions.append(Action(t("action.prev_page"), "PgUp", "prev_page"))
+            actions.append(Action(t("action.next_page"), "PgDn", "next_page"))
             actions.append(Action(result_table.page_info, "", "page_info"))
 
         action_bar.set_actions(actions)
@@ -560,13 +563,13 @@ class QueryExecScreen(Vertical):
             # Switch to original: swap rows with raw copy
             self._current_result.rows = copy.deepcopy(self._raw_rows)
             self._showing_mapped = False
-            self.notify("Exibindo valores originais", timeout=2)
+            self.notify(t("query_exec.showing_original"), timeout=2)
         else:
             # Switch to mapped: re-apply column maps
             self._current_result.rows = copy.deepcopy(self._raw_rows)
             self._current_query.apply_column_maps(self._current_result.rows, self._current_result.columns)
             self._showing_mapped = True
-            self.notify("Exibindo valores mapeados (de-para)", timeout=2)
+            self.notify(t("query_exec.showing_mapped"), timeout=2)
 
         result_table.load_result(self._current_result)
         self._set_result_actions(result_table)
@@ -594,12 +597,12 @@ class QueryExecScreen(Vertical):
             elif fmt == "txt":
                 path = export_query_txt(self._current_result, table=table, params=params)
             else:
-                self.notify(f"Formato '{fmt}' nao suportado.", severity="warning")
+                self.notify(t("group_run.format_unsupported", formato=fmt), severity="warning")
                 return
 
-            self.notify(f"Exportado: {path}", timeout=5)
+            self.notify(t("export.done", caminho=path), timeout=5)
         except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
+            self.notify(t("group_run.export_failed", erro=e), severity="error")
 
     def _handle_reexecute(self) -> None:
         if self._current_query is None:

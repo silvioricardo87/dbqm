@@ -590,8 +590,29 @@ def test_list_label_is_not_a_flattened_string():
 #
 # A fixed-schema table (`add_columns("#", "Nome", "Descricao")`) was
 # written by someone who knew its width; it does not fall under this rule.
+def _e_nome_fixo(arg: ast.AST) -> bool:
+    """A column name written by whoever knew the table's width.
+
+    A string literal is one. So is `t("some.key")`: the name comes from
+    the catalogue, which is a constant with a lookup in front of it, not
+    from the data. Reading the `t()` call as dynamic made every translated
+    header of a fixed-schema table look like a discovered column, and this
+    guard demand a fixed key from tables that have no key.
+    """
+    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+        return True
+    return (
+        isinstance(arg, ast.Call)
+        and isinstance(arg.func, ast.Name)
+        and arg.func.id == "t"
+        and len(arg.args) == 1
+        and isinstance(arg.args[0], ast.Constant)
+        and isinstance(arg.args[0].value, str)
+    )
+
+
 def _dynamic_columns(escopo: ast.AST) -> list[tuple[int, str, ast.Call]]:
-    """`add_column(...)` whose column name is not a literal, in this scope.
+    """`add_column(...)` whose column name comes from the data, in this scope.
 
     Returns `(line, argument, call)`.
     """
@@ -603,8 +624,7 @@ def _dynamic_columns(escopo: ast.AST) -> list[tuple[int, str, ast.Call]]:
         }):
             continue
         for arg in no.args:
-            literal = isinstance(arg, ast.Constant) and isinstance(arg.value, str)
-            if not literal:
+            if not _e_nome_fixo(arg):
                 dinamicas.append((no.lineno, ast.unparse(arg), no))
                 break
     return dinamicas
@@ -733,16 +753,16 @@ NAVIGATION = {"action_switch_tab", "open_tool"}
 # the spec). What this guard delivers meanwhile is the CEILING: there are
 # four, they are named, and the fifth fails the suite.
 NAVIGATION_EXEMPT = {
-    # "Executar consulta" -> Consultas tab. There is no history to create
+    # "Run query" -> Consultas tab. There is no history to create
     # here; it is born from an execution in another tab.
     ("dbqm/ui/screens/history.py", "executar-consulta"),
-    # "Criar consulta" -> Coleta tab. A query is saved from there ("Salvar
+    # "Create query" -> Coleta tab. A query is saved from there ("Salvar
     # como consulta"), never from this screen.
     ("dbqm/ui/screens/query_exec.py", "criar-consulta-coleta"),
-    # "Gerenciar grupos" -> Grupos tool. This screen EXECUTES groups;
+    # "Manage groups" -> Grupos tool. This screen EXECUTES groups;
     # creating is the job of the tool next door.
     ("dbqm/ui/screens/group_run.py", "gerenciar-grupos"),
-    # "Abrir Ferramentas" -> Ferramentas tab. The templates sidebar shows
+    # "Open Tools" -> Ferramentas tab. The templates sidebar shows
     # templates; they are created in the Templates tool.
     ("dbqm/ui/widgets/templates_sidebar.py", "abrir-ferramentas"),
 }

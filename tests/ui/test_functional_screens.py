@@ -62,7 +62,7 @@ def _notifications(app) -> list[str]:
 @pytest.mark.asyncio
 async def test_query_exec_runs_a_saved_query_and_shows_the_row_count(local_db, capsys):
     """`query_exec`: pick the saved query, let the worker run it for real,
-    read `#result-info` -- "2 registros" comes from the database."""
+    read `#result-info` -- "2 rows" comes from the database."""
     code, _ = envelope(["query", "add", "ativos", "--connection", "local", "--sql", ATIVOS, "-f", "json"], capsys)
     assert code == 0
     query = find_query("ativos")
@@ -79,7 +79,7 @@ async def test_query_exec_runs_a_saved_query_and_shows_the_row_count(local_db, c
         assert screen.query_one("#results-phase").display is True
         info = str(screen.query_one("#result-info", Static).content)
         assert "ativos" in info and "local" in info
-        assert "2 registros" in info
+        assert "2 rows" in info
         table = screen.query_one("#result-table", ResultTable)
         assert table.row_count == 2
 
@@ -153,7 +153,7 @@ async def test_browser_extracts_sqlite_ddl_through_the_core_dispatch(local_db):
         await pilot.pause()
 
         avisos = _notifications(app)
-        assert any(a.startswith("DDL salvo") for a in avisos), avisos
+        assert any(a.startswith("DDL saved") for a in avisos), avisos
     arquivos = list((Path(paths.EXPORTS_DIR) / "ddl").rglob("*.sql"))
     assert arquivos, "no .sql under exports/ddl"
     assert "CREATE TABLE clientes" in "".join(a.read_text(encoding="utf-8") for a in arquivos)
@@ -174,7 +174,7 @@ async def test_browser_tells_sql_server_it_has_no_extractor(tmp_config_dir):
         await pilot.pause()
         # the mount notice ("Nenhuma conexao configurada.") is also there:
         # the connection is handed to the worker, never registered
-        assert "Erro: DDL extraction is not supported for sqlserver." in _notifications(app)
+        assert "Error: DDL extraction is not supported for sqlserver." in _notifications(app)
     assert not (Path(paths.EXPORTS_DIR) / "ddl").exists()
 
 

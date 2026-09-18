@@ -201,7 +201,7 @@ class GroupRunScreen(Vertical):
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
         # Results phase (hidden initially)
-        with Panel("📊  COMPARACAO", id="gr-results-phase"):
+        with Panel(t("panel.comparison"), id="gr-results-phase"):
             yield Static("", id="gr-result-info")
             yield GroupResultWidget(id="gr-group-result")
 

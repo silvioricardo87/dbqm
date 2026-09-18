@@ -11,6 +11,7 @@ from textual.widgets import (
 )
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.ui.utils import sanitize_id, escape_markup
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.panel import Panel
@@ -134,21 +135,21 @@ class ExecRoutineScreen(Vertical):
         # focusable `VerticalScroll` inside a panel body that scrolls too —
         # nested scrolling, which traps the keyboard.
         # Phase 1: Connection + type selection
-        with Panel("🔌  CONEXAO E TIPO", id="er-select-phase"):
-            yield Label("Selecione a conexao:")
-            yield Select([], prompt="Conexao", id="er-conn-select")
-            yield Label("Tipo de objeto:", id="er-type-label")
+        with Panel(t("panel.connection_and_type"), id="er-select-phase"):
+            yield Label(t("exec_routine.select_connection_label"))
+            yield Select([], prompt=t("common.connection"), id="er-conn-select")
+            yield Label(t("exec_routine.object_type"), id="er-type-label")
             with Horizontal(id="er-type-bar"):
                 pass  # buttons added dynamically
         yield ProgressIndicator()
         # Phase 2: Object list
-        with Panel("📂  OBJETOS", id="er-list-phase"):
+        with Panel(t("panel.objects"), id="er-list-phase"):
             with Horizontal(id="er-filter-bar"):
-                yield Input(placeholder="Filtrar...", id="er-filter-input")
-                yield Button("Buscar", id="er-filter-btn", variant="primary")
+                yield Input(placeholder=t("exec_routine.filter_placeholder"), id="er-filter-input")
+                yield Button(t("package_editor.find"), id="er-filter-btn", variant="primary")
             yield DataTable(id="er-obj-table")
         # Phase 3: Detail + params + execution
-        with Panel("▶  ROTINA", id="er-detail-phase"):
+        with Panel(t("panel.routine"), id="er-detail-phase"):
             yield Static("", id="er-detail-info")
             yield DataTable(id="er-routines-table")
             with VerticalScroll(id="er-param-area"):
@@ -193,7 +194,7 @@ class ExecRoutineScreen(Vertical):
             self.query_one("#er-type-label").display = False
             self.query_one("#er-type-bar").display = False
             self.notify(
-                f"Nenhum tipo de rotina disponivel para {db_type}.",
+                t("exec_routine.no_routine_types", tipo=db_type),
                 severity="warning",
             )
             return
@@ -249,7 +250,7 @@ class ExecRoutineScreen(Vertical):
 
     def _on_error(self, msg: str) -> None:
         self.query_one(ProgressIndicator).stop()
-        self.notify(f"Erro: {msg}", severity="error", timeout=8)
+        self.notify(t("adhoc.error", erro=msg), severity="error", timeout=8)
 
     def _show_objects(self, objects: list[str]) -> None:
         self.query_one(ProgressIndicator).stop()
@@ -262,7 +263,7 @@ class ExecRoutineScreen(Vertical):
         table = self.query_one("#er-obj-table", DataTable)
         table.cursor_type = "row"
         table.clear(columns=True)
-        table.add_column("Nome", key="name")
+        table.add_column(t("common.name"), key="name")
         for obj in objects:
             table.add_row(obj)
 
@@ -337,8 +338,9 @@ class ExecRoutineScreen(Vertical):
 
         info = self.query_one("#er-detail-info", Static)
         info.update(
-            f"[bold]{pkg_info.name}[/] | PACKAGE | "
-            f"{len(pkg_info.routines)} rotina(s)"
+            t("exec_routine.package_info", nome=f"[bold]{pkg_info.name}[/]",
+              rotinas=t("exec_routine.routines_count",
+                        quantidade=len(pkg_info.routines)))
         )
 
         # Show routines table
@@ -346,9 +348,9 @@ class ExecRoutineScreen(Vertical):
         rtable.cursor_type = "row"
         rtable.display = True
         rtable.clear(columns=True)
-        rtable.add_column("Rotina", key="name")
-        rtable.add_column("Tipo", key="type")
-        rtable.add_column("Assinatura", key="sig")
+        rtable.add_column(t("browser.column_routine"), key="name")
+        rtable.add_column(t("common.type"), key="type")
+        rtable.add_column(t("browser.column_signature"), key="sig")
         for r in pkg_info.routines:
             rtable.add_row(r.name, r.routine_type, r.signature)
 
@@ -370,8 +372,8 @@ class ExecRoutineScreen(Vertical):
 
         info = self.query_one("#er-detail-info", Static)
         info.update(
-            f"[bold]{routine_info.name}[/] | {routine_info.routine_type} | "
-            f"{routine_info.signature}"
+            t("exec_routine.routine_info", nome=f"[bold]{routine_info.name}[/]",
+              tipo=routine_info.routine_type, assinatura=routine_info.signature)
         )
 
         # Hide routines table (not needed for standalone)
@@ -394,8 +396,9 @@ class ExecRoutineScreen(Vertical):
                 self._selected_routine = r
                 info = self.query_one("#er-detail-info", Static)
                 info.update(
-                    f"[bold]{self._package_info.name}.{r.name}[/] | "
-                    f"{r.routine_type} | {r.signature}"
+                    t("exec_routine.routine_info",
+                      nome=f"[bold]{self._package_info.name}.{r.name}[/]",
+                      tipo=r.routine_type, assinatura=r.signature)
                 )
                 self._build_param_inputs(r)
                 self._set_detail_actions()
@@ -409,7 +412,7 @@ class ExecRoutineScreen(Vertical):
 
         in_params = [p for p in routine.params if p.direction in ("IN", "IN OUT")]
         if not in_params:
-            param_area.mount(Static("[dim]Sem parametros de entrada[/]", markup=True))
+            param_area.mount(Static(f'[dim]{t("exec_routine.no_input_params")}[/]', markup=True))
             self._mount_run_controls(param_area)
             return
 
@@ -446,10 +449,10 @@ class ExecRoutineScreen(Vertical):
         running a routine to see what it does must not write.
         """
         param_area.mount(
-            Checkbox("Confirmar alteracoes (commit)", id="er-commit-toggle", value=False)
+            Checkbox(t("exec_routine.confirm_commit"), id="er-commit-toggle", value=False)
         )
         param_area.mount(
-            Button("Executar", id="er-exec-btn", variant="primary")
+            Button(t("common.run"), id="er-exec-btn", variant="primary")
         )
 
     def _commit_requested(self) -> bool:
@@ -464,7 +467,7 @@ class ExecRoutineScreen(Vertical):
         try:
             action_bar = self.app.query_one(ActionBar)
             actions = [
-                Action("Executar", "X", "exec_routine"),
+                Action(t("common.run"), "X", "exec_routine"),
             ]
             action_bar.set_actions(actions)
         except Exception:
@@ -476,7 +479,7 @@ class ExecRoutineScreen(Vertical):
 
     def _execute_routine(self) -> None:
         if not self._selected_routine or not self._db:
-            self.notify("Selecione uma rotina primeiro.", severity="warning")
+            self.notify(t("exec_routine.select_routine_first"), severity="warning")
             return
 
         # Collect param values
@@ -543,11 +546,12 @@ class ExecRoutineScreen(Vertical):
         result_area.remove_children()
 
         if result.success:
-            lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]
+            lines = [f'[bold]{t("exec_routine.ran_ok")}[/] ({result.elapsed:.2f}s)']
             if result.return_value is not None:
-                lines.append(f"\n[bold]Retorno:[/] {result.return_value}")
+                lines.append(f'\n[bold]{t("call.return_value", valor="")}[/] '
+                             f"{result.return_value}")
             if result.out_values:
-                lines.append("\n[bold]Parametros de saida:[/]")
+                lines.append(f'\n[bold]{t("exec_routine.out_params")}[/]')
                 for nome, valor in result.out_values.items():
                     lines.append(f"  {escape_markup(nome)} = {escape_markup(str(valor))}")
             if result.output_lines:
@@ -564,7 +568,7 @@ class ExecRoutineScreen(Vertical):
             )
         else:
             lines = [
-                f"[bold $ds-op-failure]Erro na execucao[/] ({result.elapsed:.2f}s)",
+                f'[bold $ds-op-failure]{t("exec_routine.run_failed")}[/] ({result.elapsed:.2f}s)',
                 f"\n[$ds-op-failure]{escape_markup(result.error)}[/]",
             ]
 

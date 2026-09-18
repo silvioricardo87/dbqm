@@ -39,7 +39,7 @@ class ExportPickerModal(ModalScreen[str | None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("Exportar como", width="sm", id="dialog"):
+        with Dialog(t("export_picker.title"), width="sm", id="dialog"):
             yield Button("CSV", variant="primary", id="fmt-csv")
             yield Button("JSON", variant="primary", id="fmt-json")
             yield Button("TXT", variant="primary", id="fmt-txt")

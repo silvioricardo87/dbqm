@@ -278,7 +278,7 @@ class GroupResultWidget(Vertical, can_focus=False):
         summary = self.query_one("#gr-summary", Static)
 
         if self._hide_status:
-            summary.update("[dim]Exibindo valores originais (sem mapeamento)[/]")
+            summary.update(f'[dim]{t("group_result.showing_original")}[/]')
             return
 
         lines = []

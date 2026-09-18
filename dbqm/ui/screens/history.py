@@ -6,6 +6,7 @@ from textual.containers import Vertical
 from textual.content import Content
 from textual.widgets import Button, DataTable, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.panel import Panel
@@ -67,17 +68,17 @@ class HistoryScreen(Vertical):
         self._entries = []
 
     def compose(self) -> ComposeResult:
-        with Panel("📜  HISTORICO", id="hist-list-panel"):
+        with Panel(t("panel.history"), id="hist-list-panel"):
             yield EmptyState(
-                what="Historico",
-                why="Cada consulta ou grupo executado fica registrado aqui",
-                action_label="Executar consulta",
+                what=t("history.list_title"),
+                why=t("history.empty_why"),
+                action_label=t("history.run_query"),
                 action_id="executar-consulta",
                 id="hist-empty",
             )
             yield DataTable(id="hist-table")
 
-        with Panel("📋  DETALHES", id="hist-detail-panel"):
+        with Panel(t("panel.details"), id="hist-detail-panel"):
             yield Static("", id="hist-detail")
 
     def on_mount(self) -> None:
@@ -115,12 +116,12 @@ class HistoryScreen(Vertical):
 
         table.clear(columns=True)
         table.cursor_type = "row"
-        table.add_column("Data", key="timestamp", width=20)
-        table.add_column("Conexao", key="conn")
-        table.add_column("Tipo", key="type", width=8)
+        table.add_column(t("common.date"), key="timestamp", width=20)
+        table.add_column(t("common.connection"), key="conn")
+        table.add_column(t("common.type"), key="type", width=8)
         table.add_column("SQL", key="sql")
-        table.add_column("Tempo", key="time", width=8)
-        table.add_column("Status", key="status", width=10)
+        table.add_column(t("common.time"), key="time", width=8)
+        table.add_column(t("common.status"), key="status", width=10)
 
         if not self._entries:
             # Hiding the table is what the other ten empty lists in dbqm
@@ -174,7 +175,7 @@ class HistoryScreen(Vertical):
 
     def _set_list_actions(self) -> None:
         actions = [
-            Action("Limpar historico", "X", "hist_clear"),
+            Action(t("history.clear_action"), "X", "hist_clear"),
         ]
         try:
             self.app.query_one(ActionBar).set_actions(actions)
@@ -202,36 +203,38 @@ class HistoryScreen(Vertical):
         detail = self.query_one("#hist-detail", Static)
 
         if entry is None:
-            detail.update("[dim]Nenhum registro selecionado.[/dim]")
+            detail.update(f'[dim]{t("history.nothing_selected")}[/dim]')
             return
 
         lines = []
-        lines.append(f"[bold]Tipo:[/bold] {entry.entry_type}")
-        lines.append(f"[bold]Nome:[/bold] {entry.name}")
-        lines.append(f"[bold]Data:[/bold] {entry.timestamp}")
+        lines.append(f'[bold]{t("common.type")}:[/bold] {entry.entry_type}')
+        lines.append(f'[bold]{t("common.name")}:[/bold] {entry.name}')
+        lines.append(f'[bold]{t("common.date")}:[/bold] {entry.timestamp}')
         if entry.connection:
-            lines.append(f"[bold]Conexao:[/bold] {entry.connection}")
+            lines.append(f'[bold]{t("common.connection")}:[/bold] {entry.connection}')
         if entry.params:
             for k, v in entry.params.items():
                 lines.append(f"[bold]{str(k)}:[/bold] {str(v)}")
-        lines.append(f"[bold]Tempo:[/bold] {entry.elapsed:.2f}s")
+        lines.append(f'[bold]{t("common.time")}:[/bold] {entry.elapsed:.2f}s')
 
         if entry.entry_type == "query":
-            lines.append(f"[bold]Registros:[/bold] {entry.row_count}")
+            lines.append(f'[bold]{t("common.rows")}:[/bold] {entry.row_count}')
             lines.append(
-                f"[bold]Sucesso:[/bold] {'Sim' if entry.success else 'Nao'}"
+                f'[bold]{t("common.success")}:[/bold] '
+                f'{t("common.yes") if entry.success else t("common.no")}'
             )
             if entry.error:
-                lines.append(f"[bold]Erro:[/bold] {str(entry.error)}")
+                lines.append(f'[bold]{t("common.error")}:[/bold] {str(entry.error)}')
         elif entry.entry_type == "group":
             if entry.all_match is not None:
                 status = mark_verdict(
                     "match" if entry.all_match else "diff",
-                    label="CONSISTENTE" if entry.all_match else "DIVERGENTE",
+                    label=(t("verdict.consistent") if entry.all_match
+                           else t("verdict.divergent")),
                 )
-                lines.append(f"[bold]Resultado:[/bold] {status}")
+                lines.append(f'[bold]{t("export.label_result")}:[/bold] {status}')
             if entry.summary:
-                lines.append(f"[bold]Resumo:[/bold] {str(entry.summary)}")
+                lines.append(f'[bold]{t("history.summary")}:[/bold] {str(entry.summary)}')
 
         detail.update("\n".join(lines))
 
@@ -244,8 +247,8 @@ class HistoryScreen(Vertical):
         from dbqm.ui.modals.confirm import ConfirmModal
 
         modal = ConfirmModal(
-            message="Limpar todo o historico de execucoes?",
-            title="Limpar Historico",
+            message=t("history.confirm_clear"),
+            title=t("history.confirm_clear_title"),
         )
         self.app.push_screen(modal, callback=self._on_clear_confirmed)
 
@@ -258,7 +261,7 @@ class HistoryScreen(Vertical):
         from dbqm.core.history import clear_history
 
         clear_history()
-        self.notify("Historico limpo!", timeout=5)
+        self.notify(t("history.cleared_notice"), timeout=5)
         self._reload()
         # Clearing leaves the screen empty: the focus has to follow the
         # table that has just left the stage, otherwise it stays on a hidden

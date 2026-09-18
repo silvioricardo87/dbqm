@@ -38,7 +38,7 @@ MARCA = re.compile(r"\b(" + "|".join(PALAVRAS) + r")\b", re.IGNORECASE)
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
-MAX_LITERAIS = 185
+MAX_LITERAIS = 0
 
 #: The catalogue itself is Portuguese by definition, and the design tokens
 #: carry Portuguese token names that are identifiers, not screen text.
@@ -70,6 +70,69 @@ def _docstrings(arvore) -> set[int]:
     return fora
 
 
+#: Keyword arguments whose value names a widget, never a label.
+KEYWORDS_DE_IDENTIDADE = {"id", "action_id", "classes", "key"}
+
+#: Calls whose string arguments are selectors or ids.
+CHAMADAS_DE_IDENTIDADE = {"query_one", "query", "query_exactly_one",
+                          "switch_tab", "action_switch_tab", "open_tool",
+                          "get_child_by_id", "get_widget_by_id", "mount_all"}
+
+
+def _identificadores(arvore) -> set[int]:
+    """Nodes holding an identifier rather than screen text.
+
+    By role: the value of `id=`/`action_id=`/`classes=`/`key=`, any string
+    argument to a call that takes a selector or an id, and any string that
+    looks like a CSS selector.
+    """
+    ids: set[int] = set()
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.keyword) and no.arg in KEYWORDS_DE_IDENTIDADE:
+            for filho in ast.walk(no.value):
+                if isinstance(filho, ast.Constant) and isinstance(filho.value, str):
+                    ids.add(id(filho))
+        if isinstance(no, ast.Call):
+            nome = no.func.id if isinstance(no.func, ast.Name) else (
+                no.func.attr if isinstance(no.func, ast.Attribute) else "")
+            if nome in CHAMADAS_DE_IDENTIDADE:
+                for arg in no.args:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        ids.add(id(arg))
+        if isinstance(no, ast.Compare):
+            # `event.button.id == "criar-consulta"`: the literal is the id
+            # being matched, whatever side of the operator it sits on.
+            lados = [no.left, *no.comparators]
+            fonte = " ".join(ast.unparse(x) for x in lados)
+            if re.search(r"\bid\b|_id\b|\bname\b|\bnome\b|\bchave\b|\bkey\b", fonte):
+                for lado in lados:
+                    for filho in ast.walk(lado):
+                        if isinstance(filho, ast.Constant) and isinstance(filho.value, str):
+                            ids.add(id(filho))
+        if isinstance(no, ast.Tuple):
+            # A route tuple: `("grupos", t("tools.manage_groups"), ...)`.
+            # Where the labels come from the catalogue, the bare string
+            # beside them is the key the screen routes on.
+            tem_t = any(isinstance(e, ast.Call) and isinstance(e.func, ast.Name)
+                        and e.func.id == "t" for e in no.elts)
+            if tem_t:
+                for e in no.elts:
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str):
+                        ids.add(id(e))
+        if isinstance(no, ast.Constant) and isinstance(no.value, str):
+            texto = no.value.strip()
+            if texto.startswith(("#", ".")) and " " not in texto:
+                ids.add(id(no))
+            # A Textual id: lowercase words joined by hyphens, no spaces.
+            # Nothing a screen shows is written that way.
+            if re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)+", texto):
+                ids.add(id(no))
+            # A Textual action string: `switch_tab('tab-conexoes')`.
+            if re.fullmatch(r"[a-z_]+\(.*\)", texto):
+                ids.add(id(no))
+    return ids
+
+
 def literais_de_tela() -> list[tuple[str, int, str]]:
     """`(file, line, text)` for every Portuguese string constant still in the
     source. Docstrings are excluded: they are English by rule and nobody
@@ -81,9 +144,11 @@ def literais_de_tela() -> list[tuple[str, int, str]]:
             continue
         arvore = ast.parse(py.read_text(encoding="utf-8"))
         docstrings = _docstrings(arvore)
+        identificadores = _identificadores(arvore)
         for no in ast.walk(arvore):
             if (isinstance(no, ast.Constant) and isinstance(no.value, str)
-                    and not _e_docstring(no, docstrings)):
+                    and not _e_docstring(no, docstrings)
+                    and id(no) not in identificadores):
                 texto = no.value.strip()
                 if (len(texto) > 3 and "\n" not in texto
                         and MARCA.search(texto)

@@ -11,6 +11,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, OptionList, Select
 from textual.widgets.option_list import Option
+from dbqm.i18n import t
 from dbqm.ui.utils import NavSelect
 from textual import work
 
@@ -122,16 +123,16 @@ class BrowserScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="browser-body"):
-            with Panel("📂  OBJETOS", id="obj-list-panel"):
-                yield NavSelect([], prompt="Selecione a conexao", id="obj-conn")
+            with Panel(t("panel.objects"), id="obj-list-panel"):
+                yield NavSelect([], prompt=t("adhoc.select_connection"), id="obj-conn")
                 yield Select(
                     TYPE_OPTIONS, value="TABLE", allow_blank=False, id="obj-type"
                 )
-                yield Input(placeholder="Filtrar objetos...", id="obj-filter")
+                yield Input(placeholder=t("browser.filter_placeholder"), id="obj-filter")
                 yield EmptyState(
-                    what="Objetos",
-                    why="Escolha uma conexao para listar tabelas, views e rotinas",
-                    action_label="Escolher conexao",
+                    what=t("browser.objects_title"),
+                    why=t("browser.empty_why"),
+                    action_label=t("browser.choose_connection"),
                     action_id="escolher-conexao",
                     id="obj-list-empty",
                 )
@@ -143,18 +144,18 @@ class BrowserScreen(Vertical):
                 yield Skeleton(rows=10, columns=1, id="obj-list-skeleton")
                 yield OptionList(id="obj-list")
 
-            with Panel("📋  COLUNAS", id="obj-columns-panel"):
+            with Panel(t("panel.columns"), id="obj-columns-panel"):
                 yield DataTable(id="obj-columns")
 
-            with Panel("🔍  DADOS", accent=True, id="obj-preview-panel"):
+            with Panel(t("panel.data"), accent=True, id="obj-preview-panel"):
                 yield ResultTable(id="obj-preview")
                 # PACKAGE/ROUTINE source: content to consume, not an
                 # editing form — do not use the same look as a disabled
                 # field (see `-read-only` in dbqm/ui/theme.py).
                 yield SqlViewer("", id="obj-source", classes="-read-only")
                 with Horizontal(id="obj-preview-buttons"):
-                    yield Button("Extrair DDL", id="obj-ddl")
-                    yield Button("Carregar mais", id="obj-more")
+                    yield Button(t("browser.extract_ddl"), id="obj-ddl")
+                    yield Button(t("browser.load_more"), id="obj-more")
 
     def on_mount(self) -> None:
         columns = self.query_one("#obj-columns", DataTable)
@@ -195,7 +196,7 @@ class BrowserScreen(Vertical):
         self.query_one("#obj-conn", Select).set_options(options)
 
         if not connections:
-            self.notify("Nenhuma conexao configurada.", severity="warning")
+            self.notify(t("connection.none_configured"), severity="warning")
 
     def _get_selected_conn(self):
         """Resolve the currently selected connection object."""
@@ -272,7 +273,7 @@ class BrowserScreen(Vertical):
         self._update_obj_list_visibility()
         self._populate_list()
         if not objects:
-            self.notify("Nenhum objeto encontrado.", severity="warning")
+            self.notify(t("browser.no_objects"), severity="warning")
 
     def _on_unsupported_type(self, mensagem: str) -> None:
         """Clear the list, then say why it is empty.
@@ -381,7 +382,7 @@ class BrowserScreen(Vertical):
         if conn.db_type != "oracle":
             self.app.call_from_thread(
                 self._on_source_unavailable,
-                f"Source nao disponivel para o tipo de banco '{conn.db_type}'.",
+                t("browser.source_unavailable", tipo=conn.db_type),
             )
             return
 
@@ -400,7 +401,7 @@ class BrowserScreen(Vertical):
                 errors = result.errors
 
             if not objs:
-                message = "; ".join(errors) if errors else "Source nao encontrado."
+                message = "; ".join(errors) if errors else t("browser.source_not_found")
                 self.app.call_from_thread(self._on_source_unavailable, message)
             else:
                 source_text = "\n\n".join(o.ddl for o in objs)
@@ -418,7 +419,7 @@ class BrowserScreen(Vertical):
             else:
                 self.app.call_from_thread(
                     self._on_columns_note,
-                    "Objeto nao tabular — veja o source ao lado",
+                    t("browser.not_tabular"),
                 )
         except Exception as e:  # pragma: no cover - depends on live DB
             self.app.call_from_thread(self._on_error, f"Estrutura: {e}")
@@ -427,11 +428,11 @@ class BrowserScreen(Vertical):
         table = self.query_one("#obj-columns", DataTable)
         table.clear(columns=True)
         table.cursor_type = "row"
-        table.add_column("Coluna", key="col")
-        table.add_column("Tipo", key="type")
-        table.add_column("Tamanho", key="size")
-        table.add_column("Nulo", key="null")
-        table.add_column("Chave", key="key")
+        table.add_column(t("common.column"), key="col")
+        table.add_column(t("common.type"), key="type")
+        table.add_column(t("browser.column_size"), key="size")
+        table.add_column(t("common.nullable"), key="null")
+        table.add_column(t("common.key"), key="key")
 
         for col in structure.columns:
             if col.data_precision is not None:
@@ -486,21 +487,21 @@ class BrowserScreen(Vertical):
         table = self.query_one("#obj-columns", DataTable)
         table.clear(columns=True)
         table.cursor_type = "row"
-        table.add_column("Rotina", key="name")
-        table.add_column("Tipo", key="rtype")
-        table.add_column("Assinatura", key="sig")
+        table.add_column(t("browser.column_routine"), key="name")
+        table.add_column(t("common.type"), key="rtype")
+        table.add_column(t("browser.column_signature"), key="sig")
 
         for routine in pkg_info.routines:
             table.add_row(str(routine.name), str(routine.routine_type), routine.signature)
 
         if not pkg_info.routines:
-            self.notify("Nenhuma rotina encontrada no pacote.", severity="warning")
+            self.notify(t("browser.no_routines_in_package"), severity="warning")
 
     def _on_columns_note(self, note: str) -> None:
         table = self.query_one("#obj-columns", DataTable)
         table.clear(columns=True)
         table.cursor_type = "row"
-        table.add_column("Info", key="info")
+        table.add_column(t("browser.column_info"), key="info")
         table.add_row(note)
 
     def _show_table_view(self) -> None:
@@ -520,7 +521,7 @@ class BrowserScreen(Vertical):
         # the first of those leaves the skeleton up, but resetting here is
         # a harmless no-op for the other three (idempotent on `has_conn`).
         self._update_obj_list_visibility()
-        self.notify(f"Erro: {error}", severity="error", timeout=8)
+        self.notify(t("adhoc.error", erro=error), severity="error", timeout=8)
 
     # ------------------------------------------------------------------
     # Buttons: Extrair DDL / Carregar mais
@@ -537,10 +538,10 @@ class BrowserScreen(Vertical):
 
     def _handle_extract_ddl(self) -> None:
         if not self._selected_object or self._current_conn is None:
-            self.notify("Selecione um objeto.", severity="warning")
+            self.notify(t("browser.select_object"), severity="warning")
             return
         conn = self._current_conn
-        self.notify(f"Extraindo DDL de {self._selected_object}...")
+        self.notify(t("browser.extracting", nome=self._selected_object))
         self._run_ddl(conn, self._selected_object)
 
     @work(thread=True, group="obj-ddl")
@@ -586,17 +587,17 @@ class BrowserScreen(Vertical):
     def _on_ddl_saved(self, dir_path: str, saved_files: list[str]) -> None:
         if saved_files:
             self.notify(
-                f"DDL salvo: {', '.join(saved_files)} em {dir_path}", timeout=6
+                t("browser.ddl_saved_files", arquivos=", ".join(saved_files), pasta=dir_path), timeout=6
             )
         else:
-            self.notify(f"DDL salvo em {dir_path}", timeout=6)
+            self.notify(t("browser.ddl_saved", pasta=dir_path), timeout=6)
 
     def _handle_load_more(self) -> None:
         if not self._selected_object or self._current_conn is None:
             return
         next_offset = self._preview_offset + self._preview_limit
         if self._preview_total and next_offset >= self._preview_total:
-            self.notify("Nao ha mais registros.", severity="information")
+            self.notify(t("browser.no_more_rows"), severity="information")
             return
         self._load_more_page(next_offset)
 

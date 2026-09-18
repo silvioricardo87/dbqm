@@ -78,7 +78,7 @@ def rendered_text(app) -> str:
     with the defect present.
 
     The SVG's `\xa0` becomes an ordinary space so that searching for a phrase
-    ("Client em uso") works the way the person reads it.
+    ("Client in use") works the way the person reads it.
     """
     svg = app.export_screenshot()
     linhas = []

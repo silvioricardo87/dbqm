@@ -21,6 +21,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, ContentSwitcher, OptionList, Select, Static, Switch
 
+from dbqm.i18n import t
 from dbqm.ui.theme import get_theme
 from dbqm.ui.utils import NavSelect, NavVerticalScroll
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
@@ -197,13 +198,18 @@ class SettingsScreen(Vertical):
     }
     """
 
-    ORACLE_CLIENT_ORIGINS = {
-        "config": "configuracao do dbqm",
-        "clients": "clients instalados pelo dbqm",
-        "package": "pasta clients/ do pacote",
-        "ORACLE_HOME": "variavel de ambiente ORACLE_HOME",
-        "scan": "deteccao automatica no sistema",
-    }
+    def oracle_client_origins(self) -> dict[str, str]:
+        """Where the Instant Client in use came from, in words.
+
+        A method, not a class attribute: a class body runs at import,
+        before the app resolves the language."""
+        return {
+            "config": t("settings.origin_config"),
+            "clients": t("settings.origin_clients"),
+            "package": t("settings.origin_package"),
+            "ORACLE_HOME": t("settings.origin_oracle_home"),
+            "scan": t("settings.origin_scan"),
+        }
 
     #: The hosted screens: (key, identity, disambiguation). The key travels
     #: as DATA in the option (`NamedOption.nome`), never as `id` — the
@@ -217,18 +223,14 @@ class SettingsScreen(Vertical):
     #: has no way to indent the automatic wrap (it is written in its own
     #: docstring). `test_more_settings_list_does_not_wrap_at_80_columns`
     #: enforces it.
-    TOOLS = (
-        (
-            "oracle-clients",
-            "Oracle Instant Clients",
-            "instalar, remover, escolher",
-        ),
-        (
-            "portabilidade",
-            "Exportar / Importar",
-            "bundle .dbqm com senha",
-        ),
-    )
+    def tools(self) -> tuple[tuple[str, str, str], ...]:
+        """Same reasoning as `oracle_client_origins`."""
+        return (
+            ("oracle-clients", t("settings.oracle_clients_entry"),
+             t("settings.oracle_clients_hint")),
+            ("portabilidade", t("settings.portability_entry"),
+             t("settings.portability_hint")),
+        )
 
     #: Key -> id of the container where that screen is mounted.
     _HOSTS = {
@@ -250,32 +252,32 @@ class SettingsScreen(Vertical):
                 with NavVerticalScroll(
                     id="settings-col-esquerda", classes="settings-column"
                 ):
-                    with Panel("🎨  TEMA", id="settings-panel-tema", dense=True):
+                    with Panel(t("panel.theme"), id="settings-panel-tema", dense=True):
                         yield NavSelect(
                             [
-                                ("Plano Escuro", "plano-escuro"),
-                                ("Plano Claro", "plano-claro"),
+                                (t("settings.theme_dark"), "plano-escuro"),
+                                (t("settings.theme_light"), "plano-claro"),
                             ],
                             id="settings-theme-select",
                             allow_blank=False,
                         )
 
-                    with Panel("📋  AUDITORIA", id="settings-panel-auditoria", dense=True):
+                    with Panel(t("panel.audit"), id="settings-panel-auditoria", dense=True):
                         with Vertical(classes="settings-row"):
                             yield Switch(id="settings-audit-switch")
                             yield Static(
-                                "Registra execucoes de consultas e grupos.",
+                                t("settings.audit_note"),
                                 id="settings-audit-desc",
                                 classes="settings-note",
                             )
 
                     with Panel(
-                        "📁  EXPORTACAO",
+                        t("panel.export"),
                         id="settings-panel-exportacao",
                         dense=True,
                     ):
                         yield Static(
-                            "Onde os arquivos exportados sao salvos.",
+                            t("settings.export_note"),
                             classes="settings-note",
                         )
                         yield PathLabel(
@@ -283,14 +285,14 @@ class SettingsScreen(Vertical):
                         )
                         with Horizontal(classes="settings-actions"):
                             yield Button(
-                                "Alterar diretorio",
+                                t("settings.change_dir"),
                                 variant="primary",
                                 id="btn-export-dir",
                             )
                         with Vertical(classes="settings-row"):
                             yield Switch(id="settings-export-subdirs-switch")
                             yield Static(
-                                "Subdiretorios por tipo (grupos, DDL, SQL).",
+                                t("settings.subdirs_note"),
                                 classes="settings-note",
                             )
 
@@ -298,7 +300,7 @@ class SettingsScreen(Vertical):
                     id="settings-col-direita", classes="settings-column"
                 ):
                     with Panel(
-                        "🔌  ORACLE INSTANT CLIENT",
+                        t("panel.oracle_client"),
                         id="settings-panel-oracle",
                         dense=True,
                     ):
@@ -307,8 +309,7 @@ class SettingsScreen(Vertical):
                         # in a terminal of 24 sits right below this
                         # panel.
                         yield Static(
-                            "Vence o ORACLE_HOME, que pode "
-                            "ser de outra arquitetura.",
+                            t("settings.oracle_note"),
                             classes="settings-note",
                         )
                         yield PathLabel(
@@ -316,7 +317,7 @@ class SettingsScreen(Vertical):
                         )
                         with Horizontal(classes="settings-actions"):
                             yield Button(
-                                "Definir caminho",
+                                t("settings.set_path"),
                                 variant="primary",
                                 id="btn-oracle-client-dir",
                             )
@@ -325,14 +326,14 @@ class SettingsScreen(Vertical):
                     # manager entry sits right against the status that makes
                     # someone want to open it.
                     with Panel(
-                        "🧰  MAIS CONFIGURACOES",
+                        t("panel.more_settings"),
                         id="settings-panel-ferramentas",
                         dense=True,
                     ):
                         yield OptionList(id="settings-ferramentas-list")
 
                     with Panel(
-                        "🔑  FERNET KEY",
+                        t("panel.fernet_key"),
                         id="settings-panel-fernet",
                         dense=True,
                     ):
@@ -361,7 +362,7 @@ class SettingsScreen(Vertical):
 
         lista = self.query_one("#settings-ferramentas-list", OptionList)
         lista.clear_options()
-        for chave, identidade, desambiguacao in self.TOOLS:
+        for chave, identidade, desambiguacao in self.tools():
             lista.add_option(
                 NamedOption(hierarchical_item(identidade, desambiguacao), chave)
             )
@@ -426,10 +427,10 @@ class SettingsScreen(Vertical):
             sufixo = ""
         else:
             caminho = str(Path.cwd())
-            sufixo = "\n[$ds-text-disabled](diretorio de execucao)[/]"
+            sufixo = f'\n[$ds-text-disabled]{t("settings.run_dir_note")}[/]'
         if largura:
             caminho = elide_path(caminho, largura)
-        rotulo.update(f"[b]Diretorio atual:[/]\n{caminho}{sufixo}")
+        rotulo.update(f'[b]{t("settings.current_dir")}[/]\n{caminho}{sufixo}')
 
     def _refresh_oracle_client_status(self) -> None:
         """Rediscovers which Instant Client is in use, and where it came from.
@@ -453,42 +454,54 @@ class SettingsScreen(Vertical):
     def _paint_oracle_client(self) -> None:
         label = self.query_one("#settings-oracle-client-current", Static)
         if self._client_oracle_erro:
-            label.update(f"[b]Client em uso:[/] [$ds-op-failure]{self._client_oracle_erro}[/]")
+            label.update(f'[b]{t("settings.client_in_use")}[/] '
+                         f"[$ds-op-failure]{self._client_oracle_erro}[/]")
             return
         path, origin = self._client_oracle
         if not path:
             label.update(
-                "[b]Client em uso:[/] [$ds-text-muted]nenhum encontrado[/] "
-                "[$ds-text-disabled](thick mode indisponivel)[/]"
+                f'[b]{t("settings.client_in_use")}[/] '
+                f'[$ds-text-muted]{t("settings.no_client_found")}[/] '
+                f'[$ds-text-disabled]{t("settings.thick_unavailable")}[/]'
             )
             return
-        source = self.ORACLE_CLIENT_ORIGINS.get(origin, origin)
+        source = self.oracle_client_origins().get(origin, origin)
         largura = self._usable_width(label)
         mostrado = elide_path(str(path), largura) if largura else str(path)
-        label.update(f"[b]Client em uso:[/]\n{mostrado}\n[b]Origem:[/] {source}")
+        label.update(f'[b]{t("settings.client_in_use")}[/]\n{mostrado}\n'
+                     f'[b]{t("settings.origin")}[/] {source}')
 
     #: Of the three labels with a path, this is the only one that puts the
     #: path on the SAME line as its label — the other two break the line
     #: first. The prefix cells are not available for the path, and charging
     #: the whole width made the line run past the box and burn a line on the
     #: automatic wrap (37 cells against 32 of box, measured at 80x24).
-    FERNET_PREFIX = "Local: "
+    def fernet_prefix(self) -> str:
+        """The label in front of the key's path.
+
+        A method because it is BOTH printed and measured: `_paint_fernet`
+        subtracts its length from the width available to the path. Left a
+        class attribute with `t()` in it, the text would be the default
+        language's while the budget was computed from it -- correct by
+        accident in one language and wrong in every other."""
+        return t("settings.fernet_local")
 
     def _paint_fernet(self) -> None:
         from dbqm.core.paths import KEY_FILE
 
         status = self.query_one("#settings-fernet-status", Static)
         exists = KEY_FILE.exists()
-        state = "Presente" if exists else "[$ds-text-muted]Sera gerada no primeiro uso[/]"
-        orcamento = self._usable_width(status) - len(self.FERNET_PREFIX)
+        state = (t("settings.fernet_present") if exists
+                 else f'[$ds-text-muted]{t("settings.fernet_pending")}[/]')
+        prefixo = self.fernet_prefix()
+        orcamento = self._usable_width(status) - len(prefixo)
         local = str(KEY_FILE)
         if orcamento > 0:
             local = elide_path(local, orcamento)
         status.update(
-            f"[b]Status:[/b] {state}\n"
-            f"[b]{self.FERNET_PREFIX}[/b][$ds-text-disabled]{local}[/]\n\n"
-            "[$ds-text-disabled]Criptografa as senhas de conexao salvas. "
-            "Nao ha acao manual: ela e criada automaticamente.[/]"
+            f'[b]{t("settings.status")}[/b] {state}\n'
+            f"[b]{prefixo}[/b][$ds-text-disabled]{local}[/]\n\n"
+            f'[$ds-text-disabled]{t("settings.fernet_note")}[/]'
         )
 
     def _set_initial_focus(self) -> None:
@@ -642,7 +655,7 @@ class SettingsScreen(Vertical):
         except Exception:
             dentro = False
         barra.set_actions(
-            [Action("Voltar", "Esc", "settings-voltar")] if dentro else []
+            [Action(t("action.back"), "Esc", "settings-voltar")] if dentro else []
         )
 
     def on_action_selected(self, message: ActionSelected) -> None:
@@ -689,7 +702,7 @@ class SettingsScreen(Vertical):
             self.app.theme = settings.theme
         except Exception:
             pass
-        self.notify(f"Tema alterado: {settings.theme}")
+        self.notify(t("settings.theme_changed", tema=settings.theme))
 
     def on_switch_changed(self, event: Switch.Changed) -> None:
         from dbqm.models.settings import load_settings, save_settings
@@ -715,16 +728,16 @@ class SettingsScreen(Vertical):
                 return
             settings.audit_log_enabled = event.value
             save_settings(settings)
-            status = "ativado" if event.value else "desativado"
-            self.notify(f"Log de auditoria {status}!")
+            status = t("settings.enabled") if event.value else t("settings.disabled")
+            self.notify(t("settings.audit_toggled", estado=status))
         elif event.switch.id == "settings-export-subdirs-switch":
             settings = load_settings()
             if settings.create_export_subdirs == event.value:
                 return
             settings.create_export_subdirs = event.value
             save_settings(settings)
-            status = "ativado" if event.value else "desativado"
-            self.notify(f"Subdiretorios por tipo: {status}")
+            status = t("settings.enabled") if event.value else t("settings.disabled")
+            self.notify(t("settings.subdirs_toggled", estado=status))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-oracle-client-dir":
@@ -751,7 +764,7 @@ class SettingsScreen(Vertical):
 
         settings = load_settings()
         self._refresh_export_dir_label(settings.default_export_dir)
-        self.notify("Diretorio de exportacao atualizado!")
+        self.notify(t("settings.export_dir_updated"))
 
     def _open_oracle_client_dir_modal(self) -> None:
         """Open the Instant Client directory modal seeded with the current setting."""
@@ -765,4 +778,4 @@ class SettingsScreen(Vertical):
         if not saved:
             return
         self._refresh_oracle_client_status()
-        self.notify("Oracle Instant Client atualizado! Reabra o dbqm para aplicar.")
+        self.notify(t("settings.oracle_updated"))
