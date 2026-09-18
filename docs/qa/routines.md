@@ -50,8 +50,8 @@ CREATE OR REPLACE PROCEDURE qa_grava(v IN NUMBER) IS BEGIN INSERT INTO qa_log VA
 | QA-CALL-004 | Dado `qa_grava` sem `--commit` / Quando `dbqm call qa_grava <ora> -p v=1 -f json` e depois `dbqm sql "SELECT COUNT(*) FROM qa_log" <ora> -f json` / Entao `data.committed == false` e a contagem nao mudou · unit: `tests/test_cli.py::TestCmdCall::test_without_commit_the_transaction_is_rolled_back` | manual | oracle | — |
 | QA-CALL-005 | Dado `qa_grava` com `--commit` / Quando `dbqm call qa_grava <ora> -p v=1 --commit -f json` e a mesma contagem / Entao `data.committed == true` e a contagem subiu 1; em `-f table` a saida diz qual dos dois aconteceu · unit: `tests/test_cli.py::TestCmdCall::test_with_commit_the_transaction_is_committed`, `::test_the_table_output_says_which_happened` | manual | oracle | — |
 | QA-CALL-006 | Dado uma conexao Oracle `read_only` / Quando `dbqm call qa_pkg.dobro <ora-ro> -p n=1 -f json` / Entao exit 2, `read_only`, mensagem `Conexao '<nome>' e somente leitura e uma rotina pode escrever independente do texto do comando. ...` · unit: `tests/test_cli.py::TestCmdCall::test_a_read_only_connection_is_refused` | manual | oracle | — |
-| QA-CALL-007 | Dado `qa_pkg.soma` sem `-p b` / Quando executado / Entao exit 2, `validation`, `Parametro obrigatorio faltando: B.` · unit: `tests/test_cli.py::TestCmdCall::test_a_missing_required_parameter_is_a_validation_error` | manual | oracle | — |
-| QA-CALL-008 | Dado `-p x=1` que a rotina nao declara / Quando `dbqm call qa_pkg.dobro <ora> -p n=1 -p x=1 -f json` / Entao exit 2, `validation`, `Parametro 'x' nao existe na rotina 'DOBRO'.` · unit: `tests/test_cli.py::TestCmdCall::test_an_undeclared_parameter_is_a_validation_error` | manual | oracle | — |
+| QA-CALL-007 | Dado `qa_pkg.soma` sem `-p b` / Quando executado / Entao exit 2, `validation`, `Required parameter missing: B.` · unit: `tests/test_cli.py::TestCmdCall::test_a_missing_required_parameter_is_a_validation_error` | manual | oracle | — |
+| QA-CALL-008 | Dado `-p x=1` que a rotina nao declara / Quando `dbqm call qa_pkg.dobro <ora> -p n=1 -p x=1 -f json` / Entao exit 2, `validation`, `Parameter "x" does not exist in routine "DOBRO".` · unit: `tests/test_cli.py::TestCmdCall::test_an_undeclared_parameter_is_a_validation_error` | manual | oracle | — |
 | QA-CALL-009 | Dado um nome avulso que nao existe / Quando `dbqm call nao_existe <ora> -f json` / Entao exit 4, `sql_error`, mensagem com `PLS-00201` · unit: `tests/test_cli.py::TestCmdCall::test_a_bare_name_that_does_not_exist_exits_four` | manual | oracle | — |
 | QA-CALL-011 | Dado uma rotina que imprime ela mesma `DBMS_OUTPUT.PUT_LINE('RETURN=nao sou o retorno')` e retorna 7 / Quando chamada / Entao `data.return_value == "7"` e a linha impressa fica em `warnings`, intacta · unit: `tests/core/test_object_browser.py::TestExecuteRoutineHandsValuesBack::test_a_routine_printing_RETURN_no_longer_shadows_the_real_one` | manual | oracle | — |
 | QA-CALL-012 | Dado uma rotina avulsa de **outro** schema que o usuario pode executar / Quando `dbqm call outra_proc <ora> -p a=1 -f json` / Entao os parametros sao resolvidos e a chamada roda -- `all_arguments` era filtrado por `owner = USER`, entao ela voltava sem parametro nenhum, indistinguivel de uma rotina sem argumentos · unit: `tests/core/test_object_browser.py::TestGetStandaloneRoutineInfo::test_the_owner_comes_from_all_objects_not_from_USER` | manual | oracle | — |
@@ -83,9 +83,9 @@ dbqm call qa_grava <ora> -p v=1 --commit -f json && dbqm sql "SELECT COUNT(*) FR
 dbqm call qa_pkg.dobro <ora-ro> -p n=1 -f json
 # exit 2 · "code": "read_only"
 dbqm call qa_pkg.soma <ora> -p a=1 -f json
-# exit 2 · "code": "validation" · "Parametro obrigatorio faltando: B."
+# exit 2 · "code": "validation" · "Required parameter missing: B."
 dbqm call qa_pkg.dobro <ora> -p n=1 -p x=1 -f json
-# exit 2 · "code": "validation" · "Parametro 'x' nao existe na rotina 'DOBRO'."
+# exit 2 · "code": "validation" · "Parameter \"x\" does not exist in routine \"DOBRO\"."
 dbqm call nao_existe <ora> -f json
 # exit 4 · "code": "sql_error" · message contains PLS-00201
 dbqm call qa_pkg.nada <ora> -f json

@@ -83,10 +83,10 @@ def test_a_real_divergence_exits_5(pedidos, capsys):
 def test_table_format_prints_the_verdict_with_the_same_exit(pedidos, clientes, capsys):
     code, out, _ = invoke(["run-group", pedidos], capsys)
     assert code == 5
-    assert "DIVERGENTE" in out
+    assert "DIVERGENT" in out
     code, out, _ = invoke(["run-group", clientes], capsys)
     assert code == 0
-    assert "CONSISTENTE" in out
+    assert "CONSISTENT" in out
 
 
 # QA-GROUP-004
@@ -106,7 +106,7 @@ def test_flat_with_html_is_refused_before_anything_runs(pedidos, capsys):
     code, body = envelope(["run-group", pedidos, "--flat", "-e", "html", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"].startswith("--flat nao tem versao HTML.")
+    assert body["error"]["message"].startswith("--flat has no HTML version.")
     code, historico = envelope(["history", "-f", "json"], capsys)
     assert code == 0
     assert [e for e in historico["data"] if e["entry_type"] == "group"] == []
@@ -126,7 +126,7 @@ def test_an_unknown_group_is_not_found(local_db, capsys):
     code, body = envelope(["run-group", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Grupo 'nope' nao encontrado."
+    assert body["error"]["message"] == 'Group "nope" not found.'
 
 
 # QA-GROUP-008
@@ -162,7 +162,7 @@ def test_a_failing_query_names_itself(local2_db, capsys):
     code, body = envelope(["run-group", "quebrado", "-f", "json"], capsys)
     assert code == 4
     assert body["error"]["code"] == "sql_error"
-    assert body["error"]["message"] == "Erro na consulta 'quebrada': no such table: nao_existe"
+    assert body["error"]["message"] == 'Error in query "quebrada": no such table: nao_existe'
 
 
 POR_CLIENTE = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
@@ -230,7 +230,7 @@ def sem_colunas(local2_db, capsys) -> str:
 # QA-GROUP-017
 def test_a_group_with_no_compare_columns_still_compares(sem_colunas, capsys):
     """It answered `all_match: true` with `comparisons: []` and exit 0 --
-    CONSISTENTE over data nothing had looked at, while the equivalent
+    CONSISTENT over data nothing had looked at, while the equivalent
     `multi` exited 5 on the same rows."""
     code, out, _ = invoke(["run-group", sem_colunas, "-f", "json"], capsys)
     body = json.loads(out)
@@ -245,8 +245,8 @@ def test_deriving_the_columns_is_said_out_loud(sem_colunas, capsys):
     code, out, _ = invoke(["run-group", sem_colunas, "-f", "json"], capsys)
     assert code == 5
     assert json.loads(out)["warnings"][0] == (
-        "Grupo 'sem_colunas' nao define colunas para comparar; "
-        "comparando as comuns: valor."
+        'Group "sem_colunas" does not define columns to compare; '
+        'comparing the common ones: valor.'
     )
 
 
@@ -266,8 +266,8 @@ def test_nothing_common_beyond_the_key_is_refused(local2_db, capsys):
     assert code == 2
     assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == (
-        "Grupo 'so_id' nao define colunas para comparar e as consultas nao "
-        "tem nenhuma coluna comum alem de 'id'."
+        'Group "so_id" does not define columns to compare, and the queries have '
+        'no column in common other than "id".'
     )
 
 

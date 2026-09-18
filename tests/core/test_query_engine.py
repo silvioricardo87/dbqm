@@ -892,9 +892,9 @@ class TestSqlServerAdhoc:
     def test_block_label_follows_the_dialect(self):
         from dbqm.core.query_engine import block_label
 
-        assert block_label("sqlserver") == "Bloco T-SQL"
-        assert block_label("oracle") == "Bloco PL/SQL"
-        assert block_label("postgresql") == "Bloco PL/SQL"
+        assert block_label("sqlserver") == "T-SQL block"
+        assert block_label("oracle") == "PL/SQL block"
+        assert block_label("postgresql") == "PL/SQL block"
 
 
 class _FakeCursor:

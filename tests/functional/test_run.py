@@ -53,7 +53,7 @@ def test_a_missing_required_param_is_validation(por_status, capsys):
     code, body = envelope(["run", por_status, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "Parametros obrigatorios faltando: st"
+    assert body["error"]["message"] == "Required parameters missing: st"
 
 
 # QA-QUERY-004
@@ -69,7 +69,7 @@ def test_an_unknown_query_is_not_found(local_db, capsys):
     code, body = envelope(["run", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Consulta 'nope' nao encontrada."
+    assert body["error"]["message"] == 'Query "nope" not found.'
 
 
 # QA-QUERY-006
@@ -77,7 +77,7 @@ def test_an_unknown_connection_override_is_not_found(ativos, capsys):
     code, body = envelope(["run", ativos, "-c", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Conexao 'nope' nao encontrada."
+    assert body["error"]["message"] == 'Connection "nope" not found.'
 
 
 # QA-QUERY-007
@@ -136,7 +136,7 @@ def test_a_param_the_query_does_not_declare_is_refused(ativos, capsys):
     code, body = envelope(["run", ativos, "-p", "naoexiste=1", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "Consulta 'ativos' nao declara o parametro 'naoexiste'."
+    assert body["error"]["message"] == 'Query "ativos" does not declare the parameter "naoexiste".'
 
 
 # QA-QUERY-013
@@ -145,4 +145,4 @@ def test_a_declared_param_alongside_an_undeclared_one_is_still_refused(por_statu
         ["run", por_status, "-p", "st=A", "-p", "lixo=9", "-f", "json"], capsys,
     )
     assert code == 2
-    assert body["error"]["message"] == "Consulta 'por_status' nao declara o parametro 'lixo'."
+    assert body["error"]["message"] == 'Query "por_status" does not declare the parameter "lixo".'

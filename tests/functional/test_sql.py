@@ -44,7 +44,7 @@ def test_dml_without_commit_is_refused_before_running(local_db, capsys):
     code, body = envelope(["sql", "UPDATE clientes SET status='X' WHERE id=1", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "DML requer --commit para confirmar a operacao."
+    assert body["error"]["message"] == "DML requires --commit to confirm the operation."
     assert _status_of_1(capsys) == "A"
 
 
@@ -144,7 +144,7 @@ def test_an_unknown_connection_is_not_found(local_db, capsys):
     code, body = envelope(["sql", "SELECT 1", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Conexao 'nope' nao encontrada."
+    assert body["error"]["message"] == 'Connection "nope" not found.'
 
 
 # QA-SQL-014
@@ -167,7 +167,7 @@ def test_export_on_a_dml_is_refused_before_the_write(local_db, tmp_path, capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == (
-        "--export precisa de um comando que retorne linhas; UPDATE nao retorna."
+        "--export needs a command that returns rows; UPDATE does not return any."
     )
     assert _status_of_1(capsys) == "A"
     assert not list(tmp_path.rglob("*.csv"))
@@ -182,7 +182,7 @@ def test_export_on_a_ddl_is_refused_and_nothing_is_created(local_db, capsys):
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == (
-        "--export precisa de um comando que retorne linhas; DDL nao retorna."
+        "--export needs a command that returns rows; DDL does not return any."
     )
     code, body = envelope(["objects", "local", "--type", "TABLE", "-f", "json"], capsys)
     assert code == 0
@@ -238,7 +238,7 @@ def test_a_param_the_statement_never_binds_is_refused(local_db, capsys):
     )
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "O SQL nao usa o parametro 'naoexiste'."
+    assert body["error"]["message"] == 'The SQL does not use the parameter "naoexiste".'
 
 
 # QA-SQL-023
@@ -249,4 +249,4 @@ def test_a_missing_sql_file_says_so(local_db, tmp_path, capsys):
     code, body = envelope(["sql", str(caminho), "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == f"Arquivo '{caminho}' nao encontrado."
+    assert body["error"]["message"] == f'File "{caminho}" not found.'

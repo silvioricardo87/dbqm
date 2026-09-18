@@ -38,7 +38,7 @@ MARCA = re.compile(r"\b(" + "|".join(PALAVRAS) + r")\b", re.IGNORECASE)
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
-MAX_LITERAIS = 626
+MAX_LITERAIS = 559
 
 #: The catalogue itself is Portuguese by definition, and the design tokens
 #: carry Portuguese token names that are identifiers, not screen text.

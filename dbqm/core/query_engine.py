@@ -324,7 +324,7 @@ def block_label(db_type: str) -> str:
     "Bloco PL/SQL executado" on a SQL Server connection names the wrong
     language. Both front ends render the outcome, so both ask here.
     """
-    return "Bloco T-SQL" if db_type == "sqlserver" else "Bloco PL/SQL"
+    return t("sql.block_tsql") if db_type == "sqlserver" else t("sql.block_plsql")
 
 
 def _collect_result_sets(cursor) -> tuple[list[str], list[list[Any]], list[str]]:

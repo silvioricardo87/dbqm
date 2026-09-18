@@ -1724,7 +1724,7 @@ def test_format_plsql_message_header_only():
         committed=True, output_lines=["linha um", "linha dois"],
     )
     msg = _format_plsql_message(result)
-    assert "Bloco PL/SQL executado" in msg
+    assert "PL/SQL block ran" in msg
     # Output lines are rendered in the dedicated panel, not the header static.
     assert "linha um" not in msg
 

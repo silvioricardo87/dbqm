@@ -936,7 +936,7 @@ class TestCmdMulti:
         result is the derived join key, `derive_comparison_columns` returns
         `(key, [])` on purpose (core allows this) -- but `cmd_multi` running
         a comparison of zero columns over genuinely divergent rows would
-        still say CONSISTENTE. `cmd_multi` refuses it instead of core."""
+        still say CONSISTENT. `cmd_multi` refuses it instead of core."""
         c1, c2 = _make_connection("c1"), _make_connection("c2")
 
         def find_conn_side(name):
@@ -1002,7 +1002,7 @@ class TestCmdMulti:
         drop the comparison. `join_key=args.key or ""` with no
         `compare_columns` makes `build_adhoc_group_result` default to an
         empty compare list, so genuinely divergent rows (same NAME, different
-        ID) would compare zero columns and report CONSISTENTE/exit 0 -- a
+        ID) would compare zero columns and report CONSISTENT/exit 0 -- a
         silent wrong answer. Keying by NAME must still compare ID and catch
         the divergence."""
         c1, c2 = _make_connection("c1"), _make_connection("c2")
@@ -1043,7 +1043,7 @@ class TestCmdMulti:
             run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-e", "csv"])
             mock_csv.assert_called_once()
             saida = capsys.readouterr().out
-            assert "Exportado:" in saida
+            assert "Exported:" in saida
             assert "/tmp/multi.csv" in saida
 
     def test_export_json_format_emits_envelope(self, tmp_config_dir, capsys):
@@ -1082,7 +1082,7 @@ class TestCmdMulti:
              patch("dbqm.cli.deps.execute_across", return_value=results):
             run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2"])
             saida = capsys.readouterr().out
-            assert "chave: ID" in saida
+            assert "key: ID" in saida
 
     def test_multiple_failures_report_every_connection_deterministically(self, tmp_config_dir, capsys):
         """The exit code must not depend on which failing connection happens
@@ -1671,7 +1671,7 @@ class TestCmdCall:
             mock_exec.assert_not_called()
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "validation"
-        assert "nao existe" in corpo["error"]["message"]
+        assert "does not exist" in corpo["error"]["message"]
         assert "NAOEXISTE" in corpo["error"]["message"]
 
     def test_an_undeclared_parameter_is_a_validation_error(self, tmp_config_dir, capsys):
@@ -1999,7 +1999,7 @@ class TestCmdCall:
             assert saiu.value.code == 4
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "sql_error"
-        assert "nada foi gravado" in corpo["error"]["message"]
+        assert "nothing was written" in corpo["error"]["message"]
 
     def test_a_commit_that_fails_says_nothing_was_written(self, tmp_config_dir, capsys):
         """The one outcome a caller must not have to guess at: the routine
@@ -2021,7 +2021,7 @@ class TestCmdCall:
         db_handle.rollback.assert_called_once()
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "sql_error"
-        assert "nada foi gravado" in corpo["error"]["message"]
+        assert "nothing was written" in corpo["error"]["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -2440,7 +2440,7 @@ class TestCmdImportConfig:
         assert saida.out == ""
         erro = json.loads(saida.err)["error"]
         assert erro["code"] == "not_found"
-        assert erro["message"] == f"Arquivo '{caminho}' nao encontrado."
+        assert erro["message"] == f'File "{caminho}" not found.'
         spy.assert_not_called()
 
 
@@ -2637,7 +2637,7 @@ class TestCmdSqlPlsqlOutput:
         out = capsys.readouterr().out
         assert "processando 1" in out
         assert "processando 2" in out
-        assert "Bloco PL/SQL executado" in out
+        assert "PL/SQL block ran" in out
 
     def test_no_output_lines_prints_only_status(self, capsys):
         conn = _make_connection()
@@ -2650,7 +2650,7 @@ class TestCmdSqlPlsqlOutput:
              patch("dbqm.cli.deps.execute_adhoc", return_value=res):
             run_cli(["sql", "BEGIN NULL; END;", "test_conn"])
         out = capsys.readouterr().out
-        assert "Bloco PL/SQL executado" in out
+        assert "PL/SQL block ran" in out
 
 
 # ---------------------------------------------------------------------------

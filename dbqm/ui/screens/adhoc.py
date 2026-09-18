@@ -10,6 +10,7 @@ from textual.widgets import Button, Checkbox, ContentSwitcher, Select, Static, T
 from dbqm.ui.utils import NavSelect
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.panel import Panel
 from dbqm.ui.widgets.progress import ProgressIndicator
@@ -37,7 +38,8 @@ def _format_plsql_message(result: AdhocResult) -> str:
     """
     from dbqm.core.query_engine import block_label
 
-    return f"[bold]{block_label(result.db_type)} executado[/] ({result.elapsed:.2f}s)"
+    rotulo = t("sql.block_ran_header", rotulo=block_label(result.db_type))
+    return f"[bold]{rotulo}[/] ({result.elapsed:.2f}s)"
 
 
 class AdhocScreen(Vertical):

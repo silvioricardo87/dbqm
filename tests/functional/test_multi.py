@@ -59,7 +59,7 @@ def test_a_key_that_is_not_common_is_validation(local2_db, capsys):
     code, body = envelope(["multi", PED, "-c", "local", "-c", "local2", "--key", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "Coluna de chave 'nope' nao e comum a todas as conexoes."
+    assert body["error"]["message"] == 'Key column "nope" is not common to every connection.'
 
 
 # QA-MULTI-005
@@ -68,7 +68,8 @@ def test_the_same_connection_twice_is_refused(local_db, capsys):
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == (
-        "Conexao 'local' repetida. Informe pelo menos duas conexoes distintas com -c/--connection."
+        'Connection "local" is repeated. Give at least two distinct connections '
+        'with -c/--connection.'
     )
 
 
@@ -77,7 +78,7 @@ def test_one_connection_is_refused(local_db, capsys):
     code, body = envelope(["multi", PED, "-c", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "Informe pelo menos duas conexoes com -c/--connection."
+    assert body["error"]["message"] == "Give at least two connections with -c/--connection."
 
 
 # QA-MULTI-007
@@ -85,7 +86,7 @@ def test_a_non_query_is_refused_before_any_connection_opens(local2_db, capsys):
     code, body = envelope(["multi", "DELETE FROM pedidos", "-c", "local", "-c", "local2", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "multi compara resultados de consultas (SELECT ou EXPLAIN); recebido: DELETE."
+    assert body["error"]["message"] == "multi compares query results (SELECT or EXPLAIN); got: DELETE."
     for conn in ("local", "local2"):
         code, contagem = envelope(["sql", "SELECT COUNT(*) FROM pedidos", conn, "-f", "json"], capsys)
         assert code == 0 and contagem["data"]["rows"] == [[4]]
@@ -96,7 +97,7 @@ def test_one_missing_file_is_connection_failed_naming_it(local_db, broken_db, ca
     code, body = envelope(["multi", PED, "-c", "local", "-c", "broken", "-f", "json"], capsys)
     assert code == 3
     assert body["error"]["code"] == "connection_failed"
-    assert body["error"]["message"] == "Falha na conexao 'broken': unable to open database file"
+    assert body["error"]["message"] == 'Connection "broken" failed: unable to open database file'
 
 
 # QA-MULTI-009
@@ -104,7 +105,7 @@ def test_an_unregistered_name_is_not_found(local_db, capsys):
     code, body = envelope(["multi", PED, "-c", "local", "-c", "nope", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == "Conexao 'nope' nao encontrada."
+    assert body["error"]["message"] == 'Connection "nope" not found.'
 
 
 # QA-MULTI-010
@@ -124,7 +125,7 @@ def test_flat_with_html_is_refused(local2_db, capsys):
     code, body = envelope(["multi", PED, "-c", "local", "-c", "local2", "--flat", "-e", "html", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"].startswith("--flat nao tem versao HTML.")
+    assert body["error"]["message"].startswith("--flat has no HTML version.")
 
 
 # QA-MULTI-012
@@ -132,7 +133,10 @@ def test_a_single_common_column_has_nothing_to_compare(local2_db, capsys):
     code, body = envelope(["multi", "SELECT id FROM pedidos", "-c", "local", "-c", "local2", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "Coluna 'id' e a unica comum a todas as conexoes; nao ha coluna para comparar."
+    assert body["error"]["message"] == (
+        'Column "id" is the only one common to every connection; '
+        'there is no column left to compare.'
+    )
 
 
 # QA-MULTI-013
@@ -141,8 +145,8 @@ def test_every_failing_connection_is_named(local2_db, capsys):
     assert code == 4
     assert body["error"]["code"] == "sql_error"
     assert body["error"]["message"] == (
-        "Erro na consulta em 'local': no such table: nao_existe; "
-        "Erro na consulta em 'local2': no such table: nao_existe"
+        'Error in the query on "local": no such table: nao_existe; '
+        'Error in the query on "local2": no such table: nao_existe'
     )
 
 
@@ -150,7 +154,7 @@ def test_every_failing_connection_is_named(local2_db, capsys):
 def test_table_format_prints_the_verdict_with_the_same_exit(local2_db, capsys):
     code, out, err = invoke(["multi", PED, "-c", "local", "-c", "local2"], capsys)
     assert code == 5
-    assert "DIVERGENTE" in out and "chave: id" in out
+    assert "DIVERGENT" in out and "key: id" in out
     assert err == ""
 
 
@@ -189,7 +193,7 @@ def test_a_param_the_statement_never_binds_is_refused(local2_db, capsys):
     )
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"] == "O SQL nao usa o parametro 'naoexiste'."
+    assert body["error"]["message"] == 'The SQL does not use the parameter "naoexiste".'
 
 
 # QA-MULTI-018
@@ -200,4 +204,4 @@ def test_a_missing_sql_file_says_so(local2_db, tmp_path, capsys):
     )
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == f"Arquivo '{caminho}' nao encontrado."
+    assert body["error"]["message"] == f'File "{caminho}" not found.'

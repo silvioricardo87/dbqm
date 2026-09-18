@@ -10,6 +10,7 @@ from typing import Any, NoReturn
 
 from rich.markup import escape
 
+from dbqm.i18n import t
 from dbqm.cli import deps, render
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
@@ -89,7 +90,7 @@ def _export_group(
         elif fmt == "txt":
             path = deps.export_group_flat_txt(group_result, param_values)
         else:
-            _fail_or_print(args, command, "usage", f"Formato de export invalido: {fmt}")
+            _fail_or_print(args, command, "usage", t("export.format_invalid", formato=fmt))
     else:
         if fmt == "csv":
             path = deps.export_group_csv(group_result, param_values)
@@ -100,7 +101,7 @@ def _export_group(
         elif fmt == "html":
             path = deps.export_group_html(group_result, param_values)
         else:
-            _fail_or_print(args, command, "usage", f"Formato de export invalido: {fmt}")
+            _fail_or_print(args, command, "usage", t("export.format_invalid", formato=fmt))
     return path
 
 
@@ -120,7 +121,7 @@ def _refuse_undeclared_params(
     if desconhecidos:
         _fail_or_print(
             args, command, "validation",
-            f"O SQL nao usa o parametro '{desconhecidos[0]}'.",
+            t("param.not_in_sql", nome=desconhecidos[0]),
         )
 
 
@@ -172,19 +173,19 @@ def _export_result(
         return str(deps.export_query_txt(qr, "adhoc", param_values))
     if fmt == "html":
         return str(deps.export_query_html(qr, "adhoc", param_values))
-    _fail_or_print(args, "sql", "usage", f"Formato de export invalido: {fmt}")
+    _fail_or_print(args, "sql", "usage", t("export.format_invalid", formato=fmt))
 
 
 def cmd_run(args: argparse.Namespace) -> None:
     """Execute a saved query."""
     query = deps.find_query(args.query)
     if not query:
-        _fail_or_print(args, "run", "not_found", f"Consulta '{args.query}' nao encontrada.")
+        _fail_or_print(args, "run", "not_found", t("query.not_found_named", nome=args.query))
 
     conn_name = args.connection or query.connection
     conn = deps.find_connection(conn_name)
     if not conn:
-        _fail_or_print(args, "run", "not_found", f"Conexao '{conn_name}' nao encontrada.")
+        _fail_or_print(args, "run", "not_found", t("connection.not_found_named", nome=conn_name))
 
     param_values = _parse_params(args.param, args, "run")
 
@@ -198,8 +199,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     if desconhecidos:
         _fail_or_print(
             args, "run", "validation",
-            f"Consulta '{query.name}' nao declara o parametro "
-            f"'{desconhecidos[0]}'.",
+            t("run.param_not_declared", consulta=query.name, parametro=desconhecidos[0]),
         )
 
     # Fill missing params with defaults
@@ -212,8 +212,8 @@ def cmd_run(args: argparse.Namespace) -> None:
     if missing:
         _fail_or_print(
             args, "run", "validation",
-            f"Parametros obrigatorios faltando: {', '.join(missing)}",
-            extra="[dim]Use -p chave=valor para cada parametro[/dim]",
+            t("run.params_missing", nomes=", ".join(missing)),
+            extra=f"[dim]{t('run.params_hint')}[/dim]",
         )
 
     result = deps.execute_query(query, conn, param_values)
@@ -235,7 +235,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     # same mapped code as `json` instead of rendering an empty result.
     if not result.success:
         _fail_or_print(args, "run", _sql_error_code(result.error, result.error_kind),
-                        result.error or "Erro ao executar consulta.")
+                        result.error or t("run.execute_failed"))
 
     # Export if requested
     if args.export:
@@ -250,11 +250,11 @@ def cmd_run(args: argparse.Namespace) -> None:
         elif fmt == "html":
             path = deps.export_query_html(result, table_name, param_values)
         else:
-            _fail_or_print(args, "run", "usage", f"Formato de export invalido: {fmt}")
+            _fail_or_print(args, "run", "usage", t("export.format_invalid", formato=fmt))
         if args.format == "json":
             ok("run", {"exported": str(path), "format": fmt})
             return
-        console.print(f"Exportado: {path}")
+        console.print(t("export.done", caminho=path))
         return
 
     if args.format == "json":
@@ -283,12 +283,11 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # run or any history record written.
     if args.export == "html" and args.flat:
         _fail_or_print(args, "run-group", "usage",
-                       "--flat nao tem versao HTML. Use --export html sem --flat, "
-                       "ou --flat com csv, json ou txt.")
+                       t("export.flat_no_html"))
 
     group = deps.find_group(args.group)
     if not group:
-        _fail_or_print(args, "run-group", "not_found", f"Grupo '{args.group}' nao encontrado.")
+        _fail_or_print(args, "run-group", "not_found", t("group.not_found_named", nome=args.group))
 
     param_values = _parse_params(args.param, args, "run-group")
 
@@ -304,16 +303,16 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         query = deps.find_query(qname)
         if not query:
             _fail_or_print(args, "run-group", "not_found",
-                            f"Consulta '{qname}' do grupo nao encontrada.")
+                            t("group.query_not_found_in_group", nome=qname))
         conn = deps.find_connection(query.connection)
         if not conn:
             _fail_or_print(args, "run-group", "not_found",
-                            f"Conexao '{query.connection}' nao encontrada.")
+                            t("connection.not_found_named", nome=query.connection))
 
         result = deps.execute_query(query, conn, param_values)
         if not result.success:
             _fail_or_print(args, "run-group", _sql_error_code(result.error, result.error_kind),
-                            f"Erro na consulta '{qname}': {result.error}")
+                            t("group.query_failed", consulta=qname, erro=result.error))
 
         # Apply column maps
         if query.column_maps:
@@ -340,9 +339,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         if not compare_columns:
             _fail_or_print(
                 args, "run-group", "validation",
-                f"Grupo '{group.name}' nao define colunas para comparar e as "
-                f"consultas nao tem nenhuma coluna comum alem de "
-                f"'{group.join_key}'.",
+                t("group.no_common_columns", nome=group.name, chave=group.join_key),
             )
 
     group_result = deps.build_group_result(
@@ -363,8 +360,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     avisos = duplicate_key_warnings(group_result)
     if derivadas:
         avisos.insert(0, (
-            f"Grupo '{group.name}' nao define colunas para comparar; "
-            f"comparando as comuns: {', '.join(compare_columns)}."
+            t("group.comparing_common", nome=group.name, colunas=", ".join(compare_columns))
         ))
 
     if args.export:
@@ -374,7 +370,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
             ok("run-group", {"exported": str(path), "format": fmt},
                warnings=avisos or None)
         else:
-            console.print(f"Exportado: {path}")
+            console.print(t("export.done", caminho=path))
             for aviso in avisos:
                 console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
         if not group_result.all_match:
@@ -403,8 +399,9 @@ def cmd_run_group(args: argparse.Namespace) -> None:
             sys.exit(int(exit_for("divergent")))
         return
 
-    status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
-    console.print(f"Grupo: {group_result.group_name} — {status}")
+    status = (f"[ds.verdict.match]{t('verdict.consistent')}[/]" if group_result.all_match
+              else f"[ds.verdict.diff]{t('verdict.divergent')}[/]")
+    console.print(t("group.header", nome=group_result.group_name, status=status))
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
     for aviso in avisos:
@@ -449,8 +446,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
     """
     if args.export == "html" and args.flat:
         _fail_or_print(args, "multi", "usage",
-                       "--flat nao tem versao HTML. Use --export html sem --flat, "
-                       "ou --flat com csv, json ou txt.")
+                       t("export.flat_no_html"))
 
     names = args.connection or []
     # Order-preserving de-duplication: `-c prod -c prod` collapses to one
@@ -467,17 +463,16 @@ def cmd_multi(args: argparse.Namespace) -> None:
         if repeated:
             _fail_or_print(
                 args, "multi", "usage",
-                f"Conexao '{repeated[0]}' repetida. Informe pelo menos duas "
-                "conexoes distintas com -c/--connection.",
+                t("multi.connection_repeated", nome=repeated[0]),
             )
         _fail_or_print(args, "multi", "usage",
-                       "Informe pelo menos duas conexoes com -c/--connection.")
+                       t("multi.two_connections_required"))
     names = distinct_names
 
     try:
         sql = _sql_or_file(args.sql)
     except FileNotFoundError as e:
-        _fail_or_print(args, "multi", "not_found", f"Arquivo '{e}' nao encontrado.")
+        _fail_or_print(args, "multi", "not_found", t("file.not_found_named", nome=e))
 
     # A comparison needs a result set to compare, and only SELECT/EXPLAIN
     # produce one. Refusing here -- before any connection is even resolved,
@@ -490,15 +485,14 @@ def cmd_multi(args: argparse.Namespace) -> None:
     if sql_type not in ("SELECT", "EXPLAIN"):
         _fail_or_print(
             args, "multi", "usage",
-            f"multi compara resultados de consultas (SELECT ou EXPLAIN); "
-            f"recebido: {sql_type}.",
+            t("multi.queries_only", tipo=sql_type),
         )
 
     resolved: list[tuple[str, Connection | None]] = []
     for name in names:
         conn = deps.find_connection(name)
         if not conn:
-            _fail_or_print(args, "multi", "not_found", f"Conexao '{name}' nao encontrada.")
+            _fail_or_print(args, "multi", "not_found", t("connection.not_found_named", nome=name))
         resolved.append((name, conn))
 
     param_values = _parse_params(args.param, args, "multi")
@@ -525,13 +519,13 @@ def cmd_multi(args: argparse.Namespace) -> None:
         parts = []
         for (name, result), code in zip(failing, codes, strict=True):
             if code == "connection_failed":
-                parts.append(f"Falha na conexao '{name}': {result.error}")
+                parts.append(t("multi.connection_failed", nome=name, erro=result.error))
             elif code == "read_only":
-                parts.append(f"Somente leitura em '{name}': {result.error}")
+                parts.append(t("multi.read_only", nome=name, erro=result.error))
             elif code == "usage":
-                parts.append(f"Erro de uso em '{name}': {result.error}")
+                parts.append(t("multi.usage_error", nome=name, erro=result.error))
             else:
-                parts.append(f"Erro na consulta em '{name}': {result.error}")
+                parts.append(t("multi.query_error", nome=name, erro=result.error))
         _fail_or_print(args, "multi", _multi_failure_code(codes), "; ".join(parts))
 
     try:
@@ -550,7 +544,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
         if args.key not in common:
             _fail_or_print(
                 args, "multi", "validation",
-                f"Coluna de chave '{args.key}' nao e comum a todas as conexoes.",
+                t("multi.key_not_common", coluna=args.key),
             )
         # Re-deriving instead of trusting `build_adhoc_group_result`'s own
         # `join_key`-given branch to leave `compare_columns` alone: that
@@ -573,8 +567,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
         # refuses instead of running one.
         _fail_or_print(
             args, "multi", "validation",
-            f"Coluna '{join_key}' e a unica comum a todas as conexoes; "
-            "nao ha coluna para comparar.",
+            t("multi.only_common_column", coluna=join_key),
         )
 
     group_result = deps.build_adhoc_group_result(
@@ -590,7 +583,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
             ok("multi", {"exported": str(path), "format": fmt, "join_key": join_key},
                warnings=avisos or None)
         else:
-            console.print(f"Exportado: {path}")
+            console.print(t("export.done", caminho=path))
             for aviso in avisos:
                 console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
         if not group_result.all_match:
@@ -619,9 +612,10 @@ def cmd_multi(args: argparse.Namespace) -> None:
             sys.exit(int(exit_for("divergent")))
         return
 
-    status = "[ds.verdict.match]CONSISTENTE[/]" if group_result.all_match else "[ds.verdict.diff]DIVERGENTE[/]"
+    status = (f"[ds.verdict.match]{t('verdict.consistent')}[/]" if group_result.all_match
+              else f"[ds.verdict.diff]{t('verdict.divergent')}[/]")
     conexoes = ", ".join(results)
-    console.print(f"Multi ({conexoes}) — chave: {join_key} — {status}")
+    console.print(t("multi.header", conexoes=conexoes, chave=join_key, status=status))
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
     for aviso in avisos:
@@ -634,7 +628,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     """Execute ad-hoc SQL."""
     conn = deps.find_connection(args.connection)
     if not conn:
-        _fail_or_print(args, "sql", "not_found", f"Conexao '{args.connection}' nao encontrada.")
+        _fail_or_print(args, "sql", "not_found", t("connection.not_found_named", nome=args.connection))
 
     if getattr(args, "force_write", False) and conn.read_only:
         # Resolve the override here, at the CLI's own boundary, instead of
@@ -647,7 +641,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
     try:
         sql = _sql_or_file(args.sql)
     except FileNotFoundError as e:
-        _fail_or_print(args, "sql", "not_found", f"Arquivo '{e}' nao encontrado.")
+        _fail_or_print(args, "sql", "not_found", t("file.not_found_named", nome=e))
 
     param_values = _parse_params(args.param, args, "sql")
 
@@ -660,7 +654,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             _fail_or_print(args, "sql", "read_only", str(e))
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                            result.error or "Erro ao gerar plano de execucao.")
+                            result.error or t("sql.explain_failed"))
         # A plan is a result set -- one `plan` column, one row per line --
         # so `--export` writes it like any other. This branch returns before
         # the guard below ever runs, so without this the flag would be
@@ -670,7 +664,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             if args.format == "json":
                 ok("sql", {"exported": str(path), "format": args.export})
                 return
-            console.print(f"Exportado: {path}")
+            console.print(t("export.done", caminho=path))
             return
         if args.format == "json":
             plano = [row[0] if row else "" for row in result.rows]
@@ -702,13 +696,12 @@ def cmd_sql(args: argparse.Namespace) -> None:
     if args.export and sql_type in ("INSERT", "UPDATE", "DELETE", "DDL"):
         _fail_or_print(
             args, "sql", "usage",
-            f"--export precisa de um comando que retorne linhas; "
-            f"{sql_type} nao retorna.",
+            t("sql.export_needs_rows", tipo=sql_type),
         )
 
     # Require --commit for DML operations
     if sql_type in ("INSERT", "UPDATE", "DELETE") and not args.commit:
-        _fail_or_print(args, "sql", "usage", "DML requer --commit para confirmar a operacao.")
+        _fail_or_print(args, "sql", "usage", t("sql.dml_needs_commit"))
 
     try:
         outcome = deps.execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
@@ -730,11 +723,11 @@ def cmd_sql(args: argparse.Namespace) -> None:
     if result.sql_type in ("INSERT", "UPDATE", "DELETE"):
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                            result.error or "Erro ao executar SQL.")
+                            result.error or t("sql.execute_failed"))
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
-        console.print(f"{result.rows_affected} registros afetados (committed)")
+        console.print(t("sql.rows_affected_committed", quantidade=result.rows_affected))
         return
 
     # DDL results
@@ -742,21 +735,22 @@ def cmd_sql(args: argparse.Namespace) -> None:
         if not result.success:
             code = _sql_error_code(result.error, result.error_kind)
             if args.format == "json":
-                fail("sql", code, result.error or "Erro ao executar DDL.")
-            console.print(f"[ds.op.failure]DDL executado com erros de compilacao ({result.elapsed:.2f}s)[/ds.op.failure]")
+                fail("sql", code, result.error or t("sql.ddl_failed"))
+            aviso = t("sql.ddl_compile_errors", segundos=f"{result.elapsed:.2f}")
+            console.print(f"[ds.op.failure]{aviso}[/ds.op.failure]")
             console.print(f"[ds.op.failure]{result.error}[/ds.op.failure]")
             sys.exit(int(exit_for(code)))
         if args.format == "json":
             ok("sql", result.to_dict())
             return
-        console.print(f"DDL executado com sucesso ({result.elapsed:.2f}s)")
+        console.print(t("sql.ddl_ok", segundos=f"{result.elapsed:.2f}"))
         return
 
     # PL/SQL anonymous block results
     if result.sql_type == "PLSQL":
         if not result.success:
             _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                            result.error or "Erro ao executar bloco.")
+                            result.error or t("sql.block_failed"))
         # A block is the one type whose result set is not knowable from its
         # text: it may open a cursor and return rows, and then `--export` is
         # exactly right. Only a block that returned nothing is refused, and
@@ -764,15 +758,14 @@ def cmd_sql(args: argparse.Namespace) -> None:
         if args.export and not result.rows:
             _fail_or_print(
                 args, "sql", "usage",
-                "--export precisa de um comando que retorne linhas; "
-                "o bloco nao retornou nenhuma.",
+                t("sql.export_needs_rows_block"),
             )
         if args.export:
             path = _export_result(args, result, conn, param_values)
             if args.format == "json":
                 ok("sql", {"exported": str(path), "format": args.export})
                 return
-            console.print(f"Exportado: {path}")
+            console.print(t("export.done", caminho=path))
             return
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
@@ -780,7 +773,8 @@ def cmd_sql(args: argparse.Namespace) -> None:
         from dbqm.core.query_engine import block_label
 
         console.print(
-            f"{block_label(result.db_type)} executado ({result.elapsed:.2f}s)"
+            t("sql.block_ran", rotulo=block_label(result.db_type),
+              segundos=f"{result.elapsed:.2f}")
         )
         if result.rows:
             render._print_query_result(
@@ -800,7 +794,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     if not result.success:
         _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                        result.error or "Erro ao executar SQL.")
+                        result.error or t("sql.execute_failed"))
 
     if result.sql_type == "SELECT":
         # Convert AdhocResult to QueryResult for display/export
@@ -818,7 +812,7 @@ def cmd_sql(args: argparse.Namespace) -> None:
             if args.format == "json":
                 ok("sql", {"exported": str(path), "format": args.export})
                 return
-            console.print(f"Exportado: {path}")
+            console.print(t("export.done", caminho=path))
             return
 
         if args.format == "json":
@@ -834,20 +828,19 @@ def cmd_sql(args: argparse.Namespace) -> None:
         if args.export and not result.rows:
             _fail_or_print(
                 args, "sql", "usage",
-                "--export precisa de um comando que retorne linhas; "
-                f"{result.sql_type} nao retornou nenhuma.",
+                t("sql.export_returned_no_rows", tipo=result.sql_type),
             )
         if args.export:
             path = _export_result(args, result, conn, param_values)
             if args.format == "json":
                 ok("sql", {"exported": str(path), "format": args.export})
                 return
-            console.print(f"Exportado: {path}")
+            console.print(t("export.done", caminho=path))
             return
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
-        console.print(f"{result.rows_affected} registros afetados")
+        console.print(t("sql.rows_affected", quantidade=result.rows_affected))
 
 
 def _resolve_call_routine(db: object, conn: Connection, routine_name: str) -> tuple[str, RoutineInfo]:
@@ -887,7 +880,7 @@ def _resolve_call_routine(db: object, conn: Connection, routine_name: str) -> tu
         for r in pkg_info.routines:
             if r.name.upper() == short_name.upper():
                 return pkg_info.name, r
-        raise deps.ObjectNotFound(f"Rotina '{routine_name}' nao encontrada.")
+        raise deps.ObjectNotFound(t("call.routine_not_found", nome=routine_name))
     routine = deps.get_standalone_routine_info(db, routine_name)
     if routine.return_type:
         routine = replace(routine, routine_type="FUNCTION")
@@ -921,15 +914,13 @@ def _validate_call_params(routine: RoutineInfo, param_values: dict[str, str]) ->
             # no ALL_ARGUMENTS rows. Blaming the parameter would send the
             # reader to fix the wrong thing, so say what is actually known.
             if not routine.params and not routine.return_type:
-                raise ValueError(
-                    f"Rotina '{routine.name}' nao declara o parametro "
-                    f"'{name}' (ou a rotina nao existe)."
-                )
-            raise ValueError(f"Parametro '{name}' nao existe na rotina '{routine.name}'.")
+                raise ValueError(t("call.routine_param_or_missing",
+                                   rotina=routine.name, parametro=name))
+            raise ValueError(t("call.param_unknown", parametro=name, rotina=routine.name))
         folded[real_name] = value
     for p in routine.params:
         if p.direction in ("IN", "IN OUT") and not p.default and p.name not in folded:
-            raise ValueError(f"Parametro obrigatorio faltando: {p.name}.")
+            raise ValueError(t("call.param_required_missing", nome=p.name))
     return folded
 
 
@@ -972,12 +963,12 @@ def cmd_call(args: argparse.Namespace) -> None:
     """
     conn = deps.find_connection(args.connection)
     if not conn:
-        _fail_or_print(args, "call", "not_found", f"Conexao '{args.connection}' nao encontrada.")
+        _fail_or_print(args, "call", "not_found", t("connection.not_found_named", nome=args.connection))
 
     if conn.db_type != "oracle":
         _fail_or_print(
             args, "call", "usage",
-            f"call so funciona em Oracle. Conexao '{conn.name}' e {conn.db_type}.",
+            t("call.oracle_only", nome=conn.name, tipo=conn.db_type),
         )
 
     param_values = _parse_params(args.param, args, "call")
@@ -1035,7 +1026,7 @@ def cmd_call(args: argparse.Namespace) -> None:
                     _rollback_quietly(db)
                     _fail_or_print(
                         args, "call", "sql_error",
-                        f"A rotina executou mas o commit falhou, nada foi gravado: {e}",
+                        t("call.commit_failed", erro=e),
                     )
             else:
                 try:
@@ -1048,14 +1039,13 @@ def cmd_call(args: argparse.Namespace) -> None:
                     # thing to tell someone reading an exit code.
                     _fail_or_print(
                         args, "call", "sql_error",
-                        f"A rotina executou e nada foi gravado, mas o rollback "
-                        f"falhou: {e}",
+                        t("call.rollback_failed", erro=e),
                     )
     except Exception as e:
         _fail_or_print(args, "call", "connection_failed", str(e))
 
     if not result.success:
-        _fail_or_print(args, "call", "sql_error", result.error or "Erro ao executar rotina.")
+        _fail_or_print(args, "call", "sql_error", result.error or t("call.execute_failed"))
 
     if args.format == "json":
         data = {**result.to_dict(), "committed": committed}
@@ -1063,7 +1053,8 @@ def cmd_call(args: argparse.Namespace) -> None:
         return
 
     if result.return_value is not None:
-        console.print(f"Retorno: {result.return_value}", markup=False, highlight=False)
+        console.print(t("call.return_value", valor=result.return_value),
+                      markup=False, highlight=False)
     for nome, valor in result.out_values.items():
         console.print(f"{nome}: {valor}", markup=False, highlight=False)
     for line in result.output_lines:
