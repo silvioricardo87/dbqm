@@ -241,8 +241,7 @@ def resolve_oracle_client_dir() -> tuple[str | None, str]:
         problem = validate_oracle_client_dir(configured)
         if problem:
             raise OracleClientConfigError(
-                f"O Oracle Instant Client configurado no dbqm nao pode ser usado. {problem}\n"
-                "Ajuste o caminho em Config > Oracle Instant Client."
+                t("oracle_client.unusable", problema=problem)
             )
         return str(Path(configured).expanduser()), "config"
 

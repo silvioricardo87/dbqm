@@ -559,7 +559,7 @@ def extract_routine(conn: Connection, package_name: str, routine_name: str) -> R
                 matches = [{"owner": resolved[0], "name": resolved[1], "type": "PACKAGE"}]
 
         if not matches:
-            result.errors.append(f"Package '{pkg}' nao encontrado.")
+            result.errors.append(t("ddl.package_not_found", nome=pkg))
             return result
 
         owner = matches[0]["owner"]
@@ -569,14 +569,15 @@ def extract_routine(conn: Connection, package_name: str, routine_name: str) -> R
         # Get body source and parse routines
         body_src = _get_source(cursor, owner, pkg_name, "PACKAGE BODY")
         if not body_src:
-            result.errors.append(f"Package body '{pkg_name}' nao encontrado.")
+            result.errors.append(t("ddl.package_body_not_found", nome=pkg_name))
             return result
 
         body_routines = _parse_routines(body_src)
         if routine not in body_routines:
             result.errors.append(
-                f"Rotina '{routine}' nao encontrada no body de '{pkg_name}'. "
-                f"Rotinas disponiveis: {', '.join(sorted(body_routines.keys()))}"
+                t("ddl.routine_not_in_body", rotina=routine, pacote=pkg_name) + " "
+                + t("ddl.routines_available",
+                    rotinas=", ".join(sorted(body_routines.keys())))
             )
             return result
 
@@ -785,9 +786,9 @@ def extract_ddl(
                         on_progress(1, 1, obj_type, obj["name"])
                     extractor(cursor, obj["owner"], obj["name"], result)
                 else:
-                    result.errors.append(f"Tipo '{obj_type}' nao suportado para extracao.")
+                    result.errors.append(t("ddl.type_unsupported", tipo=obj_type))
         except Exception as e:
-            result.errors.append(f"Erro ao extrair {obj_type}: {e}")
+            result.errors.append(t("ddl.extract_failed_object", nome=obj_type, erro=e))
 
         return result
     finally:
@@ -819,7 +820,7 @@ def _extract_non_oracle(
     elif conn.db_type == "mysql":
         from dbqm.core.ddl_mysql import extract_mysql_ddl as extractor
     else:
-        result.errors.append(f"Extracao de DDL nao suportada para {conn.db_type}.")
+        result.errors.append(t("ddl.engine_unsupported", tipo=conn.db_type))
         return result
 
     db = get_connection(conn)

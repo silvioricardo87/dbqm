@@ -1166,7 +1166,7 @@ def execute_routine(
         # Before read-only: there is nothing to protect on an engine with no
         # routines, and the anonymous block below is PL/SQL.
         raise UnsupportedEngine(
-            f"Rotinas armazenadas so existem no Oracle. Conexao e {conn.db_type}."
+            t("engine.routines_oracle_only", tipo=conn.db_type)
         )
     if conn is not None and conn.read_only:
         raise ReadOnlyViolation(t("read_only.routine_refused", nome=conn.name))

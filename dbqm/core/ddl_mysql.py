@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.core.ddl_extractor import ExtractionResult, ExtractedObject
 
 
@@ -58,6 +59,7 @@ def extract_mysql_ddl(db: Any, object_name: str, result: ExtractionResult, on_pr
         except Exception:
             pass
 
-        result.errors.append(f"Objeto '{object_name}' nao encontrado.")
+        result.errors.append(t("ddl.object_not_found", nome=object_name))
+        result.not_found = True
     finally:
         cursor.close()

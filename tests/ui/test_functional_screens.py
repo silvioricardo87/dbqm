@@ -174,7 +174,7 @@ async def test_browser_tells_sql_server_it_has_no_extractor(tmp_config_dir):
         await pilot.pause()
         # the mount notice ("Nenhuma conexao configurada.") is also there:
         # the connection is handed to the worker, never registered
-        assert "Erro: Extracao de DDL nao suportada para sqlserver." in _notifications(app)
+        assert "Erro: DDL extraction is not supported for sqlserver." in _notifications(app)
     assert not (Path(paths.EXPORTS_DIR) / "ddl").exists()
 
 

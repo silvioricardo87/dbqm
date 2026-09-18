@@ -80,4 +80,7 @@ class TestExtractPgDdl:
         )
         extract_pg_ddl(db, "missing", result)
         assert len(result.errors) == 1
-        assert "nao encontrado" in result.errors[0]
+        assert "not found" in result.errors[0]
+        # The same condition Oracle and SQLite report as `not_found`; without
+        # the flag `dbqm ddl` answered `sql_error` on PostgreSQL alone.
+        assert result.not_found is True

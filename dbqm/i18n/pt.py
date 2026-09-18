@@ -460,4 +460,7 @@ TEXTOS: Final[dict[str, str]] = {
     "describe_cli.required_column": 'Obrigatorio',
     "describe_cli.flags_column": 'Flags',
     "describe_cli.choices_column": 'Opcoes',
+    "ddl.package_not_found": "Package '{nome}' nao encontrado.",
+    "ddl.package_body_not_found": "Package body '{nome}' nao encontrado.",
+    "ddl.routines_available": 'Rotinas disponiveis: {rotinas}',
 }
