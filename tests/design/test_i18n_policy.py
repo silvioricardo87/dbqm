@@ -1,14 +1,29 @@
 """User-facing text lives in the catalogue, and the catalogue stays honest.
 
-Two jobs. The first is a ratchet, in the shape this repo already uses for the
-mypy exemptions and the design tokens: the number of Portuguese literals left
-in the source goes down, never up. Without it, the migration stalls halfway
-and the next person adds a literal because the file next door has one.
+Three jobs, and the division between the first two is the lesson of the
+migration itself.
 
-The second is the catalogue's own integrity — every translation carries the
-keys the source language defines, with the placeholders it defines. A
-translation missing a `{nome}` renders a sentence with a hole in it, and a
-translation carrying a key English dropped is dead weight nobody will notice.
+**By role.** `test_no_screen_takes_a_literal_instead_of_a_key` asks where a
+string GOES: handed to a widget, a notification, a placeholder or a panel
+title, it is screen text and belongs in `dbqm/i18n/`. This is the guard
+that matters, because it does not care what language the literal is in --
+English hard-coded in a widget is the same defect, and the one nobody
+notices until a second language exists.
+
+**By vocabulary.** The older ratchet asks what a string SAYS, matching a
+list of Portuguese words. It is a heuristic and it failed the way heuristics
+do: it reached zero with "Exportar como", "DE-PARA (Mapeamento de Valores)"
+and "Exibindo valores originais (sem mapeamento)" still painted, none of
+which carries one of its words. It is kept at zero anyway, because it looks
+everywhere rather than only at known sinks -- a helper that builds a
+sentence and returns it for someone else to render is outside the role
+guard's reach and inside this one's.
+
+**Integrity.** Every translation carries the keys the source language
+defines, with the placeholders it defines, no Rich markup, and no accents in
+Portuguese. A translation missing a `{nome}` renders a sentence with a hole
+in it; a translation carrying a key English dropped is dead weight nobody
+will notice.
 """
 from __future__ import annotations
 
@@ -302,4 +317,111 @@ def test_the_catalogue_carries_words_and_not_markup():
     assert not ofensores, (
         f"Rich markup in the catalogue: {ofensores}. Wrap the t() call at the "
         f"call site, or pass the marked-up fragment in as a field."
+    )
+
+
+# ---------------------------------------------------------------------------
+# The structural guard
+# ---------------------------------------------------------------------------
+#
+# `literais_de_tela` above asks what a string says, which is a heuristic and
+# was always going to end this way: it reached zero while "Exportar como",
+# "DE-PARA (Mapeamento de Valores)" and "Exibindo valores originais (sem
+# mapeamento)" were still painted, because none of them carries one of its
+# words. This asks where the string GOES instead. A literal handed to a
+# widget, a notification or a panel title is screen text in any language.
+
+#: Calls whose first positional argument is rendered.
+SINKS_POSICIONAIS = frozenset({
+    "Static", "Button", "Label", "notify", "add_column", "Collapsible",
+    "TabPane", "Checkbox", "RadioButton", "ListItem", "Markdown", "Tab",
+    "Dialog", "ConfirmModal", "ErrorModal", "TextInputModal", "Action",
+    "EmptyState", "Panel", "PathLabel", "Digits",
+})
+
+#: Keyword arguments whose value is rendered.
+SINKS_KEYWORD = frozenset({
+    "placeholder", "title", "border_title", "prompt", "sub_title",
+    "what", "why", "action_label", "message", "tooltip",
+})
+
+#: Words that are the same in every language: product names, formats,
+#: SQL keywords, symbols. A sink may take one of these directly.
+NEUTROS = frozenset({
+    "SQL", "CSV", "JSON", "TXT", "HTML", "XML", "OK", "DBMS_OUTPUT",
+    "Spec", "Body", "Wizard", "PROCEDURE", "FUNCTION", "PACKAGE", "TABLE",
+    "VIEW", "COMMIT", "ROLLBACK", "Oracle", "PostgreSQL", "MySQL",
+    "SQL Server", "SQLite", "Oracle Instant Client", "Multi-Exec",
+    "Flat/Pivot", "+", "-", "#", "*", "",
+})
+
+
+def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
+    """`(line, sink, text)` for every bare literal handed to a screen."""
+    fonte = py.read_text(encoding="utf-8")
+    arvore = ast.parse(fonte)
+    achados = []
+
+    def _texto_cru(no):
+        """The literal text, or None when the value is not a bare literal."""
+        if isinstance(no, ast.Constant) and isinstance(no.value, str):
+            return no.value
+        if isinstance(no, ast.JoinedStr):
+            # An f-string is bare only if some literal piece carries a word;
+            # `f"[dim]{t(...)}[/dim]"` is markup around a lookup.
+            pedacos = [p.value for p in no.values
+                       if isinstance(p, ast.Constant) and isinstance(p.value, str)]
+            junto = "".join(pedacos)
+            sem_markup = re.sub(r"\[[^]]*]", "", junto)
+            return sem_markup if re.search(r"[A-Za-z]{2,}", sem_markup) else None
+        return None
+
+    for no in ast.walk(arvore):
+        if not isinstance(no, ast.Call):
+            continue
+        nome = no.func.id if isinstance(no.func, ast.Name) else (
+            no.func.attr if isinstance(no.func, ast.Attribute) else "")
+
+        alvos = []
+        if nome in SINKS_POSICIONAIS and no.args:
+            alvos.append((nome, no.args[0]))
+        for kw in no.keywords:
+            if kw.arg in SINKS_KEYWORD:
+                alvos.append((f"{nome}.{kw.arg}", kw.value))
+
+        for rotulo, alvo in alvos:
+            texto = _texto_cru(alvo)
+            if texto is None:
+                continue
+            limpo = texto.strip()
+            if not re.search(r"[A-Za-z]{2,}", limpo) or limpo in NEUTROS:
+                continue
+            achados.append((alvo.lineno, rotulo, limpo))
+    return achados
+
+
+def test_no_screen_takes_a_literal_instead_of_a_key():
+    """Every rendered string comes from the catalogue.
+
+    Detection is by role, not by vocabulary: whatever language a literal is
+    written in, if it is handed to `Button(...)`, `notify(...)`, a
+    `placeholder=` or a panel title, someone reads it off a screen. English
+    text hard-coded in a widget is the same defect as Portuguese text hard-
+    coded in a widget -- it is simply the one nobody notices until a second
+    language exists.
+
+    `NEUTROS` holds what is genuinely the same everywhere: product names,
+    file formats, SQL keywords, single symbols.
+    """
+    ofensores = {}
+    for py in sorted((RAIZ / "dbqm").rglob("*.py")):
+        relativo = py.relative_to(RAIZ).as_posix()
+        if relativo.startswith(FORA):
+            continue
+        achados = _sinks_com_literal(py)
+        if achados:
+            ofensores[relativo] = achados
+    assert not ofensores, (
+        f"screen text written straight into a widget: {ofensores}. "
+        f"It belongs in dbqm/i18n/, reached through t()."
     )

@@ -94,6 +94,62 @@ The one rule worth repeating here because it constrains every change:
 the CLI call into `core/`; `design/` imports nothing from `dbqm`.
 
 
+## Screen text
+
+**Nothing a user reads is written in a widget.** Every label, message,
+placeholder, panel title and `--help` string comes from `dbqm/i18n/` through
+`t("key")`. English is the source language and the default; `pt.py` is a
+translation, still without accents, because the labels always omitted them.
+
+```python
+from dbqm.i18n import t
+
+yield Button(t("common.save"), id="save")
+self.notify(t("query_manage.created", nome=query.name))
+```
+
+The rules, each with the failure that earned it:
+
+- **Add the key to `en.py` and `pt.py` together.** A key present in one and
+  missing in the other is caught by
+  `tests/design/test_i18n_policy.py`, with the placeholders compared too: a
+  translation that drops a `{nome}` renders a sentence with a hole in it.
+- **Markup stays at the call site.** Write
+  `f'[dim]{t("some.key")}[/dim]'`, never `[dim]` inside the catalogue value.
+  A translator editing prose has no way to know the brackets are structural,
+  and the guards in `tests/ui/test_widgets.py` that count `[bold]` and
+  `$ds-op-failure` read the source — markup moved into a catalogue value
+  makes them go quiet rather than fail.
+- **Never call `t()` at import time.** A module-level constant or a class
+  body runs before the app resolves the language, so its text freezes in the
+  default one for the life of the process, silently. Wrap it in a function
+  or a method; `ORACLE_MODE_OPTIONS`, `ConfigPortScreen.MODOS`,
+  `ToolsScreen.TOOLS` and `SettingsScreen.FERNET_PREFIX` all had to become
+  callables for this reason.
+- **Short text is sometimes a layout requirement.** The "more settings"
+  entries fit 30 columns; the ad-hoc connection prompt fits its panel. A
+  longer translation silently wraps and breaks the alignment, so the two
+  tests that measure those run once per language. If you translate something
+  that sits in a narrow column, check the width.
+- **Classify by a field, never by reading a message.** `error_kind`,
+  `result.not_found`. Code that recognised its own English text was correct
+  in one language and silently wrong in every other; three such bugs were
+  found during the migration.
+- **Identifiers are not screen text.** Widget ids, CSS selectors and route
+  keys stay as they are (many are still Portuguese) and the guard knows the
+  difference by role, not by wording.
+
+Two guards enforce this, and the split matters:
+`test_no_screen_takes_a_literal_instead_of_a_key` asks where a string goes
+(a literal handed to a widget is screen text in any language), and the older
+word-list ratchet, kept at zero, looks everywhere rather than only at known
+sinks. The first is the one that generalises; the second catches a helper
+that builds a sentence for someone else to render.
+
+The user picks the language with `dbqm config set language en|pt`, or per
+run with `DBQM_LANG`.
+
+
 ## Development Workflow (MANDATORY)
 
 The cycle is defined once, in **[`docs/agents/TASK-COMPLETION.md`](docs/agents/TASK-COMPLETION.md)**:
