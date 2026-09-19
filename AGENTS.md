@@ -155,7 +155,8 @@ earned by a string that reached a screen without one:
 
 - the widget constructors and the `placeholder=`/`title=` keywords;
 - `console.print`, which is how the CLI paints;
-- `add_row`, where *every* positional is a cell someone reads;
+- `add_row` and `add_columns`, where *every* positional is a cell someone
+  reads -- seven Portuguese headers sat behind that final letter;
 - `ProgressIndicator.start` and `Static.update`, where the widget already
   exists and its text arrives by method rather than by constructor;
 - `call_from_thread` and friends, which forward to a sink named by their
@@ -167,6 +168,11 @@ It also follows a name one step back to what its scope assigns it:
 `kind = "grupo"` handed to `add_row(kind)` is the same defect as the literal
 written inline. Scope is the point -- two functions can each have a `mode`,
 one a default and one the user's own input echoed back.
+
+A conditional counts for BOTH of its branches, at the call and through a
+name: `folder or "(sem pasta)"` puts that string on screen exactly when
+the folder is empty, and reading only the first branch that holds a
+literal hides the other one -- which is how `(sem pasta)` survived.
 
 The user picks the language with `dbqm config set language en|pt`, or per
 run with `DBQM_LANG`.

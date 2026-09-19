@@ -356,7 +356,7 @@ async def test_action_bar_empty():
 
 def test_action_bar_uses_primary_key_markup():
     bar = ActionBar()
-    bar._actions = [Action("Executar", "r", "run")]
+    bar._actions = [Action("Run", "r", "run")]
     bar._rebuild()
     rendered = str(bar._Static__content)
     assert "on white" not in rendered            # no more black-on-white chip
@@ -534,7 +534,7 @@ async def test_result_table_fixes_the_key_column_and_zebra_stripes():
     async with app.run_test() as pilot:
         rt = app.query_one("#rt", ResultTable)
         rt.load_result(_result(
-            ["NUM_APOLICE", "SITUACAO", "VLR_PREMIO"],
+            ["NUM_APOLICE", "STATUS_", "VLR_PREMIO"],
             [["8801194920", "ATIVA", "3.482,90"]],
         ))
         await pilot.pause()
@@ -565,7 +565,7 @@ async def test_result_table_does_not_fix_a_column_when_there_is_only_one():
         rt = app.query_one("#rt", ResultTable)
         dt = app.query_one(DataTable)
         rt.load_result(_result(
-            ["NUM_APOLICE", "SITUACAO", "VLR_PREMIO"],
+            ["NUM_APOLICE", "STATUS_", "VLR_PREMIO"],
             [["8801194920", "ATIVA", "3.482,90"]],
         ))
         await pilot.pause()
@@ -589,7 +589,7 @@ async def test_result_table_key_column_stays_rendered_while_scrolling():
     from textual.widgets import DataTable
 
     columns = ["CHAVE_REGISTRO"] + [f"COLUNA_LARGA_NUMERO_{i:02d}" for i in range(1, 9)]
-    line = ["REG-0001"] + [f"valor-{i:02d}-xxxxxxxxxx" for i in range(1, 9)]
+    line = ["REG-0001"] + [f"value-{i:02d}-xxxxxxxxxx" for i in range(1, 9)]
 
     class App_(ThemedTestApp):
         def compose(self):
@@ -857,7 +857,7 @@ async def test_query_list_paints_two_queries_with_the_same_name():
     """Two queries with the same name must not bring the screen down.
 
     The name is dbqm's lookup key, and while it travelled as
-    `Option(conteudo, id=nome)` a `queries.json` with two `dup` queries made
+    `Option(conteudo, id=name)` a `queries.json` with two `dup` queries made
     `OptionList.add_option` raise `DuplicateID` — the whole screen stopped
     mounting. The UI's creation flows block a repeated name, but the file is
     editable by hand and there is legacy history.
@@ -1014,7 +1014,7 @@ async def test_query_list_mounted_item_has_visible_hierarchy():
     queries = [
         {
             "name": "consulta_longa", "connection": "MGORA7ORA9", "table": "PEDIDO",
-            "description": "Verifica pedidos pendentes de faturamento no fechamento",
+            "description": "Checks orders pending billing at month end",
             "is_favorite": False, "folder": "",
         },
     ]
@@ -1038,7 +1038,7 @@ async def test_query_list_mounted_item_has_visible_hierarchy():
 
         after_identity = text.index("consulta_longa")
         after_disambiguation = text.index("MGORA7ORA9")
-        after_context = text.index("Verifica")
+        after_context = text.index("Checks")
 
         assert color_at_offset(content, after_identity) == strong_color
         assert color_at_offset(content, after_disambiguation) == muted_color
@@ -1187,9 +1187,9 @@ async def test_group_result_key_stays_rendered_while_scrolling():
                 key_value="REG-0001",
                 values={
                     name: (
-                        "valor-fim"
+                        "value-end"
                         if name == "FIM_DA_TABELA"
-                        else "valor-comprido-%s" % name[-2:]
+                        else "value-long-%s" % name[-2:]
                     )
                     for name in names
                 },
@@ -1396,9 +1396,9 @@ from dbqm.ui.widgets.dialog import Dialog
 def test_dialog_rejects_an_unknown_variant():
     """Closed variants: no back door for arbitrary styling."""
     with pytest.raises(ValueError, match="unknown tone"):
-        Dialog("Titulo", tone="roxo")
+        Dialog("Title", tone="roxo")
     with pytest.raises(ValueError, match="unknown width"):
-        Dialog("Titulo", width="xxl")
+        Dialog("Title", width="xxl")
 
 
 @pytest.mark.asyncio
@@ -1419,7 +1419,7 @@ def test_dialog_screen_variant_fills_the_viewport():
     bypass the enum by writing `.styles.width`/`.styles.height` after
     construction. It exists, and it uses percentages (not cells) because it
     is content to be displayed, not a compact form."""
-    d = Dialog("Titulo", width="screen")
+    d = Dialog("Title", width="screen")
     # Textual stores a percentage as a "w"/"h" scalar (viewport
     # width/height); compare against the representation it actually
     # resolved, not against the input string.
@@ -1645,11 +1645,11 @@ async def test_read_only_is_visually_distinct_from_disabled():
 def test_hierarchical_item_puts_identity_alone_on_the_first_line():
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
-    c = hierarchical_item("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day")
+    c = hierarchical_item("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Production prod-day")
     lines = str(c).split("\n")
     assert lines[0].strip() == "MGORA7ORA9"
     assert "Oracle/TNS" in lines[1]
-    assert "Producao" in lines[2]
+    assert "Production" in lines[2]
 
 
 def test_hierarchical_item_omits_empty_lines():
@@ -1682,9 +1682,9 @@ def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
     from dbqm.ui.widgets.hierarchical_list import _INDENT, hierarchical_item
 
     context = (
-        "Portal ASDADM em ATSSUS ambiente\n"
-        "da sustentacao Mapfre com\n"
-        "replicacao"
+        "ASDADM portal on ATSSUS, the Mapfre\n"
+        "maintenance environment, with\n"
+        "replication"
     )
     c = hierarchical_item("ASDADM (ASD)", "Oracle/TNS - ATSSUS", context)
     lines = str(c).split("\n")
@@ -1695,9 +1695,9 @@ def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
     for line in lines[1:]:
         assert line.startswith(_INDENT), f'a line with no indent: {line!r}'
     assert lines[1] == _INDENT + "Oracle/TNS - ATSSUS"
-    assert lines[2] == _INDENT + "Portal ASDADM em ATSSUS ambiente"
-    assert lines[3] == _INDENT + "da sustentacao Mapfre com"
-    assert lines[4] == _INDENT + "replicacao"
+    assert lines[2] == _INDENT + "ASDADM portal on ATSSUS, the Mapfre"
+    assert lines[3] == _INDENT + "maintenance environment, with"
+    assert lines[4] == _INDENT + "replication"
 
 
 def test_hierarchical_item_does_not_read_content_brackets_as_markup():
@@ -1743,7 +1743,7 @@ async def test_hierarchical_item_uses_the_grammar_color_hierarchy():
     app = _App()
     async with app.run_test():
         content = hierarchical_item(
-            "MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day"
+            "MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Production prod-day"
         )
         text = content.plain
 
@@ -1754,7 +1754,7 @@ async def test_hierarchical_item_uses_the_grammar_color_hierarchy():
 
         after_identity = text.index("MGORA7ORA9")
         after_disambiguation = text.index("Oracle/TNS")
-        after_context = text.index("Producao")
+        after_context = text.index("Production")
 
         assert color_at_offset(content, after_identity) == strong_color
         assert color_at_offset(content, after_disambiguation) == muted_color

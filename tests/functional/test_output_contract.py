@@ -23,7 +23,7 @@ DOC = Path(__file__).resolve().parents[2] / "docs" / "qa" / "output-contract.md"
 def by_status(local_db, capsys) -> str:
     code, _ = envelope(
         ["query", "add", "por_status", "--connection", "local",
-         "--sql", "SELECT id FROM clientes WHERE status = :st", "-f", "json"],
+         "--sql", "SELECT id FROM customers WHERE status = :st", "-f", "json"],
         capsys,
     )
     assert code == 0
@@ -55,10 +55,10 @@ def test_the_failure_envelope_has_exactly_three_keys(local_db, capsys):
 
 # QA-OUT-003
 @pytest.mark.parametrize("token,argv", [
-    ("usage", ["sql", "UPDATE clientes SET status='X'", "local", "-f", "json"]),
+    ("usage", ["sql", "UPDATE customers SET status='X'", "local", "-f", "json"]),
     ("not_found", ["sql", "SELECT 1", "nope", "-f", "json"]),
     ("validation", ["run", "por_status", "-f", "json"]),
-    ("read_only", ["sql", "DELETE FROM clientes", "ro", "-f", "json"]),
+    ("read_only", ["sql", "DELETE FROM customers", "ro", "-f", "json"]),
     ("connection_failed", ["sql", "SELECT 1", "broken", "-f", "json"]),
     ("sql_error", ["sql", "SELECT * FROM nao_existe", "local", "-f", "json"]),
 ])
@@ -77,7 +77,7 @@ def test_exit_0_on_success(local_db, capsys):
 
 # QA-OUT-005
 def test_exit_2_usage(local_db, capsys):
-    code, body = envelope(["sql", "UPDATE clientes SET status='X'", "local", "-f", "json"], capsys)
+    code, body = envelope(["sql", "UPDATE customers SET status='X'", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
 
@@ -98,7 +98,7 @@ def test_exit_2_validation(by_status, capsys):
 
 # QA-OUT-008
 def test_exit_2_read_only(read_only_db, capsys):
-    code, body = envelope(["sql", "DELETE FROM clientes", "ro", "-f", "json"], capsys)
+    code, body = envelope(["sql", "DELETE FROM customers", "ro", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "read_only"
 

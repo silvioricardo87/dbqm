@@ -51,7 +51,7 @@ class TestLookup:
         """Not an empty string and not the key itself: a string the user was
         meant to read and did not is a bug worth stopping for."""
         with pytest.raises(UnknownKey):
-            t("nao.existe")
+            t("does.not.exist")
 
 
 class TestFallback:
@@ -86,7 +86,7 @@ class TestWhoDecides:
         assert resolve_language("") == DEFAULT_LANGUAGE
 
     def test_an_unusable_environment_value_does_not_stop_the_program(self, monkeypatch):
-        monkeypatch.setenv("DBQM_LANG", "nao-existe")
+        monkeypatch.setenv("DBQM_LANG", "does-not-exist")
         assert resolve_language("pt") == DEFAULT_LANGUAGE
 
 

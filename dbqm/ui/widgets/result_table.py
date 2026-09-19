@@ -204,7 +204,7 @@ class ResultTable(Vertical, can_focus=False):
             # in $ds-text — swaps `*** Registro N ***`/plain text for colour
             # with meaning. The right-alignment of the labels is kept: it is
             # what makes a stacked record scannable.
-            header = escape_markup(f"Registro {base + i + 1}")
+            header = escape_markup(t("result_table.record", number=base + i + 1))
             lines = [f"[bold $ds-text-strong]{header}[/]"]
             for col, val in zip(str_columns, row, strict=True):
                 display_val = str(val) if val is not None else ""

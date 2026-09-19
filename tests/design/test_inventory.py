@@ -10,21 +10,43 @@ The verdict already has a guard of its own in
 import re
 from pathlib import Path
 
+from dbqm.i18n import en
+
 ROOT = Path(__file__).resolve().parents[2] / "dbqm"
 
 # ---------------------------------------------------------------------------
-# "Nenhum X" hand-written instead of EmptyState
+# "No X" hand-written instead of EmptyState
 # ---------------------------------------------------------------------------
 #
-# A line-by-line grep for "Nenhum"/"Nenhuma" produces false positives: the
-# word legitimately shows up in prose (docstrings, notification texts, the
-# button label "Nenhum (remover)"). What matters is the word inside a
-# Static(...)/add_row(...)/update(...) call — and those calls may span
-# several lines, so the scan has to be multi-line (balanced parentheses over
-# the whole text of the file, not line by line). A naive scan already let 4
-# cases hidden that way slip through.
+# What matters is an empty-list sentence inside a Static(...)/add_row(...)/
+# update(...) call — and those calls may span several lines, so the scan has
+# to be multi-line (balanced parentheses over the whole text of the file, not
+# line by line). A naive scan already let 4 cases hidden that way slip
+# through.
+#
+# Since the catalogue, the call carries a KEY and the sentence lives in
+# `dbqm/i18n/en.py`. Reading the call text alone found nothing and the test
+# passed for having nothing to look at, which is worse than failing. The key
+# is resolved here and it is the resolved TEXT that is examined.
 _CALL = re.compile(r"\b(?:Static|add_row|update)\s*\(")
-_EMPTY_WORD = re.compile(r"Nenhum[a-z]*", re.I | re.S)
+_KEY = re.compile(r"""t\(\s*["']([\w.]+)["']""")
+#: The sentence itself, from the first word: "No object found."
+_EMPTY_TEXT = re.compile(r"^\s*(?:No|None|Nothing|Nenhum[a-z]*)\b", re.I)
+#: The same sentence written straight into the call, where it starts
+#: after a quote and possibly after markup: `Static("[dim]No object ...")`.
+_EMPTY_LITERAL = re.compile(r"""['"](?:\[[^]]*])?\s*(?:No|Nothing|Nenhum[a-z]*)\b""", re.I)
+
+
+def _says_nothing_is_here(call: str) -> bool:
+    """Whether the call paints a "there is nothing here" sentence.
+
+    Both spellings are accepted: the key's text for a call that went
+    through the catalogue, and a bare literal for one that never did.
+    """
+    if _EMPTY_LITERAL.search(call):
+        return True
+    return any(_EMPTY_TEXT.search(en.TEXTS.get(key, ""))
+               for key in _KEY.findall(call))
 
 # Exemptions: "Nenhum X" inside a watched call that is NOT a list empty
 # state — these are status readouts of a single field, with no possible
@@ -35,11 +57,19 @@ EMPTY_STATE_EXEMPT = {
     # full of rows, when none is highlighted. There is no "create the first
     # one" for "highlight a row"; EmptyState does not apply.
     "dbqm/ui/screens/history.py",
-    # settings.py: "Client em uso: nenhum encontrado" is a configuration
-    # status readout (which Instant Client is active), one field among
-    # several on the Settings screen — not an empty list with an action to
-    # create the first item.
+    # settings.py: "Client in use: none found" is a configuration status
+    # readout (which Instant Client is active), one field among several on
+    # the Settings screen — not an empty list with an action to create the
+    # first item.
     "dbqm/ui/screens/settings.py",
+    # exec_routine.py: "No input parameters" describes the SIGNATURE of the
+    # routine the user just picked. There is no first parameter to create;
+    # the routine takes none, and the Run button is mounted right below it.
+    "dbqm/ui/screens/exec_routine.py",
+    # oracle_clients.py: the "no packages catalogued for this platform"
+    # row states a fact about the platform, not an empty list of the
+    # user's own things. Nothing the user can do here creates a package.
+    "dbqm/ui/screens/oracle_clients.py",
 }
 
 
@@ -65,7 +95,7 @@ def _watched_calls(text: str):
 
 
 def test_empty_state_is_not_hand_written():
-    """A loose "Nenhum X" in Static/add_row/update is the antipattern that
+    """A loose "No X" in Static/add_row/update is the antipattern that
     EmptyState solves."""
     outside = []
     for file in sorted((ROOT / "ui").rglob("*.py")):
@@ -74,13 +104,13 @@ def test_empty_state_is_not_hand_written():
         text = file.read_text(encoding="utf-8")
         rel = file.relative_to(ROOT.parent).as_posix()
         for pos, call in _watched_calls(text):
-            if not _EMPTY_WORD.search(call):
+            if not _says_nothing_is_here(call):
                 continue
             if rel in EMPTY_STATE_EXEMPT:
                 continue
             line = text.count("\n", 0, pos) + 1
             outside.append(f"{rel}:{line}")
-    assert not outside, f"estado vazio escrito a mao em: {outside}"
+    assert not outside, f"an empty state written by hand in: {outside}"
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +132,7 @@ def test_dialog_frame_exists_in_a_single_place():
         text = file.read_text(encoding="utf-8")
         if "border: thick" in text:
             outside.append(file.relative_to(ROOT.parent).as_posix())
-    assert not outside, f"moldura de dialog escrita a mao em: {outside}"
+    assert not outside, f"the dialog frame written by hand in: {outside}"
 
 
 # ---------------------------------------------------------------------------

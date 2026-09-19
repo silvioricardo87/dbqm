@@ -70,7 +70,7 @@ class TestMasterKeyCrypto:
 
         monkeypatch.setattr("dbqm.core.crypto.KEY_FILE", tmp_path / ".dbqm_key")
         with pytest.raises(ValueError) as exc:
-            decrypt("nao-e-um-token-fernet")
+            decrypt("not-a-fernet-token")
         message = str(exc.value)
         assert message, "the error must not be empty, which was the whole bug"
         assert ".dbqm_key" in message

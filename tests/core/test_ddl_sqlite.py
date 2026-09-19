@@ -16,10 +16,10 @@ def catalog(tmp_path):
     path = tmp_path / "ddl.db"
     db = sqlite3.connect(path)
     db.executescript("""
-        CREATE TABLE clientes (id INTEGER PRIMARY KEY, nome TEXT NOT NULL);
-        CREATE INDEX ix_nome ON clientes(nome);
-        CREATE TRIGGER tg_up AFTER UPDATE ON clientes BEGIN SELECT 1; END;
-        CREATE VIEW v_todos AS SELECT id, nome FROM clientes;
+        CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE INDEX ix_nome ON customers(name);
+        CREATE TRIGGER tg_up AFTER UPDATE ON customers BEGIN SELECT 1; END;
+        CREATE VIEW v_todos AS SELECT id, name FROM customers;
     """)
     db.commit()
     yield db, str(path)
@@ -33,14 +33,14 @@ def _result(name):
 class TestExtractSqliteDdl:
     def test_a_table_brings_its_index_and_trigger(self, catalog):
         db, _ = catalog
-        r = _result("clientes")
-        extract_sqlite_ddl(db, "clientes", r)
+        r = _result("customers")
+        extract_sqlite_ddl(db, "customers", r)
         assert r.object_type == "TABLE"
         assert r.errors == []
         assert [(o.obj_type, o.name) for o in r.objects] == [
-            ("TABLE", "clientes"), ("INDEX", "ix_nome"), ("TRIGGER", "tg_up"),
+            ("TABLE", "customers"), ("INDEX", "ix_nome"), ("TRIGGER", "tg_up"),
         ]
-        assert r.objects[0].ddl.startswith("CREATE TABLE clientes")
+        assert r.objects[0].ddl.startswith("CREATE TABLE customers")
         assert r.objects[0].ddl.endswith(";")
 
     def test_a_view_is_its_create_statement(self, catalog):
@@ -48,7 +48,7 @@ class TestExtractSqliteDdl:
         r = _result("v_todos")
         extract_sqlite_ddl(db, "v_todos", r)
         assert r.object_type == "VIEW"
-        assert r.objects[0].ddl == "CREATE VIEW v_todos AS SELECT id, nome FROM clientes;"
+        assert r.objects[0].ddl == "CREATE VIEW v_todos AS SELECT id, name FROM customers;"
 
     def test_a_missing_object_is_the_same_message_as_the_other_engines(self, catalog):
         db, _ = catalog
@@ -61,7 +61,7 @@ class TestExtractSqliteDdl:
     def test_progress_counts_the_table_and_its_children(self, catalog):
         db, _ = catalog
         seen_ = []
-        extract_sqlite_ddl(db, "clientes", _result("clientes"),
+        extract_sqlite_ddl(db, "customers", _result("customers"),
                            on_progress=lambda i, n, t, name: seen_.append((i, n, t)))
         assert seen_ == [(1, 3, "TABLE"), (2, 3, "INDEX"), (3, 3, "TRIGGER")]
 
@@ -73,9 +73,9 @@ class TestExtractDdlDispatch:
     def test_sqlite_goes_end_to_end_through_extract_ddl(self, catalog):
         _, path = catalog
         conn = Connection(name="l", db_type="sqlite", user="", password="", database=path)
-        r = extract_ddl(conn, "clientes")
+        r = extract_ddl(conn, "customers")
         assert r.errors == []
-        assert [o.name for o in r.objects] == ["clientes", "ix_nome", "tg_up"]
+        assert [o.name for o in r.objects] == ["customers", "ix_nome", "tg_up"]
 
     def test_postgresql_reaches_its_own_extractor_not_oracle_sql(self):
         """The bug the review found: a PostgreSQL connection used to be sent
@@ -83,7 +83,7 @@ class TestExtractDdlDispatch:
         conn = Connection(name="p", db_type="postgresql", user="u", password="", host="h")
         with patch("dbqm.core.ddl_extractor.get_connection") as mock_get, \
              patch("dbqm.core.ddl_pg.extract_pg_ddl") as mock_pg:
-            extract_ddl(conn, "clientes")
+            extract_ddl(conn, "customers")
         mock_pg.assert_called_once()
         mock_get.return_value.close.assert_called_once()
 

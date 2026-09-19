@@ -7,10 +7,10 @@ from tests.functional.conftest import envelope, invoke
 
 
 @pytest.fixture
-def ativos(local_db, capsys) -> str:
+def active(local_db, capsys) -> str:
     code, _ = envelope(
         ["query", "add", "ativos", "--connection", "local",
-         "--sql", "SELECT id FROM clientes WHERE status = 'A'", "-f", "json"],
+         "--sql", "SELECT id FROM customers WHERE status = 'A'", "-f", "json"],
         capsys,
     )
     assert code == 0
@@ -30,9 +30,9 @@ def test_an_empty_history_is_an_empty_list(local_db, capsys):
 
 
 # QA-HIST-002
-def test_each_run_is_one_entry_with_its_facts(ativos, capsys):
+def test_each_run_is_one_entry_with_its_facts(active, capsys):
     for _ in range(2):
-        code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+        code, _ = envelope(["run", active, "-f", "json"], capsys)
         assert code == 0
     records = _history(capsys)
     assert len(records) == 2
@@ -61,9 +61,9 @@ def test_a_failed_run_is_recorded_with_its_error(local_db, capsys):
 
 
 # QA-HIST-004
-def test_n_caps_the_count_newest_first(ativos, capsys):
+def test_n_caps_the_count_newest_first(active, capsys):
     for _ in range(3):
-        code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+        code, _ = envelope(["run", active, "-f", "json"], capsys)
         assert code == 0
     all_of_them = _history(capsys)
     assert len(all_of_them) == 3
@@ -73,8 +73,8 @@ def test_n_caps_the_count_newest_first(ativos, capsys):
 
 
 # QA-HIST-005
-def test_clear_empties_it(ativos, capsys):
-    code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+def test_clear_empties_it(active, capsys):
+    code, _ = envelope(["run", active, "-f", "json"], capsys)
     assert code == 0
     assert len(_history(capsys)) == 1
     assert _history(capsys, "--clear") == []
@@ -82,8 +82,8 @@ def test_clear_empties_it(ativos, capsys):
 
 
 # QA-HIST-006
-def test_table_format_prints_the_entries(ativos, capsys):
-    code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+def test_table_format_prints_the_entries(active, capsys):
+    code, _ = envelope(["run", active, "-f", "json"], capsys)
     assert code == 0
     code, out, err = invoke(["history"], capsys)
     assert code == 0
@@ -93,11 +93,11 @@ def test_table_format_prints_the_entries(ativos, capsys):
 
 # QA-HIST-007
 @pytest.mark.parametrize("value", ["0", "-5"])
-def test_a_limit_below_one_is_refused(ativos, capsys, value):
+def test_a_limit_below_one_is_refused(active, capsys, value):
     """`-n 0` fell through `args.limit or 20` and silently meant the
     default; `-n -5` reached `entries[:-5]` and silently meant "all but the
     last five". `rows` validates its own limits the same way."""
-    code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+    code, _ = envelope(["run", active, "-f", "json"], capsys)
     assert code == 0
     code, body = envelope(["history", "-n", value, "-f", "json"], capsys)
     assert code == 2
@@ -106,8 +106,8 @@ def test_a_limit_below_one_is_refused(ativos, capsys, value):
 
 
 # QA-HIST-008
-def test_a_limit_of_one_returns_one(ativos, capsys):
+def test_a_limit_of_one_returns_one(active, capsys):
     for _ in range(2):
-        code, _ = envelope(["run", ativos, "-f", "json"], capsys)
+        code, _ = envelope(["run", active, "-f", "json"], capsys)
         assert code == 0
     assert len(_history(capsys, "-n", "1")) == 1

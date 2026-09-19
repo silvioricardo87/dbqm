@@ -85,7 +85,7 @@ class TestShapes:
         from dbqm.core.object_browser import ColumnInfo, IndexInfo, TableStructure
 
         structure = TableStructure(
-            table="PEDIDOS",
+            table="ORDERS",
             columns=[ColumnInfo(
                 name="ID", data_type="NUMBER", data_length=None,
                 data_precision=10, data_scale=0, nullable=False, is_pk=True,
@@ -93,7 +93,7 @@ class TestShapes:
             indexes=[IndexInfo(name="PK_PEDIDOS", columns=["ID"], is_unique=True)],
         )
         d = structure.to_dict()
-        assert d["table"] == "PEDIDOS"
+        assert d["table"] == "ORDERS"
         assert d["columns"][0]["name"] == "ID"
         assert d["indexes"][0]["is_unique"] is True
         json.dumps(d)  # must not raise
@@ -143,12 +143,12 @@ class TestShapes:
         from dbqm.core.table_browser import BrowseResult
 
         b = BrowseResult(
-            table="PEDIDOS", connection_name="c", columns=["id"],
+            table="ORDERS", connection_name="c", columns=["id"],
             rows=[[1]], row_count=1, total_count=1, elapsed=0.1,
             limit=100, offset=0,
         )
         d = b.to_dict()
-        assert d["table"] == "PEDIDOS"
+        assert d["table"] == "ORDERS"
         assert d["rows"] == [[1]]
         assert d["fk_columns"] == []
         json.dumps(d, default=str)

@@ -110,20 +110,20 @@ class _Res:
 
 class TestDeriveComparisonColumns:
     def test_identical_columns_give_the_first_as_key_and_the_rest_to_compare(self):
-        r = {"a": _Res(["ID", "NOME", "VALOR"]), "b": _Res(["ID", "NOME", "VALOR"])}
-        assert derive_comparison_columns(r) == ("ID", ["NOME", "VALOR"])
+        r = {"a": _Res(["ID", "NAME", "VALUE"]), "b": _Res(["ID", "NAME", "VALUE"])}
+        assert derive_comparison_columns(r) == ("ID", ["NAME", "VALUE"])
 
     def test_only_the_columns_every_result_has_are_used(self):
         """A column present in one connection and not another cannot be
         compared -- it is absent, not different."""
-        r = {"a": _Res(["ID", "NOME", "EXTRA"]), "b": _Res(["ID", "NOME"])}
-        assert derive_comparison_columns(r) == ("ID", ["NOME"])
+        r = {"a": _Res(["ID", "NAME", "EXTRA"]), "b": _Res(["ID", "NAME"])}
+        assert derive_comparison_columns(r) == ("ID", ["NAME"])
 
     def test_the_first_results_column_order_wins(self):
         """Not sorted, not the second connection's order -- the order the
         caller saw first, which is the order they wrote the SELECT in."""
-        r = {"a": _Res(["NOME", "ID"]), "b": _Res(["ID", "NOME"])}
-        assert derive_comparison_columns(r) == ("NOME", ["ID"])
+        r = {"a": _Res(["NAME", "ID"]), "b": _Res(["ID", "NAME"])}
+        assert derive_comparison_columns(r) == ("NAME", ["ID"])
 
     def test_disjoint_columns_raise_rather_than_guess(self):
         r = {"a": _Res(["ID"]), "b": _Res(["CODIGO"])}
@@ -139,8 +139,8 @@ class TestDeriveComparisonColumns:
     def test_a_single_result_is_comparable_with_itself(self):
         """core does not enforce a minimum -- that is the CLI's rule, and
         core must not decide it."""
-        r = {"a": _Res(["ID", "NOME"])}
-        assert derive_comparison_columns(r) == ("ID", ["NOME"])
+        r = {"a": _Res(["ID", "NAME"])}
+        assert derive_comparison_columns(r) == ("ID", ["NAME"])
 
     def test_no_results_raises_rather_than_crashing_on_next_iter(self):
         """`next(iter({}))` is a StopIteration, not a comparison error -- an
@@ -220,8 +220,8 @@ class TestExecuteAcross:
         def fake_execute_adhoc(sql, conn, param_values, auto_commit=False, capture_output=False):
             if conn.name == "prod":
                 raise ReadOnlyViolation(
-                    "Conexao 'prod' e somente leitura. Use --force-write para "
-                    "enviar assim mesmo."
+                    "Connection 'prod' is read-only. Use --force-write to "
+                    "send it anyway."
                 )
             return AdhocResult(
                 sql_type="SELECT", connection_name=conn.name,
@@ -327,7 +327,7 @@ class TestDuplicateKeyValues:
     def _result(rows):
         return QueryResult(
             query_name="q", connection_name="c",
-            columns=["id", "valor"], rows=rows, row_count=len(rows), elapsed=0.0,
+            columns=["id", "value"], rows=rows, row_count=len(rows), elapsed=0.0,
         )
 
     def test_rows_lost_to_a_repeated_key_are_counted_per_side(self):
@@ -335,7 +335,7 @@ class TestDuplicateKeyValues:
             "a": self._result([[1, "x"], [1, "y"], [2, "z"]]),
             "b": self._result([[1, "y"], [2, "z"]]),
         }
-        comparisons = run_comparison(results, "id", ["valor"])
+        comparisons = run_comparison(results, "id", ["value"])
         assert comparisons[0].duplicate_rows == {"a": 1}
         assert comparisons[0].total_keys == 2
 
@@ -346,7 +346,7 @@ class TestDuplicateKeyValues:
             "a": self._result([[1, "x"], [2, "y"]]),
             "b": self._result([[1, "x"], [2, "y"]]),
         }
-        comparisons = run_comparison(results, "id", ["valor"])
+        comparisons = run_comparison(results, "id", ["value"])
         assert comparisons[0].duplicate_rows == {}
 
     def test_the_count_is_rows_dropped_not_keys_repeated(self):
@@ -355,7 +355,7 @@ class TestDuplicateKeyValues:
             "a": self._result([[1, "x"], [1, "y"], [1, "z"]]),
             "b": self._result([[1, "z"]]),
         }
-        comparisons = run_comparison(results, "id", ["valor"])
+        comparisons = run_comparison(results, "id", ["value"])
         assert comparisons[0].duplicate_rows == {"a": 2}
 
     def test_every_column_carries_the_same_map(self):
@@ -371,7 +371,7 @@ class TestDuplicateKeyValues:
 
     def test_it_travels_on_the_wire(self):
         results = {"a": self._result([[1, "x"], [1, "y"]])}
-        comparison = run_comparison(results, "id", ["valor"])[0]
+        comparison = run_comparison(results, "id", ["value"])[0]
         assert comparison.to_dict()["duplicate_rows"] == {"a": 1}
 
 
@@ -383,12 +383,12 @@ class TestDuplicateKeyWarnings:
         def qr(name, lines):
             return QueryResult(
                 query_name=name, connection_name=name,
-                columns=["id", "valor"], rows=lines, row_count=len(lines),
+                columns=["id", "value"], rows=lines, row_count=len(lines),
                 elapsed=0.0,
             )
         return build_adhoc_group_result(
             {"a": qr("a", rows_a), "b": qr("b", rows_b)},
-            join_key=join_key, compare_columns=["valor"],
+            join_key=join_key, compare_columns=["value"],
         )
 
     def test_one_line_per_side_that_lost_rows(self):

@@ -636,7 +636,8 @@ class GroupRunScreen(Vertical):
             Action(t("action.filter"), "S", "filter_status"),
         ]
         if self._raw_query_rows is not None:
-            label = "Original" if self._showing_mapped else "De-Para"
+            label = (t("action.show_original") if self._showing_mapped
+                     else t("action.show_mapped"))
             actions.append(Action(label, "M", "toggle_mapping"))
         if self._current_group and self._current_group.template:
             actions.append(Action(t("common.template"), "T", "render_template"))

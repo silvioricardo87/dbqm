@@ -19,15 +19,15 @@ def test_validate_treats_whitespace_only_content_as_empty(tmp_config_dir):
 
 
 def test_validate_accepts_a_complete_template(tmp_config_dir):
-    errors = validate({"name": "t", "content": "Ola {{nome}}"})
+    errors = validate({"name": "t", "content": "Ola {{name}}"})
     assert errors == []
 
 
 def test_build_creates_a_template_from_values(tmp_config_dir):
-    t = build({"name": "t", "description": "desc", "content": "Ola {{nome}}"})
+    t = build({"name": "t", "description": "desc", "content": "Ola {{name}}"})
     assert t.name == "t"
     assert t.description == "desc"
-    assert t.content == "Ola {{nome}}"
+    assert t.content == "Ola {{name}}"
 
 
 def test_build_from_existing_preserves_what_values_omit(tmp_config_dir):
@@ -37,11 +37,11 @@ def test_build_from_existing_preserves_what_values_omit(tmp_config_dir):
     made-up ISO string, not the field's own default -- so a regression that
     silently regenerates it cannot pass this by accident."""
     old = Template(
-        name="t", description="old", content="Ola {{nome}}",
+        name="t", description="old", content="Ola {{name}}",
         created_at="2020-01-01T00:00:00",
     )
     new = build({"name": "t", "description": "nova"}, existing=old)
-    assert new.content == "Ola {{nome}}"
+    assert new.content == "Ola {{name}}"
     assert new.created_at == "2020-01-01T00:00:00"
     assert new.description == "nova"
 

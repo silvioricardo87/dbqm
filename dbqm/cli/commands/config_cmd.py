@@ -42,8 +42,11 @@ _KEYS: tuple[str, ...] = tuple(field.name for field in fields(Settings))
 _BOOL_KEYS = ("audit_log_enabled", "export_dir_prompted", "create_export_subdirs")
 _DIR_KEYS = ("default_export_dir", "oracle_client_dir")
 
-_TRUE_WORDS = {"true", "1", "sim"}
-_FALSE_WORDS = {"false", "0", "nao"}
+#: Accepted on input in every language dbqm speaks, plus the two
+#: machine spellings. Input tolerance, not screen text: a script
+#: written when the CLI was Portuguese must keep working.
+_TRUE_WORDS = {"true", "1", "sim", "yes", "y"}
+_FALSE_WORDS = {"false", "0", "nao", "no", "n"}
 
 
 def _fail_or_print(

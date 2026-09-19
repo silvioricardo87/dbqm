@@ -115,7 +115,8 @@ def _print_command(cmd: dict[str, Any], depth: int = 0) -> None:
         table.add_column(t("common.description"))
         for arg in arguments:
             flags = ", ".join(arg["flags"])
-            required = "sim" if arg["required"] else "nao"
+            required = (t("common.yes_short_word") if arg["required"]
+                        else t("common.no_short_word"))
             choices = ", ".join(str(c) for c in arg["choices"]) if arg["choices"] else "-"
             table.add_row(escape(flags), required, escape(choices), escape(arg["help"]))
         console.print(table)

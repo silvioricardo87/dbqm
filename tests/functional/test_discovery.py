@@ -12,14 +12,14 @@ def test_objects_lists_the_seed_tables(local_db, capsys):
     assert code == 0
     assert body["command"] == "objects"
     assert body["data"]["obj_type"] == "TABLE"
-    assert body["data"]["objects"] == ["clientes", "pedidos"]
+    assert body["data"]["objects"] == ["customers", "orders"]
 
 
 # QA-DISC-002
 def test_objects_lists_the_seed_view(local_db, capsys):
     code, body = envelope(["objects", "local", "--type", "VIEW", "-f", "json"], capsys)
     assert code == 0
-    assert body["data"]["objects"] == ["v_ativos"]
+    assert body["data"]["objects"] == ["v_active"]
 
 
 # QA-DISC-003
@@ -44,32 +44,32 @@ def _columns(body: dict) -> dict[str, dict]:
 
 # QA-DISC-005
 def test_describe_reports_pk_nullability_and_the_unique_index(local_db, capsys):
-    code, body = envelope(["describe", "clientes", "local", "-f", "json"], capsys)
+    code, body = envelope(["describe", "customers", "local", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["object_type"] == "TABLE"
     columns = _columns(body)
-    assert list(columns) == ["id", "nome", "status"]
+    assert list(columns) == ["id", "name", "status"]
     assert columns["id"]["is_pk"] is True and columns["id"]["data_type"] == "INTEGER"
-    assert columns["nome"]["nullable"] is False and columns["nome"]["data_type"] == "TEXT"
+    assert columns["name"]["nullable"] is False and columns["name"]["data_type"] == "TEXT"
     assert columns["status"]["is_pk"] is False
-    assert body["data"]["indexes"] == [{"name": "ix_clientes_nome", "columns": ["nome"], "is_unique": True}]
+    assert body["data"]["indexes"] == [{"name": "ix_customers_name", "columns": ["name"], "is_unique": True}]
 
 
 # QA-DISC-006
 def test_describe_reports_the_foreign_key(local_db, capsys):
-    code, body = envelope(["describe", "pedidos", "local", "-f", "json"], capsys)
+    code, body = envelope(["describe", "orders", "local", "-f", "json"], capsys)
     assert code == 0
-    assert _columns(body)["cliente_id"]["fk_ref"] == "clientes.id"
+    assert _columns(body)["customer_id"]["fk_ref"] == "customers.id"
     assert _columns(body)["id"]["fk_ref"] == ""
 
 
 # QA-DISC-007
 def test_describe_a_view_brings_its_definition(local_db, capsys):
-    code, body = envelope(["describe", "v_ativos", "local", "-f", "json"], capsys)
+    code, body = envelope(["describe", "v_active", "local", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["object_type"] == "VIEW"
-    assert list(_columns(body)) == ["id", "nome"]
-    assert body["data"]["sql_definition"].startswith("CREATE VIEW v_ativos")
+    assert list(_columns(body)) == ["id", "name"]
+    assert body["data"]["sql_definition"].startswith("CREATE VIEW v_active")
 
 
 # QA-DISC-008
@@ -82,18 +82,18 @@ def test_describe_of_an_unknown_object_is_not_found(local_db, capsys):
 
 # QA-DISC-009
 def test_describe_table_format_prints_keys_and_indexes(local_db, capsys):
-    code, out, err = invoke(["describe", "clientes", "local"], capsys)
+    code, out, err = invoke(["describe", "customers", "local"], capsys)
     assert code == 0
-    assert "PK" in out and "ix_clientes_nome" in out and "UNIQUE" in out
+    assert "PK" in out and "ix_customers_name" in out and "UNIQUE" in out
     assert err == ""
 
 
 # QA-DISC-010
 def test_rows_returns_the_seed(local_db, capsys):
-    code, body = envelope(["rows", "clientes", "local", "-f", "json"], capsys)
+    code, body = envelope(["rows", "customers", "local", "-f", "json"], capsys)
     assert code == 0
     assert body["command"] == "rows"
-    assert body["data"]["columns"] == ["id", "nome", "status"]
+    assert body["data"]["columns"] == ["id", "name", "status"]
     assert body["data"]["rows"] == [[1, "Ana", "A"], [2, "Bia", "I"], [3, "Caio", "A"]]
     assert body["data"]["row_count"] == 3
     assert body["data"]["total_count"] == 3
@@ -103,11 +103,11 @@ def test_rows_returns_the_seed(local_db, capsys):
 
 # QA-DISC-011
 def test_rows_pages_with_limit_and_offset(local_db, capsys):
-    code, body = envelope(["rows", "clientes", "local", "--limit", "2", "-f", "json"], capsys)
+    code, body = envelope(["rows", "customers", "local", "--limit", "2", "-f", "json"], capsys)
     assert code == 0
     assert [r[1] for r in body["data"]["rows"]] == ["Ana", "Bia"]
     assert body["data"]["total_count"] == 3
-    code, body = envelope(["rows", "clientes", "local", "--limit", "2", "--offset", "2", "-f", "json"], capsys)
+    code, body = envelope(["rows", "customers", "local", "--limit", "2", "--offset", "2", "-f", "json"], capsys)
     assert code == 0
     assert [r[1] for r in body["data"]["rows"]] == ["Caio"]
     assert body["data"]["row_count"] == 1
@@ -120,7 +120,7 @@ def test_rows_pages_with_limit_and_offset(local_db, capsys):
     ("--offset", "-1", "--offset cannot be negative."),
 ])
 def test_rows_refuses_a_bad_page(local_db, capsys, flag, value, message):
-    code, body = envelope(["rows", "clientes", "local", flag, value, "-f", "json"], capsys)
+    code, body = envelope(["rows", "customers", "local", flag, value, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == message
@@ -136,10 +136,10 @@ def test_rows_of_an_unknown_table_is_not_found(local_db, capsys):
 
 # QA-DISC-014
 def test_rows_csv_prints_a_header_and_the_rows(local_db, capsys):
-    code, out, _ = invoke(["rows", "clientes", "local", "-f", "csv"], capsys)
+    code, out, _ = invoke(["rows", "customers", "local", "-f", "csv"], capsys)
     assert code == 0
     lines = out.strip().splitlines()
-    assert lines[0] == "id,nome,status"
+    assert lines[0] == "id,name,status"
     assert len(lines) == 4
     assert "2,Bia,I" in lines
 

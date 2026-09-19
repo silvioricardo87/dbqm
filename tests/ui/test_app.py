@@ -172,7 +172,7 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
         assert tabs.active == "tab-history"
         painted = rendered_text(app)
         assert "HISTORY" in painted
-        assert "CONEXOES" not in painted
+        assert "CONNECTIONS" not in painted
 
 
 @pytest.mark.asyncio
@@ -510,7 +510,7 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
         assert "EXPORT OR IMPORT" in painted, (
             'it reopened in a phase the list entry did not promise: %r' % painted[-600:]
         )
-        assert "CONFIRMAR SENHA" not in painted, (
+        assert "CONFIRM PASSWORD" not in painted, (
             "o formulario de exportacao continua na frente ao reabrir"
         )
 
@@ -782,7 +782,7 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
 #
 # This is the defect that opened the whole phase, in the maintainer's
 # words: "a lista de conexoes acima de duas linhas fica dificil de
-# distinguir quando termina o nome de uma conexao e quando comeca outra".
+# distinguir quando termina o name de uma conexao e quando comeca outra".
 # Connections was cured; Queries stayed sick at EVERY width, because
 # `query_list` handed the description over as one long line and Textual's
 # automatic wrapping (done at render time, after the `Content` is
@@ -802,16 +802,16 @@ def _queries_with_long_description(how_many: int = 24):
     from dbqm.models.query import Query
 
     long_one = (
-        "Descricao longa o bastante para transbordar a largura do painel "
-        "e provar a hierarquia do item em mais de uma quebra por largura."
+        "A description long enough to overflow the width of the panel "
+        "and prove the hierarchy of the item across more than one wrap."
     )
     return [
         Query(
-            name=f"Consulta {i:02d}",
+            name=f"Query {i:02d}",
             sql="select 1 from dual",
             connection="ASDADM",
             table="ASD",
-            description=long_one if i % 2 == 0 else "curta",
+            description=long_one if i % 2 == 0 else "short",
         )
         for i in range(how_many)
     ]
@@ -850,7 +850,7 @@ async def test_query_list_wrap_width_fits_while_scrolling(tmp_config_dir):
         await _open_queries(pilot)
         option_list = app.query_one("#ql-listview", OptionList)
         assert option_list.show_vertical_scrollbar, (
-            "o teste so prova o pior caso se a lista estiver realmente "
+            "the test only proves the worst case if the list really is "
             "rolando"
         )
         assert _TEXT_WIDTH + len(_INDENT) <= option_list.scrollable_content_region.width
@@ -869,8 +869,8 @@ async def test_query_description_never_falls_into_the_identity_column(
     always had the indent; what lost it was the render's wrapping).
 
     Measured before the fix, at both widths: the continuation of
-    "Descricao longa..." came out at `indent=0`, right up against the
-    column of the next `☆ Consulta ...`. Both widths are here because the
+    "A description long..." came out at `indent=0`, right up against
+    the column of the next `☆ Query ...`. Both widths are here because the
     automatic wrapping falls at different points in each one — a single
     one does not prove that the wrap width holds at the others.
     """
@@ -907,9 +907,9 @@ async def test_query_description_never_falls_into_the_identity_column(
 
         # And the list really did show a description of more than one line
         # — otherwise the test would pass for having nothing to check.
-        indented = [line for line in lines if line.startswith("  Descricao longa")]
+        indented = [line for line in lines if line.startswith("  A description long")]
         assert indented, 'no long description was painted: %r' % lines
-        continuation = [line for line in lines if line.startswith("  provar a hierarquia")]
+        continuation = [line for line in lines if line.startswith("  prove the hierarchy")]
         assert continuation, (
             'the description fitted on one line; with no overflow there is nothing to prove: %r' % lines
         )
@@ -928,11 +928,11 @@ async def test_query_description_never_falls_into_the_identity_column(
 # the list scrolling:
 #
 #   BEFORE, 80x24                               BEFORE, 120x34
-#   indent 0 :: 'Grupo 00'                      indent 0 :: 'Grupo 00'
-#   indent 2 :: '  2 consultas'                 indent 2 :: '  2 consultas'
-#   indent 2 :: '  Descricao longa o bast...'   indent 2 :: '  Descricao longa o ba...'
-#   indent 0 :: 'provar a hierarquia do ...'    indent 0 :: 'uma quebra por largura.'
-#   indent 0 :: 'Grupo 01'                      indent 0 :: 'Grupo 01'
+#   indent 0 :: 'Group 00'                      indent 0 :: 'Group 00'
+#   indent 2 :: '  2 queries'                   indent 2 :: '  2 queries'
+#   indent 2 :: '  A description long e...'     indent 2 :: '  A description long ...'
+#   indent 0 :: 'prove the hierarchy of ...'    indent 0 :: 'than one wrap.'
+#   indent 0 :: 'Group 01'                      indent 0 :: 'Group 01'
 #
 # The fourth line is the CONTINUATION of the third and comes out in
 # column 0 — the same column as the identity of the next group.
@@ -949,13 +949,13 @@ def _groups_with_long_description(how_many: int = 24):
     from dbqm.models.group import Group
 
     long_one = (
-        "Descricao longa o bastante para transbordar a largura do painel "
-        "e provar a hierarquia do item em mais de uma quebra por largura."
+        "A description long enough to overflow the width of the panel "
+        "and prove the hierarchy of the item across more than one wrap."
     )
     return [
         Group(
-            name=f"Grupo {i:02d}",
-            description=long_one if i % 2 == 0 else "curta",
+            name=f"Group {i:02d}",
+            description=long_one if i % 2 == 0 else "short",
             queries=["q1", "q2"],
             join_key="ID",
         )
@@ -988,7 +988,7 @@ async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
         await _open_tool(pilot, app, "run-group")
         option_list = app.query_one("#gr-group-list", OptionList)
         assert option_list.show_vertical_scrollbar, (
-            "o teste so prova o pior caso se a lista estiver realmente "
+            "the test only proves the worst case if the list really is "
             "rolando"
         )
         assert _TEXT_WIDTH + len(_INDENT) <= option_list.scrollable_content_region.width
@@ -1046,9 +1046,9 @@ async def test_group_description_never_falls_into_the_identity_column(
 
         # And the list really did paint a description of more than one line
         # — otherwise the test would pass for having nothing to check.
-        indented = [line for line in lines if line.startswith("  Descricao longa")]
+        indented = [line for line in lines if line.startswith("  A description long")]
         assert indented, 'no long description was painted: %r' % lines
-        continuation = [line for line in lines if line.startswith("  provar a hierarquia")]
+        continuation = [line for line in lines if line.startswith("  prove the hierarchy")]
         assert continuation, (
             'the description fitted on one line; with no overflow there is nothing to prove: %r' % lines
         )

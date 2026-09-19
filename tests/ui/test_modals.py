@@ -29,7 +29,7 @@ class ModalTestApp(ThemedTestApp):
 @pytest.mark.asyncio
 async def test_param_modal_shows_fields():
     params = [
-        {"name": "apolice", "description": "Numero da apolice", "default": ""},
+        {"name": "policy", "description": "Policy number", "default": ""},
         {"name": "dt_ref", "description": "Data referencia", "default": "2024-01-15"},
     ]
     modal = ParamModal("saldo_cliente", params)
@@ -54,9 +54,9 @@ async def test_param_modal_prefills_defaults():
 @pytest.mark.asyncio
 async def test_param_modal_prefills_last_values():
     params = [
-        {"name": "apolice", "description": "", "default": ""},
+        {"name": "policy", "description": "", "default": ""},
     ]
-    modal = ParamModal("test", params, last_values={"apolice": "999"})
+    modal = ParamModal("test", params, last_values={"policy": "999"})
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         inp = app.screen.query(Input).first()
@@ -80,7 +80,7 @@ async def test_param_modal_last_values_override_defaults():
 async def test_param_modal_cancel_returns_none():
     """Pressing ESC should dismiss with None."""
     params = [
-        {"name": "apolice", "description": "", "default": ""},
+        {"name": "policy", "description": "", "default": ""},
     ]
     modal = ParamModal("test", params)
     app = ModalTestApp(modal)
@@ -93,13 +93,13 @@ async def test_param_modal_cancel_returns_none():
 async def test_param_modal_submit_returns_dict():
     """Pressing Enter on last field should return collected values."""
     params = [
-        {"name": "apolice", "description": "", "default": "123"},
+        {"name": "policy", "description": "", "default": "123"},
     ]
     modal = ParamModal("test", params)
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         await pilot.press("enter")
-        assert app.result == {"apolice": "123"}
+        assert app.result == {"policy": "123"}
 
 
 @pytest.mark.asyncio
@@ -117,7 +117,7 @@ async def test_param_modal_shows_description_subtitle():
 async def test_param_modal_label_format():
     """Labels should show :param_name (description) format."""
     params = [
-        {"name": "apolice", "description": "Numero da apolice", "default": ""},
+        {"name": "policy", "description": "Policy number", "default": ""},
     ]
     modal = ParamModal("test", params)
     app = ModalTestApp(modal)
@@ -125,8 +125,8 @@ async def test_param_modal_label_format():
         labels = [w for w in app.screen.query(Label) if "param-label" in w.classes]
         assert len(labels) == 1
         text = labels[0].render().plain
-        assert ":apolice" in text
-        assert "(Numero da apolice)" in text
+        assert ":policy" in text
+        assert "(Policy number)" in text
 
 
 # --- ConfirmModal tests ---
@@ -134,7 +134,7 @@ async def test_param_modal_label_format():
 
 @pytest.mark.asyncio
 async def test_confirm_modal_shows_message():
-    modal = ConfirmModal("Remover item?")
+    modal = ConfirmModal("Remove item?")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         assert isinstance(app.screen, ConfirmModal)
@@ -142,7 +142,7 @@ async def test_confirm_modal_shows_message():
 
 @pytest.mark.asyncio
 async def test_confirm_modal_esc_returns_false():
-    modal = ConfirmModal("Remover?")
+    modal = ConfirmModal("Remove?")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         await pilot.press("escape")
@@ -151,7 +151,7 @@ async def test_confirm_modal_esc_returns_false():
 
 @pytest.mark.asyncio
 async def test_confirm_modal_sim_returns_true():
-    modal = ConfirmModal("Remover?")
+    modal = ConfirmModal("Remove?")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         btn = app.screen.query_one("#confirm", Button)
@@ -163,7 +163,7 @@ async def test_confirm_modal_sim_returns_true():
 
 @pytest.mark.asyncio
 async def test_confirm_modal_no_returns_false():
-    modal = ConfirmModal("Remover?")
+    modal = ConfirmModal("Remove?")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         btn = app.screen.query_one("#cancel", Button)
@@ -177,7 +177,7 @@ async def test_confirm_modal_no_returns_false():
 
 @pytest.mark.asyncio
 async def test_text_input_modal_prefills_default():
-    modal = TextInputModal("Novo nome", default="query_1")
+    modal = TextInputModal("Novo name", default="query_1")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         inp = app.screen.query(Input).first()
@@ -204,7 +204,7 @@ async def test_text_input_modal_enter_returns_value():
 
 @pytest.mark.asyncio
 async def test_text_input_modal_shows_message():
-    modal = TextInputModal("Titulo", message="Digite algo")
+    modal = TextInputModal("Title", message="Digite algo")
     app = ModalTestApp(modal)
     async with app.run_test() as pilot:
         assert isinstance(app.screen, TextInputModal)

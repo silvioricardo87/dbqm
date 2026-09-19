@@ -470,7 +470,8 @@ class QueryExecScreen(Vertical):
             Action(t("action.vertical"), "V", "toggle_vertical"),
         ]
         if self._raw_rows is not None:
-            label = "Original" if self._showing_mapped else "De-Para"
+            label = (t("action.show_original") if self._showing_mapped
+                     else t("action.show_mapped"))
             actions.append(Action(label, "M", "toggle_mapping"))
         actions.extend([
             Action(t("action.export"), "E", "export"),

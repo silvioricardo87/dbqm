@@ -267,6 +267,6 @@ class TestConnectionMessageKeepsClientGuidance:
         msg = self._test_connection_message(
             monkeypatch,
             thick_error=None,
-            connect_error="ORA-01017: invalid credential\nlinha extra que nao deve aparecer",
+            connect_error="ORA-01017: invalid credential\nan extra line that must not show up",
         )
         assert "linha extra" not in msg

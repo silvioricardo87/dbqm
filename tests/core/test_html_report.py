@@ -65,9 +65,9 @@ def test_report_no_longer_carries_the_old_palette():
 def _result(rows=None, columns=None):
     from dbqm.core.query_engine import QueryResult
     return QueryResult(
-        query_name="clientes",
+        query_name="customers",
         connection_name="prod",
-        columns=columns if columns is not None else ["ID", "NOME"],
+        columns=columns if columns is not None else ["ID", "NAME"],
         rows=rows if rows is not None else [[1, "Ana"], [2, None]],
         row_count=2,
         elapsed=0.25,
@@ -85,7 +85,7 @@ def test_query_html_renders_every_cell(tmp_path, monkeypatch):
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
     text = Path(export_query_html(_result())).read_text(encoding="utf-8")
     assert "<td>Ana</td>" in text
-    assert "ID" in text and "NOME" in text
+    assert "ID" in text and "NAME" in text
 
 
 def test_query_html_renders_none_as_an_empty_cell(tmp_path, monkeypatch):
@@ -108,7 +108,7 @@ def test_query_html_escapes_values(tmp_path, monkeypatch):
 def test_query_html_escapes_column_names(tmp_path, monkeypatch):
     """A column name is data too -- an expression alias can carry anything."""
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    result = _result(columns=["<b>ID</b>", "NOME"], rows=[[1, "Ana"]])
+    result = _result(columns=["<b>ID</b>", "NAME"], rows=[[1, "Ana"]])
     text = Path(export_query_html(result)).read_text(encoding="utf-8")
     assert "<th><b>ID</b></th>" not in text
     assert escape("<b>ID</b>") in text

@@ -399,15 +399,15 @@ class TestGetTableStructure:
 
         db = _db_with_columns([
             ("ID", "NUMBER", 22, 10, 0, "N"),
-            ("VALOR", "NUMBER", 22, 12, 2, "Y"),
+            ("VALUE", "NUMBER", 22, 12, 2, "Y"),
         ])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            structure = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "ORDERS")
 
-        assert structure.table == "PEDIDOS"
-        assert [c.name for c in structure.columns] == ["ID", "VALOR"]
+        assert structure.table == "ORDERS"
+        assert [c.name for c in structure.columns] == ["ID", "VALUE"]
         assert structure.columns[0].data_type == "NUMBER"
         assert structure.columns[0].nullable is False, "Oracle spells it N"
         assert structure.columns[1].nullable is True, "Oracle spells it Y"
@@ -421,12 +421,12 @@ class TestGetTableStructure:
 
         db = _db_with_columns([
             ("ID", "int", 4, 10, 0, "NO"),
-            ("VALOR", "decimal", 9, 12, 2, "YES"),
+            ("VALUE", "decimal", 9, 12, 2, "YES"),
         ])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            structure = get_table_structure(db, "sqlserver", "PEDIDOS")
+            structure = get_table_structure(db, "sqlserver", "ORDERS")
 
         assert structure.columns[0].nullable is False
         # The load-bearing half. "NO" is False against both "Y" and "YES", so
@@ -442,12 +442,12 @@ class TestGetTableStructure:
 
         db = _db_with_columns([
             ("ID", "NUMBER", 22, 10, 0, "N"),
-            ("VALOR", "NUMBER", 22, 12, 2, "Y"),
+            ("VALUE", "NUMBER", 22, 12, 2, "Y"),
         ])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            structure = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "ORDERS")
 
         assert [c.name for c in structure.columns if c.is_pk] == ["ID"]
 
@@ -462,7 +462,7 @@ class TestGetTableStructure:
         with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            structure = get_table_structure(db, "postgresql", "pedidos")
+            structure = get_table_structure(db, "postgresql", "orders")
 
         assert structure.columns[0].is_pk is True
 
@@ -475,11 +475,11 @@ class TestGetTableStructure:
         db = _db_with_columns([("CLIENTE_ID", "NUMBER", 22, 10, 0, "N")])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map",
-                   return_value={"CLIENTE_ID": "CLIENTES.ID"}), \
+                   return_value={"CLIENTE_ID": "CUSTOMERS.ID"}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            structure = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "ORDERS")
 
-        assert structure.columns[0].fk_ref == "CLIENTES.ID"
+        assert structure.columns[0].fk_ref == "CUSTOMERS.ID"
 
     def test_indexes_come_back(self):
         from unittest.mock import patch
@@ -491,7 +491,7 @@ class TestGetTableStructure:
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes",
                    return_value=[IndexInfo("PK_PEDIDOS", ["ID"], True)]):
-            structure = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "ORDERS")
 
         assert [i.name for i in structure.indexes] == ["PK_PEDIDOS"]
         assert structure.indexes[0].is_unique is True
@@ -525,7 +525,7 @@ class TestGetViewDefinition:
         # A 1-tuple works there (it only reads row[0]) but then blows up with
         # an IndexError on the real query, which reads row[0] and row[1].
         # A 2-tuple (owner, text) satisfies both call sites for real.
-        db.cursor.return_value.fetchone.return_value = ("SCOTT", "SELECT id FROM pedidos")
+        db.cursor.return_value.fetchone.return_value = ("SCOTT", "SELECT id FROM orders")
         view = get_view_definition(db, "oracle", "V_PEDIDOS")
 
         assert view.name == "V_PEDIDOS"
@@ -555,13 +555,13 @@ def sqlite_catalog(tmp_path):
     path = tmp_path / "cat.db"
     db = sqlite3.connect(path)
     db.executescript("""
-        CREATE TABLE clientes (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, status TEXT);
-        CREATE TABLE pedidos (id INTEGER PRIMARY KEY,
-                              cliente_id INTEGER REFERENCES clientes(id), valor REAL);
-        CREATE UNIQUE INDEX ix_clientes_nome ON clientes(nome);
-        CREATE VIEW v_ativos AS SELECT id, nome FROM clientes WHERE status = 'A';
-        INSERT INTO clientes VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
-        INSERT INTO pedidos VALUES (10, 1, 9.5), (11, 3, 20.0);
+        CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, status TEXT);
+        CREATE TABLE orders (id INTEGER PRIMARY KEY,
+                              customer_id INTEGER REFERENCES customers(id), value REAL);
+        CREATE UNIQUE INDEX ix_customers_name ON customers(name);
+        CREATE VIEW v_active AS SELECT id, name FROM customers WHERE status = 'A';
+        INSERT INTO customers VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
+        INSERT INTO orders VALUES (10, 1, 9.5), (11, 3, 20.0);
     """)
     db.commit()
     yield db
@@ -574,8 +574,8 @@ class TestSqliteCatalog:
 
     def test_tables_and_views_come_from_sqlite_master(self, sqlite_catalog):
         db = sqlite_catalog
-        assert list_objects(db, "sqlite", "TABLE") == ["clientes", "pedidos"]
-        assert list_objects(db, "sqlite", "VIEW") == ["v_ativos"]
+        assert list_objects(db, "sqlite", "TABLE") == ["customers", "orders"]
+        assert list_objects(db, "sqlite", "VIEW") == ["v_active"]
 
     def test_routines_and_packages_are_refused_not_empty(self, sqlite_catalog):
         """An empty list would read as "none here" instead of "does not apply"."""
@@ -587,29 +587,29 @@ class TestSqliteCatalog:
     def test_structure_reports_pk_nullability_and_the_unique_index(self, sqlite_catalog):
         from dbqm.core.object_browser import get_table_structure
         db = sqlite_catalog
-        est = get_table_structure(db, "sqlite", "clientes")
+        est = get_table_structure(db, "sqlite", "customers")
         by_name = {c.name: c for c in est.columns}
         assert by_name["id"].is_pk is True
-        assert by_name["nome"].nullable is False
+        assert by_name["name"].nullable is False
         assert by_name["status"].nullable is True
-        assert by_name["nome"].data_type == "TEXT"
+        assert by_name["name"].data_type == "TEXT"
         idx = {i.name: i for i in est.indexes}
-        assert idx["ix_clientes_nome"].columns == ["nome"]
-        assert idx["ix_clientes_nome"].is_unique is True
+        assert idx["ix_customers_name"].columns == ["name"]
+        assert idx["ix_customers_name"].is_unique is True
 
     def test_structure_reports_the_foreign_key(self, sqlite_catalog):
         from dbqm.core.object_browser import get_table_structure
         db = sqlite_catalog
-        est = get_table_structure(db, "sqlite", "pedidos")
+        est = get_table_structure(db, "sqlite", "orders")
         by_name = {c.name: c for c in est.columns}
-        assert by_name["cliente_id"].fk_ref == "clientes.id"
+        assert by_name["customer_id"].fk_ref == "customers.id"
         assert by_name["id"].fk_ref == ""
 
     def test_view_definition_is_the_create_statement(self, sqlite_catalog):
         from dbqm.core.object_browser import get_view_definition
         db = sqlite_catalog
-        info = get_view_definition(db, "sqlite", "v_ativos")
-        assert "SELECT id, nome FROM clientes" in info.sql_definition
+        info = get_view_definition(db, "sqlite", "v_active")
+        assert "SELECT id, name FROM customers" in info.sql_definition
         assert info.owner == ""
 
     def test_a_table_name_that_is_not_an_identifier_is_refused(self, sqlite_catalog):
@@ -618,7 +618,7 @@ class TestSqliteCatalog:
         from dbqm.core.object_browser import get_table_structure
         db = sqlite_catalog
         with pytest.raises(ValueError):
-            get_table_structure(db, "sqlite", 'x"); DROP TABLE clientes; --')
+            get_table_structure(db, "sqlite", 'x"); DROP TABLE customers; --')
 
 
 class TestSqliteHasNoRoutines:
@@ -646,7 +646,7 @@ class TestSqliteHasNoRoutines:
 class TestExecuteRoutineHandsValuesBack:
     """OUT values and a function's return travel back marked.
 
-    They used to arrive as bare `NOME=valor` lines mixed into whatever the
+    They used to arrive as bare `NAME=value` lines mixed into whatever the
     routine printed: a caller could not tell one from the other, and a
     routine printing its own `RETURN=...` shadowed the real return value.
     """
@@ -695,9 +695,9 @@ class TestExecuteRoutineHandsValuesBack:
     def test_a_routine_printing_RETURN_no_longer_shadows_the_real_one(self):
         """The line the routine printed stays in `output_lines`, verbatim,
         and the return value is still the one the block handed back."""
-        result, _ = self._run(extra_lines=["RETURN=eu nao sou o retorno"])
+        result, _ = self._run(extra_lines=["RETURN=I am not the return value"])
         assert result.return_value == "12"
-        assert result.output_lines == ["RETURN=eu nao sou o retorno"]
+        assert result.output_lines == ["RETURN=I am not the return value"]
 
     def test_a_line_the_routine_printed_is_not_read_as_an_out_value(self):
         result, _ = self._run(extra_lines=["R=99", "processando..."])

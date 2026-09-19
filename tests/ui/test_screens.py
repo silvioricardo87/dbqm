@@ -109,13 +109,13 @@ async def test_query_exec_screen_with_folders(tmp_config_dir):
                 "name": "q_folder_a",
                 "connection": "conn1",
                 "sql": "SELECT 1",
-                "folder": "Grupo A",
+                "folder": "Group A",
             },
             {
                 "name": "q_folder_b",
                 "connection": "conn1",
                 "sql": "SELECT 2",
-                "folder": "Grupo B",
+                "folder": "Group B",
             },
         ]
     }
@@ -127,7 +127,7 @@ async def test_query_exec_screen_with_folders(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
         selector = screen.query_one("#folder-select", Select)
-        # "Todas" + "Grupo A" + "Grupo B" = 3
+        # "Todas" + "Group A" + "Group B" = 3
         assert len(selector._options) == 3
 
 
@@ -209,11 +209,11 @@ def _write_filter_queries(config_dir):
     queries_data = {
         "queries": [
             {"name": "Clientes ativos", "connection": "prod", "sql": "S",
-             "description": "lista de clientes"},
+             "description": "lista de customers"},
             {"name": "Pedidos", "connection": "prod", "sql": "S",
              "description": "faturados hoje"},
-            {"name": "Estoque", "connection": "homolog", "sql": "S",
-             "description": "saldo por deposito"},
+            {"name": "Stock", "connection": "homolog", "sql": "S",
+             "description": "balance by warehouse"},
         ]
     }
     (config_dir / "queries.json").write_text(
@@ -243,11 +243,11 @@ async def test_query_exec_text_filter_narrows_list(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
         assert screen.query_one("#ql-listview", OptionList).option_count == 3
-        screen.query_one("#qe-filter-text", Input).value = "estoque"
+        screen.query_one("#qe-filter-text", Input).value = "stock"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
         assert option_list.option_count == 1
-        assert rendered_names(option_list) == ["Estoque"]
+        assert rendered_names(option_list) == ["Stock"]
 
 
 @pytest.mark.asyncio
@@ -275,7 +275,7 @@ async def test_query_exec_connection_filter_narrows_list(tmp_config_dir):
         screen.query_one("#qe-filter-conn", Select).value = "homolog"
         await pilot.pause()
         option_list = screen.query_one("#ql-listview", OptionList)
-        assert rendered_names(option_list) == ["Estoque"]
+        assert rendered_names(option_list) == ["Stock"]
 
 
 @pytest.mark.asyncio
@@ -581,7 +581,7 @@ async def test_connections_save_creates_an_oracle_direct_connection(tmp_config_d
         screen.query_one("#conn-form-service", Input).value = "ORCL"
         screen.query_one("#conn-form-user", Input).value = "admin"
         screen.query_one("#conn-form-pass", Input).value = "s3cret"
-        screen.query_one("#conn-form-desc", TextArea).text = "base de teste"
+        screen.query_one("#conn-form-desc", TextArea).text = "test database"
         screen._handle_save()
         await pilot.pause()
 
@@ -593,7 +593,7 @@ async def test_connections_save_creates_an_oracle_direct_connection(tmp_config_d
     assert conn.port == 1600
     assert conn.service_name == "ORCL"
     assert conn.user == "admin"
-    assert conn.description == "base de teste"
+    assert conn.description == "test database"
     assert decrypt(conn.password) == "s3cret", "password must be stored encrypted"
     assert conn.tns_path is None and conn.tns_name is None, (
         "direct mode must not persist TNS fields"
@@ -727,7 +727,7 @@ async def test_connections_screen_with_data(tmp_config_dir):
 async def test_connections_list_shows_description_preview(tmp_config_dir):
     """Long descriptions are truncated with an ellipsis in the list preview."""
     config_dir = tmp_config_dir / "config"
-    long_desc = "Producao - " + "x" * 200
+    long_desc = "Production - " + "x" * 200
     (config_dir / "connections.json").write_text(
         json.dumps({
             "connections": [
@@ -769,7 +769,7 @@ def test_format_description_helper():
     # A description past the old 60-char ceiling but that still fits inside
     # the two-line budget survives whole, with no ellipsis: the limit is
     # LINES, not characters.
-    medium = "Producao - ambiente critico, somente leitura via VPN dedicada"
+    medium = "Production - critical env, read only over a dedicated VPN link"
     assert len(medium) > 60
     out_medium = _format_description(medium)
     assert "..." not in out_medium
@@ -794,9 +794,9 @@ async def test_connection_list_has_hierarchy_and_does_not_concatenate(tmp_config
     save_connections([
         Connection(name="MGORA7ORA9", db_type="oracle", user="u", password="p",
                    mode="tns", tns_name="MGORA7ORA9",
-                   description="Producao prod-day, somente leitura via dblink"),
+                   description="Production prod-day, read-only over a dblink"),
         Connection(name="ASDADM", db_type="oracle", user="u", password="p",
-                   mode="tns", tns_name="ATSSUS", description="Sustentacao"),
+                   mode="tns", tns_name="ATSSUS", description="Maintenance"),
     ])
 
     class App_(ThemedTestApp):
@@ -856,7 +856,7 @@ async def test_mounted_connection_list_distinguishes_identity_from_disambiguatio
     save_connections([
         Connection(name="MGORA7ORA9", db_type="oracle", user="u", password="p",
                    mode="tns", tns_name="MGORA7ORA9",
-                   description="Producao prod-day, somente leitura via dblink"),
+                   description="Production prod-day, read-only over a dblink"),
     ])
 
     app = ConnectionsTestApp()
@@ -872,7 +872,7 @@ async def test_mounted_connection_list_distinguishes_identity_from_disambiguatio
 
         after_identity = text.index("MGORA7ORA9")
         after_disambiguation = text.index("Oracle/TNS")
-        after_context = text.index("Producao")
+        after_context = text.index("Production")
 
         assert color_at_offset(content, after_identity) == strong_color
         assert color_at_offset(content, after_disambiguation) == muted_color
@@ -907,7 +907,7 @@ async def test_description_width_fits_even_with_the_list_scrolling(tmp_config_di
         await pilot.pause()
         option_list = app.query_one("#conn-list", OptionList)
         assert option_list.show_vertical_scrollbar, (
-            "o teste so prova o pior caso se a lista estiver realmente "
+            "the test only proves the worst case if the list really is "
             "rolando"
         )
         real_width = option_list.scrollable_content_region.width
@@ -1384,7 +1384,7 @@ async def test_group_exec_load_group_checks_conns_and_fills_sql(tmp_config_dir):
                 "description": "",
                 "queries": [],
                 "join_key": "ID",
-                "adhoc_sql": "SELECT ID, STATUS FROM apolice",
+                "adhoc_sql": "SELECT ID, STATUS FROM policy",
                 "connections": ["prod_pg"],
             },
         ]
@@ -1403,7 +1403,7 @@ async def test_group_exec_load_group_checks_conns_and_fills_sql(tmp_config_dir):
         await pilot.pause()
 
         sql = screen.query_one("#group-sql", TextArea).text
-        assert "SELECT ID, STATUS FROM apolice" in sql
+        assert "SELECT ID, STATUS FROM policy" in sql
         checklist = screen.query_one("#conn-checklist", SelectionList)
         assert list(checklist.selected) == ["prod_pg"]
 
@@ -1460,7 +1460,7 @@ async def test_group_exec_on_save_name_persists_adhoc_group(tmp_config_dir):
     app = GroupExecTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupExecScreen)
-        screen.query_one("#group-sql", TextArea).load_text("SELECT ID, STATUS FROM apolice")
+        screen.query_one("#group-sql", TextArea).load_text("SELECT ID, STATUS FROM policy")
         screen._populate_connections({"dev_oracle", "prod_pg"})
         await pilot.pause()
 
@@ -1470,7 +1470,7 @@ async def test_group_exec_on_save_name_persists_adhoc_group(tmp_config_dir):
         groups = {g.name: g for g in load_groups()}
         assert "meu_grupo_adhoc" in groups
         saved = groups["meu_grupo_adhoc"]
-        assert saved.adhoc_sql == "SELECT ID, STATUS FROM apolice"
+        assert saved.adhoc_sql == "SELECT ID, STATUS FROM policy"
         assert sorted(saved.connections) == ["dev_oracle", "prod_pg"]
 
 
@@ -2163,7 +2163,7 @@ async def test_browser_clears_the_list_when_the_engine_lacks_the_type(
         # Then one it does not.
         def _refusal(db, db_type, obj_type):
             raise UnsupportedEngine(
-                f"Packages so existem no Oracle. Conexao e {db_type}."
+                f"Packages only exist on Oracle. The connection is {db_type}."
             )
 
         monkeypatch.setattr("dbqm.core.object_browser.list_objects", _refusal)
@@ -2249,7 +2249,7 @@ async def test_browser_select_object_fills_columns_and_preview(
                 data_length=None, nullable=False, is_pk=True, fk_ref=None,
             ),
             SimpleNamespace(
-                name="NOME", data_type="VARCHAR2", data_precision=None,
+                name="NAME", data_type="VARCHAR2", data_precision=None,
                 data_scale=None, data_length=100, nullable=True, is_pk=False,
                 fk_ref=None,
             ),
@@ -2258,7 +2258,7 @@ async def test_browser_select_object_fills_columns_and_preview(
     fake_browse = BrowseResult(
         table="CLIENTE",
         connection_name="c1",
-        columns=["ID", "NOME"],
+        columns=["ID", "NAME"],
         rows=[[1, "Ana"], [2, "Bruno"]],
         row_count=2,
         total_count=2,
@@ -2629,9 +2629,19 @@ async def test_empty_history_paints_identity_and_no_table(
         ), 'the empty state\'s identity line was not painted'
         assert "Every query or group you run is recorded here" in painted
         assert "Run query" in painted
-        # No column of the table may be painted.
-        for column in ("Conexao", "Tempo", "Status"):
-            assert column not in painted, f'header {column!r} painted on an empty screen'
+        # No column of the table may be painted -- checked as the header
+        # ROW, not word by word. The tab strip also writes "Connections",
+        # so `"Connection" not in painted` fails on the strip while
+        # proving nothing about the table; and while the three names were
+        # still Portuguese this loop passed for the same reason the
+        # identity check above did, by asking for text no screen paints.
+        headers = [t("common.date"), t("common.connection"), t("common.type"),
+                   t("common.time"), t("common.status")]
+        for line in lines:
+            together = [h for h in headers if h in line]
+            assert len(together) < 2, (
+                'the table header row is painted on an empty screen: %r' % line
+            )
 
 
 @pytest.mark.asyncio
@@ -2712,7 +2722,7 @@ async def test_opening_the_app_neither_warns_nor_writes_anything(tmp_config_dir,
 
     warnings, writes = await _open_app_counting_writes(tmp_config_dir, monkeypatch)
 
-    assert writes == 0, f"{writes} gravacao(oes) de settings sem acao do usuario"
+    assert writes == 0, f"{writes} settings write(s) with no user action"
     for forbidden in ("Log de auditoria", "Subdiretorios por tipo", "Tema alterado"):
         assert not any(forbidden in a for a in warnings), f"aviso indevido: {warnings}"
 
@@ -3479,7 +3489,7 @@ async def test_group_result_accented_names(tmp_config_dir):
         absent_count=0, normalized_count=0,
     )
     gr = GR(
-        group_name="Grupo Teste",
+        group_name="Test Group",
         query_results={"Produ\u00e7\u00e3o": qr1, "Homologa\u00e7\u00e3o": qr2},
         comparisons=[comp],
         all_match=True,
@@ -3965,7 +3975,7 @@ async def test_group_skeleton_has_the_median_shape(tmp_config_dir):
 @pytest.mark.asyncio
 async def test_vertical_record_uses_text_tokens(tmp_config_dir):
     """`_show_vertical` must paint with the grammar's tokens, not plain text
-    with `*** Registro N ***`.
+    with `*** Record N ***`.
 
     Asserting that the token's name appears in a string proves nothing about
     what appears on the screen (the Task 1 lesson): here we resolve the span
@@ -3989,7 +3999,7 @@ async def test_vertical_record_uses_text_tokens(tmp_config_dir):
 
     qr = QR(
         query_name="test", connection_name="c1",
-        columns=["id", "nome"],
+        columns=["id", "name"],
         rows=[[1, "Alice"]],
         row_count=1, elapsed=0.05,
     )
@@ -4006,8 +4016,9 @@ async def test_vertical_record_uses_text_tokens(tmp_config_dir):
 
         content = rt._vertical_view.content
         text = content.plain
-        assert "*** Registro 1 ***" not in text
-        assert "Registro 1" in text
+        record = t("result_table.record", number=1)
+        assert f"*** {record} ***" not in text
+        assert record in text
 
         strong_color = Style.parse("$ds-text-strong").foreground
         muted_color = Style.parse("$ds-text-muted").foreground
@@ -4017,8 +4028,8 @@ async def test_vertical_record_uses_text_tokens(tmp_config_dir):
         # between them at all.
         assert len({strong_color, muted_color, text_color}) == 3
 
-        after_record = text.index("Registro 1")
-        after_label = text.index("nome")
+        after_record = text.index(record)
+        after_label = text.index("name")
         after_value = text.index("Alice")
 
         assert color_at_offset(content, after_record) == strong_color
@@ -5830,8 +5841,8 @@ async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
         return style.foreground
 
     description = (
-        "Compara o saldo de faturamento entre producao e homologacao no "
-        "fechamento do mes"
+        "Compares the billing balance between production and staging "
+        "at the month end close"
     )
     config_dir = tmp_config_dir / "config"
     groups_data = {
@@ -5875,7 +5886,7 @@ async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
 
         assert color_at_offset(content, text.index("grupo_faturamento")) == strong_color
         assert color_at_offset(content, text.index("3 queries")) == muted_color
-        assert color_at_offset(content, text.index("Compara")) == disabled_color
+        assert color_at_offset(content, text.index("Compares")) == disabled_color
 
 
 @pytest.mark.asyncio
@@ -5888,12 +5899,12 @@ async def test_group_run_screen_with_template_group(tmp_config_dir):
         "groups": [
             {
                 "name": "grupo_tpl",
-                "description": "Grupo com template",
+                "description": "Group with template",
                 "queries": ["q1", "q2"],
                 "join_key": "id",
                 "compare_columns": ["status"],
                 "template": "meu_template",
-                "template_fields": {"titulo": "param:CORRETOR"},
+                "template_fields": {"title": "param:CORRETOR"},
             },
         ]
     }
@@ -6032,7 +6043,7 @@ async def test_history_table_is_usable_at_the_default_terminal_size(tmp_config_d
     from dbqm.ui.app import DBQMApp
 
     for i in range(30):
-        record_query_execution(f"consulta_{i:02d}", "conexao", {}, 10, 0.5, True, "")
+        record_query_execution(f"consulta_{i:02d}", "connection", {}, 10, 0.5, True, "")
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
@@ -6135,7 +6146,7 @@ async def test_connections_an_unreadable_password_is_not_destroyed_by_a_save(
     (cfg / "connections.json").write_text(
         json.dumps({"connections": [{
             "name": "quebrada", "db_type": "mysql", "user": "u",
-            "password": "nao-e-um-token-fernet", "host": "h",
+            "password": "not-a-fernet-token", "host": "h",
         }]}),
         encoding="utf-8",
     )
@@ -6149,7 +6160,7 @@ async def test_connections_an_unreadable_password_is_not_destroyed_by_a_save(
         screen._handle_save()
         await pilot.pause()
 
-    assert find_connection("quebrada").password == "nao-e-um-token-fernet", (
+    assert find_connection("quebrada").password == "not-a-fernet-token", (
         "an unreadable password must survive a save, not be silently replaced"
     )
 

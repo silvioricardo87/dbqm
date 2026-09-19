@@ -79,14 +79,14 @@ async def test_auto_height_panel_measures_the_content():
 
 class _PanelWithCap(ThemedTestApp):
     CSS = """
-    #teto, #curto { height: auto; max-height: 8; }
+    #ceiling, #short { height: auto; max-height: 8; }
     """
 
     def compose(self) -> ComposeResult:
-        with Panel("DIAGNOSTICO", id="teto"):
+        with Panel("DIAGNOSTICO", id="ceiling"):
             for i in range(1, 9):
                 yield Static(f"linha {i}")
-        with Panel("RESUMO", id="curto"):
+        with Panel("RESUMO", id="short"):
             yield Static("uma linha so")
 
 
@@ -102,7 +102,7 @@ async def test_capped_panel_scrolls_the_excess_instead_of_clipping():
     app = _PanelWithCap()
     async with app.run_test(size=(40, 24)) as pilot:
         await pilot.pause()
-        panel = app.query_one("#teto", Panel)
+        panel = app.query_one("#ceiling", Panel)
         body = panel.body
         assert panel.region.height == 8
         assert panel.region.contains_region(body.region), (
@@ -120,7 +120,7 @@ async def test_capped_panel_scrolls_the_excess_instead_of_clipping():
         # panel shrinks to 7 (1 + 2 of padding + 2 of title + 2 of border).
         # Stuck at `1fr`, the body would stretch and it would always measure
         # 8.
-        assert app.query_one("#curto", Panel).region.height == 7
+        assert app.query_one("#short", Panel).region.height == 7
 
 
 # ---------------------------------------------------------------------------

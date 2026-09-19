@@ -31,8 +31,8 @@ from tests.functional.conftest import (  # noqa: F401 -- the fixtures are re-exp
 )
 from tests.ui._helpers import ThemedTestApp
 
-ACTIVE = "SELECT id, nome FROM clientes WHERE status = 'A' ORDER BY id"
-ORDERS = "SELECT id, valor FROM pedidos ORDER BY id"
+ACTIVE = "SELECT id, name FROM customers WHERE status = 'A' ORDER BY id"
+ORDERS = "SELECT id, value FROM orders ORDER BY id"
 
 
 class QueryExecTestApp(ThemedTestApp):
@@ -92,7 +92,7 @@ async def test_adhoc_executes_a_select_and_shows_the_rows(local_db):
     async with app.run_test() as pilot:
         screen = app.query_one(AdhocScreen)
         screen.query_one("#adhoc-conn-select", Select).value = "local"
-        screen.query_one("#adhoc-sql-area", TextArea).text = "SELECT id, nome FROM clientes ORDER BY id"
+        screen.query_one("#adhoc-sql-area", TextArea).text = "SELECT id, name FROM customers ORDER BY id"
         await pilot.pause()
         screen._handle_execute()
         await app.workers.wait_for_complete()
@@ -113,12 +113,12 @@ async def test_group_run_runs_a_group_and_shows_the_verdict(local2_db, capsys):
         code, _ = envelope(["query", "add", name, "--connection", conn, "--sql", ORDERS, "-f", "json"], capsys)
         assert code == 0
     code, _ = envelope(
-        ["group", "add", "pedidos", "--query", "ped_local", "--query", "ped_local2",
-         "--join-key", "id", "--compare-column", "valor", "-f", "json"],
+        ["group", "add", "orders", "--query", "ped_local", "--query", "ped_local2",
+         "--join-key", "id", "--compare-column", "value", "-f", "json"],
         capsys,
     )
     assert code == 0
-    group = find_group("pedidos")
+    group = find_group("orders")
     assert group is not None
 
     app = GroupRunTestApp()
@@ -130,11 +130,11 @@ async def test_group_run_runs_a_group_and_shows_the_verdict(local2_db, capsys):
 
         assert screen.query_one("#gr-results-phase").display is True
         info = str(screen.query_one("#gr-result-info", Static).content)
-        assert "pedidos" in info and "2 queries" in info
+        assert "orders" in info and "2 queries" in info
         assert "DIVERGENT" in info
         gr = screen.query_one("#gr-group-result", GroupResultWidget).group_result
         assert gr is not None and gr.all_match is False
-        assert [c.column for c in gr.comparisons] == ["valor"]
+        assert [c.column for c in gr.comparisons] == ["value"]
         assert gr.comparisons[0].diff_count == 1
 
 
@@ -148,7 +148,7 @@ async def test_browser_extracts_sqlite_ddl_through_the_core_dispatch(local_db):
     app = BrowserTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(BrowserScreen)
-        worker = screen._run_ddl(conn, "clientes")
+        worker = screen._run_ddl(conn, "customers")
         await worker.wait()
         await pilot.pause()
 
@@ -156,7 +156,7 @@ async def test_browser_extracts_sqlite_ddl_through_the_core_dispatch(local_db):
         assert any(a.startswith("DDL saved") for a in warnings), warnings
     files = list((Path(paths.EXPORTS_DIR) / "ddl").rglob("*.sql"))
     assert files, "no .sql under exports/ddl"
-    assert "CREATE TABLE clientes" in "".join(a.read_text(encoding="utf-8") for a in files)
+    assert "CREATE TABLE customers" in "".join(a.read_text(encoding="utf-8") for a in files)
 
 
 @pytest.mark.asyncio
@@ -184,7 +184,7 @@ async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, caps
     key covers one row per key and is silent about the rest."""
     from dbqm.ui.screens.group_run import GroupRunScreen
 
-    by_client = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
+    by_client = "SELECT customer_id AS id, value FROM orders ORDER BY id"
     for name, conn in (("pc_local", "local"), ("pc_local2", "local2")):
         code, _ = envelope(
             ["query", "add", name, "--connection", conn, "--sql", by_client, "-f", "json"], capsys,
@@ -192,7 +192,7 @@ async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, caps
         assert code == 0
     code, _ = envelope(
         ["group", "add", "por_cliente", "--query", "pc_local", "--query", "pc_local2",
-         "--join-key", "id", "--compare-column", "valor", "-f", "json"],
+         "--join-key", "id", "--compare-column", "value", "-f", "json"],
         capsys,
     )
     assert code == 0
@@ -217,19 +217,19 @@ async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, caps
 async def test_group_run_says_nothing_when_the_key_is_unique(local2_db, capsys):
     from dbqm.ui.screens.group_run import GroupRunScreen
 
-    ped = "SELECT id, valor FROM pedidos ORDER BY id"
+    ped = "SELECT id, value FROM orders ORDER BY id"
     for name, conn in (("ped_local", "local"), ("ped_local2", "local2")):
         code, _ = envelope(
             ["query", "add", name, "--connection", conn, "--sql", ped, "-f", "json"], capsys,
         )
         assert code == 0
     code, _ = envelope(
-        ["group", "add", "pedidos", "--query", "ped_local", "--query", "ped_local2",
-         "--join-key", "id", "--compare-column", "valor", "-f", "json"],
+        ["group", "add", "orders", "--query", "ped_local", "--query", "ped_local2",
+         "--join-key", "id", "--compare-column", "value", "-f", "json"],
         capsys,
     )
     assert code == 0
-    group = find_group("pedidos")
+    group = find_group("orders")
     assert group is not None
 
     app = GroupRunTestApp()

@@ -38,11 +38,13 @@ DBQM_LANG=en dbqm run sales -f json
   and the old word-list ratchet stays at zero.
 
   What counts as a place a string *goes* was widened by what it kept
-  missing: `console.print`, every positional of `add_row`,
-  `ProgressIndicator.start` and `Static.update`, the calls that forward to
-  a sink named by their first argument (`call_from_thread`), the fields of
-  a `t()` call, and a name followed one step back to the literal its own
-  scope assigns it.
+  missing: `console.print`, every positional of `add_row` and
+  `add_columns`, `ProgressIndicator.start` and `Static.update`, the calls
+  that forward to a sink named by their first argument
+  (`call_from_thread`), the fields of a `t()` call, a name followed one
+  step back to the literal its own scope assigns it, and both branches of
+  a conditional. Each rule was added because something got past the one
+  before it, and each was proven to fail before it was trusted.
 
 ### Fixed
 
@@ -69,6 +71,28 @@ DBQM_LANG=en dbqm run sales -f json
 - **Both HTML reports declared `<html lang="pt-BR">`** whatever they
   contained, which misleads a screen reader and makes a browser offer to
   translate what is already translated.
+- **The template engine wrote Portuguese into a rendered template.**
+  `{{n}}` mapped to `query:X:_count_label` came back as `3 registros`, and
+  `_status` answered `VAZIO`. Worse than the language: the plural rule was
+  a Python expression (`registro{'s' if n != 1 else ''}`), so how many
+  plural forms a language has was a decision the code had made. It is one
+  key per number now.
+- **Fifteen more strings a screen paints**, each behind a shape no guard
+  was looking at: a table's `add_columns` header row (the package editor's
+  templates, the column maps, the Instant Client lists), the vertical
+  result view's `Registro N`, the group manager's `(sem pasta)`, the
+  mapping toggle's `Original`/`De-Para`, and `dbqm describe-cli`'s
+  `sim`/`nao` Required column. `dbqm config set` also accepted `sim`/`nao`
+  for a boolean and not `yes`/`no`; it takes both now, because that is
+  input tolerance rather than screen text, and a script written when the
+  CLI was Portuguese must keep working.
+- **A design guard had gone quiet.**
+  `test_empty_state_is_not_hand_written` looks in `dbqm/ui/` for the word
+  `Nenhum...` inside a `Static(...)`; since the catalogue, that word lives
+  in `dbqm/i18n/` and the scan matched nothing, passing for having nothing
+  to look at. It resolves the key now and reads the sentence, which
+  immediately turned up two status readouts that needed a written
+  exemption.
 - **Thirty-odd sentences never reached the catalogue at all**, because
   none of them was written at the call that paints. The history table said
   `grupo` while the detail panel beside it and `dbqm history -f table`

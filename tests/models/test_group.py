@@ -21,24 +21,24 @@ class TestGroup:
     def test_template_round_trip(self):
         g = Group(
             name="g_tpl", description="with template", queries=["q1", "q2"],
-            join_key="id", template="investigacao",
+            join_key="id", template="investigation",
             template_fields={
-                "titulo": "param:CORRETOR",
+                "title": "param:CORRETOR",
                 "count": "query:q1:_count",
-                "analise": "",
+                "analysis": "",
             },
         )
         d = g.to_dict()
-        assert d["template"] == "investigacao"
-        assert d["template_fields"]["titulo"] == "param:CORRETOR"
-        assert d["template_fields"]["analise"] == ""
+        assert d["template"] == "investigation"
+        assert d["template_fields"]["title"] == "param:CORRETOR"
+        assert d["template_fields"]["analysis"] == ""
 
         g2 = Group.from_dict(d)
-        assert g2.template == "investigacao"
+        assert g2.template == "investigation"
         assert g2.template_fields == {
-            "titulo": "param:CORRETOR",
+            "title": "param:CORRETOR",
             "count": "query:q1:_count",
-            "analise": "",
+            "analysis": "",
         }
 
     def test_template_defaults_from_old_data(self):

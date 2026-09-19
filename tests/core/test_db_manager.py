@@ -155,7 +155,7 @@ class TestFindOracleClientDir:
         the configured directory instead of either seeded fixture directory.
         """
         monkeypatch.setattr(
-            "dbqm.models.settings.SETTINGS_FILE", tmp_path / "settings-vazio.json"
+            "dbqm.models.settings.SETTINGS_FILE", tmp_path / "settings-empty.json"
         )
 
     def test_macos_arm_prefers_arm64_dir(self, tmp_path, monkeypatch):

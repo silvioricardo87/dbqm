@@ -90,7 +90,7 @@ def test_no_functional_or_unit_row_is_still_a_dash():
         f"{doc.name} {ident}" for doc, ident, layer, _, test_name in _lines()
         if layer != "manual" and test_name in ("—", "-", "")
     ]
-    assert not missing_ones, f"cenarios sem teste: {missing_ones}"
+    assert not missing_ones, f"scenarios with no test: {missing_ones}"
 
 
 def test_every_referenced_test_exists():
@@ -131,7 +131,7 @@ def test_manual_rows_carry_no_test_and_a_script():
 @pytest.mark.parametrize("ref, expected", [
     ("tests/design/test_qa_traceability.py::test_every_id_is_used_once", True),
     ("tests/design/test_qa_traceability.py::test_nao_existe", False),
-    ("tests/nao/existe.py::test_x", False),
+    ("tests/no/such.py::test_x", False),
 ])
 def test_the_locator_itself(ref, expected):
     """The locator is what every other assertion here trusts; it gets its

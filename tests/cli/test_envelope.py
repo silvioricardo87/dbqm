@@ -39,14 +39,14 @@ class TestOk:
     def test_accents_survive(self, capsys):
         """ensure_ascii=False: a description may carry them even though UI
         labels do not."""
-        ok("connection.show", {"description": "Pre Producao é"})
+        ok("connection.show", {"description": "Pre Production é"})
         assert "é" in capsys.readouterr().out
 
 
 class TestFail:
     def test_failure_goes_to_stderr_and_exits(self, capsys):
         with pytest.raises(SystemExit) as exc:
-            fail("connection.show", "not_found", 'Conexao "x" nao encontrada.')
+            fail("connection.show", "not_found", 'Connection "x" not found.')
         assert exc.value.code == 2
 
         output = capsys.readouterr()
@@ -59,17 +59,17 @@ class TestFail:
         assert body["command"] == "connection.show"
         assert body["error"]["code"] == "not_found"
         assert body["error"]["exit"] == 2
-        assert "nao encontrada" in body["error"]["message"]
+        assert "not found" in body["error"]["message"]
 
     def test_detail_is_carried_when_given(self, capsys):
         with pytest.raises(SystemExit):
-            fail("sql", "sql_error", "Erro ao executar.", detail="ORA-00942")
+            fail("sql", "sql_error", "Execution failed.", detail="ORA-00942")
         body = json.loads(capsys.readouterr().err)
         assert body["error"]["detail"] == "ORA-00942"
 
     def test_no_detail_key_when_absent(self, capsys):
         with pytest.raises(SystemExit):
-            fail("sql", "sql_error", "Erro ao executar.")
+            fail("sql", "sql_error", "Execution failed.")
         assert "detail" not in json.loads(capsys.readouterr().err)["error"]
 
     def test_each_code_carries_its_exit(self, capsys):

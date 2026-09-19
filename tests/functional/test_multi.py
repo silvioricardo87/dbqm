@@ -1,6 +1,6 @@
 """docs/qa/multi.md — one SQL across `local` and `local2`.
 
-The two files differ in pedido 13 only, so `clientes` agrees and `pedidos`
+The two files differ in pedido 13 only, so `customers` agrees and `orders`
 diverges; every refusal is checked to have happened before anything ran,
 by reading the data back afterwards.
 """
@@ -11,8 +11,8 @@ from pathlib import Path
 
 from tests.functional.conftest import envelope, invoke
 
-ORDERS = "SELECT id, valor FROM pedidos ORDER BY id"
-CLI = "SELECT id, nome FROM clientes ORDER BY id"
+ORDERS = "SELECT id, value FROM orders ORDER BY id"
+CLI = "SELECT id, name FROM customers ORDER BY id"
 
 
 # QA-MULTI-001
@@ -23,7 +23,7 @@ def test_two_connections_that_agree_exit_0(local2_db, capsys):
     assert body["data"]["join_key"] == "id"
     assert body["data"]["all_match"] is True
     assert body["data"]["comparisons"] == [{
-        "column": "nome", "total_keys": 3, "equal_count": 3,
+        "column": "name", "total_keys": 3, "equal_count": 3,
         "diff_count": 0, "absent_count": 0, "normalized_count": 0,
         "duplicate_rows": {},
     }]
@@ -36,7 +36,7 @@ def test_two_connections_that_differ_exit_5(local2_db, capsys):
     assert body["ok"] is True
     assert body["data"]["all_match"] is False
     assert body["data"]["comparisons"] == [{
-        "column": "valor", "total_keys": 4, "equal_count": 3,
+        "column": "value", "total_keys": 4, "equal_count": 3,
         "diff_count": 1, "absent_count": 0, "normalized_count": 0,
         "duplicate_rows": {},
     }]
@@ -45,13 +45,13 @@ def test_two_connections_that_differ_exit_5(local2_db, capsys):
 # QA-MULTI-003
 def test_key_overrides_the_join_column_and_is_reported(local2_db, capsys):
     code, body = envelope(
-        ["multi", "SELECT id, valor, cliente_id FROM pedidos", "-c", "local", "-c", "local2",
-         "--key", "cliente_id", "-f", "json"],
+        ["multi", "SELECT id, value, customer_id FROM orders", "-c", "local", "-c", "local2",
+         "--key", "customer_id", "-f", "json"],
         capsys,
     )
     assert code == 5
-    assert body["data"]["join_key"] == "cliente_id"
-    assert [c["column"] for c in body["data"]["comparisons"]] == ["id", "valor"]
+    assert body["data"]["join_key"] == "customer_id"
+    assert [c["column"] for c in body["data"]["comparisons"]] == ["id", "value"]
 
 
 # QA-MULTI-004
@@ -83,12 +83,12 @@ def test_one_connection_is_refused(local_db, capsys):
 
 # QA-MULTI-007
 def test_a_non_query_is_refused_before_any_connection_opens(local2_db, capsys):
-    code, body = envelope(["multi", "DELETE FROM pedidos", "-c", "local", "-c", "local2", "-f", "json"], capsys)
+    code, body = envelope(["multi", "DELETE FROM orders", "-c", "local", "-c", "local2", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == "multi compares query results (SELECT or EXPLAIN); got: DELETE."
     for conn in ("local", "local2"):
-        code, count = envelope(["sql", "SELECT COUNT(*) FROM pedidos", conn, "-f", "json"], capsys)
+        code, count = envelope(["sql", "SELECT COUNT(*) FROM orders", conn, "-f", "json"], capsys)
         assert code == 0 and count["data"]["rows"] == [[4]]
 
 
@@ -130,7 +130,7 @@ def test_flat_with_html_is_refused(local2_db, capsys):
 
 # QA-MULTI-012
 def test_a_single_common_column_has_nothing_to_compare(local2_db, capsys):
-    code, body = envelope(["multi", "SELECT id FROM pedidos", "-c", "local", "-c", "local2", "-f", "json"], capsys)
+    code, body = envelope(["multi", "SELECT id FROM orders", "-c", "local", "-c", "local2", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == (
@@ -158,7 +158,7 @@ def test_table_format_prints_the_verdict_with_the_same_exit(local2_db, capsys):
     assert err == ""
 
 
-BY_CLIENT = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
+BY_CLIENT = "SELECT customer_id AS id, value FROM orders ORDER BY id"
 
 
 # QA-MULTI-015

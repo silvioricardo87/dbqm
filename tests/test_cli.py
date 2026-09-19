@@ -841,7 +841,7 @@ class TestCmdMulti:
         results = {
             "c1": _make_multi_result(
                 "c1", success=False,
-                error="Conexao 'c1' e somente leitura. Use --force-write para enviar assim mesmo.",
+                error="Connection 'c1' is read-only. Use --force-write to send it anyway.",
                 error_kind="read_only",
             ),
             "c2": _make_multi_result("c2"),
@@ -915,8 +915,8 @@ class TestCmdMulti:
             return {"c1": c1, "c2": c2}.get(name)
 
         results = {
-            "c1": _make_multi_result("c1", columns=["ID", "NOME"], rows=[[1, "Alice"]]),
-            "c2": _make_multi_result("c2", columns=["ID", "NOME"], rows=[[2, "Bob"]]),
+            "c1": _make_multi_result("c1", columns=["ID", "NAME"], rows=[[1, "Alice"]]),
+            "c2": _make_multi_result("c2", columns=["ID", "NAME"], rows=[[2, "Bob"]]),
         }
         with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
              patch("dbqm.cli.deps.execute_across", return_value=results):
@@ -966,7 +966,7 @@ class TestCmdMulti:
             return {"c1": c1, "c2": c2}.get(name)
 
         results = {
-            "c1": _make_multi_result("c1", columns=["ID", "NOME"], rows=[[1, "Alice"]]),
+            "c1": _make_multi_result("c1", columns=["ID", "NAME"], rows=[[1, "Alice"]]),
             "c2": _make_multi_result("c2", columns=["ID"], rows=[[2]]),
         }
         with patch("dbqm.cli.deps.find_connection", side_effect=find_conn_side), \
@@ -1426,7 +1426,7 @@ class TestCmdCall:
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.open_connection") as mock_open:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "c1", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "c1", "-f", "json"])
             assert exited.value.code == 2
             output = capsys.readouterr()
             assert output.out == ""
@@ -1439,7 +1439,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
@@ -1447,7 +1447,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg) as mock_pkg, \
              patch("dbqm.cli.deps.get_standalone_routine_info") as mock_standalone, \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn"])
             mock_pkg.assert_called_once()
             mock_standalone.assert_not_called()
 
@@ -1456,7 +1456,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_ID", data_type="NUMBER", direction="IN", default="0")],
         )
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
@@ -1465,7 +1465,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.get_standalone_routine_info", return_value=routine) as mock_standalone, \
              patch("dbqm.cli.deps.list_package_routines") as mock_pkg, \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "ROTINA", "test_conn"])
+            run_cli(["call", "ROUTINE", "test_conn"])
             mock_standalone.assert_called_once()
             mock_pkg.assert_not_called()
 
@@ -1541,13 +1541,13 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 2
             output = capsys.readouterr()
             assert output.out == ""
             body = json.loads(output.err)
             assert body["error"]["code"] == "not_found"
-            assert "PKG.ROTINA" in body["error"]["message"]
+            assert "PKG.ROUTINE" in body["error"]["message"]
 
     def test_a_missing_required_parameter_is_a_validation_error(self, tmp_config_dir, capsys):
         """A parameter with no default that the caller did not supply."""
@@ -1555,7 +1555,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_ID", data_type="NUMBER", direction="IN", default="")],
         )
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
@@ -1564,7 +1564,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine") as mock_exec:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 2
             output = capsys.readouterr()
             assert output.out == ""
@@ -1578,7 +1578,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_FLAG", data_type="NUMBER", direction="IN", default="0")],
         )
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
@@ -1587,7 +1587,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn"])
             mock_exec.assert_called_once()
 
     def test_a_parameter_name_is_matched_case_insensitively(self, tmp_config_dir):
@@ -1600,7 +1600,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_ID", data_type="NUMBER", direction="IN", default="")],
         )
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
@@ -1609,7 +1609,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
-            run_cli(["call", "PKG.ROTINA", "test_conn", "-p", "p_id=7"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn", "-p", "p_id=7"])
             called_params = mock_exec.call_args[0][3]
             assert called_params == {"P_ID": "7"}
 
@@ -1618,7 +1618,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_VAL", data_type="NUMBER", direction="IN OUT", default="")],
         )
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
@@ -1627,7 +1627,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine") as mock_exec:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 2
             output = capsys.readouterr()
             assert output.out == ""
@@ -1641,7 +1641,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_VAL", data_type="NUMBER", direction="IN OUT", default="0")],
         )
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
@@ -1650,7 +1650,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn"])
             mock_exec.assert_called_once()
 
     def test_an_unknown_bare_name_with_a_param_says_the_routine_may_not_exist(
@@ -1681,7 +1681,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_FLAG", data_type="NUMBER", direction="IN", default="0")],
         )
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
@@ -1690,7 +1690,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine") as mock_exec:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-p", "naoexiste=1", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-p", "naoexiste=1", "-f", "json"])
             assert exited.value.code == 2
             output = capsys.readouterr()
             assert output.out == ""
@@ -1705,7 +1705,7 @@ class TestCmdCall:
 
         conn = _make_connection()
         routine = RoutineInfo(
-            name="ROTINA", routine_type="PROCEDURE",
+            name="ROUTINE", routine_type="PROCEDURE",
             params=[RoutineParam(name="P_OUT", data_type="NUMBER", direction="OUT")],
         )
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
@@ -1714,7 +1714,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result) as mock_exec:
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn"])
             mock_exec.assert_called_once()
 
     def test_a_read_only_connection_is_refused(self, tmp_config_dir, capsys):
@@ -1725,15 +1725,15 @@ class TestCmdCall:
 
         conn = Connection(name="test_conn", db_type="oracle", user="usr",
                           password="enc_pw", read_only=True)
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine",
-                   side_effect=ReadOnlyViolation("Conexao 'test_conn' e somente leitura")):
+                   side_effect=ReadOnlyViolation("Connection 'test_conn' is read-only")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 2
             output = capsys.readouterr()
             assert output.out == ""
@@ -1752,7 +1752,7 @@ class TestCmdCall:
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.open_connection", return_value=cm):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 3
             output = capsys.readouterr()
             assert output.out == ""
@@ -1763,7 +1763,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=False, error="ORA-06502: numeric or value error")
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
@@ -1771,7 +1771,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 4
             output = capsys.readouterr()
             assert output.out == ""
@@ -1787,7 +1787,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.open_connection"), \
@@ -1795,7 +1795,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.execute_routine",
                    side_effect=ValueError("invalid literal for int()")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 4
             output = capsys.readouterr()
             assert output.out == ""
@@ -1805,7 +1805,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="FUNCTION", params=[], return_type="NUMBER")
+        routine = RoutineInfo(name="ROUTINE", routine_type="FUNCTION", params=[], return_type="NUMBER")
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(
             success=True, output_lines=["linha 1", "linha 2"],
@@ -1815,7 +1815,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             body = json.loads(capsys.readouterr().out)
             assert body["ok"] is True
             assert body["command"] == "call"
@@ -1826,7 +1826,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="FUNCTION", params=[], return_type="NUMBER")
+        routine = RoutineInfo(name="ROUTINE", routine_type="FUNCTION", params=[], return_type="NUMBER")
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(
             success=True, output_lines=["processando linha"],
@@ -1836,7 +1836,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn"])
             out = capsys.readouterr().out
             assert "42" in out
             assert "processando linha" in out
@@ -1848,7 +1848,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="FUNCTION", params=[], return_type="VARCHAR2")
+        routine = RoutineInfo(name="ROUTINE", routine_type="FUNCTION", params=[], return_type="VARCHAR2")
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(
             success=True, output_lines=[], return_value="[x]", elapsed=0.01,
@@ -1857,7 +1857,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn"])
             assert "[x]" in capsys.readouterr().out
 
     def test_without_commit_the_transaction_is_rolled_back(self, tmp_config_dir):
@@ -1866,7 +1866,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
         db_handle = MagicMock()
@@ -1876,7 +1876,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection", return_value=cm), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn"])
         db_handle.rollback.assert_called_once()
         db_handle.commit.assert_not_called()
 
@@ -1884,7 +1884,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
         db_handle = MagicMock()
@@ -1894,7 +1894,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.open_connection", return_value=cm), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn", "--commit"])
         db_handle.commit.assert_called_once()
         db_handle.rollback.assert_not_called()
 
@@ -1910,7 +1910,7 @@ class TestCmdCall:
         from dbqm.i18n import available_languages, t
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
         for language in available_languages():
@@ -1919,10 +1919,10 @@ class TestCmdCall:
                  patch("dbqm.cli.deps.open_connection"), \
                  patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
                  patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-                run_cli(["call", "PKG.ROTINA", "test_conn"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn"])
                 sem_commit = capsys.readouterr().out
 
-                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "--commit"])
                 com_commit = capsys.readouterr().out
 
             # Only up to the em dash: this console encodes in cp1252 and the
@@ -1938,18 +1938,18 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             sem_commit = json.loads(capsys.readouterr().out)
             assert sem_commit["data"]["committed"] is False
 
-            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit", "-f", "json"])
+            run_cli(["call", "PKG.ROUTINE", "test_conn", "--commit", "-f", "json"])
             com_commit = json.loads(capsys.readouterr().out)
             assert com_commit["data"]["committed"] is True
 
@@ -1958,7 +1958,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=False, error="ORA-06502: numeric or value error")
         db_handle = MagicMock()
@@ -1969,7 +1969,7 @@ class TestCmdCall:
              patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "--commit"])
             assert exited.value.code == 4
         db_handle.rollback.assert_called_once()
         db_handle.commit.assert_not_called()
@@ -1982,14 +1982,14 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         db_handle = MagicMock()
         cm = MagicMock()
         cm.__enter__.return_value = db_handle
         with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", side_effect=RuntimeError("ORA-03113")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "--commit"])
             assert exited.value.code == 4
         db_handle.rollback.assert_called_once()
         db_handle.commit.assert_not_called()
@@ -2003,7 +2003,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=True)
         db_handle = MagicMock()
@@ -2012,7 +2012,7 @@ class TestCmdCall:
         cm.__enter__.return_value = db_handle
         with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "-f", "json"])
             assert exited.value.code == 4
         body = json.loads(capsys.readouterr().err)
         assert body["error"]["code"] == "sql_error"
@@ -2024,7 +2024,7 @@ class TestCmdCall:
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
 
         conn = _make_connection()
-        routine = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
+        routine = RoutineInfo(name="ROUTINE", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[routine])
         exec_result = RoutineExecutionResult(success=True)
         db_handle = MagicMock()
@@ -2033,7 +2033,7 @@ class TestCmdCall:
         cm.__enter__.return_value = db_handle
         with patch("dbqm.cli.deps.find_connection", return_value=conn),              patch("dbqm.cli.deps.open_connection", return_value=cm),              patch("dbqm.cli.deps.list_package_routines", return_value=pkg),              patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "test_conn", "--commit", "-f", "json"])
             assert exited.value.code == 4
         db_handle.rollback.assert_called_once()
         body = json.loads(capsys.readouterr().err)
@@ -2275,7 +2275,7 @@ class TestCmdConfig:
 
     def test_an_unknown_theme_is_refused_and_names_what_exists(self, tmp_config_dir, capsys):
         with pytest.raises(SystemExit) as exc:
-            run_cli(["config", "set", "theme", "nao-existe", "-f", "json"])
+            run_cli(["config", "set", "theme", "does-not-exist", "-f", "json"])
         assert exc.value.code == 2
         body = json.loads(capsys.readouterr().err)
         assert body["error"]["code"] == "validation"
@@ -2449,7 +2449,7 @@ class TestCmdImportConfig:
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)
         spy = MagicMock()
         monkeypatch.setattr("dbqm.cli.deps.import_configs", spy)
-        path = str(tmp_path / "nao.dbqm")
+        path = str(tmp_path / "missing.dbqm")
         with pytest.raises(SystemExit) as exc:
             run_cli(["import-config", path, "-f", "json"])
         assert exc.value.code == 2
@@ -2936,7 +2936,7 @@ class TestConnectionAdd:
         from dbqm.models.connection import load_connections
 
         monkeypatch.setattr("dbqm.cli.deps.test_connection",
-                            lambda conn: (False, "ORA-12154: TNS nao resolvido"))
+                            lambda conn: (False, "ORA-12154: TNS could not resolve"))
         with pytest.raises(SystemExit) as exc:
             self._run([
                 "connection", "add", "x", "--type", "mysql", "--no-password",
@@ -3333,13 +3333,13 @@ class TestCmdQuery:
         self._add_connection(monkeypatch)
         run_cli([
             "query", "add", "minha", "--connection", "db1",
-            "--sql", "SELECT id, nome FROM t", "--description", "nota",
+            "--sql", "SELECT id, name FROM t", "--description", "nota",
         ])
 
         q = find_query("minha")
         assert q is not None
         assert q.connection == "db1"
-        assert q.sql == "SELECT id, nome FROM t"
+        assert q.sql == "SELECT id, name FROM t"
         assert q.description == "nota"
         assert q.table == "t", "table must be derived from the SQL"
 
@@ -3384,12 +3384,12 @@ class TestCmdQuery:
         self._add_connection(monkeypatch)
         run_cli([
             "query", "add", "alvo", "--connection", "db1",
-            "--sql", "SELECT id, nome FROM t", "--favorite", "--folder", "pasta1",
+            "--sql", "SELECT id, name FROM t", "--favorite", "--folder", "pasta1",
         ])
 
         queries = load_queries()
-        queries[0].column_maps = {"nome": {"1": "um"}}
-        # `parse_sql("SELECT id, nome FROM t")` can only ever produce "t" --
+        queries[0].column_maps = {"name": {"1": "um"}}
+        # `parse_sql("SELECT id, name FROM t")` can only ever produce "t" --
         # so a plain "table survives" assertion against that value would
         # pass whether or not `table` was actually left alone. A value
         # `parse_sql` could never derive from this SQL is what tells the two
@@ -3399,14 +3399,14 @@ class TestCmdQuery:
         queries[0].table = "tabela_editada"
         save_queries(queries)
 
-        run_cli(["query", "update", "alvo", "--description", "so a descricao"])
+        run_cli(["query", "update", "alvo", "--description", "description only"])
 
         q = find_query("alvo")
-        assert q.description == "so a descricao"
-        assert q.column_maps == {"nome": {"1": "um"}}, "column_maps must survive"
+        assert q.description == "description only"
+        assert q.column_maps == {"name": {"1": "um"}}, "column_maps must survive"
         assert q.is_favorite is True, "is_favorite must survive"
         assert q.folder == "pasta1", "folder must survive"
-        assert q.sql == "SELECT id, nome FROM t", "sql must survive"
+        assert q.sql == "SELECT id, name FROM t", "sql must survive"
         assert q.table == "tabela_editada", \
             "a manually edited table must survive an unrelated update, not be re-derived"
 
@@ -3451,13 +3451,13 @@ class TestCmdQuery:
 
         run_cli([
             "query", "update", "alvo",
-            "--sql", "SELECT id, nome FROM nova ORDER BY nome",
+            "--sql", "SELECT id, name FROM nova ORDER BY name",
         ])
 
         q = find_query("alvo")
-        assert q.sql == "SELECT id, nome FROM nova ORDER BY nome"
+        assert q.sql == "SELECT id, name FROM nova ORDER BY name"
         assert q.table == "nova", "an explicit --sql must re-derive table"
-        assert q.columns == ["id", "nome"], "an explicit --sql must re-derive columns"
+        assert q.columns == ["id", "name"], "an explicit --sql must re-derive columns"
         assert q.order_by, "an explicit --sql must re-derive order_by"
 
     def test_show_unknown_name_is_not_found(self, tmp_config_dir, monkeypatch, capsys):
@@ -3488,7 +3488,7 @@ class TestCmdQuery:
         from dbqm.cli import run_cli
 
         self._add_connection(monkeypatch)
-        sql_path = tmp_path / "consulta.sql"
+        sql_path = tmp_path / "query.sql"
         sql_path.write_text("SELECT 1", encoding="utf-8")
         with pytest.raises(SystemExit) as exc:
             run_cli([
@@ -3571,7 +3571,7 @@ class TestCmdQuery:
         from dbqm.models.query import find_query
 
         self._add_connection(monkeypatch)
-        sql_path = tmp_path / "consulta.sql"
+        sql_path = tmp_path / "query.sql"
         sql_path.write_text("SELECT * FROM t WHERE 1=1", encoding="utf-8")
         run_cli([
             "query", "add", "arq", "--connection", "db1",
@@ -3588,7 +3588,7 @@ class TestCmdQuery:
         with pytest.raises(SystemExit) as exc:
             run_cli([
                 "query", "add", "arq", "--connection", "db1",
-                "--sql-file", "caminho/que/nao/existe.sql", "-f", "json",
+                "--sql-file", "path/that/does/not/exist.sql", "-f", "json",
             ])
         assert exc.value.code == 2
         body = json.loads(capsys.readouterr().err)
@@ -3627,7 +3627,7 @@ class TestCmdGroup:
         run_cli([
             "group", "add", "meugrupo", "--query", "q1", "--query", "q2",
             "--join-key", "id", "--description", "nota", "--folder", "pasta1",
-            "--compare-column", "nome",
+            "--compare-column", "name",
         ])
 
         g = find_group("meugrupo")
@@ -3636,7 +3636,7 @@ class TestCmdGroup:
         assert g.join_key == "id"
         assert g.description == "nota"
         assert g.folder == "pasta1"
-        assert g.compare_columns == ["nome"]
+        assert g.compare_columns == ["name"]
 
     def test_add_on_an_existing_name_is_a_validation_error(self, tmp_config_dir,
                                                             monkeypatch, capsys):
@@ -3748,10 +3748,10 @@ class TestCmdGroup:
 
         groups = load_groups()
         groups[0].column_mapping = {"col": {"q1": "c1"}}
-        groups[0].folder = "  pasta com espacos  "
+        groups[0].folder = "  folder with spaces  "
         groups[0].normalize = {"col": {"1": "um"}}
         groups[0].template = "tpl1"
-        groups[0].template_fields = {"titulo": "literal:Teste"}
+        groups[0].template_fields = {"title": "literal:Test"}
         groups[0].validation_rule = "custom_rule"
         groups[0].created_at = "2020-01-01T00:00:00"
         groups[0].adhoc_sql = "SELECT 1"
@@ -3759,16 +3759,16 @@ class TestCmdGroup:
         groups[0].shared_params = {"param1": {"description": "d", "default": "x"}}
         save_groups(groups)
 
-        run_cli(["group", "update", "alvo", "--description", "nova descricao"])
+        run_cli(["group", "update", "alvo", "--description", "new description"])
 
         g = find_group("alvo")
-        assert g.description == "nova descricao"
+        assert g.description == "new description"
         assert g.column_mapping == {"col": {"q1": "c1"}}, "column_mapping must survive"
-        assert g.folder == "  pasta com espacos  ", \
+        assert g.folder == "  folder with spaces  ", \
             "an unmentioned field must survive byte for byte, not be re-stripped"
         assert g.normalize == {"col": {"1": "um"}}, "normalize must survive"
         assert g.template == "tpl1", "template must survive"
-        assert g.template_fields == {"titulo": "literal:Teste"}, \
+        assert g.template_fields == {"title": "literal:Test"}, \
             "template_fields must survive"
         assert g.validation_rule == "custom_rule", "validation_rule must survive"
         assert g.created_at == "2020-01-01T00:00:00", "created_at must survive"
@@ -3803,7 +3803,7 @@ class TestCmdGroup:
                  "--join-key", "id"])
 
         with patch("dbqm.core.group_builder.build", wraps=group_builder.build) as spy:
-            run_cli(["group", "update", "alvo", "--description", "nova descricao"])
+            run_cli(["group", "update", "alvo", "--description", "new description"])
 
         received = spy.call_args[0][0]
         assert set(received.keys()) == {"name", "description"}, \
@@ -3986,13 +3986,13 @@ class TestCmdTemplate:
         from dbqm.models.template import find_template
 
         run_cli([
-            "template", "add", "relatorio", "--content", "Ola {{nome}}",
+            "template", "add", "report", "--content", "Ola {{name}}",
             "--description", "nota",
         ])
 
-        t = find_template("relatorio")
+        t = find_template("report")
         assert t is not None
-        assert t.content == "Ola {{nome}}"
+        assert t.content == "Ola {{name}}"
         assert t.description == "nota"
 
     def test_add_on_an_existing_name_is_a_validation_error(self, tmp_config_dir, capsys):
@@ -4037,10 +4037,10 @@ class TestCmdTemplate:
         from dbqm.models.template import find_template
 
         run_cli(["template", "add", "alvo", "--content", "conteudo original"])
-        run_cli(["template", "update", "alvo", "--description", "nova descricao"])
+        run_cli(["template", "update", "alvo", "--description", "new description"])
 
         t = find_template("alvo")
-        assert t.description == "nova descricao"
+        assert t.description == "new description"
         assert t.content == "conteudo original", "content must survive"
 
     def test_update_preserves_description_not_mentioned(self, tmp_config_dir):
@@ -4050,12 +4050,12 @@ class TestCmdTemplate:
         from dbqm.models.template import find_template
 
         run_cli(["template", "add", "alvo",
-                 "--content", "conteudo original", "--description", "descricao original"])
+                 "--content", "conteudo original", "--description", "original description"])
         run_cli(["template", "update", "alvo", "--content", "conteudo novo"])
 
         t = find_template("alvo")
         assert t.content == "conteudo novo"
-        assert t.description == "descricao original", "description must survive"
+        assert t.description == "original description", "description must survive"
 
     def test_update_calls_build_with_only_the_given_flags(self, tmp_config_dir):
         """A white-box guard, the way `dbqm group`'s own test does: spies on
@@ -4068,7 +4068,7 @@ class TestCmdTemplate:
         run_cli(["template", "add", "alvo", "--content", "conteudo original"])
 
         with patch("dbqm.core.template_builder.build", wraps=template_builder.build) as spy:
-            run_cli(["template", "update", "alvo", "--description", "nova descricao"])
+            run_cli(["template", "update", "alvo", "--description", "new description"])
 
         received = spy.call_args[0][0]
         assert set(received.keys()) == {"name", "description"}, \
@@ -4182,7 +4182,7 @@ class TestCmdTemplate:
         from dbqm.cli import run_cli
 
         content_path = tmp_path / "conteudo.txt"
-        content_path.write_text("Ola {{nome}}", encoding="utf-8")
+        content_path.write_text("Ola {{name}}", encoding="utf-8")
         with pytest.raises(SystemExit) as exc:
             run_cli([
                 "template", "add", "alvo",
@@ -4210,9 +4210,9 @@ class TestCmdTemplate:
         from dbqm.models.template import find_template
 
         content_path = tmp_path / "conteudo.txt"
-        content_path.write_text("Ola {{nome}}, tudo bem?", encoding="utf-8")
+        content_path.write_text("Ola {{name}}, tudo bem?", encoding="utf-8")
         run_cli(["template", "add", "arq", "--content-file", str(content_path)])
-        assert find_template("arq").content == "Ola {{nome}}, tudo bem?"
+        assert find_template("arq").content == "Ola {{name}}, tudo bem?"
 
     def test_unreadable_content_file_is_usage(self, tmp_config_dir, capsys):
         from dbqm.cli import run_cli
@@ -4222,7 +4222,7 @@ class TestCmdTemplate:
         with pytest.raises(SystemExit) as exc:
             run_cli([
                 "template", "add", "arq",
-                "--content-file", "caminho/que/nao/existe.txt", "-f", "json",
+                "--content-file", "path/that/does/not/exist.txt", "-f", "json",
             ])
         assert exc.value.code == 2
         body = json.loads(capsys.readouterr().err)
@@ -4484,7 +4484,7 @@ class TestEveryCommandSpeaksTheEnvelope:
         from dbqm.cli import run_cli
 
         with pytest.raises(SystemExit) as exc:
-            run_cli(["run", "nao-existe", "-f", "json"])
+            run_cli(["run", "does-not-exist", "-f", "json"])
         assert exc.value.code == 2
         output = capsys.readouterr()
         assert output.out == ""
@@ -4523,7 +4523,7 @@ class TestEveryCommandSpeaksTheEnvelope:
 
         capsys.readouterr()
         with pytest.raises(SystemExit) as exc:
-            run_cli(["run-group", "nao-existe", "-f", "json"])
+            run_cli(["run-group", "does-not-exist", "-f", "json"])
         assert exc.value.code == 2
         output = capsys.readouterr()
         assert output.out == ""
@@ -4576,13 +4576,13 @@ class TestCmdObjects:
         conn = _make_connection()
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.open_connection"), \
-             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS", "CLIENTES"]):
-            run_cli(["objects", "conexao", "-f", "json"])
+             patch("dbqm.cli.deps.list_objects", return_value=["ORDERS", "CUSTOMERS"]):
+            run_cli(["objects", "connection", "-f", "json"])
 
         body = json.loads(capsys.readouterr().out)
         assert body["ok"] is True
         assert body["command"] == "objects"
-        assert body["data"]["objects"] == ["PEDIDOS", "CLIENTES"]
+        assert body["data"]["objects"] == ["ORDERS", "CUSTOMERS"]
         assert body["data"]["obj_type"] == "TABLE", "the default type"
 
     def test_an_unknown_connection_leaves_stdout_empty(self, capsys):
@@ -4613,7 +4613,7 @@ class TestCmdObjects:
              patch("dbqm.cli.deps.open_connection",
                    side_effect=RuntimeError("ORA-12541: TNS:no listener")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["objects", "conexao", "-f", "json"])
+                run_cli(["objects", "connection", "-f", "json"])
 
         assert capsys.readouterr().out == ""
         assert exited.value.code == 3
@@ -4631,7 +4631,7 @@ class TestCmdObjects:
              patch("dbqm.cli.deps.list_objects",
                    side_effect=UnsupportedEngine("Packages e rotinas so existem no Oracle.")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["objects", "conexao", "--type", "PACKAGE", "-f", "json"])
+                run_cli(["objects", "connection", "--type", "PACKAGE", "-f", "json"])
 
         assert capsys.readouterr().out == ""
         assert exited.value.code == 2
@@ -4651,7 +4651,7 @@ class TestCmdObjects:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.list_objects",
                    side_effect=RuntimeError("Invalid object name 'sys.objects'")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["objects", "conexao", "-f", "json"])
+                run_cli(["objects", "connection", "-f", "json"])
 
         assert capsys.readouterr().out == ""
         assert exited.value.code == 4
@@ -4663,10 +4663,10 @@ class TestCmdObjects:
 
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection"), \
-             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS"]):
-            run_cli(["objects", "conexao"])
+             patch("dbqm.cli.deps.list_objects", return_value=["ORDERS"]):
+            run_cli(["objects", "connection"])
 
-        assert "PEDIDOS" in capsys.readouterr().out
+        assert "ORDERS" in capsys.readouterr().out
 
 
 class TestCmdDescribe:
@@ -4685,11 +4685,11 @@ class TestCmdDescribe:
         )
 
         structure = TableStructure(
-            table="PEDIDOS",
+            table="ORDERS",
             columns=[
                 ColumnInfo("ID", "NUMBER", 22, 10, 0, False, is_pk=True),
                 ColumnInfo("CLIENTE_ID", "NUMBER", 22, 10, 0, False,
-                           fk_ref="CLIENTES.ID"),
+                           fk_ref="CUSTOMERS.ID"),
             ],
             indexes=[IndexInfo("PK_PEDIDOS", ["ID"], True)],
         )
@@ -4702,14 +4702,14 @@ class TestCmdDescribe:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.get_table_structure", return_value=structure), \
              patch("dbqm.cli.deps.get_view_definition",
-                   return_value=ViewInfo(name="PEDIDOS", owner="")):
-            run_cli(["describe", "PEDIDOS", "conexao", "-f", "json"])
+                   return_value=ViewInfo(name="ORDERS", owner="")):
+            run_cli(["describe", "ORDERS", "connection", "-f", "json"])
 
         body = json.loads(capsys.readouterr().out)
         assert body["ok"] is True
         assert body["command"] == "describe"
         assert body["data"]["columns"][0]["is_pk"] is True
-        assert body["data"]["columns"][1]["fk_ref"] == "CLIENTES.ID"
+        assert body["data"]["columns"][1]["fk_ref"] == "CUSTOMERS.ID"
         assert len(body["data"]["indexes"]) == 1
         assert "row_count" not in body["data"], "a describe never scans"
         assert "sql_definition" not in body["data"], "a table has none"
@@ -4733,7 +4733,7 @@ class TestCmdDescribe:
              patch("dbqm.cli.deps.get_view_definition",
                    return_value=ViewInfo(name="NAO_EXISTE", owner="", sql_definition="")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["describe", "NAO_EXISTE", "conexao", "-f", "json"])
+                run_cli(["describe", "NAO_EXISTE", "connection", "-f", "json"])
 
         assert capsys.readouterr().out == ""
         assert exited.value.code == 2
@@ -4751,15 +4751,15 @@ class TestCmdDescribe:
             columns=[ColumnInfo("ID", "NUMBER", 22, 10, 0, False)],
         )
         view = ViewInfo(name="V_PEDIDOS", owner="APP",
-                        sql_definition="SELECT id FROM pedidos")
+                        sql_definition="SELECT id FROM orders")
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.get_table_structure", return_value=structure), \
              patch("dbqm.cli.deps.get_view_definition", return_value=view):
-            run_cli(["describe", "V_PEDIDOS", "conexao", "-f", "json"])
+            run_cli(["describe", "V_PEDIDOS", "connection", "-f", "json"])
 
         body = json.loads(capsys.readouterr().out)
-        assert body["data"]["sql_definition"] == "SELECT id FROM pedidos"
+        assert body["data"]["sql_definition"] == "SELECT id FROM orders"
 
     def test_a_view_whose_source_is_unreadable_is_still_a_view(self, capsys):
         """Measured on SQL Server: without the VIEW DEFINITION grant both
@@ -4778,7 +4778,7 @@ class TestCmdDescribe:
         )
         without_source = ViewInfo(name="VW_ALGO", owner="dbo", sql_definition="")
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_table_structure", return_value=structure),              patch("dbqm.cli.deps.get_view_definition", return_value=without_source):
-            run_cli(["describe", "VW_ALGO", "conexao", "-f", "json"])
+            run_cli(["describe", "VW_ALGO", "connection", "-f", "json"])
 
         body = json.loads(capsys.readouterr().out)
         assert body["data"]["object_type"] == "VIEW"
@@ -4793,12 +4793,12 @@ class TestCmdDescribe:
         from dbqm.core.object_browser import ColumnInfo, TableStructure, ViewInfo
 
         structure = TableStructure(
-            table="PEDIDOS",
+            table="ORDERS",
             columns=[ColumnInfo("ID", "int", 4, 10, 0, False)],
         )
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.get_table_structure", return_value=structure),              patch("dbqm.cli.deps.get_view_definition",
-                   return_value=ViewInfo(name="PEDIDOS", owner="", sql_definition="")):
-            run_cli(["describe", "PEDIDOS", "conexao", "-f", "json"])
+                   return_value=ViewInfo(name="ORDERS", owner="", sql_definition="")):
+            run_cli(["describe", "ORDERS", "connection", "-f", "json"])
 
         assert json.loads(capsys.readouterr().out)["data"]["object_type"] == "TABLE"
 
@@ -4815,21 +4815,21 @@ class TestCmdDescribe:
         )
 
         structure = TableStructure(
-            table="PEDIDOS",
+            table="ORDERS",
             columns=[ColumnInfo("CLIENTE_ID", "NUMBER", 22, 10, 0, False,
-                                fk_ref="CLIENTES.ID")],
+                                fk_ref="CUSTOMERS.ID")],
             indexes=[IndexInfo("IX_PED_CLI", ["CLIENTE_ID"], False)],
         )
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.get_table_structure", return_value=structure), \
              patch("dbqm.cli.deps.get_view_definition",
-                   return_value=ViewInfo(name="PEDIDOS", owner="")):
-            run_cli(["describe", "PEDIDOS", "conexao"])
+                   return_value=ViewInfo(name="ORDERS", owner="")):
+            run_cli(["describe", "ORDERS", "connection"])
 
         output = capsys.readouterr().out
         assert "CLIENTE_ID" in output
-        assert "CLIENTES.ID" in output, "the FK reference reaches the human too"
+        assert "CUSTOMERS.ID" in output, "the FK reference reaches the human too"
         assert "IX_PED_CLI" in output, "and so do the indexes"
         assert "TABLE" in output
         assert "VIEW" not in output, "a table with no definition is not a view"
@@ -4846,14 +4846,14 @@ class TestCmdRows:
         from dbqm.core.table_browser import BrowseResult
 
         result = BrowseResult(
-            table="PEDIDOS", connection_name="conexao",
-            columns=["ID", "VALOR"], rows=[[1, "10.50"], [2, "20.00"]],
+            table="ORDERS", connection_name="connection",
+            columns=["ID", "VALUE"], rows=[[1, "10.50"], [2, "20.00"]],
             row_count=2, total_count=1284, elapsed=0.12, limit=100, offset=0,
         )
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.browse_table", return_value=result):
-            run_cli(["rows", "PEDIDOS", "conexao", "-f", "json"])
+            run_cli(["rows", "ORDERS", "connection", "-f", "json"])
 
         body = json.loads(capsys.readouterr().out)
         assert body["ok"] is True
@@ -4873,7 +4873,7 @@ class TestCmdRows:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.browse_table", return_value=empty_one) as mock_browse:
-            run_cli(["rows", "PEDIDOS", "conexao", "--limit", "10",
+            run_cli(["rows", "ORDERS", "connection", "--limit", "10",
                      "--offset", "50", "-f", "json"])
 
         assert mock_browse.call_args.kwargs["limit"] == 10
@@ -4891,7 +4891,7 @@ class TestCmdRows:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection") as mock_open:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["rows", "PEDIDOS", "conexao", "--limit", "-5", "-f", "json"])
+                run_cli(["rows", "ORDERS", "connection", "--limit", "-5", "-f", "json"])
 
         assert capsys.readouterr().out == ""
         assert exited.value.code == 2
@@ -4913,7 +4913,7 @@ class TestCmdRows:
              patch("dbqm.cli.deps.browse_table",
                    side_effect=ValueError("Identificador invalido")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["rows", "PEDIDOS; DROP TABLE X", "conexao", "-f", "json"])
+                run_cli(["rows", "ORDERS; DROP TABLE X", "connection", "-f", "json"])
 
         assert capsys.readouterr().out == ""
         assert exited.value.code == 2
@@ -4929,12 +4929,12 @@ class TestCmdRows:
         from dbqm.core.table_browser import BrowseResult
 
         result = BrowseResult(
-            table="PEDIDOS", connection_name="conexao",
+            table="ORDERS", connection_name="connection",
             columns=["ID"], rows=[[1], [2], [3]],
             row_count=3, total_count=636, elapsed=0.1, limit=3, offset=0,
         )
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table", return_value=result):
-            run_cli(["rows", "PEDIDOS", "conexao", "--limit", "3"])
+            run_cli(["rows", "ORDERS", "connection", "--limit", "3"])
 
         output = capsys.readouterr().out
         assert "636" in output, "the total must reach the human, not only the JSON"
@@ -4949,12 +4949,12 @@ class TestCmdRows:
         from dbqm.core.table_browser import BrowseResult
 
         result = BrowseResult(
-            table="PEQUENA", connection_name="conexao",
+            table="PEQUENA", connection_name="connection",
             columns=["ID"], rows=[[1], [2]],
             row_count=2, total_count=2, elapsed=0.1, limit=100, offset=0,
         )
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table", return_value=result):
-            run_cli(["rows", "PEQUENA", "conexao"])
+            run_cli(["rows", "PEQUENA", "connection"])
 
         assert "--offset" not in capsys.readouterr().out
 
@@ -4972,7 +4972,7 @@ class TestCmdRows:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.browse_table", return_value=result):
-            run_cli(["rows", "T", "conexao", "-f", "raw"])
+            run_cli(["rows", "T", "connection", "-f", "raw"])
 
         output = capsys.readouterr().out
         # Exact equality, not a substring check: Rich renders `table` format
@@ -5171,7 +5171,7 @@ class TestConnectionFailedIsReachable:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.execute_adhoc", return_value=failed):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["sql", "SELECT 1", "conexao", "-f", "json"])
+                run_cli(["sql", "SELECT 1", "connection", "-f", "json"])
 
         captured = capsys.readouterr()
         assert captured.out == ""
@@ -5191,7 +5191,7 @@ class TestConnectionFailedIsReachable:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.execute_adhoc", return_value=failed):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["sql", "SELECT 1", "conexao", "-f", "json"])
+                run_cli(["sql", "SELECT 1", "connection", "-f", "json"])
 
         assert exited.value.code == 4
         assert json.loads(capsys.readouterr().err)["error"]["code"] == "sql_error"
@@ -5250,7 +5250,7 @@ class TestRowsOnAMissingTable:
                    side_effect=RuntimeError('relation "nada" does not exist')), \
              patch("dbqm.cli.deps.list_objects", return_value=["OUTRA"]):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["rows", "NADA", "conexao", "-f", "json"])
+                run_cli(["rows", "NADA", "connection", "-f", "json"])
 
         captured = capsys.readouterr()
         assert captured.out == ""
@@ -5269,9 +5269,9 @@ class TestRowsOnAMissingTable:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.browse_table",
                    side_effect=RuntimeError("ORA-01013: user requested cancel")), \
-             patch("dbqm.cli.deps.list_objects", return_value=["PEDIDOS"]):
+             patch("dbqm.cli.deps.list_objects", return_value=["ORDERS"]):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["rows", "PEDIDOS", "conexao", "-f", "json"])
+                run_cli(["rows", "ORDERS", "connection", "-f", "json"])
 
         assert exited.value.code == 4
 
@@ -5292,7 +5292,7 @@ class TestRowsOnAMissingTable:
                    side_effect=ValueError("Identificador invalido")), \
              patch("dbqm.cli.deps.list_objects") as mock_list:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["rows", "X; DROP", "conexao", "-f", "json"])
+                run_cli(["rows", "X; DROP", "connection", "-f", "json"])
 
         assert exited.value.code == 2
         assert json.loads(capsys.readouterr().err)["error"]["code"] == "usage"
@@ -5316,10 +5316,10 @@ class TestRowsOnAMissingTable:
         from dbqm.cli import run_cli
 
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.open_connection"),              patch("dbqm.cli.deps.browse_table",
-                   side_effect=RuntimeError("ORA-01013: cancelado pelo usuario")),              patch("dbqm.cli.deps.list_objects",
+                   side_effect=RuntimeError("ORA-01013: cancelled by the user")),              patch("dbqm.cli.deps.list_objects",
                    side_effect=RuntimeError("ORA-00942: sem permissao em ALL_TABLES")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["rows", "T", "conexao", "-f", "json"])
+                run_cli(["rows", "T", "connection", "-f", "json"])
 
         body = json.loads(capsys.readouterr().err)["error"]
         assert exited.value.code == 4
@@ -5343,7 +5343,7 @@ class TestRowsOnAMissingTable:
              patch("dbqm.cli.deps.open_connection"), \
              patch("dbqm.cli.deps.browse_table", return_value=ok_result), \
              patch("dbqm.cli.deps.list_objects") as mock_list:
-            run_cli(["rows", "T", "conexao", "-f", "json"])
+            run_cli(["rows", "T", "connection", "-f", "json"])
 
         mock_list.assert_not_called()
 
@@ -5371,7 +5371,7 @@ class TestRowsOnAMissingTable:
              patch("dbqm.cli.deps.list_objects",
                    side_effect=fake_list_objects) as mock_list:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["rows", "V_PEDIDOS", "conexao", "-f", "json"])
+                run_cli(["rows", "V_PEDIDOS", "connection", "-f", "json"])
 
         assert exited.value.code == 4
         assert {c.args[2] for c in mock_list.call_args_list} == {"TABLE", "VIEW"}
@@ -5387,7 +5387,7 @@ class TestDdlAgreesWithTheRest:
         from dbqm.core.ddl_extractor import ExtractionResult
 
         r = ExtractionResult(object_name="OBJ", object_type="TABLE",
-                             owner="", connection_name="conexao")
+                             owner="", connection_name="connection")
         r.errors = errors
         r.not_found = not_found
         return r
@@ -5402,7 +5402,7 @@ class TestDdlAgreesWithTheRest:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
                    side_effect=RuntimeError("ORA-12541: TNS sem listener")):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+                run_cli(["ddl", "OBJ", "connection", "-f", "json"])
 
         captured = capsys.readouterr()
         assert captured.out == ""
@@ -5420,7 +5420,7 @@ class TestDdlAgreesWithTheRest:
                    return_value=self._extraction(["Object 'OBJ' not found."],
                                                not_found=True)):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+                run_cli(["ddl", "OBJ", "connection", "-f", "json"])
 
         assert exited.value.code == 2, "the same answer describe and rows give"
         assert json.loads(capsys.readouterr().err)["error"]["code"] == "not_found"
@@ -5435,7 +5435,7 @@ class TestDdlAgreesWithTheRest:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
                    return_value=self._extraction(["Erro ao extrair TABLE: ORA-01013"])):
             with pytest.raises(SystemExit) as exited:
-                run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+                run_cli(["ddl", "OBJ", "connection", "-f", "json"])
 
         assert exited.value.code == 4
 
@@ -5453,7 +5453,7 @@ class TestDdlStdout:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.extract_ddl", return_value=_make_extraction()), \
              patch("dbqm.cli.deps.save_extraction") as mock_save:
-            run_cli(["ddl", "OBJ", "conexao", "--stdout", "-f", "json"])
+            run_cli(["ddl", "OBJ", "connection", "--stdout", "-f", "json"])
 
         mock_save.assert_not_called()
         body = json.loads(capsys.readouterr().out)
@@ -5470,7 +5470,7 @@ class TestDdlStdout:
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()), \
              patch("dbqm.cli.deps.extract_ddl", return_value=_make_extraction()), \
              patch("dbqm.cli.deps.save_extraction", return_value=("/algum/caminho", 2)) as mock_save:
-            run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
+            run_cli(["ddl", "OBJ", "connection", "-f", "json"])
 
         mock_save.assert_called_once()
         assert json.loads(capsys.readouterr().out)["data"]["path"] is not None
@@ -5701,7 +5701,7 @@ class TestCmdOracleClient:
         monkeypatch.setattr("dbqm.cli.deps.detect_host_platform", lambda: ("win32", "x64"))
         monkeypatch.setattr(
             "dbqm.cli.deps.install_client",
-            MagicMock(side_effect=RuntimeError("arquivo truncado")),
+            MagicMock(side_effect=RuntimeError("truncated file")),
         )
 
         with pytest.raises(SystemExit) as exc:
@@ -5709,7 +5709,7 @@ class TestCmdOracleClient:
         assert exc.value.code == 1
         body = json.loads(capsys.readouterr().err)
         assert body["error"]["code"] == "unexpected"
-        assert "arquivo truncado" in body["error"]["message"]
+        assert "truncated file" in body["error"]["message"]
 
     def test_install_on_a_dir_that_already_exists_is_usage(self, monkeypatch, capsys):
         """`install_client`'s own `FileExistsError` -- the target directory is
@@ -5859,7 +5859,7 @@ class TestSqliteFromTheCli:
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.open_connection") as mock_open:
             with pytest.raises(SystemExit) as exited:
-                run_cli(["call", "PKG.ROTINA", "local", "-f", "json"])
+                run_cli(["call", "PKG.ROUTINE", "local", "-f", "json"])
             assert exited.value.code == 2
             mock_open.assert_not_called()
         body = json.loads(capsys.readouterr().err)

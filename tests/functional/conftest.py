@@ -18,20 +18,20 @@ import pytest
 from dbqm.cli import run_cli
 
 SEED = """
-CREATE TABLE clientes (
+CREATE TABLE customers (
     id INTEGER PRIMARY KEY,
-    nome TEXT NOT NULL,
+    name TEXT NOT NULL,
     status TEXT
 );
-CREATE TABLE pedidos (
+CREATE TABLE orders (
     id INTEGER PRIMARY KEY,
-    cliente_id INTEGER REFERENCES clientes(id),
-    valor REAL
+    customer_id INTEGER REFERENCES customers(id),
+    value REAL
 );
-CREATE UNIQUE INDEX ix_clientes_nome ON clientes(nome);
-CREATE VIEW v_ativos AS SELECT id, nome FROM clientes WHERE status = 'A';
-INSERT INTO clientes VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
-INSERT INTO pedidos VALUES (10, 1, 9.5), (11, 1, 30.0), (12, 3, 20.0), (13, 3, 5.25);
+CREATE UNIQUE INDEX ix_customers_name ON customers(name);
+CREATE VIEW v_active AS SELECT id, name FROM customers WHERE status = 'A';
+INSERT INTO customers VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
+INSERT INTO orders VALUES (10, 1, 9.5), (11, 1, 30.0), (12, 3, 20.0), (13, 3, 5.25);
 """
 
 

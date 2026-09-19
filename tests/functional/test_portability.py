@@ -30,7 +30,7 @@ def curated(local_db, capsys) -> None:
     every kind a bundle carries."""
     for name in ("qa", "qb"):
         code, _ = envelope(
-            ["query", "add", name, "--connection", "local", "--sql", "SELECT id FROM clientes", "-f", "json"], capsys,
+            ["query", "add", name, "--connection", "local", "--sql", "SELECT id FROM customers", "-f", "json"], capsys,
         )
         assert code == 0
     code, _ = envelope(["group", "add", "g1", "--query", "qa", "--query", "qb", "--join-key", "id", "-f", "json"], capsys)
@@ -84,7 +84,7 @@ def test_an_imported_connection_still_answers(bundle, capsys):
     _empty_the_config()
     code, _ = envelope(["import-config", str(bundle), "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
-    code, body = envelope(["sql", "SELECT COUNT(*) FROM clientes", "local", "-f", "json"], capsys)
+    code, body = envelope(["sql", "SELECT COUNT(*) FROM customers", "local", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["rows"] == [[3]]
 
@@ -112,7 +112,7 @@ def test_a_wrong_password_imports_nothing(bundle, capsys):
 
 # QA-PORT-006
 def test_a_missing_bundle_is_not_found(tmp_config_dir, tmp_path, capsys):
-    path = str(tmp_path / "nao.dbqm")
+    path = str(tmp_path / "missing.dbqm")
     code, out, err = invoke(["import-config", path, "--password", "x", "-f", "json"], capsys)
     assert code == 2
     assert out == ""

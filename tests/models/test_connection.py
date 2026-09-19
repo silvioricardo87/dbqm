@@ -103,7 +103,7 @@ class TestConnectionDescription:
     def test_description_round_trip(self):
         c = Connection(
             name="t", db_type="oracle", user="u", password="p",
-            description="Banco de homologacao\nContato: dba@example.com",
+            description="Staging database\nContact: dba@example.com",
         )
         c2 = Connection.from_dict(c.to_dict())
         assert c2.description == c.description
@@ -112,10 +112,10 @@ class TestConnectionDescription:
         save_connections([Connection(
             name="prod", db_type="postgresql", user="u", password="p",
             host="db.example.com", port=5432, database="app",
-            description="Producao - cuidado com DML",
+            description="Production - careful with DML",
         )])
         loaded = load_connections()
-        assert loaded[0].description == "Producao - cuidado com DML"
+        assert loaded[0].description == "Production - careful with DML"
 
     def test_loading_legacy_connection_without_description_uses_empty(self, tmp_config_dir):
         """Connections saved before the field existed must still load."""

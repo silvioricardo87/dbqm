@@ -37,7 +37,7 @@ FRAMES = {
 # door open — swapping one word passed the guard with the box intact.
 BORDER = re.compile(
     r"\b(?:border|outline)(?P<lado>-top|-bottom|-left|-right)?"
-    r"\s*:\s*(?P<valor>[^;{}\n]*?)\s*[;}]"
+    r"\s*:\s*(?P<value>[^;{}\n]*?)\s*[;}]"
 )
 OPENS_A_RULE = re.compile(r"^\s*(?P<seletor>[^{}]+?)\s*\{")
 
@@ -113,7 +113,7 @@ def raw_borders() -> list[tuple[str, int, str, str]]:
                 # test excluded the whole line whenever it contained the word
                 # "none" in any position — `#nonexistent { border: round
                 # $accent; }` would escape. Here it is the VALUE that decides.
-                if m.group("valor").split()[0:1] == ["none"]:
+                if m.group("value").split()[0:1] == ["none"]:
                     continue
                 if (rel, selector) in EXEMPT:
                     continue
@@ -161,9 +161,9 @@ def test_the_guard_sees_outline_as_a_box():
 # describes.
 CENTERING = re.compile(
     r"(?<![\w-])(?:content-)?align(?:-horizontal)?\s*:\s*"
-    r"(?P<valor>[^;{}\n]*?)\s*[;}]"
+    r"(?P<value>[^;{}\n]*?)\s*[;}]"
 )
-CLASS_LINE = re.compile(r"^class\s+(?P<nome>\w+)\s*(?:\((?P<bases>[^)]*)\))?\s*:")
+CLASS_LINE = re.compile(r"^class\s+(?P<name>\w+)\s*(?:\((?P<bases>[^)]*)\))?\s*:")
 
 # Exemptions by (file, selector), with the reason written down — same
 # format as the border guard. None of them is an action cluster: they are
@@ -262,7 +262,7 @@ def centered_clusters(
         ):
             class_name = CLASS_LINE.match(line)
             if class_name:
-                name = class_name.group("nome")
+                name = class_name.group("name")
                 bases = class_name.group("bases") or ""
                 dialog = any(
                     marker in text
@@ -277,7 +277,7 @@ def centered_clusters(
             if dialog:
                 continue
             for m in CENTERING.finditer(line):
-                if "center" not in m.group("valor"):
+                if "center" not in m.group("value"):
                     continue
                 if apply_exemptions and (rel, selector) in CENTERING_EXEMPT:
                     continue
@@ -306,7 +306,7 @@ def test_the_centering_scan_sees_the_dialogs():
     for file in UI_ROOT.rglob("*.py"):
         for line in file.read_text(encoding="utf-8").splitlines():
             for m in CENTERING.finditer(line):
-                if "center" in m.group("valor"):
+                if "center" in m.group("value"):
                     total += 1
     assert total > 40, f"varredura rasa demais: {total} centralizacoes"
     # Measured at d2367bb: 62 centering declarations in dbqm/ui, 57 of them
@@ -334,7 +334,7 @@ def test_the_centering_scan_sees_the_dialogs():
     # luck.
     matched = CLASS_LINE.match("class ConfirmModal(ModalScreen[bool]):")
     assert matched is not None
-    assert matched.group("nome") == "ConfirmModal"
+    assert matched.group("name") == "ConfirmModal"
     assert matched.group("bases") == "ModalScreen[bool]"
 
 
@@ -464,7 +464,7 @@ FLATTENED_EXEMPT = {
 #     escapes;
 #   - `f"{x}"` with ONE field passes on purpose — it is identity with a
 #     prefix (`f"📄  {t.name}"` in the templates sidebar), not glued-on
-#     metadata. It is from TWO fields on one line that the `nome (tipo -
+#     metadata. It is from TWO fields on one line that the `name (tipo -
 #     alvo) | descricao` that section 5 forbids is born;
 #   - the exemption is by (file, constructor): a SECOND flattened
 #     `Selection` in the same file would pass too. In exchange, a

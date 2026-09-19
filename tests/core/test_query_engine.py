@@ -934,7 +934,7 @@ class TestCollectResultSets:
         from dbqm.core.query_engine import _collect_result_sets
 
         cur = _FakeCursor([
-            (["id", "nome"], [[1, "a"], [2, "b"]]),
+            (["id", "name"], [[1, "a"], [2, "b"]]),
             (["erro", "mensagem"], [[547, "conflito de FK"]]),
         ])
         columns, rows, notes = _collect_result_sets(cur)
@@ -942,7 +942,7 @@ class TestCollectResultSets:
         assert rows == [[547, "conflito de FK"]]
         assert notes, "the dropped set must be reported, not silently lost"
         assert "2 result sets" in notes[0]
-        assert "id, nome" in notes[1]
+        assert "id, name" in notes[1]
 
     def test_a_batch_with_no_result_set_stays_empty(self):
         from dbqm.core.query_engine import _collect_result_sets

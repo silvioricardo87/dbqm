@@ -130,7 +130,7 @@ class TestConfigPortabilityTemplates:
         monkeypatch.setattr("dbqm.core.config_portability.EXPORTS_DIR", tmp_config_dir / "exports")
         save_connections([Connection(name="c1", db_type="oracle", user="u", password=encrypt("pw"))])
         save_templates([
-            Template(name="inv_tpl", description="investigacao", content="ETAPA: {{etapa1}}"),
+            Template(name="inv_tpl", description="investigation", content="ETAPA: {{etapa1}}"),
         ])
         save_groups([
             Group(

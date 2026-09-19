@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from dbqm.core.group_engine import GroupResult
+from dbqm.i18n import t
 
 
 # Regex to find {{field_name}} placeholders
@@ -88,10 +89,15 @@ def _resolve_query_source(source_rest: str, group_result: GroupResult) -> str | 
 
     if field == "_count_label":
         n = qr.row_count
-        return f"{n} registro{'s' if n != 1 else ''}"
+        # One key per number rather than a suffix decided here: whether a
+        # language has one plural form, two, or none is the translation's
+        # business, and `registro`/`registros` was that decision written
+        # into Python.
+        chave = "template.count_label_one" if n == 1 else "template.count_label_many"
+        return t(chave, count=n)
 
     if field == "_status":
-        return "OK" if qr.row_count > 0 else "VAZIO"
+        return "OK" if qr.row_count > 0 else t("template.status_empty")
 
     if field == "_name":
         return query_name

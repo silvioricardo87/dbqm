@@ -7,7 +7,7 @@ Runs a stored procedure or function through an anonymous block, binding
 handing them (and a function's return) back in `data.out_values` and
 `data.return_value`. They travel through DBMS_OUTPUT under a marker
 generated per execution, so `warnings` now holds only what the routine
-itself printed -- until 2.10.0 the values arrived as bare `NOME=valor`
+itself printed -- until 2.10.0 the values arrived as bare `NAME=value`
 lines mixed into it, and a routine printing its own `RETURN=` shadowed
 the real return value.
 Without `--commit` the block is rolled back; with it, committed only if

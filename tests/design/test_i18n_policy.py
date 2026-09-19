@@ -47,7 +47,7 @@ WORDS = [
     "ferramentas", "parametro", "parametros", "resultado", "resultados",
     "nenhum", "nenhuma", "somente", "invalido", "encontrada", "encontrado",
     "obrigatorio", "sucesso", "falhou", "nao", "sao", "coluna", "colunas",
-    "tabela", "rotina", "pacote",
+    "tabela", "rotina", "pacote", "registro", "vazio",
 ]
 MARKER_WORD = re.compile(r"\b(" + "|".join(WORDS) + r")\b", re.IGNORECASE)
 
@@ -361,7 +361,9 @@ SINKS_THAT_FORWARD = frozenset({"call_from_thread", "run_worker", "call_later"})
 #: Calls where *every* positional argument becomes a cell someone reads.
 #: `add_row` is how the history table said "grupo" while the CLI printed
 #: "group" for the same field -- a row is as much screen text as a label.
-SINKS_ALL_POSITIONAL = frozenset({"add_row"})
+#: `add_columns` is the plural of `add_column`, and a whole header row
+#: in Portuguese sat behind that letter.
+SINKS_ALL_POSITIONAL = frozenset({"add_row", "add_columns"})
 
 #: Keyword arguments whose value is rendered.
 SINKS_KEYWORD = frozenset({
@@ -397,6 +399,20 @@ NEUTRAL = frozenset({
 #: Nodes that open a scope of their own. A name assigned inside one is not
 #: the same name outside it.
 SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+def _branches(no):
+    """Every value an expression can evaluate to, flattened.
+
+    `x if cond else y` and `x or y` each carry two, and a screen only
+    ever sees one of them -- so both have to be looked at. Anything else
+    is its own single value.
+    """
+    if isinstance(no, ast.IfExp):
+        return [*_branches(no.body), *_branches(no.orelse)]
+    if isinstance(no, ast.BoolOp):
+        return [b for v in no.values for b in _branches(v)]
+    return [no]
 
 
 def _visible_literals(tree) -> dict[ast.Call, dict[str, list[ast.Constant]]]:
@@ -438,8 +454,13 @@ def _visible_literals(tree) -> dict[ast.Call, dict[str, list[ast.Constant]]]:
             for target in targets:
                 if not isinstance(target, ast.Name):
                     continue
-                if isinstance(no.value, ast.Constant) and isinstance(no.value.value, str):
-                    constants.setdefault(target.id, []).append(no.value)
+                literais = [b for b in _branches(no.value)
+                            if isinstance(b, ast.Constant) and isinstance(b.value, str)]
+                if literais:
+                    # A conditional counts for its literal branches: what
+                    # `folder or "(no folder)"` puts on screen when the
+                    # folder is empty is exactly that string.
+                    constants.setdefault(target.id, []).extend(literais)
                 else:
                     computed.add(target.id)
         return {name: cs for name, cs in constants.items() if name not in computed}
@@ -525,7 +546,7 @@ def _sinks_with_a_literal(py: Path) -> list[tuple[int, str, str]]:
                 expanded += [(f"{label} <- {target.id}", c)
                                for c in literals[target.id]]
             else:
-                expanded.append((label, target))
+                expanded += [(label, b) for b in _branches(target)]
 
         for label, target in expanded:
             text = _raw_text(target)
