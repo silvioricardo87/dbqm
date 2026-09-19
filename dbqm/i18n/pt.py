@@ -192,7 +192,7 @@ TEXTS: Final[dict[str, str]] = {
     "help.sql.export": 'Exportar resultado para arquivo',
     "help.sql.commit": 'Auto-commit para DML (INSERT/UPDATE/DELETE)',
     "help.sql.force_write": 'Enviar mesmo numa conexao somente leitura',
-    "help.sql.explain": 'Mostra o plano de execucao da query (EXPLAIN PLAN + DBMS_XPLAN.DISPLAY no Oracle, EXPLAIN nativo em PostgreSQL/MySQL). Passe apenas a query, sem EXPLAIN PLAN FOR.',
+    "help.sql.explain": 'Mostra o plano de execucao da query (EXPLAIN PLAN + DBMS_XPLAN.DISPLAY no Oracle, EXPLAIN nativo em PostgreSQL e MySQL, EXPLAIN QUERY PLAN no SQLite). Passe apenas a query, sem EXPLAIN PLAN FOR.',
     "help.cmd.call": 'Executar uma procedure ou function (somente Oracle)',
     "help.call.routine": 'Nome da rotina: PACOTE.ROTINA ou ROTINA avulsa',
     "help.call.connection": 'Nome da conexao',

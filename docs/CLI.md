@@ -9,6 +9,15 @@ The authoritative list is the program itself: `dbqm describe-cli -f json`
 walks the same parser the CLI dispatches through and reports every command,
 subcommand and flag. Nothing here is written down twice.
 
+**The engine is a detail of the connection, not of the command.** Every
+command below takes a connection name and behaves the same against Oracle,
+SQL Server, PostgreSQL, MySQL and SQLite. Where an engine genuinely cannot
+answer — DDL extraction on SQL Server, an execution plan on SQL Server,
+`call` and packages outside Oracle — the command fails with a named error
+rather than an empty result, because "there are none here" and "this
+question does not apply here" are different answers. The README has the
+capability table.
+
 [← Back to the README](../README.md)
 
 ---
@@ -19,55 +28,57 @@ subcommand and flag. Nothing here is written down twice.
 # Show version
 dbqm --version
 
-# Execute a saved query (parameters are -p CHAVE=VALOR, repeat for each one)
-dbqm run <query-name> -p data_inicio=2026-01-01 -p situacao=PAGO
+# Execute a saved query (parameters are -p KEY=VALUE, repeat for each one)
+dbqm run <query-name> -p start_date=2026-01-01 -p status=PAID
 
 # Execute a query group (parameters are shared by every query in it)
-dbqm run-group <group-name> -p data_inicio=2026-01-01
+dbqm run-group <group-name> -p start_date=2026-01-01
 
 # Run one ad-hoc SQL across several connections and compare the results
 # (at least two -c/--connection; --key overrides the join column)
-dbqm multi "SELECT * FROM table" -c prod -c homolog
-dbqm multi "SELECT * FROM table" -c prod -c homolog -c staging --key id
+dbqm multi "SELECT * FROM table" -c prod -c staging
+dbqm multi "SELECT * FROM table" -c prod -c staging -c dr --key id
 
 # Execute ad-hoc SQL (SELECT/CTE, DML with --commit, DDL, PL/SQL anonymous blocks with DBMS_OUTPUT)
 dbqm sql "SELECT * FROM table" <connection>
 dbqm sql "WITH x AS (SELECT 1 FROM dual) SELECT * FROM x" <connection>
 
-# Show execution plan (Oracle: EXPLAIN PLAN + DBMS_XPLAN.DISPLAY; PostgreSQL/MySQL: native EXPLAIN)
+# Show execution plan (Oracle: EXPLAIN PLAN + DBMS_XPLAN.DISPLAY;
+# PostgreSQL/MySQL: native EXPLAIN; SQLite: EXPLAIN QUERY PLAN.
+# SQL Server has none and the command says so.)
 dbqm sql "SELECT * FROM table WHERE col = :v" <connection> --explain -p v=42
 
 # Call a stored procedure or function (Oracle only). A name with a dot is
-# PACOTE.ROTINA; a bare name is a standalone routine. Parameters bind by
+# PACKAGE.ROUTINE; a bare name is a standalone routine. Parameters bind by
 # name, case-insensitively. Without --commit the run is rolled back.
-dbqm call PACOTE.ROTINA <connection> -p p_id=7
-dbqm call ROTINA_AVULSA <connection> -p p_id=7 --commit
+dbqm call PACKAGE.ROUTINE <connection> -p p_id=7
+dbqm call STANDALONE_ROUTINE <connection> -p p_id=7 --commit
 
 # Curate a saved query (SQL from --sql or --sql-file; --connection must exist)
-dbqm query add faturas-pagas --sql "SELECT * FROM faturas WHERE situacao = :situacao" \
-    --connection prod --description "Faturas pagas"
-dbqm query update faturas-pagas --folder financeiro
-dbqm query show faturas-pagas -f json
+dbqm query add paid-invoices --sql "SELECT * FROM invoices WHERE status = :status" \
+    --connection prod --description "Paid invoices"
+dbqm query update paid-invoices --folder finance
+dbqm query show paid-invoices -f json
 dbqm query list --connection prod -f json
-dbqm query rm faturas-pagas --yes
+dbqm query rm paid-invoices --yes
 
 # Curate a comparison group (at least two DISTINCT --query, every one must
 # exist). --compare-column is optional: with none, run-group compares every
 # column the results have in common and reports which ones it picked.
-dbqm group add prod-vs-homolog --query faturas-pagas --query faturas-pagas-homolog \
-    --join-key id --compare-column valor
-dbqm group update prod-vs-homolog --description "Conferencia mensal"
-dbqm group show prod-vs-homolog -f json
+dbqm group add prod-vs-staging --query paid-invoices --query paid-invoices-staging \
+    --join-key id --compare-column total
+dbqm group update prod-vs-staging --description "Monthly reconciliation"
+dbqm group show prod-vs-staging -f json
 dbqm group list -f json
-dbqm group rm prod-vs-homolog --yes
+dbqm group rm prod-vs-staging --yes
 
 # Curate a report template (content from --content or --content-file, stored
 # verbatim -- whitespace-only content is refused, not silently stripped)
-dbqm template add resumo-mensal --content "Total: {{total}}" --description "Resumo mensal"
-dbqm template update resumo-mensal --content-file relatorio.txt
-dbqm template show resumo-mensal -f json
+dbqm template add monthly-summary --content "Total: {{total}}" --description "Monthly summary"
+dbqm template update monthly-summary --content-file report.txt
+dbqm template show monthly-summary -f json
 dbqm template list -f json
-dbqm template rm resumo-mensal --yes
+dbqm template rm monthly-summary --yes
 
 # Test connections
 dbqm test [connection]
@@ -118,13 +129,32 @@ dbqm oracle-client rm instantclient_23_x64 --yes
 # and their arguments -- read live from the parser, nothing hand-typed
 dbqm describe-cli -f json
 
-# Create a connection (password read from stdin, never from argv)
-# A SQLite file needs nothing but its path. No host, no user, no password.
-dbqm connection add local --type sqlite --database ./meu.db --no-password
+# Create a connection (password read from stdin, never from argv).
+# --port is optional: 1433 for SQL Server, 3306 for MySQL, 5432 for
+# PostgreSQL, 1521 for Oracle. --database is the database name on every
+# engine except Oracle, which names a service instead.
+echo "s3cret" | dbqm connection add mssql-prod --type sqlserver \
+    --host sql.example.com --database Sales --user sa --password-stdin
 
+echo "s3cret" | dbqm connection add mysql-prod --type mysql \
+    --host db.example.com --database shop --user app --password-stdin
+
+echo "s3cret" | dbqm connection add pg-prod --type postgresql \
+    --host pg.example.com --database shop --user app --password-stdin
+
+# A SQLite file needs nothing but its path. No host, no user, no password —
+# dbqm refuses those flags here rather than ignoring them.
+dbqm connection add local --type sqlite --database ./app.db --no-password
+
+# Oracle, direct. --test opens the connection now instead of at first use.
 echo "s3cret" | dbqm connection add prod --type oracle --mode direct \
     --host db.example.com --port 1521 --service ORCL --user admin \
     --password-stdin --test
+
+# Oracle, through tnsnames.ora
+echo "s3cret" | dbqm connection add prod-tns --type oracle --mode tns \
+    --tns-path /opt/oracle/network/admin --tns-name ORCL_PROD \
+    --user admin --password-stdin
 
 # Change one field; everything else stays as it was, INCLUDING the password —
 # `update` never reads DBQM_PASSWORD, only --password-stdin/--no-password
@@ -153,7 +183,7 @@ A write is refused before it reaches the driver:
 
 ```bash
 $ dbqm sql "DELETE FROM t" prod -f json
-{"ok": false, "command": "sql", "error": {"code": "read_only", "message": "Conexao 'prod' e somente leitura. Use --force-write para enviar assim mesmo.", "exit": 2}}
+{"ok": false, "command": "sql", "error": {"code": "read_only", "message": "Connection 'prod' is read-only. Use --force-write to send it anyway.", "exit": 2}}
 $ echo $?
 2
 ```
@@ -248,16 +278,16 @@ dbqm describe ACESSO_EXTERNO_USUARIO prod
 
 ```
 ACESSO_EXTERNO_USUARIO (TABLE)
-+--------------------------------------+
-| Coluna      | Tipo    | Nulo | Chave |
-|-------------+---------+------+-------|
-| CD_SUSEP    | varchar | NAO  | PK    |
-| CD_CORRETOR | numeric | NAO  | PK    |
-| CD_IP       | varchar | NAO  | PK    |
-| CD_OPCAO    | numeric | SIM  |       |
-+--------------------------------------+
++------------------------------------+
+| Column      | Type    | Null | Key |
+|-------------+---------+------+-----|
+| CD_SUSEP    | varchar | NO   | PK  |
+| CD_CORRETOR | numeric | NO   | PK  |
+| CD_IP       | varchar | NO   | PK  |
+| CD_OPCAO    | numeric | YES  |     |
++------------------------------------+
 
-INDICES
+INDEXES
   PK_ACESSO_EXTERNO_USUARIO  UNIQUE (CD_CORRETOR, CD_SUSEP, CD_IP)
 ```
 
@@ -283,8 +313,8 @@ dbqm rows ACESSO_EXTERNO_USUARIO prod --limit 3
 | 00000100617482 | 4031        | 104.41.10.105 |          |
 | 00000100617482 | 4031        | 162.144.82.47 |          |
 +---------------------------------------------------------+
-3 registros em 0.61s
-Mostrando 3 de 1607 linhas. Use --offset 3 para as proximas.
+3 rows in 0.61s
+Showing 3 of 1607 rows. Use --offset 3 for the next.
 ```
 
 `rows` are parallel arrays, matching `run`/`sql` since 2.0.0; `-f json` also

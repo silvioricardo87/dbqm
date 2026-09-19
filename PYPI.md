@@ -1,6 +1,9 @@
 # dbqm — Database Query Manager
 
-[![PyPI Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
+[![PyPI](https://img.shields.io/pypi/v/dbqm)](https://pypi.org/project/dbqm/)
+[![Python](https://img.shields.io/pypi/pyversions/dbqm)](https://pypi.org/project/dbqm/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](https://github.com/silvioricardo87/dbqm/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
 
 A fullscreen terminal app **and** a scriptable CLI for running SQL across
 **Oracle**, **SQL Server**, **PostgreSQL**, **MySQL** and **SQLite** — from one
@@ -21,7 +24,7 @@ pip install dbqm
 
 Python 3.10+. Database drivers come with it, and SQLite needs none — it is
 in the standard library, so `dbqm connection add local --type sqlite --database
-./meu.db --no-password` works on a fresh install with nothing else to set up.
+./app.db --no-password` works on a fresh install with nothing else to set up.
 
 > **Windows on ARM:** some drivers have no `win-arm64` wheel and are skipped
 > automatically. Use Python AMD64 (it runs under x64 emulation) — see the
@@ -36,52 +39,63 @@ download and install it for you from **Settings › Oracle Instant Client**.
 dbqm
 ```
 
-An eight-tab dashboard (`F1`–`F8`): ad-hoc SQL, connections, an object browser,
-multi-database comparison, history, saved queries and tools. Fully
-keyboard-driven, dark and light themes.
+An eight-tab dashboard (`F1`–`F8`): collect, connections, objects, multi-exec,
+history, settings, queries and tools. Fully keyboard-driven, dark and light
+themes.
 
 On first launch it creates `~/.dbqm/`, generates an encryption key and walks you
 through your first connection.
 
 ## Use it from a script
 
-Every operation below is non-interactive — no prompts, no TTY required, which is
-what makes dbqm usable from CI or from an AI agent.
+All twenty-one commands are non-interactive — no prompts, no TTY required, and
+`-f json` everywhere — which is what makes dbqm usable from a script, from CI
+or from an AI agent. `dbqm describe-cli -f json` reports the whole surface,
+read live from the parser.
 
 ```bash
-# Create a connection. The password is piped, never passed in argv.
+# Create a connection -- one shape per engine, the password piped rather
+# than passed in argv, and the port defaulted when you leave it out
+# (1433 SQL Server, 3306 MySQL, 5432 PostgreSQL, 1521 Oracle).
+echo "s3cret" | dbqm connection add mssql-prod --type sqlserver \
+    --host sql.example.com --database Sales --user sa --password-stdin
+
+echo "s3cret" | dbqm connection add mysql-prod --type mysql \
+    --host db.example.com --database shop --user app --password-stdin
+
 echo "s3cret" | dbqm connection add prod --type oracle --mode direct \
     --host db.example.com --port 1521 --service ORCL --user admin \
     --password-stdin --test
 
 # Run SQL. -f json for a machine, -f raw to pipe a CLOB somewhere else.
-dbqm sql "SELECT * FROM pedidos WHERE status = :s" prod -p s=PAGO -f json
+dbqm sql "SELECT * FROM orders WHERE status = :s" prod -p s=PAID -f json
 
 # Save a query once, run it with different parameters later.
-dbqm run pedidos-em-aberto -p data_inicio=2026-01-01
+dbqm run open-orders -p start_date=2026-01-01
 
 # Compare the same logical query across environments.
-dbqm run-group conciliacao-diaria -p data=2026-01-01
+dbqm run-group daily-reconciliation -p day=2026-01-01
 
-# Or compare one ad-hoc statement across connections, without saving anything.
-# Exits 5 when they diverge, so a script can branch on the verdict.
-dbqm multi "SELECT id, total FROM pedidos WHERE dia = :d" \
-    -c prod -c homolog -p d=2026-01-01 -f json
+# Or compare one ad-hoc statement across connections -- including across
+# DIFFERENT ENGINES -- without saving anything. Exits 5 when they diverge,
+# so a script can branch on the verdict.
+dbqm multi "SELECT id, total FROM orders WHERE day = :d" \
+    -c oracle-prod -c postgres-replica -p d=2026-01-01 -f json
 
 # Call an Oracle routine, with OUT parameters and the return value as data.
-dbqm call PKG_FATURAMENTO.FECHAR <conn> -p p_mes=1 --commit -f json
+dbqm call PKG_BILLING.CLOSE_MONTH <conn> -p p_month=1 --commit -f json
 
 # Get an execution plan in one step (no EXPLAIN PLAN FOR boilerplate).
-dbqm sql "SELECT * FROM pedidos WHERE cliente_id = :id" prod --explain -p id=42
+dbqm sql "SELECT * FROM orders WHERE customer_id = :id" prod --explain -p id=42
 
 # See a database's shape: what exists, one object's columns/keys/indexes,
 # and a table's rows, paged.
 dbqm objects prod --type TABLE
-dbqm describe pedidos prod
-dbqm rows pedidos prod --limit 20
+dbqm describe orders prod
+dbqm rows orders prod --limit 20
 
 # Extract DDL, browse connections, review history.
-dbqm ddl PKG_FATURAMENTO prod
+dbqm ddl PKG_BILLING prod
 dbqm connection list -f json
 dbqm history -n 20
 ```
@@ -91,7 +105,7 @@ dbqm history -n 20
 ## What it does
 
 - **Saved queries with parameters**, organised in folders, with favourites and
-  a DE-PARA column mapping for values that differ between systems.
+  a value mapping for codes that differ between systems.
 - **Cross-database comparison** — run the same logical query against several
   connections and get a per-row `OK` / `DIFF` / `ABSENT` verdict, as a table or
   an interactive HTML report.
