@@ -300,7 +300,7 @@ TEXTS: Final[dict[str, str]] = {
     "help.run.query": 'Query name',
     "help.sql.commit": 'Auto-commit for DML (INSERT/UPDATE/DELETE)',
     "help.sql.connection": 'Connection name',
-    "help.sql.explain": "Show the query's execution plan (EXPLAIN PLAN + DBMS_XPLAN.DISPLAY on Oracle, native EXPLAIN on PostgreSQL/MySQL). Pass the query alone, without EXPLAIN PLAN FOR.",
+    "help.sql.explain": "Show the query's execution plan (EXPLAIN PLAN + DBMS_XPLAN.DISPLAY on Oracle, native EXPLAIN on PostgreSQL and MySQL, EXPLAIN QUERY PLAN on SQLite). Pass the query alone, without EXPLAIN PLAN FOR.",
     "help.sql.export": 'Export the result to a file',
     "help.sql.force_write": 'Send it even on a read-only connection',
     "help.sql.format": "Output format. 'raw' prints values undecorated.",

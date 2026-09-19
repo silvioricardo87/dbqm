@@ -17,7 +17,7 @@ mocks in `tests/test_cli.py::TestCmdOracleClient` and
 | QA-OCLI-003 | Given a version from `available` / When `dbqm oracle-client install <version> -f json` (**a real download**) / Then exit 0, the progress goes to stderr, stdout is the envelope carrying the installed directory, and `list` starts showing it with its version · unit: `tests/test_cli.py::TestCmdOracleClient::test_install_calls_through_with_the_named_version`, `::test_install_progress_goes_to_stderr_under_json_leaving_stdout_the_envelope` | manual | oracle | — |
 | QA-OCLI-004 | Given the client installed / When `install` runs again for the same version / Then exit 2, `usage`, the directory is still there and nothing is overwritten · unit: `tests/test_cli.py::TestCmdOracleClient::test_install_on_a_dir_that_already_exists_is_usage` | manual | oracle | — |
 | QA-OCLI-005 | Given the client installed / When `dbqm oracle-client rm <name> -f json` runs without `--yes` off a terminal, then with `--yes` / Then the first is `usage` and deletes nothing; the second removes it and `list` goes back to `[]` · unit: `tests/test_cli.py::TestCmdOracleClient::test_rm_without_yes_and_without_a_tty_is_usage_and_deletes_nothing`, `::test_rm_with_yes_removes` | manual | oracle | — |
-| QA-OCLI-006 | Given a version that is not in the catalogue / When `install nao-existe -f json` / Then exit 2, `usage` · unit: `tests/test_cli.py::TestCmdOracleClient::test_install_on_an_unknown_version_is_usage` | manual | oracle | — |
+| QA-OCLI-006 | Given a version that is not in the catalogue / When `install 9.9.9.9.9 -f json` / Then exit 2, `usage` · unit: `tests/test_cli.py::TestCmdOracleClient::test_install_on_an_unknown_version_is_usage` | manual | oracle | — |
 
 ## Manual — the script
 
@@ -36,6 +36,6 @@ dbqm oracle-client rm <name> -f json < /dev/null
 # exit 2 · "code": "usage" · still listed
 dbqm oracle-client rm <name> --yes -f json
 # exit 0 · list → []
-dbqm oracle-client install nao-existe -f json
+dbqm oracle-client install 9.9.9.9.9 -f json
 # exit 2 · "code": "usage"
 ```

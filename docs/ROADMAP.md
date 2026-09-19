@@ -232,7 +232,7 @@ tier spent five sub-projects removing. The id is retired and not reused.
   adhoc pilot in `tests/ui/test_functional_screens.py` read the screenshot
   after `wait_for_complete()` + one `pause()`; run after `test_screens.py`'s
   adhoc tests it painted only borders while `#adhoc-result-info` already
-  held "3 registros". The pilots read the widget's `content` instead, which
+  held its row-count line. The pilots read the widget's `content` instead, which
   is the fact the screenshot lags behind. `test_adhoc_controls_do_not_wear_the_frame`
   had the same cold-start shape and took a second `pause()` in 2.9.0;
   one `pause()` is not always a frame.
@@ -248,8 +248,9 @@ else a reader would think to look for it.
 **Tier 0, Tier 1 and Tier 3 are all empty.** The html-export sub-project
 (2.4.0), `dbqm multi` (2.5.0), `dbqm call` (2.6.0), saved query/group
 curation (2.7.0), the last four Tier 3 commands (2.8.0), SQLite and the QA
-review (2.9.0) and the hardening slice (2.10.0, which closed seven of the
-gaps below) have now shipped. What remains is mostly **decisions**, not
+review (2.9.0), the hardening slice (2.10.0, which closed seven of the gaps
+below) and the move to English as the source language with Portuguese as a
+translation (2.11.0) have now shipped. What remains is mostly **decisions**, not
 tasks. For the maintainer to choose among:
 
 1. **The server-side read-only session** (`SET TRANSACTION READ ONLY` on

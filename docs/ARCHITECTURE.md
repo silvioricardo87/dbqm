@@ -401,15 +401,15 @@ to each guard before concluding "the guard is green, so the rule holds".
   and the dependency; both claims are now removed. Either wire it up with the
   dependency or delete the parameter and the button.
 
-- ~~On startup (Coleta tab) the ActionBar paints **Conexoes'** actions.~~ **Does not
+- ~~On startup (Collect tab) the ActionBar paints **Connections'** actions.~~ **Does not
   reproduce.** Re-measured 9/9 (3 sizes x 3 repeats, config with one connection;
-  same result with and without the tab-focus fix): on Coleta the bar is **empty**.
+  same result with and without the tab-focus fix): on Collect the bar is **empty**.
   `AdhocScreen` exposes neither `_set_actions` nor `_set_list_actions`, so
   `on_tabbed_content_tab_activated` clears the bar — which is what the code says.
-  With an **empty** config the app opens on Conexoes and shows Conexoes' actions,
+  With an **empty** config the app opens on Connections and shows its actions,
   which is right. What remains is a smaller, different thing: the tab that hosts
   the SQL editor announces no action at all until the first execution.
-- ~~Every app mount fires a spurious `Subdiretorios por tipo: ativado` toast.~~
+- ~~Every app mount fires a spurious `Subfolders by kind: on` toast.~~
   **Fixed** — and there were three, not one. `on_switch_changed` /
   `on_select_changed` now return early when the incoming value already equals the
   stored one. The three: export subdirs on every launch; audit log on every launch
@@ -471,7 +471,7 @@ to each guard before concluding "the guard is green, so the rule holds".
   the NAME is written there, not that navigation happens.
 - ~~**The tab strip breaks decision 2 of the grammar.**~~ **Closed as not
   applicable — the premise was rejected.** The complaint measured the strip at
-  80 columns and found it cut at `⚙️  Confi`, hiding Consultas and Ferramentas.
+  80 columns and found it cut at `⚙️  Confi`, hiding Queries and Tools.
   The maintainer's ruling: *"deixa como está mesmo, não pretendo trabalhar com
   80 colunas, as resoluções atuais são bem maiores, nem faz sentido se
   preocupar com 80 colunas."* At the widths actually used, all eight labels
