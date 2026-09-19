@@ -344,14 +344,14 @@ async def test_folders_become_a_select_with_counts(tmp_config_dir):
     from tests.ui._helpers import ThemedTestApp
 
     counts = {"Alfa": 5, "Beta": 2, "Delta": 7, "Gama": 6}
-    consultas = []
+    queries = []
     for folder, how_many in counts.items():
         for i in range(how_many):
-            consultas.append(
+            queries.append(
                 Query(name="%s-q%d" % (folder, i), sql="select 1 from dual",
                       connection="c", folder=folder)
             )
-    save_queries(consultas)
+    save_queries(queries)
 
     class App_(ThemedTestApp):
         def compose(self):
@@ -387,14 +387,14 @@ async def test_folder_label_elides_the_common_prefix(tmp_config_dir):
     from tests.ui._helpers import ThemedTestApp
 
     counts = {"Projeto/Alpha": 3, "Projeto/Beta": 1, "Projeto/Gama": 2}
-    consultas = []
+    queries = []
     for folder, how_many in counts.items():
         for i in range(how_many):
-            consultas.append(
+            queries.append(
                 Query(name="%s-%d" % (folder.replace("/", "-"), i),
                       sql="select 1 from dual", connection="c", folder=folder)
             )
-    save_queries(consultas)
+    save_queries(queries)
 
     class App_(ThemedTestApp):
         def compose(self):

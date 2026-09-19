@@ -93,8 +93,8 @@ def _resolve_query_source(source_rest: str, group_result: GroupResult) -> str | 
         # language has one plural form, two, or none is the translation's
         # business, and `registro`/`registros` was that decision written
         # into Python.
-        chave = "template.count_label_one" if n == 1 else "template.count_label_many"
-        return t(chave, count=n)
+        key = "template.count_label_one" if n == 1 else "template.count_label_many"
+        return t(key, count=n)
 
     if field == "_status":
         return "OK" if qr.row_count > 0 else t("template.status_empty")

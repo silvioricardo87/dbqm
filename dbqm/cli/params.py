@@ -66,11 +66,11 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
                        help=t("help.connection.password_stdin"))
     password.add_argument("--no-password", action="store_true", dest="no_password",
                        help=t("help.connection.no_password"))
-    grupo_ro = parser.add_mutually_exclusive_group()
-    grupo_ro.add_argument("--read-only", dest="read_only", action="store_true",
+    read_only_group = parser.add_mutually_exclusive_group()
+    read_only_group.add_argument("--read-only", dest="read_only", action="store_true",
                           default=None,
                           help=t("help.connection.read_only"))
-    grupo_ro.add_argument("--no-read-only", dest="read_only",
+    read_only_group.add_argument("--no-read-only", dest="read_only",
                           action="store_false",
                           help=t("help.connection.no_read_only"))
     parser.add_argument("--test", action="store_true", dest="test_before_save",
