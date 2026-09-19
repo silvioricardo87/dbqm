@@ -98,7 +98,7 @@ class QueryExecScreen(Vertical):
         self._current_result: QueryResult | None = None
         self._raw_rows: list[list] | None = None  # rows before column maps
         self._showing_mapped: bool = True
-        # "" = Todas, None = Sem pasta, any other value = the folder name.
+        # "" = all, None = no folder, any other value = the folder name.
         # Mirrors the value of `#folder-select`; None is distinct from the
         # Select's own "blank" sentinel (`Select.NULL`), so there is no
         # ambiguity between "no folder selected" (does not happen here,
@@ -194,21 +194,21 @@ class QueryExecScreen(Vertical):
         # prefix.
         from collections import Counter
 
-        contagem_pastas = Counter(q.folder for q in queries if q.folder)
-        folders = sorted(contagem_pastas)
+        folder_counts = Counter(q.folder for q in queries if q.folder)
+        folders = sorted(folder_counts)
         self._has_folders = bool(folders)
 
         ql = QueryListWidget(id="ql-main")
 
         if folders:
-            prefixo = common_folder_prefix(folders)
+            prefix = common_folder_prefix(folders)
             options = [(t("common.all_count", count=len(queries)), "")]
             for folder in folders:
-                rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
-                options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
-            sem_pasta = sum(1 for q in queries if not q.folder)
-            if sem_pasta:
-                options.append((t("common.no_folder_count", count=sem_pasta), None))
+                label = folder[len(prefix):] if prefix and folder.startswith(prefix) else folder
+                options.append((f"{label} ({folder_counts[folder]})", folder))
+            no_folder = sum(1 for q in queries if not q.folder)
+            if no_folder:
+                options.append((t("common.no_folder_count", count=no_folder), None))
             selection.mount(
                 NavSelect(options, allow_blank=False, id="folder-select")
             )
@@ -221,8 +221,8 @@ class QueryExecScreen(Vertical):
         """Handle the empty-state action."""
         btn_id = event.button.id or ""
         if btn_id == "create-query-collect":
-            # Queries are created from the Coleta tab ("Salvar como
-            # consulta" there), not from this screen — guarded because
+            # Queries are created from the Collect tab ("Save as query"
+            # there), not from this screen — guarded because
             # QueryExecScreen is also mounted standalone in tests, where
             # self.app has no action_switch_tab (that lives on DBQMApp
             # only).
@@ -237,11 +237,11 @@ class QueryExecScreen(Vertical):
 
     def _folder_subset(self) -> list:
         """Queries within the currently selected folder."""
-        valor = self._active_folder
-        if valor is None:
+        value = self._active_folder
+        if value is None:
             return [q for q in self._all_queries if not q.folder]
-        if valor:
-            return [q for q in self._all_queries if q.folder == valor]
+        if value:
+            return [q for q in self._all_queries if q.folder == value]
         return list(self._all_queries)
 
     def _apply_filters(self) -> None:
@@ -403,7 +403,7 @@ class QueryExecScreen(Vertical):
             # Save raw rows before applying column maps
             raw_rows = copy.deepcopy(result.rows) if result.success and result.rows and query.column_maps else None
 
-            # Apply column maps (DE-PARA)
+            # Apply the column value maps
             if result.success and result.rows:
                 query.apply_column_maps(result.rows, result.columns)
 
@@ -470,7 +470,8 @@ class QueryExecScreen(Vertical):
             Action(t("action.vertical"), "V", "toggle_vertical"),
         ]
         if self._raw_rows is not None:
-            label = "Original" if self._showing_mapped else "De-Para"
+            label = (t("action.show_original") if self._showing_mapped
+                     else t("action.show_mapped"))
             actions.append(Action(label, "M", "toggle_mapping"))
         actions.extend([
             Action(t("action.export"), "E", "export"),
@@ -552,7 +553,7 @@ class QueryExecScreen(Vertical):
         result_table.toggle_vertical()
 
     def _handle_toggle_mapping(self) -> None:
-        """Toggle between mapped (de-para) and original result view."""
+        """Toggle between the mapped and the original result view."""
         import copy
         if self._current_result is None or self._raw_rows is None:
             return

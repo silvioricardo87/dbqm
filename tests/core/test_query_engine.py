@@ -900,20 +900,20 @@ class TestSqlServerAdhoc:
 class _FakeCursor:
     """A cursor over a scripted list of result sets, like pymssql's."""
 
-    def __init__(self, conjuntos):
-        self._conjuntos = list(conjuntos)
+    def __init__(self, sets):
+        self._sets = list(sets)
         self._i = 0
 
     @property
     def description(self):
-        cols, _ = self._conjuntos[self._i]
+        cols, _ = self._sets[self._i]
         return [(c,) for c in cols] if cols else None
 
     def fetchmany(self, n):
-        return list(self._conjuntos[self._i][1])
+        return list(self._sets[self._i][1])
 
     def nextset(self):
-        if self._i + 1 < len(self._conjuntos):
+        if self._i + 1 < len(self._sets):
             self._i += 1
             return True
         return False
@@ -924,25 +924,25 @@ class TestCollectResultSets:
         from dbqm.core.query_engine import _collect_result_sets
 
         cur = _FakeCursor([(["v"], [[1]])])
-        columns, rows, notas = _collect_result_sets(cur)
+        columns, rows, notes = _collect_result_sets(cur)
         assert columns == ["v"]
         assert rows == [[1]]
-        assert notas == []
+        assert notes == []
 
     def test_last_set_wins_and_the_others_are_named(self):
         """The debug idiom puts the diagnostic SELECT last."""
         from dbqm.core.query_engine import _collect_result_sets
 
         cur = _FakeCursor([
-            (["id", "nome"], [[1, "a"], [2, "b"]]),
+            (["id", "name"], [[1, "a"], [2, "b"]]),
             (["erro", "mensagem"], [[547, "conflito de FK"]]),
         ])
-        columns, rows, notas = _collect_result_sets(cur)
+        columns, rows, notes = _collect_result_sets(cur)
         assert columns == ["erro", "mensagem"]
         assert rows == [[547, "conflito de FK"]]
-        assert notas, "the dropped set must be reported, not silently lost"
-        assert "2 result sets" in notas[0]
-        assert "id, nome" in notas[1]
+        assert notes, "the dropped set must be reported, not silently lost"
+        assert "2 result sets" in notes[0]
+        assert "id, name" in notes[1]
 
     def test_a_batch_with_no_result_set_stays_empty(self):
         from dbqm.core.query_engine import _collect_result_sets
@@ -968,7 +968,7 @@ class TestCollectResultSetsTerminates:
         cur = MagicMock()
         cur.description = [("v",)]
         cur.fetchmany.return_value = [[1]]
-        columns, rows, notas = _collect_result_sets(cur)
+        columns, rows, notes = _collect_result_sets(cur)
 
         assert columns == ["v"]
         assert cur.nextset.call_count == MAX_RESULT_SETS
@@ -976,14 +976,14 @@ class TestCollectResultSetsTerminates:
     def test_a_cursor_without_nextset_yields_its_single_set(self):
         from dbqm.core.query_engine import _collect_result_sets
 
-        class SemNextset:
+        class NoNextset:
             description = [("v",)]
 
             def fetchmany(self, n):
                 return [[7]]
 
-        columns, rows, notas = _collect_result_sets(SemNextset())
-        assert (columns, rows, notas) == (["v"], [[7]], [])
+        columns, rows, notes = _collect_result_sets(NoNextset())
+        assert (columns, rows, notes) == (["v"], [[7]], [])
 
     def test_a_driver_that_raises_past_the_last_set_stops_cleanly(self):
         from dbqm.core.query_engine import _collect_result_sets
@@ -997,7 +997,7 @@ class TestCollectResultSetsTerminates:
             def nextset(self):
                 raise RuntimeError("no more results")
 
-        columns, rows, notas = _collect_result_sets(Explode())
+        columns, rows, notes = _collect_result_sets(Explode())
         assert rows == [[7]]
 
 

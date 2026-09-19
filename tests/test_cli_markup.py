@@ -66,36 +66,36 @@ def _markup_names_in(path: Path) -> set[str]:
       `Table(..., style=...)`, `add_column(..., style=...)`, `Text(...,
       style=...)` — any call, with no need to list each one.
     """
-    arvore = ast.parse(path.read_text(encoding="utf-8"))
-    nomes: set[str] = set()
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    names: set[str] = set()
 
-    for node in ast.walk(arvore):
+    for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            for corpo in _TAG.findall(node.value):
-                for palavra in corpo.split():
-                    nomes.add(palavra)
+            for body in _TAG.findall(node.value):
+                for word in body.split():
+                    names.add(word)
         elif isinstance(node, ast.Call):
             for kw in node.keywords:
                 if kw.arg != "style":
                     continue
-                valor = kw.value
-                if isinstance(valor, ast.Constant) and isinstance(valor.value, str):
-                    for palavra in valor.value.split():
-                        nomes.add(palavra)
+                value = kw.value
+                if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    for word in value.value.split():
+                        names.add(word)
 
-    return nomes
+    return names
 
 
 def test_every_cli_markup_name_resolves_in_the_theme_or_is_native_to_rich():
-    estilos = rich_theme().styles
-    nativos = set(Style.STYLE_ATTRIBUTES) | _MODIFIERS
+    styles = rich_theme().styles
+    native = set(Style.STYLE_ATTRIBUTES) | _MODIFIERS
 
-    desconhecidos = sorted(
-        nome
-        for caminho in CLI_PATHS
-        for nome in _markup_names_in(caminho)
-        if nome not in estilos and nome not in nativos
+    unknown = sorted(
+        name
+        for path in CLI_PATHS
+        for name in _markup_names_in(path)
+        if name not in styles and name not in native
     )
-    assert not desconhecidos, (
-        f"tag/kwarg de estilo em dbqm/cli/ referencia estilo inexistente: {desconhecidos}"
+    assert not unknown, (
+        f"tag/kwarg de estilo em dbqm/cli/ referencia estilo inexistente: {unknown}"
     )

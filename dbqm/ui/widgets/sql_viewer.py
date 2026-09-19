@@ -12,12 +12,12 @@ class SqlViewer(Static):
 
     Uses Rich's Syntax object for monokai-themed SQL highlighting.
 
-    Nao desenha moldura propria. Os tres lugares que a montam ja a colocam
-    dentro de uma: `Panel("RESULTADOS")` no adhoc, `Panel("DADOS")` no
-    browser e um `Dialog` no `SqlViewerModal`. O `border: round $accent`
-    que ela carregava era caixa dentro de caixa nos tres — exatamente o
-    que a diretriz 5 do `Panel` zera para DataTable/OptionList/TextArea/
-    Input/Select, e que so nao a alcancava por ela ser um `Static`.
+    It draws no frame of its own. The three places that mount it already put
+    it inside one: `Panel("RESULTS")` in the ad-hoc screen, `Panel("DATA")` in
+    the browser, and a `Dialog` in `SqlViewerModal`. The `border: round
+    $accent` it used to carry was a box inside a box in all three — exactly
+    what `Panel`'s guideline 5 zeroes out for DataTable/OptionList/TextArea/
+    Input/Select, and which only missed it because it is a `Static`.
     """
 
     DEFAULT_CSS = """

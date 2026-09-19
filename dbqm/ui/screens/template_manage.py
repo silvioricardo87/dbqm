@@ -179,7 +179,8 @@ class TemplateManageScreen(Vertical):
     def _setup_table(self) -> None:
         table = self.query_one("#tm-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("#", "Nome", "Descricao", "Campos")
+        table.add_columns("#", t("common.name"), t("common.description"),
+                          t("common.fields"))
 
     def _load_templates(self) -> None:
         from dbqm.models.template import load_templates

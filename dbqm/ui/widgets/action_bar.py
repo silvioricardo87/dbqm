@@ -58,43 +58,42 @@ class ActionBar(Static):
         self._rebuild()
 
     def set_pinned_action(self, action: Action | None) -> None:
-        """Fixa uma acao no fim da barra, que `set_actions` nao apaga.
+        """Pin one action at the end of the bar, which `set_actions` does not erase.
 
-        Existe por um caso medido: `ToolsScreen` anuncia `Esc Voltar`
-        ao abrir uma ferramenta, e a ferramenta — `TemplateManageScreen`,
-        por exemplo — chama `set_actions` no proprio `on_mount`, DEPOIS.
-        O anuncio da unica saida da tela desaparecia sob
-        `N Novo  E Editar  R Renomear  D Remover`. Antes desta fase havia um
-        botao "Voltar" dentro do painel; ele saiu porque botao nao navega,
-        e sem a fixacao a tela viraria um beco sem saida para quem nao
-        adivinha a tecla.
+        It exists for a measured case: `ToolsScreen` announces `Esc Back` when it
+        opens a tool, and the tool — `TemplateManageScreen`, say — calls
+        `set_actions` in its own `on_mount`, AFTER. The announcement of the
+        screen's only way out disappeared under `N New  E Edit  R Rename
+        D Remove`. Before this phase there was a "Back" button inside the panel;
+        it went away because a button does not navigate, and without the pin the
+        screen would become a dead end for anyone who does not guess the key.
 
-        UMA acao fixa, e nao uma lista: o dono dela e o container que
-        hospeda uma tela inteira, e so pode haver um por aba. Quem limpa e
-        `DBQMApp.on_tabbed_content_tab_activated`, ao trocar de aba — sem
-        isso a acao vazaria para as outras abas, onde nao volta para lugar
-        nenhum.
+        ONE pinned action, not a list: it belongs to the container that hosts a
+        whole screen, and there can only be one per tab. It is cleared by
+        `DBQMApp.on_tabbed_content_tab_activated`, when the tab changes — without
+        that, the action would leak into the other tabs, where it goes back
+        nowhere.
         """
         self._pinned_action = action
         self._rebuild()
 
     def visible_actions(self) -> list[Action]:
-        """O que a barra realmente desenha, na ordem: as da tela + a fixa."""
-        acoes = list(self._actions)
+        """What the bar actually draws, in order: the screen's, then the pinned one."""
+        actions = list(self._actions)
         if self._pinned_action is not None:
-            acoes.append(self._pinned_action)
-        return acoes
+            actions.append(self._pinned_action)
+        return actions
 
     def _rebuild(self) -> None:
         """Rebuild the action bar content."""
-        acoes = self.visible_actions()
-        if not acoes:
+        actions = self.visible_actions()
+        if not actions:
             self.update("")
             self.display = False
             return
         self.display = True
         parts: list[str] = []
-        for action in acoes:
+        for action in actions:
             if not action.key and not action.label:
                 continue
             if action.key:

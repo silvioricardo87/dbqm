@@ -239,7 +239,7 @@ class GroupResultWidget(Vertical, can_focus=False):
                 table.add_column(t("report.column_status"), key="__status__")
 
             # Fixed key column, same reason as in flat mode: here the row's
-            # identity is the query name, in the "Consulta" column.
+            # identity is the query name, in the "Query" column.
             table.fixed_columns = 1 if len(table.columns) > 1 else 0
 
             # One row per query
@@ -290,21 +290,21 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         # The counts line up, and the spaces that lined them up were typed
         # out to the length of the Portuguese words.
-        rotulos = [t("comparison.equal"), t("comparison.normalized"),
+        labels = [t("comparison.equal"), t("comparison.normalized"),
                    t("comparison.different"), t("comparison.absent")]
-        largura = max(len(r) for r in rotulos)
+        width = max(len(r) for r in labels)
         for comp in gr.comparisons:
             col_name = str(comp.column) if comp.column is not None else ""
             lines.append(f"[bold]{col_name}[/]:")
-            for estado, rotulo, quantidade in (
-                ("match", rotulos[0], comp.equal_count),
-                ("match-normalized", rotulos[1], comp.normalized_count),
-                ("diff", rotulos[2], comp.diff_count),
-                ("absent", rotulos[3], comp.absent_count),
+            for state, label, how_many in (
+                ("match", labels[0], comp.equal_count),
+                ("match-normalized", labels[1], comp.normalized_count),
+                ("diff", labels[2], comp.diff_count),
+                ("absent", labels[3], comp.absent_count),
             ):
-                if estado == "match-normalized" and comp.normalized_count == 0:
+                if state == "match-normalized" and comp.normalized_count == 0:
                     continue
-                marca = mark_verdict(estado, label=rotulo.ljust(largura))
-                lines.append(f"  {marca} {quantidade}/{comp.total_keys}")
+                marker = mark_verdict(state, label=label.ljust(width))
+                lines.append(f"  {marker} {how_many}/{comp.total_keys}")
 
         summary.update("\n".join(lines))

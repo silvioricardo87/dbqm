@@ -78,11 +78,11 @@ def _explains_a_query(sql: str) -> bool:
     """
     from dbqm.core.query_engine import classify_sql
 
-    restante = _EXPLAIN_PREFIX.sub("", sql, count=1)
-    if restante == sql:
+    rest = _EXPLAIN_PREFIX.sub("", sql, count=1)
+    if rest == sql:
         # The prefix did not match at all, so there is nothing to vouch for.
         return False
-    return classify_sql(restante) == "SELECT"
+    return classify_sql(rest) == "SELECT"
 
 
 def check_read_only(sql: str, conn: "Connection") -> None:
@@ -101,14 +101,14 @@ def check_read_only(sql: str, conn: "Connection") -> None:
     if not conn.read_only:
         return
 
-    recusa = t("read_only.refused", name=conn.name)
+    refusal = t("read_only.refused", name=conn.name)
 
     if statement_count(sql) > 1:
         raise ReadOnlyViolation(t("read_only.multiple_statements", name=conn.name))
 
-    tipo = classify_sql(sql)
-    if tipo not in ALLOWED:
-        raise ReadOnlyViolation(recusa)
+    kind = classify_sql(sql)
+    if kind not in ALLOWED:
+        raise ReadOnlyViolation(refusal)
 
-    if tipo == "EXPLAIN" and not _explains_a_query(sql):
+    if kind == "EXPLAIN" and not _explains_a_query(sql):
         raise ReadOnlyViolation(t("read_only.explain_executes", name=conn.name))

@@ -704,7 +704,7 @@ class QueryManageScreen(Vertical):
         self._load_queries()
         self.notify(t("query_manage.updated", name=name))
 
-    # -- DE-PARA --
+    # -- value mapping --
 
     def _handle_depara(self) -> None:
         name = self._get_selected_name()

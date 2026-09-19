@@ -13,24 +13,24 @@ class ProgressIndicator(Vertical, can_focus=False):
     Hidden by default. Call ``start(message)`` to show it and ``stop()`` to
     hide it again.
 
-    EXCECAO DELIBERADA a "toda tela e feita de paineis; nada fica solto no
-    fundo" (§4 da gramatica de layout). As sete telas que o usam rendem
-    `ProgressIndicator()` SOLTO, irmao dos paineis, e nao dentro de um. Duas
-    razoes, nesta ordem:
+    A DELIBERATE EXCEPTION to "every screen is made of panels; nothing floats
+    on the background" (section 4 of the layout grammar). The seven screens
+    that use it render `ProgressIndicator()` LOOSE, a sibling of the panels
+    rather than a child of one. Two reasons, in this order:
 
-    1. Ele nao e uma secao — e o estado da tela INTEIRA enquanto uma
-       operacao remota corre. Emoldura-lo criaria um painel que aparece e
-       some, e a moldura passaria a significar duas coisas diferentes.
-    2. Emoldurado, ele herdaria a visibilidade do painel que o hospedasse
-       — e as telas que o usam trocam de fase apagando paineis. Em
-       `exec_routine` o indicador acende com `#er-select-phase` na tela e
-       so apaga quando `_show_objects` esconde essa fase: dentro dela, o
-       unico sinal de que a chamada remota esta rodando sumiria junto com
-       ela.
+    1. It is not a section — it is the state of the WHOLE screen while a
+       remote operation runs. Framing it would create a panel that appears and
+       disappears, and the frame would start meaning two different things.
+    2. Framed, it would inherit the visibility of whatever panel hosted it —
+       and the screens that use it change phase by hiding panels. In
+       `exec_routine` the indicator lights up with `#er-select-phase` on
+       screen and only goes out when `_show_objects` hides that phase: inside
+       it, the only sign that the remote call is running would vanish along
+       with the phase.
 
-    A mesma isencao vale para `#pe-empty` (o texto de "carregando/cancelado"
-    do editor de packages), pelo motivo (1): e o estado da tela, nao uma
-    secao dela.
+    The same exemption covers `#pe-empty` (the package editor's
+    "loading/cancelled" text), for reason (1): it is the state of the screen,
+    not a section of it.
     """
 
     DEFAULT_CSS = """

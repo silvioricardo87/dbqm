@@ -46,13 +46,13 @@ def sqlite_catalog(tmp_path):
     path = tmp_path / "cat.db"
     db = sqlite3.connect(path)
     db.executescript("""
-        CREATE TABLE clientes (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, status TEXT);
-        CREATE TABLE pedidos (id INTEGER PRIMARY KEY,
-                              cliente_id INTEGER REFERENCES clientes(id), valor REAL);
-        CREATE UNIQUE INDEX ix_clientes_nome ON clientes(nome);
-        CREATE VIEW v_ativos AS SELECT id, nome FROM clientes WHERE status = 'A';
-        INSERT INTO clientes VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
-        INSERT INTO pedidos VALUES (10, 1, 9.5), (11, 3, 20.0);
+        CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, status TEXT);
+        CREATE TABLE orders (id INTEGER PRIMARY KEY,
+                              customer_id INTEGER REFERENCES customers(id), value REAL);
+        CREATE UNIQUE INDEX ix_customers_name ON customers(name);
+        CREATE VIEW v_active AS SELECT id, name FROM customers WHERE status = 'A';
+        INSERT INTO customers VALUES (1, 'Ana', 'A'), (2, 'Bia', 'I'), (3, 'Caio', 'A');
+        INSERT INTO orders VALUES (10, 1, 9.5), (11, 3, 20.0);
     """)
     db.commit()
     yield db
@@ -65,25 +65,25 @@ class TestSqliteBrowsing:
     def test_list_tables(self, sqlite_catalog):
         from dbqm.core.table_browser import list_tables
         db = sqlite_catalog
-        assert list_tables(db, "sqlite") == ["clientes", "pedidos"]
+        assert list_tables(db, "sqlite") == ["customers", "orders"]
 
     def test_foreign_keys_from_pragma(self, sqlite_catalog):
         from dbqm.core.table_browser import get_foreign_keys
         db = sqlite_catalog
-        fks = get_foreign_keys(db, "sqlite", "pedidos")
+        fks = get_foreign_keys(db, "sqlite", "orders")
         assert [(f.column, f.ref_table, f.ref_column) for f in fks] == [
-            ("cliente_id", "clientes", "id"),
+            ("customer_id", "customers", "id"),
         ]
 
     def test_label_column_is_the_first_text_column_that_is_not_the_key(self, sqlite_catalog):
         from dbqm.core.table_browser import detect_label_column
         db = sqlite_catalog
-        assert detect_label_column(db, "sqlite", "clientes", "id") == "nome"
+        assert detect_label_column(db, "sqlite", "customers", "id") == "name"
 
     def test_browse_pages_with_limit_and_offset(self, sqlite_catalog):
         from dbqm.core.table_browser import browse_table
         db = sqlite_catalog
-        page = browse_table(db, "sqlite", "clientes", "local", limit=2, offset=1)
+        page = browse_table(db, "sqlite", "customers", "local", limit=2, offset=1)
         assert page.total_count == 3
         assert [r[0] for r in page.rows] == [2, 3]
-        assert page.columns == ["id", "nome", "status"]
+        assert page.columns == ["id", "name", "status"]

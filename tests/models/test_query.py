@@ -47,11 +47,11 @@ class TestFilterQueries:
     def _sample(self):
         return [
             Query(name="Clientes ativos", connection="prod", sql="S",
-                  description="lista de clientes ativos"),
+                  description="lista de customers ativos"),
             Query(name="Pedidos do dia", connection="prod", sql="S",
-                  description="pedidos faturados hoje"),
-            Query(name="Estoque", connection="homolog", sql="S",
-                  description="saldo de estoque por deposito"),
+                  description="orders faturados hoje"),
+            Query(name="Stock", connection="homolog", sql="S",
+                  description="stock balance by warehouse"),
         ]
 
     def test_no_filters_returns_all(self):
@@ -59,28 +59,28 @@ class TestFilterQueries:
         assert filter_queries(qs) == qs
 
     def test_text_matches_name(self):
-        result = filter_queries(self._sample(), text="estoque")
-        assert [q.name for q in result] == ["Estoque"]
+        result = filter_queries(self._sample(), text="stock")
+        assert [q.name for q in result] == ["Stock"]
 
     def test_text_matches_description(self):
         result = filter_queries(self._sample(), text="faturados")
         assert [q.name for q in result] == ["Pedidos do dia"]
 
     def test_text_case_insensitive(self):
-        result = filter_queries(self._sample(), text="CLIENTES")
+        result = filter_queries(self._sample(), text="CUSTOMERS")
         assert [q.name for q in result] == ["Clientes ativos"]
 
     def test_connection_only(self):
         result = filter_queries(self._sample(), connection="homolog")
-        assert [q.name for q in result] == ["Estoque"]
+        assert [q.name for q in result] == ["Stock"]
 
     def test_text_and_connection_combined(self):
         result = filter_queries(self._sample(), text="ativos", connection="prod")
         assert [q.name for q in result] == ["Clientes ativos"]
 
     def test_text_and_connection_no_match(self):
-        # "estoque" only exists on homolog, so prod yields nothing.
-        result = filter_queries(self._sample(), text="estoque", connection="prod")
+        # "stock" only exists on homolog, so prod yields nothing.
+        result = filter_queries(self._sample(), text="stock", connection="prod")
         assert result == []
 
     def test_blank_connection_ignored(self):

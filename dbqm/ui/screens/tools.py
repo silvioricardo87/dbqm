@@ -1,14 +1,14 @@
-"""Ferramentas launcher screen — the list that leads to the five tool screens.
+"""Tools launcher screen — the list that leads to the five tool screens.
 
 Up to Task 8 of this phase the menu was five full-width buttons, one per
-tool, plus a "Voltar" inside each hosted pane. Both patterns break the same
+tool, plus a "Back" inside each hosted pane. Both patterns break the same
 rule from section 7 of the grammar: **a button is an action, never
 navigation**. Five stacked buttons that only switch screens are five buttons
 pretending to be a menu.
 
 The cost was measured too, not aesthetic: at 80x24 in the real DBQMApp each
 button took 4 lines (3 of button + 1 of margin), 20 lines in a body of
-14 — `Executar Rotina` and `Executar Grupo` were born below the fold. The
+14 — `Run Routine` and `Run Group` were born below the fold. The
 list spends 2 lines per entry and fits whole, with the disambiguation free.
 
 Going back is the `Esc`, announced by the `ActionBar` — the same mechanism
@@ -90,19 +90,19 @@ class ToolsScreen(Vertical):
             with Panel(t("panel.tools"), id="tools-menu"):
                 yield OptionList(id="tools-menu-list")
 
-            for chave, _identidade, _desambiguacao in self.tools():
+            for key, _identidade, _disambiguation in self.tools():
                 # Empty: the screen is mounted here on first opening, and
-                # nothing else lives in this container — the "Voltar" that
+                # nothing else lives in this container — the "Back" that
                 # lived here left with section 7 (the exit is now the `Esc`,
                 # see `_set_actions`).
-                yield Vertical(id=f"tool-{chave}", classes="tools-container")
+                yield Vertical(id=f"tool-{key}", classes="tools-container")
 
     def on_mount(self) -> None:
-        lista = self.query_one("#tools-menu-list", OptionList)
-        lista.clear_options()
-        for chave, identidade, desambiguacao in self.tools():
-            lista.add_option(
-                NamedOption(hierarchical_item(identidade, desambiguacao), chave)
+        option_list = self.query_one("#tools-menu-list", OptionList)
+        option_list.clear_options()
+        for key, identidade, disambiguation in self.tools():
+            option_list.add_option(
+                NamedOption(hierarchical_item(identidade, disambiguation), key)
             )
         self._set_actions()
 
@@ -130,7 +130,7 @@ class ToolsScreen(Vertical):
 
         Public (not just the list handler below) so a tool screen nested
         inside this launcher can send the user to a *sibling* tool — e.g.
-        GroupRunScreen's EmptyState linking to "Gerenciar Grupos" when
+        GroupRunScreen's EmptyState linking to "Manage Groups" when
         there is nothing to run yet.
         """
         if name not in self._loaded_tools:
@@ -183,30 +183,30 @@ class ToolsScreen(Vertical):
 
         It is a PINNED action, not an ordinary `set_actions`, because the
         hosted tools write to the same bar in their own `on_mount` —
-        measured at 80x24 with `TemplateManageScreen`, the `Esc Voltar`
+        measured at 80x24 with `TemplateManageScreen`, the `Esc Back`
         disappeared under `N Novo  E Editar  R Renomear  D Remover`. See
         `ActionBar.set_pinned_action`.
         """
         try:
-            barra = self.app.query_one(ActionBar)
+            bar = self.app.query_one(ActionBar)
         except Exception:
             return
         try:
-            atual = self.query_one(ContentSwitcher).current
+            current = self.query_one(ContentSwitcher).current
         except Exception:
-            atual = "tools-menu"
-        dentro = atual != "tools-menu"
+            current = "tools-menu"
+        inside = current != "tools-menu"
 
         # Clears the screen's list BEFORE pinning: without this, coming back
         # to this tab with a tool open would leave the previous tab's actions
         # in the bar (and this method is precisely what the app calls when
         # reactivating the tab).
-        barra.set_actions([])
-        barra.set_pinned_action(
-            Action(t("action.back"), "Esc", "tools-back") if dentro else None
+        bar.set_actions([])
+        bar.set_pinned_action(
+            Action(t("action.back"), "Esc", "tools-back") if inside else None
         )
-        if dentro:
-            self._reask_tool(atual)
+        if inside:
+            self._reask_tool(current)
 
     def _reask_tool(self, container_id: str) -> None:
         """Asks the visible tool to redraw ITS actions.
@@ -219,11 +219,11 @@ class ToolsScreen(Vertical):
         the tool's own `on_mount`, right afterwards.
         """
         try:
-            tela = next(iter(self.query_one(f"#{container_id}").children))
+            screen = next(iter(self.query_one(f"#{container_id}").children))
         except Exception:
             return
-        for nome in ("_set_actions", "_set_list_actions"):
-            setter = getattr(tela, nome, None)
+        for name in ("_set_actions", "_set_list_actions"):
+            setter = getattr(screen, name, None)
             if callable(setter):
                 try:
                     setter()
@@ -243,6 +243,6 @@ class ToolsScreen(Vertical):
         if event.option_list.id != "tools-menu-list":
             return
         event.stop()
-        chave = getattr(event.option, "name", "")
-        if any(chave == c for c, _i, _d in self.tools()):
-            self.open_tool(chave)
+        key = getattr(event.option, "name", "")
+        if any(key == c for c, _i, _d in self.tools()):
+            self.open_tool(key)

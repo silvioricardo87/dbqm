@@ -50,13 +50,13 @@ def test_validate_accepts_queries_that_exist(tmp_config_dir):
 def test_build_creates_a_group_from_values(tmp_config_dir):
     g = build({
         "name": "g", "description": "desc", "queries": ["q1", "q2"],
-        "join_key": "id", "compare_columns": ["nome"],
+        "join_key": "id", "compare_columns": ["name"],
     })
     assert g.name == "g"
     assert g.description == "desc"
     assert g.queries == ["q1", "q2"]
     assert g.join_key == "id"
-    assert g.compare_columns == ["nome"]
+    assert g.compare_columns == ["name"]
 
 
 def test_build_from_existing_preserves_what_values_omit(tmp_config_dir):
@@ -66,14 +66,14 @@ def test_build_from_existing_preserves_what_values_omit(tmp_config_dir):
     dropped the same field."""
     old = Group(
         name="g", description="old", queries=["q1", "q2"], join_key="id",
-        compare_columns=["nome"],
+        compare_columns=["name"],
         shared_params={"p": {"description": "d", "default": "1"}},
-        column_mapping={"nome": {"q2": "nome2"}},
-        normalize={"nome": {"ATIVO": "A"}},
+        column_mapping={"name": {"q2": "name2"}},
+        normalize={"name": {"ATIVO": "A"}},
         validation_rule="any_diff",
         folder="Relatorios",
         template="tpl1",
-        template_fields={"titulo": "literal:Teste"},
+        template_fields={"title": "literal:Test"},
         adhoc_sql="SELECT 1",
         connections=["c1", "c2"],
         created_at="2020-01-01T00:00:00",
@@ -82,14 +82,14 @@ def test_build_from_existing_preserves_what_values_omit(tmp_config_dir):
 
     assert new.queries == ["q1", "q2"]
     assert new.join_key == "id"
-    assert new.compare_columns == ["nome"]
+    assert new.compare_columns == ["name"]
     assert new.shared_params == {"p": {"description": "d", "default": "1"}}
-    assert new.column_mapping == {"nome": {"q2": "nome2"}}
-    assert new.normalize == {"nome": {"ATIVO": "A"}}
+    assert new.column_mapping == {"name": {"q2": "name2"}}
+    assert new.normalize == {"name": {"ATIVO": "A"}}
     assert new.validation_rule == "any_diff"
     assert new.folder == "Relatorios"
     assert new.template == "tpl1"
-    assert new.template_fields == {"titulo": "literal:Teste"}
+    assert new.template_fields == {"title": "literal:Test"}
     assert new.adhoc_sql == "SELECT 1"
     assert new.connections == ["c1", "c2"]
     assert new.created_at == "2020-01-01T00:00:00"
@@ -101,8 +101,8 @@ def test_build_never_mutates_existing(tmp_config_dir):
         name="g", description="d", queries=["q1", "q2"], join_key="id",
         folder="A",
         shared_params={"p": {"default": "1"}},
-        column_mapping={"nome": {"q2": "nome2"}},
-        normalize={"nome": {"ATIVO": "A"}},
+        column_mapping={"name": {"q2": "name2"}},
+        normalize={"name": {"ATIVO": "A"}},
     )
     new = build({"name": "g", "folder": "B"}, existing=old)
     assert old.folder == "A"
@@ -113,11 +113,11 @@ def test_build_never_mutates_existing(tmp_config_dir):
     new.shared_params["p"]["default"] = "2"
     assert old.shared_params["p"]["default"] == "1"
 
-    new.column_mapping["nome"]["q2"] = "outra"
-    assert old.column_mapping["nome"]["q2"] == "nome2"
+    new.column_mapping["name"]["q2"] = "outra"
+    assert old.column_mapping["name"]["q2"] == "name2"
 
-    new.normalize["nome"]["ATIVO"] = "X"
-    assert old.normalize["nome"]["ATIVO"] == "A"
+    new.normalize["name"]["ATIVO"] = "X"
+    assert old.normalize["name"]["ATIVO"] == "A"
 
 
 def test_upsert_creates_then_replaces(tmp_config_dir):

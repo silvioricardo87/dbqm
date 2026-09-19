@@ -27,7 +27,7 @@ from dbqm.ui.widgets.hierarchical_list import (
 # width and the width assumed when wrapping are literally the same number.
 #
 # THE PRICE of this constant, written down because it is a choice and not
-# a pure gain: the Consultas panel STOPS BEING ELASTIC. It used to grow
+# a pure gain: the Queries panel STOPS BEING ELASTIC. It used to grow
 # with the terminal (116 columns in a 120-column terminal); now it stops
 # at 76 and whatever is left on the right stays empty. This was the
 # trade-off accepted to cure the defect that opened this phase — a query
@@ -45,7 +45,7 @@ from dbqm.ui.widgets.hierarchical_list import (
 LIST_PANEL_WIDTH = 76
 
 # Text columns left over inside that panel — single derivation, shared
-# with the Conexoes list (whose panel is 42). See `wrap_width` for the
+# with the Connections list (whose panel is 42). See `wrap_width` for the
 # individual parts and for the scrollbar trap.
 _TEXT_WIDTH = wrap_width(LIST_PANEL_WIDTH)
 
@@ -97,7 +97,7 @@ def _query_option(query: Any) -> NamedOption:
     # Disambiguation: connection and table are what distinguishes two
     # queries with similar names — the same (target, connection) pair that
     # the docstring of hierarchical_item uses as its example.
-    alvo = f"{conn} - {table}" if conn and table else (conn or table)
+    target = f"{conn} - {table}" if conn and table else (conn or table)
     # Context: description, with no artificial truncation — the hierarchy
     # (its own line, indented, in $ds-text-disabled) is what makes it
     # readable, not a character limit. What happens here is WRAPPING, not
@@ -110,11 +110,11 @@ def _query_option(query: Any) -> NamedOption:
     # identity of the next query. Both fields go through here because both
     # are free-length user text: a long connection name and a long table
     # overflow just like the description does.
-    desambiguacao = wrap_lines(alvo, _TEXT_WIDTH)
-    contexto = wrap_lines(desc, _TEXT_WIDTH)
+    disambiguation = wrap_lines(target, _TEXT_WIDTH)
+    context = wrap_lines(desc, _TEXT_WIDTH)
 
-    conteudo = star + hierarchical_item(name, desambiguacao, contexto)
-    return NamedOption(conteudo, name)
+    content = star + hierarchical_item(name, disambiguation, context)
+    return NamedOption(content, name)
 
 
 class QueryListWidget(Vertical, can_focus=False):
@@ -230,8 +230,8 @@ class QueryListWidget(Vertical, can_focus=False):
             return
         if not isinstance(event.option, NamedOption):
             return
-        # An empty name is posted too: the screen replies "Consulta '' nao
-        # encontrada", which is information. Swallowing the selection here
+        # An empty name is posted too: the screen replies "Query '' not
+        # found", which is information. Swallowing the selection here
         # would give a visible row that does nothing when chosen.
         self.post_message(QuerySelected(event.option.name))
 

@@ -1,4 +1,4 @@
-"""O CLI e o terceiro consumidor dos tokens, ao lado da TUI e do relatorio."""
+"""The CLI is the tokens' third consumer, beside the TUI and the report."""
 import io
 
 from rich.console import Console
@@ -8,9 +8,9 @@ from dbqm.design.tokens import DARK_TOKENS
 
 
 def test_rich_theme_exposes_one_style_per_token():
-    estilos = rich_theme().styles
-    for chave in DARK_TOKENS:
-        assert chave.replace("-", ".") in estilos, f"token {chave} nao chega ao CLI"
+    styles = rich_theme().styles
+    for key in DARK_TOKENS:
+        assert key.replace("-", ".") in styles, f'token {key} never reaches the CLI'
 
 
 def test_verdict_style_renders_the_token_color():
@@ -20,6 +20,6 @@ def test_verdict_style_renders_the_token_color():
         no_color=False,
     )
     console.print("[ds.verdict.diff]DIFERE[/]")
-    esperado = DARK_TOKENS["ds-verdict-diff"].lstrip("#")
-    rgb = ";".join(str(int(esperado[i:i + 2], 16)) for i in (0, 2, 4))
+    expected = DARK_TOKENS["ds-verdict-diff"].lstrip("#")
+    rgb = ";".join(str(int(expected[i:i + 2], 16)) for i in (0, 2, 4))
     assert rgb in console.file.getvalue()

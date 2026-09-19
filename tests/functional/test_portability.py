@@ -16,21 +16,21 @@ import pytest
 from dbqm.core import paths
 from tests.functional.conftest import envelope, invoke
 
-SENHA = "s3gredo"
+PASSWORD = "s3gredo"
 
 
 def _empty_the_config() -> None:
-    for arquivo in (paths.CONNECTIONS_FILE, paths.QUERIES_FILE, paths.GROUPS_FILE, paths.TEMPLATES_FILE):
-        Path(arquivo).unlink(missing_ok=True)
+    for file in (paths.CONNECTIONS_FILE, paths.QUERIES_FILE, paths.GROUPS_FILE, paths.TEMPLATES_FILE):
+        Path(file).unlink(missing_ok=True)
 
 
 @pytest.fixture
 def curated(local_db, capsys) -> None:
     """`local` plus two queries, one group and one template -- one of
     every kind a bundle carries."""
-    for nome in ("qa", "qb"):
+    for name in ("qa", "qb"):
         code, _ = envelope(
-            ["query", "add", nome, "--connection", "local", "--sql", "SELECT id FROM clientes", "-f", "json"], capsys,
+            ["query", "add", name, "--connection", "local", "--sql", "SELECT id FROM customers", "-f", "json"], capsys,
         )
         assert code == 0
     code, _ = envelope(["group", "add", "g1", "--query", "qa", "--query", "qb", "--join-key", "id", "-f", "json"], capsys)
@@ -41,7 +41,7 @@ def curated(local_db, capsys) -> None:
 
 @pytest.fixture
 def bundle(curated, capsys) -> Path:
-    code, body = envelope(["export-config", "--password", SENHA, "-f", "json"], capsys)
+    code, body = envelope(["export-config", "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
     return Path(body["data"]["path"])
 
@@ -54,20 +54,20 @@ def _names(kind: str, capsys) -> list[str]:
 
 # QA-PORT-001
 def test_export_writes_a_bundle(curated, tmp_path, capsys):
-    code, body = envelope(["export-config", "--password", SENHA, "-f", "json"], capsys)
+    code, body = envelope(["export-config", "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
     assert body["command"] == "export-config"
-    caminho = Path(body["data"]["path"])
-    assert caminho.suffix == ".dbqm"
-    assert caminho.is_file()
-    assert tmp_path in caminho.parents
+    path = Path(body["data"]["path"])
+    assert path.suffix == ".dbqm"
+    assert path.is_file()
+    assert tmp_path in path.parents
 
 
 # QA-PORT-002
 def test_import_into_an_empty_config_round_trips_every_kind_by_name(bundle, capsys):
     _empty_the_config()
     assert _names("connection", capsys) == []
-    code, body = envelope(["import-config", str(bundle), "--password", SENHA, "-f", "json"], capsys)
+    code, body = envelope(["import-config", str(bundle), "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
     assert body["data"] == {"connections": 1, "queries": 2, "groups": 1, "templates": 1, "skipped": 0}
     for argv in (
@@ -82,16 +82,16 @@ def test_import_into_an_empty_config_round_trips_every_kind_by_name(bundle, caps
 # QA-PORT-003
 def test_an_imported_connection_still_answers(bundle, capsys):
     _empty_the_config()
-    code, _ = envelope(["import-config", str(bundle), "--password", SENHA, "-f", "json"], capsys)
+    code, _ = envelope(["import-config", str(bundle), "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
-    code, body = envelope(["sql", "SELECT COUNT(*) FROM clientes", "local", "-f", "json"], capsys)
+    code, body = envelope(["sql", "SELECT COUNT(*) FROM customers", "local", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["rows"] == [[3]]
 
 
 # QA-PORT-004
 def test_import_over_an_existing_config_skips_by_name(bundle, capsys):
-    code, body = envelope(["import-config", str(bundle), "--password", SENHA, "-f", "json"], capsys)
+    code, body = envelope(["import-config", str(bundle), "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
     assert body["data"] == {"connections": 0, "queries": 0, "groups": 0, "templates": 0, "skipped": 5}
     assert _names("connection", capsys) == ["local"]
@@ -112,22 +112,22 @@ def test_a_wrong_password_imports_nothing(bundle, capsys):
 
 # QA-PORT-006
 def test_a_missing_bundle_is_not_found(tmp_config_dir, tmp_path, capsys):
-    caminho = str(tmp_path / "nao.dbqm")
-    code, out, err = invoke(["import-config", caminho, "--password", "x", "-f", "json"], capsys)
+    path = str(tmp_path / "missing.dbqm")
+    code, out, err = invoke(["import-config", path, "--password", "x", "-f", "json"], capsys)
     assert code == 2
     assert out == ""
-    erro = json.loads(err)["error"]
-    assert erro["code"] == "not_found"
-    assert erro["message"] == f'File "{caminho}" not found.'
+    error = json.loads(err)["error"]
+    assert error["code"] == "not_found"
+    assert error["message"] == f'File "{path}" not found.'
 
 
 # QA-PORT-007
 def test_no_connections_leaves_them_out(curated, capsys):
-    code, body = envelope(["export-config", "--no-connections", "--password", SENHA, "-f", "json"], capsys)
+    code, body = envelope(["export-config", "--no-connections", "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
     bundle = body["data"]["path"]
     _empty_the_config()
-    code, body = envelope(["import-config", bundle, "--password", SENHA, "-f", "json"], capsys)
+    code, body = envelope(["import-config", bundle, "--password", PASSWORD, "-f", "json"], capsys)
     assert code == 0
     assert body["data"] == {"connections": 0, "queries": 2, "groups": 1, "templates": 1, "skipped": 0}
     assert _names("connection", capsys) == []
@@ -139,7 +139,7 @@ def test_excluding_everything_is_refused(curated, capsys):
     successful export."""
     code, body = envelope(
         ["export-config", "--no-connections", "--no-queries", "--no-groups",
-         "--password", SENHA, "-f", "json"],
+         "--password", PASSWORD, "-f", "json"],
         capsys,
     )
     assert code == 2

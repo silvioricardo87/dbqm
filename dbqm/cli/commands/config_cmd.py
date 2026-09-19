@@ -42,8 +42,11 @@ _KEYS: tuple[str, ...] = tuple(field.name for field in fields(Settings))
 _BOOL_KEYS = ("audit_log_enabled", "export_dir_prompted", "create_export_subdirs")
 _DIR_KEYS = ("default_export_dir", "oracle_client_dir")
 
-_TRUE_WORDS = {"true", "1", "sim"}
-_FALSE_WORDS = {"false", "0", "nao"}
+#: Accepted on input in every language dbqm speaks, plus the two
+#: machine spellings. Input tolerance, not screen text: a script
+#: written when the CLI was Portuguese must keep working.
+_TRUE_WORDS = {"true", "1", "sim", "yes", "y"}
+_FALSE_WORDS = {"false", "0", "nao", "no", "n"}
 
 
 def _fail_or_print(
@@ -78,10 +81,10 @@ def _parse_bool(args: argparse.Namespace, command: str, key: str, raw: str) -> b
 
 def _parse_theme(args: argparse.Namespace, command: str, raw: str) -> str:
     if raw not in THEMES:
-        temas = ", ".join(sorted(THEMES.keys()))
+        themes = ", ".join(sorted(THEMES.keys()))
         _fail_or_print(
             args, command, "validation",
-            t("config.theme_invalid", theme=raw, valid=temas),
+            t("config.theme_invalid", theme=raw, valid=themes),
         )
     return raw
 
@@ -92,11 +95,11 @@ def _parse_language(args: argparse.Namespace, command: str, raw: str) -> str:
     here, and one that does not exist cannot be stored."""
     from dbqm.i18n import available_languages
 
-    idiomas = available_languages()
-    if raw not in idiomas:
+    languages = available_languages()
+    if raw not in languages:
         _fail_or_print(
             args, command, "validation",
-            t("config.language_invalid", language=raw, valid=", ".join(idiomas)),
+            t("config.language_invalid", language=raw, valid=", ".join(languages)),
         )
     return raw
 

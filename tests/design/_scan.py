@@ -39,15 +39,15 @@ Violation = tuple[str, int, str]
 
 def violations() -> list[Violation]:
     """Every literal color outside the exempt files, with file and line."""
-    achados: list[Violation] = []
-    for arquivo in sorted(PACKAGE_ROOT.rglob("*.py")):
-        rel = arquivo.relative_to(PACKAGE_ROOT.parent).as_posix()
+    found: list[Violation] = []
+    for file in sorted(PACKAGE_ROOT.rglob("*.py")):
+        rel = file.relative_to(PACKAGE_ROOT.parent).as_posix()
         if rel in EXEMPT:
             continue
-        for numero, linha in enumerate(
-            arquivo.read_text(encoding="utf-8").splitlines(), start=1
+        for number, line in enumerate(
+            file.read_text(encoding="utf-8").splitlines(), start=1
         ):
-            for padrao in (_HEX, _MARKUP):
-                for m in padrao.finditer(linha):
-                    achados.append((rel, numero, m.group(0)))
-    return achados
+            for standard in (_HEX, _MARKUP):
+                for m in standard.finditer(line):
+                    found.append((rel, number, m.group(0)))
+    return found

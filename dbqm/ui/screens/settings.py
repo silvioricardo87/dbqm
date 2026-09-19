@@ -1,16 +1,17 @@
 """Settings screen — one panel per subject (layout grammar, section 4).
 
-Before this task the screen had ONE panel called "CONFIG DA APLICACAO" with
-four subjects inside it (theme, auditing, export and Oracle Instant Client),
-separated only by a bold label, and three buttons that pretended to be a menu.
-The maintainer's complaint was literal: "a tela de configuracoes esta horrivel
-com um monte de botao alinhado no centro e dentro da tela de configuracoes do
-sistema, esta tudo muito confuso".
+Before this task the screen had ONE panel called "CONFIG DA APLICACAO"
+with four subjects inside it (theme, auditing, export and the Oracle
+Instant Client), separated only by a bold label, and three buttons that
+pretended to be a menu. The maintainer's complaint was literal: "a tela de
+configuracoes esta horrivel com um monte de botao alinhado no centro e
+dentro da tela de configuracoes do sistema, esta tudo muito confuso".
 
 Now each subject has its own frame, and the navigation to the two deeper
 screens (portability and the clients manager) is a LIST, not a button —
-section 7 of the grammar: a button is an action, never navigation. The buttons
-that remain open a dialog about the subject of the panel they live in.
+section 7 of the grammar: a button is an action, never navigation. The
+buttons that remain open a dialog about the subject of the panel they
+live in.
 """
 from __future__ import annotations
 
@@ -31,7 +32,7 @@ from dbqm.ui.widgets.panel import Panel
 #: One character, and not "...": the path label has 30 cells in a
 #: terminal of 80, and each column spent on the marker is one column
 #: less of path.
-RETICENCIA = "\u2026"
+ELLIPSIS = "\u2026"
 
 #: Path separators of both families, captured so that the cut can
 #: reassemble the original text byte by byte (a Windows path may mix the
@@ -60,17 +61,17 @@ def elide_path(path: str, width: int) -> str:
     The result never exceeds *width*, including at the absurd widths: that is
     where the test that sweeps width by width comes from.
     """
-    texto = str(path)
+    text = str(path)
     if width <= 0:
         return ""
-    if len(texto) <= width:
-        return texto
-    if width <= len(RETICENCIA):
-        return RETICENCIA[:width]
+    if len(text) <= width:
+        return text
+    if width <= len(ELLIPSIS):
+        return ELLIPSIS[:width]
 
     # `split` with a capturing group interleaves segments and separators:
     # ['C:', '/', 'Users', '/', ...]. Even index = segment, odd = separator.
-    pecas = _SEPARATOR.split(texto)
+    pieces = _SEPARATOR.split(text)
 
     # The head goes up to the first NAMED segment. In an ordinary path that
     # is `pecas[:3]` (`C:` + `\` + `Users`). In a UNC it is not:
@@ -79,28 +80,28 @@ def elide_path(path: str, width: int) -> str:
     # give a head of a single slash. Two folders on two different servers
     # would elide IDENTICALLY, and in a UNC the server is precisely the root
     # this function promises to preserve ("which tree the path comes from").
-    corte = 2
-    while corte + 2 < len(pecas) and not pecas[corte]:
-        corte += 2
+    cut = 2
+    while cut + 2 < len(pieces) and not pieces[cut]:
+        cut += 2
 
-    if len(pecas) >= corte + 3:  # head + separator + at least one segment
-        cabeca = "".join(pecas[: corte + 1])
-        if len(cabeca) + len(RETICENCIA) < width:
-            cauda = ""
-            i = len(pecas) - 1
-            while i >= corte + 1:
-                candidata = "".join(pecas[i:])
-                if len(cabeca) + len(RETICENCIA) + len(candidata) > width:
+    if len(pieces) >= cut + 3:  # head + separator + at least one segment
+        head = "".join(pieces[: cut + 1])
+        if len(head) + len(ELLIPSIS) < width:
+            tail = ""
+            i = len(pieces) - 1
+            while i >= cut + 1:
+                candidate = "".join(pieces[i:])
+                if len(head) + len(ELLIPSIS) + len(candidate) > width:
                     break
-                cauda = candidata
+                tail = candidate
                 i -= 2
-            if cauda:
-                return cabeca + RETICENCIA + cauda
+            if tail:
+                return head + ELLIPSIS + tail
 
-    sobra = width - len(RETICENCIA)
-    frente = (sobra + 1) // 2
-    fim = sobra - frente
-    return texto[:frente] + RETICENCIA + (texto[len(texto) - fim:] if fim else "")
+    leftover = width - len(ELLIPSIS)
+    front = (leftover + 1) // 2
+    end = leftover - front
+    return text[:front] + ELLIPSIS + (text[len(text) - end:] if end else "")
 
 
 class PathLabel(Static):
@@ -122,18 +123,18 @@ class PathLabel(Static):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._largura_vista = -1
+        self._width_seen = -1
 
     def on_resize(self, event) -> None:
         # `event.size` is the NEW width; `content_region` only becomes the
         # new one after the next layout — that is why the repaint is
         # deferred, and not done in here.
-        if event.size.width == self._largura_vista:
+        if event.size.width == self._width_seen:
             return
-        self._largura_vista = event.size.width
-        for ancestral in self.ancestors:
-            if isinstance(ancestral, SettingsScreen):
-                ancestral.call_after_refresh(ancestral._paint_paths)
+        self._width_seen = event.size.width
+        for ancestor in self.ancestors:
+            if isinstance(ancestor, SettingsScreen):
+                ancestor.call_after_refresh(ancestor._paint_paths)
                 return
 
 
@@ -240,11 +241,11 @@ class SettingsScreen(Vertical):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._dir_exportacao = ""
+        self._export_dir = ""
         #: key -> the hosted screen already mounted (see `_open_tool`).
-        self._montadas: dict[str, Vertical] = {}
+        self._mounted: dict[str, Vertical] = {}
         self._client_oracle: tuple[str | None, str] = (None, "none")
-        self._client_oracle_erro = ""
+        self._oracle_client_error = ""
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial="settings-main"):
@@ -360,14 +361,14 @@ class SettingsScreen(Vertical):
         subdirs_switch = self.query_one("#settings-export-subdirs-switch", Switch)
         subdirs_switch.value = settings.create_export_subdirs
 
-        lista = self.query_one("#settings-tools-list", OptionList)
-        lista.clear_options()
-        for chave, identidade, desambiguacao in self.tools():
-            lista.add_option(
-                NamedOption(hierarchical_item(identidade, desambiguacao), chave)
+        option_list = self.query_one("#settings-tools-list", OptionList)
+        option_list.clear_options()
+        for key, identidade, disambiguation in self.tools():
+            option_list.add_option(
+                NamedOption(hierarchical_item(identidade, disambiguation), key)
             )
 
-        self._dir_exportacao = settings.default_export_dir
+        self._export_dir = settings.default_export_dir
         self._refresh_oracle_client_status()
         self._paint_paths()
 
@@ -416,21 +417,21 @@ class SettingsScreen(Vertical):
         return label.content_region.width
 
     def _refresh_export_dir_label(self, configured: str) -> None:
-        self._dir_exportacao = configured
+        self._export_dir = configured
         self._paint_export_dir()
 
     def _paint_export_dir(self) -> None:
-        rotulo = self.query_one("#settings-export-dir-current", Static)
-        largura = self._usable_width(rotulo)
-        if self._dir_exportacao:
-            caminho = self._dir_exportacao
-            sufixo = ""
+        label = self.query_one("#settings-export-dir-current", Static)
+        width = self._usable_width(label)
+        if self._export_dir:
+            path = self._export_dir
+            suffix = ""
         else:
-            caminho = str(Path.cwd())
-            sufixo = f'\n[$ds-text-disabled]{t("settings.run_dir_note")}[/]'
-        if largura:
-            caminho = elide_path(caminho, largura)
-        rotulo.update(f'[b]{t("settings.current_dir")}[/]\n{caminho}{sufixo}')
+            path = str(Path.cwd())
+            suffix = f'\n[$ds-text-disabled]{t("settings.run_dir_note")}[/]'
+        if width:
+            path = elide_path(path, width)
+        label.update(f'[b]{t("settings.current_dir")}[/]\n{path}{suffix}')
 
     def _refresh_oracle_client_status(self) -> None:
         """Rediscovers which Instant Client is in use, and where it came from.
@@ -445,17 +446,17 @@ class SettingsScreen(Vertical):
 
         try:
             self._client_oracle = resolve_oracle_client_dir()
-            self._client_oracle_erro = ""
+            self._oracle_client_error = ""
         except OracleClientConfigError as e:
             self._client_oracle = (None, "none")
-            self._client_oracle_erro = str(e)
+            self._oracle_client_error = str(e)
         self._paint_oracle_client()
 
     def _paint_oracle_client(self) -> None:
         label = self.query_one("#settings-oracle-client-current", Static)
-        if self._client_oracle_erro:
+        if self._oracle_client_error:
             label.update(f'[b]{t("settings.client_in_use")}[/] '
-                         f"[$ds-op-failure]{self._client_oracle_erro}[/]")
+                         f"[$ds-op-failure]{self._oracle_client_error}[/]")
             return
         path, origin = self._client_oracle
         if not path:
@@ -466,9 +467,9 @@ class SettingsScreen(Vertical):
             )
             return
         source = self.oracle_client_origins().get(origin, origin)
-        largura = self._usable_width(label)
-        mostrado = elide_path(str(path), largura) if largura else str(path)
-        label.update(f'[b]{t("settings.client_in_use")}[/]\n{mostrado}\n'
+        width = self._usable_width(label)
+        shown = elide_path(str(path), width) if width else str(path)
+        label.update(f'[b]{t("settings.client_in_use")}[/]\n{shown}\n'
                      f'[b]{t("settings.origin")}[/] {source}')
 
     #: Of the three labels with a path, this is the only one that puts the
@@ -493,14 +494,14 @@ class SettingsScreen(Vertical):
         exists = KEY_FILE.exists()
         state = (t("settings.fernet_present") if exists
                  else f'[$ds-text-muted]{t("settings.fernet_pending")}[/]')
-        prefixo = self.fernet_prefix()
-        orcamento = self._usable_width(status) - len(prefixo)
+        prefix = self.fernet_prefix()
+        budget = self._usable_width(status) - len(prefix)
         local = str(KEY_FILE)
-        if orcamento > 0:
-            local = elide_path(local, orcamento)
+        if budget > 0:
+            local = elide_path(local, budget)
         status.update(
             f'[b]{t("settings.status")}[/b] {state}\n'
-            f"[b]{prefixo}[/b][$ds-text-disabled]{local}[/]\n\n"
+            f"[b]{prefix}[/b][$ds-text-disabled]{local}[/]\n\n"
             f'[$ds-text-disabled]{t("settings.fernet_note")}[/]'
         )
 
@@ -537,11 +538,11 @@ class SettingsScreen(Vertical):
         `ToolsScreen` — instead of a `push_screen`, which would take the
         header, the tabs and the action bar out of sight.
         """
-        hospede = self.query_one(f"#{self._HOSTS[key]}", Vertical)
-        if key not in self._montadas:
-            tela = self._build_tool(key)
-            hospede.mount(tela)
-            self._montadas[key] = tela
+        host = self.query_one(f"#{self._HOSTS[key]}", Vertical)
+        if key not in self._mounted:
+            screen = self._build_tool(key)
+            host.mount(screen)
+            self._mounted[key] = screen
         else:
             # Reopening a screen that is still mounted showed the phase it
             # WAS LEFT in: whoever exported, left with `Esc` and came back
@@ -550,9 +551,9 @@ class SettingsScreen(Vertical):
             # there is state that must survive the round trip is the screen
             # itself — the clients manager does not implement this precisely
             # because it has a 150+ MB download writing into its tree.
-            reabrir = getattr(self._montadas[key], "on_reopen", None)
-            if callable(reabrir):
-                reabrir()
+            reopen = getattr(self._mounted[key], "on_reopen", None)
+            if callable(reopen):
+                reopen()
         self.query_one(ContentSwitcher).current = self._HOSTS[key]
         self._set_actions()
 
@@ -560,7 +561,7 @@ class SettingsScreen(Vertical):
         """Goes back from the hosted screen to the panels; a no-op if already there.
 
         It no longer returns an "the `Esc` was consumed here": the two
-        callers (`DBQMApp.action_go_back` and the action bar's `Voltar`,
+        callers (`DBQMApp.action_go_back` and the action bar's `Back`,
         which arrives via `on_action_selected`) discarded the bool, and
         neither of them has a second `Esc` route to try in case this one
         does not take. There were three until
@@ -613,7 +614,7 @@ class SettingsScreen(Vertical):
         from dbqm.models.settings import load_settings
 
         try:
-            self._dir_exportacao = load_settings().default_export_dir
+            self._export_dir = load_settings().default_export_dir
         except Exception:
             pass
         self._paint_export_dir()
@@ -647,15 +648,15 @@ class SettingsScreen(Vertical):
         still in front.
         """
         try:
-            barra = self.app.query_one(ActionBar)
+            bar = self.app.query_one(ActionBar)
         except Exception:
             return
         try:
-            dentro = self.query_one(ContentSwitcher).current != "settings-main"
+            inside = self.query_one(ContentSwitcher).current != "settings-main"
         except Exception:
-            dentro = False
-        barra.set_actions(
-            [Action(t("action.back"), "Esc", "settings-back")] if dentro else []
+            inside = False
+        bar.set_actions(
+            [Action(t("action.back"), "Esc", "settings-back")] if inside else []
         )
 
     def on_action_selected(self, message: ActionSelected) -> None:
@@ -666,9 +667,9 @@ class SettingsScreen(Vertical):
         if event.option_list.id != "settings-tools-list":
             return
         event.stop()
-        chave = getattr(event.option, "name", "")
-        if chave in self._HOSTS:
-            self._open_tool(chave)
+        key = getattr(event.option, "name", "")
+        if key in self._HOSTS:
+            self._open_tool(key)
 
     # ------------------------------------------------------------------
     # Controls

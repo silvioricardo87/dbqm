@@ -1,4 +1,4 @@
-"""Modal for configuring DE-PARA (value mapping) on query columns."""
+"""Modal for configuring value mapping on query columns."""
 from __future__ import annotations
 
 from textual.app import ComposeResult
@@ -12,7 +12,7 @@ from dbqm.ui.widgets.dialog import Dialog
 
 
 class ColumnMapsModal(ModalScreen[dict[str, dict[str, str]] | None]):
-    """Configure column value mappings (DE-PARA).
+    """Configure column value mappings.
 
     Dismisses with updated maps dict on save, or None on cancel/ESC.
     """
@@ -92,7 +92,8 @@ class ColumnMapsModal(ModalScreen[dict[str, dict[str, str]] | None]):
     def on_mount(self) -> None:
         table = self.query_one("#maps-table", DataTable)
         table.cursor_type = "row"
-        table.add_columns("Valor Original", "Exibir Como")
+        table.add_columns(t("column_maps.original_value"),
+                          t("column_maps.display_as"))
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.value is not Select.BLANK:

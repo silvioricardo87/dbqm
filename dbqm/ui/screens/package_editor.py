@@ -856,23 +856,23 @@ class PackageEditorScreen(Vertical):
         """Handle compilation result on the main thread."""
         self.query_one(ProgressIndicator).stop()
         error_panel = self.query_one("#pe-error-panel", Panel)
-        error_texto = self.query_one("#pe-error-text", Static)
+        error_text = self.query_one("#pe-error-text", Static)
 
         if errors:
             # Show compilation errors
-            contagem = t("package_editor.error_count", count=len(errors),
+            count = t("package_editor.error_count", count=len(errors),
                          target=target.upper())
-            lines = [f"[bold $ds-op-failure]  {contagem}[/]"]
+            lines = [f"[bold $ds-op-failure]  {count}[/]"]
             for err in errors:
                 lines.append("  " + t("package_editor.error_at", line=err["line"],
                                       column=err["col"], message=err["message"]))
-            error_texto.update("\n".join(lines))
+            error_text.update("\n".join(lines))
             error_panel.display = True
         elif not success:
-            error_texto.update(f'[bold $ds-op-failure]{t("package_editor.error", error=error_msg)}[/]')
+            error_text.update(f'[bold $ds-op-failure]{t("package_editor.error", error=error_msg)}[/]')
             error_panel.display = True
         else:
-            error_texto.update(
+            error_text.update(
                 f'[bold]  {t("package_editor.compiled", target=target.capitalize())}[/]'
             )
             error_panel.display = True

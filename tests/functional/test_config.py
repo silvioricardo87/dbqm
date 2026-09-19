@@ -7,7 +7,7 @@ from dataclasses import fields
 from dbqm.models.settings import Settings
 from tests.functional.conftest import envelope
 
-CHAVES = [f.name for f in fields(Settings)]
+KEYS = [f.name for f in fields(Settings)]
 
 
 # QA-CFG-001
@@ -15,7 +15,7 @@ def test_list_returns_every_key_with_its_default(tmp_config_dir, capsys):
     code, body = envelope(["config", "list", "-f", "json"], capsys)
     assert code == 0
     assert body["command"] == "config.list"
-    assert list(body["data"]) == CHAVES
+    assert list(body["data"]) == KEYS
     assert body["data"]["audit_log_enabled"] is False
     assert body["data"]["theme"] == "plano-escuro"
     assert body["data"]["create_export_subdirs"] is True
@@ -51,7 +51,7 @@ def test_an_unknown_key_names_the_valid_ones(tmp_config_dir, capsys):
     assert code == 2
     assert body["error"]["code"] == "not_found"
     assert body["error"]["message"] == (
-        'Key "nao_existe" does not exist. Valid keys: ' + ", ".join(CHAVES) + "."
+        'Key "nao_existe" does not exist. Valid keys: ' + ", ".join(KEYS) + "."
     )
 
 
@@ -72,14 +72,14 @@ def test_get_of_an_unknown_key_is_not_found(tmp_config_dir, capsys):
 
 # QA-CFG-007
 def test_set_a_string_changes_only_that_key(tmp_config_dir, capsys):
-    _, antes = envelope(["config", "list", "-f", "json"], capsys)
+    _, before = envelope(["config", "list", "-f", "json"], capsys)
     code, body = envelope(["config", "set", "theme", "plano-claro", "-f", "json"], capsys)
     assert code == 0
     assert body["data"] == {"key": "theme", "value": "plano-claro"}
-    _, depois = envelope(["config", "list", "-f", "json"], capsys)
-    assert depois["data"]["theme"] == "plano-claro"
-    assert {k: v for k, v in depois["data"].items() if k != "theme"} == {
-        k: v for k, v in antes["data"].items() if k != "theme"
+    _, after = envelope(["config", "list", "-f", "json"], capsys)
+    assert after["data"]["theme"] == "plano-claro"
+    assert {k: v for k, v in after["data"].items() if k != "theme"} == {
+        k: v for k, v in before["data"].items() if k != "theme"
     }
 
 

@@ -125,22 +125,22 @@ def _oracle_client_install(args: argparse.Namespace) -> None:
 
     pkg = next((p for p in packages if p.version == args.version), None)
     if pkg is None:
-        versoes = ", ".join(p.version for p in packages)
+        versions = ", ".join(p.version for p in packages)
         _fail_or_print(
             args, command, "usage",
             t("oracle_client.version_unknown", version=args.version,
-              platform=deps.host_platform_label(host), available=versoes),
+              platform=deps.host_platform_label(host), available=versions),
         )
 
     def on_progress(done: int, total: int | None) -> None:
         mb = done // (1024 * 1024)
-        texto = (t("oracle_client.downloading_pct",
+        text = (t("oracle_client.downloading_pct",
                    percent=(done * 100) // total, mb=mb) if total
                  else t("oracle_client.downloading", mb=mb))
         if args.format == "json":
-            print(texto, file=sys.stderr)
+            print(text, file=sys.stderr)
         else:
-            console.print(texto, style="dim")
+            console.print(text, style="dim")
 
     try:
         path = deps.install_client(pkg, progress=on_progress)
@@ -181,8 +181,8 @@ def _oracle_client_rm(args: argparse.Namespace) -> None:
         # which would put prose on the stream the envelope owns.
         print(t("oracle_client.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
-        resposta = input().strip().lower()
-        if resposta not in t("common.yes_answers").split(","):
+        answer = input().strip().lower()
+        if answer not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok(command, {"name": args.name, "removed": False})
             else:

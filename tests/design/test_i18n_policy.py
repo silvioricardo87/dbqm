@@ -33,68 +33,68 @@ from pathlib import Path
 
 import pytest
 
-from dbqm.i18n import CATALOGOS, IDIOMA_PADRAO, en
+from dbqm.i18n import CATALOGUES, DEFAULT_LANGUAGE, en
 
-RAIZ = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: Words that only appear in Portuguese screen text. Deliberately not a
 #: language detector: it only has to be good enough to notice a sentence
 #: someone typed straight into a widget.
-PALAVRAS = [
+WORDS = [
     "conexao", "conexoes", "consulta", "consultas", "avulso", "executar",
     "salvar", "remover", "voltar", "selecione", "informe", "registros",
     "grupos", "arquivo", "senha", "usuario", "configuracoes", "historico",
     "ferramentas", "parametro", "parametros", "resultado", "resultados",
     "nenhum", "nenhuma", "somente", "invalido", "encontrada", "encontrado",
     "obrigatorio", "sucesso", "falhou", "nao", "sao", "coluna", "colunas",
-    "tabela", "rotina", "pacote",
+    "tabela", "rotina", "pacote", "registro", "vazio",
 ]
-MARCA = re.compile(r"\b(" + "|".join(PALAVRAS) + r")\b", re.IGNORECASE)
+MARKER_WORD = re.compile(r"\b(" + "|".join(WORDS) + r")\b", re.IGNORECASE)
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
-MAX_LITERAIS = 0
+MAX_LITERALS = 0
 
 #: The catalogue itself is Portuguese by definition, and the design tokens
 #: carry Portuguese token names that are identifiers, not screen text.
-FORA = ("dbqm/i18n/",)
+OUTSIDE = ("dbqm/i18n/",)
 
 #: Portuguese that must stay Portuguese in every language. These two name
 #: directories on the user's disk; translating them would write the next
 #: export into a new folder beside the ones already there, and everything
 #: exported until now would simply stop being where it was.
-NOMES_EM_DISCO = {
+NAMES_ON_DISK = {
     ("dbqm/core/exporter.py", "consultas"),
     ("dbqm/core/exporter.py", "grupos"),
 }
 
 
-def _e_docstring(no, docstrings) -> bool:
+def _is_docstring(no, docstrings) -> bool:
     return id(no) in docstrings
 
 
-def _docstrings(arvore) -> set[int]:
-    fora = set()
-    for no in ast.walk(arvore):
+def _docstrings(tree) -> set[int]:
+    outside = set()
+    for no in ast.walk(tree):
         if isinstance(no, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            corpo = getattr(no, "body", [])
-            if (corpo and isinstance(corpo[0], ast.Expr)
-                    and isinstance(corpo[0].value, ast.Constant)
-                    and isinstance(corpo[0].value.value, str)):
-                fora.add(id(corpo[0].value))
-    return fora
+            body = getattr(no, "body", [])
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                outside.add(id(body[0].value))
+    return outside
 
 
 #: Keyword arguments whose value names a widget, never a label.
-KEYWORDS_DE_IDENTIDADE = {"id", "action_id", "classes", "key"}
+IDENTITY_KEYWORDS = {"id", "action_id", "classes", "key"}
 
 #: Calls whose string arguments are selectors or ids.
-CHAMADAS_DE_IDENTIDADE = {"query_one", "query", "query_exactly_one",
+IDENTITY_CALLS = {"query_one", "query", "query_exactly_one",
                           "switch_tab", "action_switch_tab", "open_tool",
                           "get_child_by_id", "get_widget_by_id", "mount_all"}
 
 
-def _identificadores(arvore) -> set[int]:
+def _identifiers(tree) -> set[int]:
     """Nodes holding an identifier rather than screen text.
 
     By role: the value of `id=`/`action_id=`/`classes=`/`key=`, any string
@@ -102,28 +102,28 @@ def _identificadores(arvore) -> set[int]:
     looks like a CSS selector.
     """
     ids: set[int] = set()
-    for no in ast.walk(arvore):
-        if isinstance(no, ast.keyword) and no.arg in KEYWORDS_DE_IDENTIDADE:
-            for filho in ast.walk(no.value):
-                if isinstance(filho, ast.Constant) and isinstance(filho.value, str):
-                    ids.add(id(filho))
+    for no in ast.walk(tree):
+        if isinstance(no, ast.keyword) and no.arg in IDENTITY_KEYWORDS:
+            for child in ast.walk(no.value):
+                if isinstance(child, ast.Constant) and isinstance(child.value, str):
+                    ids.add(id(child))
         if isinstance(no, ast.Call):
-            nome = no.func.id if isinstance(no.func, ast.Name) else (
+            name = no.func.id if isinstance(no.func, ast.Name) else (
                 no.func.attr if isinstance(no.func, ast.Attribute) else "")
-            if nome in CHAMADAS_DE_IDENTIDADE:
+            if name in IDENTITY_CALLS:
                 for arg in no.args:
                     if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                         ids.add(id(arg))
         if isinstance(no, ast.Compare):
             # `event.button.id == "create-query"`: the literal is the id
             # being matched, whatever side of the operator it sits on.
-            lados = [no.left, *no.comparators]
-            fonte = " ".join(ast.unparse(x) for x in lados)
-            if re.search(r"\bid\b|_id\b|\bname\b|\bnome\b|\bchave\b|\bkey\b", fonte):
-                for lado in lados:
-                    for filho in ast.walk(lado):
-                        if isinstance(filho, ast.Constant) and isinstance(filho.value, str):
-                            ids.add(id(filho))
+            sides = [no.left, *no.comparators]
+            source = " ".join(ast.unparse(x) for x in sides)
+            if re.search(r"\bid\b|_id\b|\bname\b|\bnome\b|\bchave\b|\bkey\b", source):
+                for side in sides:
+                    for child in ast.walk(side):
+                        if isinstance(child, ast.Constant) and isinstance(child.value, str):
+                            ids.add(id(child))
         if isinstance(no, ast.Tuple):
             # A route tuple: `("grupos", t("tools.manage_groups"), ...)`.
             # Where the labels come from the catalogue, the bare string
@@ -135,132 +135,132 @@ def _identificadores(arvore) -> set[int]:
                     if isinstance(e, ast.Constant) and isinstance(e.value, str):
                         ids.add(id(e))
         if isinstance(no, ast.Constant) and isinstance(no.value, str):
-            texto = no.value.strip()
-            if texto.startswith(("#", ".")) and " " not in texto:
+            text = no.value.strip()
+            if text.startswith(("#", ".")) and " " not in text:
                 ids.add(id(no))
             # A Textual id: lowercase words joined by hyphens, no spaces.
             # Nothing a screen shows is written that way.
-            if re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)+", texto):
+            if re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)+", text):
                 ids.add(id(no))
             # A Textual action string: `switch_tab('tab-connections')`.
-            if re.fullmatch(r"[a-z_]+\(.*\)", texto):
+            if re.fullmatch(r"[a-z_]+\(.*\)", text):
                 ids.add(id(no))
     return ids
 
 
-def literais_de_tela() -> list[tuple[str, int, str]]:
+def screen_literals() -> list[tuple[str, int, str]]:
     """`(file, line, text)` for every Portuguese string constant still in the
     source. Docstrings are excluded: they are English by rule and nobody
     reads them on a screen."""
-    achados = []
-    for py in sorted((RAIZ / "dbqm").rglob("*.py")):
-        relativo = py.relative_to(RAIZ).as_posix()
-        if relativo.startswith(FORA):
+    found = []
+    for py in sorted((REPO_ROOT / "dbqm").rglob("*.py")):
+        relative = py.relative_to(REPO_ROOT).as_posix()
+        if relative.startswith(OUTSIDE):
             continue
-        arvore = ast.parse(py.read_text(encoding="utf-8"))
-        docstrings = _docstrings(arvore)
-        identificadores = _identificadores(arvore)
-        for no in ast.walk(arvore):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        docstrings = _docstrings(tree)
+        identifiers = _identifiers(tree)
+        for no in ast.walk(tree):
             if (isinstance(no, ast.Constant) and isinstance(no.value, str)
-                    and not _e_docstring(no, docstrings)
-                    and id(no) not in identificadores):
-                texto = no.value.strip()
-                if (len(texto) > 3 and "\n" not in texto
-                        and MARCA.search(texto)
-                        and (relativo, texto) not in NOMES_EM_DISCO):
-                    achados.append((relativo, no.lineno, texto))
-    return achados
+                    and not _is_docstring(no, docstrings)
+                    and id(no) not in identifiers):
+                text = no.value.strip()
+                if (len(text) > 3 and "\n" not in text
+                        and MARKER_WORD.search(text)
+                        and (relative, text) not in NAMES_ON_DISK):
+                    found.append((relative, no.lineno, text))
+    return found
 
 
 def test_the_literal_count_only_falls():
-    restantes = literais_de_tela()
-    assert len(restantes) <= MAX_LITERAIS, (
-        f"{len(restantes)} Portuguese literals left in dbqm/, up from "
-        f"{MAX_LITERAIS}. New user-facing text goes in dbqm/i18n/, not in a "
-        f"widget. First few: {restantes[:3]}"
+    remaining = screen_literals()
+    assert len(remaining) <= MAX_LITERALS, (
+        f"{len(remaining)} Portuguese literals left in dbqm/, up from "
+        f"{MAX_LITERALS}. New user-facing text goes in dbqm/i18n/, not in a "
+        f"widget. First few: {remaining[:3]}"
     )
 
 
 def test_the_count_matches_what_is_there():
     """`MAX_LITERAIS` is the number someone must edit deliberately to let the
     migration go backwards, so it has to track reality."""
-    assert len(literais_de_tela()) == MAX_LITERAIS
+    assert len(screen_literals()) == MAX_LITERALS
 
 
 def test_every_language_translates_every_key():
-    faltando = {
-        idioma: sorted(set(en.TEXTOS) - set(textos))
-        for idioma, textos in CATALOGOS.items()
-        if set(en.TEXTOS) - set(textos)
+    missing_ones = {
+        language: sorted(set(en.TEXTS) - set(texts))
+        for language, texts in CATALOGUES.items()
+        if set(en.TEXTS) - set(texts)
     }
-    assert not faltando, f"keys the source language defines and these do not: {faltando}"
+    assert not missing_ones, f"keys the source language defines and these do not: {missing_ones}"
 
 
 def test_no_language_invents_a_key():
     """A key English dropped is dead weight: nothing reads it, and the next
     reader cannot tell it from a live one."""
-    sobrando = {
-        idioma: sorted(set(textos) - set(en.TEXTOS))
-        for idioma, textos in CATALOGOS.items()
-        if set(textos) - set(en.TEXTOS)
+    left_over = {
+        language: sorted(set(texts) - set(en.TEXTS))
+        for language, texts in CATALOGUES.items()
+        if set(texts) - set(en.TEXTS)
     }
-    assert not sobrando, f"keys with no English source: {sobrando}"
+    assert not left_over, f"keys with no English source: {left_over}"
 
 
-@pytest.mark.parametrize("idioma", sorted(CATALOGOS))
-def test_every_translation_keeps_the_placeholders(idioma):
+@pytest.mark.parametrize("language", sorted(CATALOGUES))
+def test_every_translation_keeps_the_placeholders(language):
     # `{{campo}}` is not a placeholder: it is dbqm's own template syntax,
     # shown as an example, and the example name is meant to be translated.
     # `(?<!\{)\{(\w+)\}(?!\})` reads a single brace pair only.
-    campos = re.compile(r"(?<!\{)\{(\w+)\}(?!\})")
-    divergentes = {}
-    for chave, fonte in en.TEXTOS.items():
-        traduzido = CATALOGOS[idioma].get(chave)
-        if traduzido is None:
+    fields = re.compile(r"(?<!\{)\{(\w+)\}(?!\})")
+    divergent = {}
+    for key, source in en.TEXTS.items():
+        translated = CATALOGUES[language].get(key)
+        if translated is None:
             continue
-        if set(campos.findall(fonte)) != set(campos.findall(traduzido)):
-            divergentes[chave] = (sorted(campos.findall(fonte)),
-                                  sorted(campos.findall(traduzido)))
-    assert not divergentes, f"{idioma}: placeholders that do not match English: {divergentes}"
+        if set(fields.findall(source)) != set(fields.findall(translated)):
+            divergent[key] = (sorted(fields.findall(source)),
+                                  sorted(fields.findall(translated)))
+    assert not divergent, f"{language}: placeholders that do not match English: {divergent}"
 
 
 def test_portuguese_carries_no_accents():
     """The project's long-standing rule for anything read on screen."""
-    acentuadas = {
-        chave: texto for chave, texto in CATALOGOS["pt"].items()
-        if any(c in texto for c in "áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ")
+    accented = {
+        key: text for key, text in CATALOGUES["pt"].items()
+        if any(c in text for c in "áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ")
     }
-    assert not acentuadas, f"accents in the Portuguese catalogue: {acentuadas}"
+    assert not accented, f"accents in the Portuguese catalogue: {accented}"
 
 
 def test_english_is_the_default():
     """Not a preference: `t()` falls back to English for an untranslated key,
     which only works if English is the one language guaranteed complete."""
-    assert IDIOMA_PADRAO == "en"
-    assert set(CATALOGOS[IDIOMA_PADRAO]) == set(en.TEXTOS)
+    assert DEFAULT_LANGUAGE == "en"
+    assert set(CATALOGUES[DEFAULT_LANGUAGE]) == set(en.TEXTS)
 
 
-def _chamadas_de_t_no_nivel_do_modulo(py: Path) -> list[int]:
+def _module_level_t_calls(py: Path) -> list[int]:
     """Lines where `t(...)` runs as the module is imported."""
-    fonte = py.read_text(encoding="utf-8")
-    arvore = ast.parse(fonte)
-    linhas = []
-    for no in arvore.body:
+    source = py.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    lines = []
+    for no in tree.body:
         if isinstance(no, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             # A call inside a def runs when the def is called, which is the
             # whole point. A class body, though, executes at import.
             if not isinstance(no, ast.ClassDef):
                 continue
-            for corpo in no.body:
-                if isinstance(corpo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for body in no.body:
+                if isinstance(body, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     continue
-                linhas.extend(_ts_em(corpo))
+                lines.extend(_ts_in(body))
             continue
-        linhas.extend(_ts_em(no))
-    return linhas
+        lines.extend(_ts_in(no))
+    return lines
 
 
-def _ts_em(no) -> list[int]:
+def _ts_in(no) -> list[int]:
     return [f.lineno for f in ast.walk(no)
             if isinstance(f, ast.Call) and isinstance(f.func, ast.Name) and f.func.id == "t"]
 
@@ -274,16 +274,16 @@ def test_no_lookup_happens_at_import_time():
     keeps that text for the life of the process. `connections.py` had its
     database-type list written that way.
     """
-    culpados = {}
-    for py in sorted((RAIZ / "dbqm").rglob("*.py")):
-        relativo = py.relative_to(RAIZ).as_posix()
-        if relativo.startswith(FORA):
+    culprits = {}
+    for py in sorted((REPO_ROOT / "dbqm").rglob("*.py")):
+        relative = py.relative_to(REPO_ROOT).as_posix()
+        if relative.startswith(OUTSIDE):
             continue
-        linhas = _chamadas_de_t_no_nivel_do_modulo(py)
-        if linhas:
-            culpados[relativo] = linhas
-    assert not culpados, (
-        f"t() runs at import time in {culpados}. Wrap it in a function so the "
+        lines = _module_level_t_calls(py)
+        if lines:
+            culprits[relative] = lines
+    assert not culprits, (
+        f"t() runs at import time in {culprits}. Wrap it in a function so the "
         f"lookup happens after the language is resolved."
     )
 
@@ -308,14 +308,14 @@ def test_the_catalogue_carries_words_and_not_markup():
     markup: this looks for a closing tag, which every Rich span has and no
     prompt does.
     """
-    ofensores = {
-        f"{idioma}:{chave}": texto
-        for idioma, catalogo in CATALOGOS.items()
-        for chave, texto in catalogo.items()
-        if "[/" in texto
+    offenders = {
+        f"{language}:{key}": text
+        for language, catalogue in CATALOGUES.items()
+        for key, text in catalogue.items()
+        if "[/" in text
     }
-    assert not ofensores, (
-        f"Rich markup in the catalogue: {ofensores}. Wrap the t() call at the "
+    assert not offenders, (
+        f"Rich markup in the catalogue: {offenders}. Wrap the t() call at the "
         f"call site, or pass the marked-up fragment in as a field."
     )
 
@@ -332,7 +332,7 @@ def test_the_catalogue_carries_words_and_not_markup():
 # widget, a notification or a panel title is screen text in any language.
 
 #: Calls whose first positional argument is rendered.
-SINKS_POSICIONAIS = frozenset({
+SINKS_POSITIONAL = frozenset({
     "Static", "Button", "Label", "notify", "add_column", "Collapsible",
     "TabPane", "Checkbox", "RadioButton", "ListItem", "Markdown", "Tab",
     "Dialog", "ConfirmModal", "ErrorModal", "TextInputModal", "Action",
@@ -348,7 +348,7 @@ SINKS_POSICIONAIS = frozenset({
 
 #: Attributes that are rendered when assigned. None of these carries a
 #: literal today; the check is here so the next one is not a discovery.
-ATRIBUTOS_RENDERIZADOS = frozenset({
+RENDERED_ATTRIBUTES = frozenset({
     "border_title", "border_subtitle", "sub_title", "tooltip", "placeholder",
 })
 
@@ -356,12 +356,14 @@ ATRIBUTOS_RENDERIZADOS = frozenset({
 #: sink is named by the first argument, so the check has to look past it:
 #: `call_from_thread(self.notify, "Erro ao importar: ...")` is a
 #: notification, and reading the call by its own name says nothing.
-SINKS_ENCAMINHAM = frozenset({"call_from_thread", "run_worker", "call_later"})
+SINKS_THAT_FORWARD = frozenset({"call_from_thread", "run_worker", "call_later"})
 
 #: Calls where *every* positional argument becomes a cell someone reads.
 #: `add_row` is how the history table said "grupo" while the CLI printed
 #: "group" for the same field -- a row is as much screen text as a label.
-SINKS_TODOS_POSICIONAIS = frozenset({"add_row"})
+#: `add_columns` is the plural of `add_column`, and a whole header row
+#: in Portuguese sat behind that letter.
+SINKS_ALL_POSITIONAL = frozenset({"add_row", "add_columns"})
 
 #: Keyword arguments whose value is rendered.
 SINKS_KEYWORD = frozenset({
@@ -372,7 +374,7 @@ SINKS_KEYWORD = frozenset({
 #: Files that build code rather than screens: PL/SQL templates, generated
 #: SQL comments in an extracted `.sql`. Their `append`s are the artifact,
 #: not a message, so only the keyword/positional sinks are checked there.
-FORA_DO_APPEND = frozenset({
+OUTSIDE_THE_APPEND_CHECK = frozenset({
     "dbqm/core/package_editor.py",   # PL/SQL skeletons
     "dbqm/core/object_browser.py",   # the anonymous block `call` sends
     "dbqm/core/ddl_extractor.py",    # `-- Type:` headers inside the .sql
@@ -383,7 +385,7 @@ FORA_DO_APPEND = frozenset({
 
 #: Words that are the same in every language: product names, formats,
 #: SQL keywords, symbols. A sink may take one of these directly.
-NEUTROS = frozenset({
+NEUTRAL = frozenset({
     "dbqm",
     "SQL", "CSV", "JSON", "TXT", "HTML", "XML", "OK", "DBMS_OUTPUT",
     "Spec", "Body", "Wizard", "PROCEDURE", "FUNCTION", "PACKAGE", "TABLE",
@@ -396,10 +398,24 @@ NEUTROS = frozenset({
 
 #: Nodes that open a scope of their own. A name assigned inside one is not
 #: the same name outside it.
-ESCOPOS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
 
 
-def _literais_visiveis(arvore) -> dict[ast.Call, dict[str, list[ast.Constant]]]:
+def _branches(no):
+    """Every value an expression can evaluate to, flattened.
+
+    `x if cond else y` and `x or y` each carry two, and a screen only
+    ever sees one of them -- so both have to be looked at. Anything else
+    is its own single value.
+    """
+    if isinstance(no, ast.IfExp):
+        return [*_branches(no.body), *_branches(no.orelse)]
+    if isinstance(no, ast.BoolOp):
+        return [b for v in no.values for b in _branches(v)]
+    return [no]
+
+
+def _visible_literals(tree) -> dict[ast.Call, dict[str, list[ast.Constant]]]:
     """For every call, the plain string literals its scope binds to a name.
 
     Three strings reached a screen through a variable and neither half of
@@ -416,134 +432,139 @@ def _literais_visiveis(arvore) -> dict[ast.Call, dict[str, list[ast.Constant]]]:
     message, and they are two different names that happen to share
     spelling.
     """
-    def _proprios(escopo):
+    def _own_nodes(scope):
         """The nodes of one scope, without descending into a nested one."""
-        pilha = list(ast.iter_child_nodes(escopo))
-        while pilha:
-            no = pilha.pop()
+        stack = list(ast.iter_child_nodes(scope))
+        while stack:
+            no = stack.pop()
             yield no
-            if not isinstance(no, ESCOPOS):
-                pilha.extend(ast.iter_child_nodes(no))
+            if not isinstance(no, SCOPES):
+                stack.extend(ast.iter_child_nodes(no))
 
-    def _atribuicoes(nos):
-        constantes: dict[str, list[ast.Constant]] = {}
-        calculados: set[str] = set()
+    def _assignments(nos):
+        constants: dict[str, list[ast.Constant]] = {}
+        computed: set[str] = set()
         for no in nos:
             if isinstance(no, ast.Assign):
-                alvos = no.targets
+                targets = no.targets
             elif isinstance(no, ast.AnnAssign) and no.value is not None:
-                alvos = [no.target]
+                targets = [no.target]
             else:
                 continue
-            for alvo in alvos:
-                if not isinstance(alvo, ast.Name):
+            for target in targets:
+                if not isinstance(target, ast.Name):
                     continue
-                if isinstance(no.value, ast.Constant) and isinstance(no.value.value, str):
-                    constantes.setdefault(alvo.id, []).append(no.value)
+                literais = [b for b in _branches(no.value)
+                            if isinstance(b, ast.Constant) and isinstance(b.value, str)]
+                if literais:
+                    # A conditional counts for its literal branches: what
+                    # `folder or "(no folder)"` puts on screen when the
+                    # folder is empty is exactly that string.
+                    constants.setdefault(target.id, []).extend(literais)
                 else:
-                    calculados.add(alvo.id)
-        return {nome: cs for nome, cs in constantes.items() if nome not in calculados}
+                    computed.add(target.id)
+        return {name: cs for name, cs in constants.items() if name not in computed}
 
-    do_modulo = _atribuicoes(_proprios(arvore))
-    por_chamada: dict[ast.Call, dict[str, list[ast.Constant]]] = {}
-    for escopo in [arvore] + [n for n in ast.walk(arvore) if isinstance(n, ESCOPOS)]:
-        nos = list(_proprios(escopo))
-        visivel = {**do_modulo, **_atribuicoes(nos)}
+    from_module = _assignments(_own_nodes(tree))
+    by_call: dict[ast.Call, dict[str, list[ast.Constant]]] = {}
+    for scope in [tree] + [n for n in ast.walk(tree) if isinstance(n, SCOPES)]:
+        nos = list(_own_nodes(scope))
+        visible = {**from_module, **_assignments(nos)}
         for no in nos:
             if isinstance(no, ast.Call):
-                por_chamada[no] = visivel
-    return por_chamada
+                by_call[no] = visible
+    return by_call
 
 
-def _sinks_com_literal(py: Path) -> list[tuple[int, str, str]]:
+def _sinks_with_a_literal(py: Path) -> list[tuple[int, str, str]]:
     """`(line, sink, text)` for every bare literal handed to a screen."""
-    fonte = py.read_text(encoding="utf-8")
-    arvore = ast.parse(fonte)
-    achados = []
-    visiveis = _literais_visiveis(arvore)
+    source = py.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    found = []
+    visible_ones = _visible_literals(tree)
 
-    def _texto_cru(no):
+    def _raw_text(no):
         """The literal text, or None when the value is not a bare literal."""
         if isinstance(no, ast.Constant) and isinstance(no.value, str):
             return no.value
         if isinstance(no, ast.JoinedStr):
             # An f-string is bare only if some literal piece carries a word;
             # `f"[dim]{t(...)}[/dim]"` is markup around a lookup.
-            pedacos = [p.value for p in no.values
+            pieces = [p.value for p in no.values
                        if isinstance(p, ast.Constant) and isinstance(p.value, str)]
-            junto = "".join(pedacos)
-            sem_markup = re.sub(r"\[[^]]*]", "", junto)
+            joined = "".join(pieces)
+            sem_markup = re.sub(r"\[[^]]*]", "", joined)
             return sem_markup if re.search(r"[A-Za-z]{2,}", sem_markup) else None
         return None
 
-    relativo = py.relative_to(RAIZ).as_posix()
-    checa_append = relativo not in FORA_DO_APPEND
+    relative = py.relative_to(REPO_ROOT).as_posix()
+    checks_append = relative not in OUTSIDE_THE_APPEND_CHECK
 
-    for no in ast.walk(arvore):
+    for no in ast.walk(tree):
         if isinstance(no, ast.Assign):
             for tgt in no.targets:
-                if isinstance(tgt, ast.Attribute) and tgt.attr in ATRIBUTOS_RENDERIZADOS:
-                    texto = _texto_cru(no.value)
-                    limpo = re.sub(r"\[[^]]*]", "", texto or "").strip()
-                    if limpo and re.search(r"[A-Za-z]{2,}", limpo) and limpo not in NEUTROS:
-                        achados.append((no.lineno, f".{tgt.attr}=", limpo))
+                if isinstance(tgt, ast.Attribute) and tgt.attr in RENDERED_ATTRIBUTES:
+                    text = _raw_text(no.value)
+                    clean = re.sub(r"\[[^]]*]", "", text or "").strip()
+                    if clean and re.search(r"[A-Za-z]{2,}", clean) and clean not in NEUTRAL:
+                        found.append((no.lineno, f".{tgt.attr}=", clean))
             continue
         if not isinstance(no, ast.Call):
             continue
-        nome = no.func.id if isinstance(no.func, ast.Name) else (
+        name = no.func.id if isinstance(no.func, ast.Name) else (
             no.func.attr if isinstance(no.func, ast.Attribute) else "")
 
-        alvos = []
-        if nome in SINKS_POSICIONAIS and no.args:
-            alvos.append((nome, no.args[0]))
-        if nome in SINKS_TODOS_POSICIONAIS:
-            alvos += [(nome, arg) for arg in no.args]
-        if nome in SINKS_ENCAMINHAM:
-            alvos += [(nome, arg) for arg in no.args[1:]]
+        targets = []
+        if name in SINKS_POSITIONAL and no.args:
+            targets.append((name, no.args[0]))
+        if name in SINKS_ALL_POSITIONAL:
+            targets += [(name, arg) for arg in no.args]
+        if name in SINKS_THAT_FORWARD:
+            targets += [(name, arg) for arg in no.args[1:]]
         # Text accumulated in a list and rendered later. A sentence appended
         # to `lines` is a message; a fragment of SQL being assembled is not,
         # which is what `FORA_DO_APPEND` separates.
-        if checa_append and nome in ("append", "extend", "insert") and no.args:
+        if checks_append and name in ("append", "extend", "insert") and no.args:
             for arg in no.args:
-                pecas = arg.elts if isinstance(arg, (ast.List, ast.Tuple)) else [arg]
-                for peca in pecas:
-                    alvos.append((nome, peca))
+                pieces = arg.elts if isinstance(arg, (ast.List, ast.Tuple)) else [arg]
+                for piece in pieces:
+                    targets.append((name, piece))
         for kw in no.keywords:
             if kw.arg in SINKS_KEYWORD:
-                alvos.append((f"{nome}.{kw.arg}", kw.value))
+                targets.append((f"{name}.{kw.arg}", kw.value))
             # A field handed to `t()` is rendered inside the translated
             # sentence, so it is screen text too -- and it is the one spot
             # where a hard-coded word hides behind a key that looks right.
-            elif nome == "t" and kw.arg:
-                alvos.append((f"t.{kw.arg}", kw.value))
+            elif name == "t" and kw.arg:
+                targets.append((f"t.{kw.arg}", kw.value))
 
         # A name is followed one step back to what its scope assigns it.
-        literais = visiveis.get(no, {})
-        expandidos = []
-        for rotulo, alvo in alvos:
-            if isinstance(alvo, ast.Name) and alvo.id in literais:
-                expandidos += [(f"{rotulo} <- {alvo.id}", c)
-                               for c in literais[alvo.id]]
+        literals = visible_ones.get(no, {})
+        expanded = []
+        for label, target in targets:
+            if isinstance(target, ast.Name) and target.id in literals:
+                expanded += [(f"{label} <- {target.id}", c)
+                               for c in literals[target.id]]
             else:
-                expandidos.append((rotulo, alvo))
+                expanded += [(label, b) for b in _branches(target)]
 
-        for rotulo, alvo in expandidos:
-            texto = _texto_cru(alvo)
-            if texto is None:
+        for label, target in expanded:
+            text = _raw_text(target)
+            if text is None:
                 continue
-            limpo = re.sub(r"\[[^]]*]", "", texto).strip()
-            if not re.search(r"[A-Za-z]{2,}", limpo) or limpo in NEUTROS:
+            clean = re.sub(r"\[[^]]*]", "", text).strip()
+            if not re.search(r"[A-Za-z]{2,}", clean) or clean in NEUTRAL:
                 continue
-            if re.fullmatch(r"https?://\S+", limpo):
+            if re.fullmatch(r"https?://\S+", clean):
                 # A URL has letters in it and is the same in every
                 # language; the sentence around it is what gets translated.
                 continue
-            if rotulo.split(" <- ")[0] in ("append", "extend", "insert") and " " not in limpo:
+            if label.split(" <- ")[0] in ("append", "extend", "insert") and " " not in clean:
                 # A single word appended to a list is a column key or a
                 # token, not a sentence someone reads.
                 continue
-            achados.append((alvo.lineno, rotulo, limpo))
-    return achados
+            found.append((target.lineno, label, clean))
+    return found
 
 
 def test_no_screen_takes_a_literal_instead_of_a_key():
@@ -559,16 +580,16 @@ def test_no_screen_takes_a_literal_instead_of_a_key():
     `NEUTROS` holds what is genuinely the same everywhere: product names,
     file formats, SQL keywords, single symbols.
     """
-    ofensores = {}
-    for py in sorted((RAIZ / "dbqm").rglob("*.py")):
-        relativo = py.relative_to(RAIZ).as_posix()
-        if relativo.startswith(FORA):
+    offenders = {}
+    for py in sorted((REPO_ROOT / "dbqm").rglob("*.py")):
+        relative = py.relative_to(REPO_ROOT).as_posix()
+        if relative.startswith(OUTSIDE):
             continue
-        achados = _sinks_com_literal(py)
-        if achados:
-            ofensores[relativo] = achados
-    assert not ofensores, (
-        f"screen text written straight into a widget: {ofensores}. "
+        found = _sinks_with_a_literal(py)
+        if found:
+            offenders[relative] = found
+    assert not offenders, (
+        f"screen text written straight into a widget: {offenders}. "
         f"It belongs in dbqm/i18n/, reached through t()."
     )
 
@@ -591,27 +612,27 @@ def test_every_call_site_passes_the_fields_its_key_declares():
     Only literal keys are checked. A key built at runtime (`_OUTCOME_KEY[x]`)
     is out of reach of a static check, by nature.
     """
-    problemas = []
-    for py in sorted((RAIZ / "dbqm").rglob("*.py")):
-        relativo = py.relative_to(RAIZ).as_posix()
-        if relativo.startswith(FORA):
+    problems = []
+    for py in sorted((REPO_ROOT / "dbqm").rglob("*.py")):
+        relative = py.relative_to(REPO_ROOT).as_posix()
+        if relative.startswith(OUTSIDE):
             continue
         for no in ast.walk(ast.parse(py.read_text(encoding="utf-8"))):
             if not (isinstance(no, ast.Call) and isinstance(no.func, ast.Name)
                     and no.func.id == "t" and no.args):
                 continue
-            chave = no.args[0]
-            if not (isinstance(chave, ast.Constant) and isinstance(chave.value, str)):
+            key = no.args[0]
+            if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
                 continue
-            if chave.value not in en.TEXTOS:
-                problemas.append(f"{relativo}:{no.lineno} unknown key {chave.value!r}")
+            if key.value not in en.TEXTS:
+                problems.append(f"{relative}:{no.lineno} unknown key {key.value!r}")
                 continue
-            campos = re.compile(r"(?<!\{)\{(\w+)\}(?!\})")
-            declarados = set(campos.findall(en.TEXTOS[chave.value]))
-            passados = {kw.arg for kw in no.keywords if kw.arg}
-            if declarados != passados:
-                problemas.append(
-                    f"{relativo}:{no.lineno} {chave.value}: declares "
-                    f"{sorted(declarados)}, receives {sorted(passados)}"
+            fields = re.compile(r"(?<!\{)\{(\w+)\}(?!\})")
+            declared = set(fields.findall(en.TEXTS[key.value]))
+            passed_in = {kw.arg for kw in no.keywords if kw.arg}
+            if declared != passed_in:
+                problems.append(
+                    f"{relative}:{no.lineno} {key.value}: declares "
+                    f"{sorted(declared)}, receives {sorted(passed_in)}"
                 )
-    assert not problemas, "t() calls that do not match their key: " + "; ".join(problemas)
+    assert not problems, "t() calls that do not match their key: " + "; ".join(problems)

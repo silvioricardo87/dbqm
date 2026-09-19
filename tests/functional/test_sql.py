@@ -15,11 +15,11 @@ from tests.functional.conftest import envelope, invoke
 
 # QA-SQL-001
 def test_select_returns_the_seed_rows(local_db, capsys):
-    code, body = envelope(["sql", "SELECT id, nome FROM clientes ORDER BY id", "local", "-f", "json"], capsys)
+    code, body = envelope(["sql", "SELECT id, name FROM customers ORDER BY id", "local", "-f", "json"], capsys)
     assert code == 0
     assert body["command"] == "sql"
     assert body["data"]["sql_type"] == "SELECT"
-    assert body["data"]["columns"] == ["id", "nome"]
+    assert body["data"]["columns"] == ["id", "name"]
     assert body["data"]["rows"] == [[1, "Ana"], [2, "Bia"], [3, "Caio"]]
     assert body["data"]["row_count"] == 3
 
@@ -27,21 +27,21 @@ def test_select_returns_the_seed_rows(local_db, capsys):
 # QA-SQL-002
 def test_a_param_reaches_the_statement(local_db, capsys):
     code, body = envelope(
-        ["sql", "SELECT nome FROM clientes WHERE id = :id", "local", "-p", "id=2", "-f", "json"], capsys,
+        ["sql", "SELECT name FROM customers WHERE id = :id", "local", "-p", "id=2", "-f", "json"], capsys,
     )
     assert code == 0
     assert body["data"]["rows"] == [["Bia"]]
 
 
 def _status_of_1(capsys) -> str:
-    code, body = envelope(["sql", "SELECT status FROM clientes WHERE id = 1", "local", "-f", "json"], capsys)
+    code, body = envelope(["sql", "SELECT status FROM customers WHERE id = 1", "local", "-f", "json"], capsys)
     assert code == 0
     return body["data"]["rows"][0][0]
 
 
 # QA-SQL-003
 def test_dml_without_commit_is_refused_before_running(local_db, capsys):
-    code, body = envelope(["sql", "UPDATE clientes SET status='X' WHERE id=1", "local", "-f", "json"], capsys)
+    code, body = envelope(["sql", "UPDATE customers SET status='X' WHERE id=1", "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == "DML requires --commit to confirm the operation."
@@ -51,7 +51,7 @@ def test_dml_without_commit_is_refused_before_running(local_db, capsys):
 # QA-SQL-004
 def test_dml_with_commit_persists_for_the_next_call(local_db, capsys):
     code, body = envelope(
-        ["sql", "UPDATE clientes SET status='X' WHERE id=1", "local", "--commit", "-f", "json"], capsys,
+        ["sql", "UPDATE customers SET status='X' WHERE id=1", "local", "--commit", "-f", "json"], capsys,
     )
     assert code == 0
     assert body["data"]["sql_type"] == "UPDATE"
@@ -68,24 +68,24 @@ def test_ddl_creates_a_table_that_objects_then_lists(local_db, capsys):
     code, body = envelope(["objects", "local", "--type", "TABLE", "-f", "json"], capsys)
     assert code == 0
     assert "auditoria" in body["data"]["objects"]
-    assert "clientes" in body["data"]["objects"]
+    assert "customers" in body["data"]["objects"]
 
 
 # QA-SQL-006
 def test_a_ddl_the_driver_rejects_is_sql_error(local_db, capsys):
-    code, body = envelope(["sql", "CREATE TABLE clientes (id INTEGER)", "local", "-f", "json"], capsys)
+    code, body = envelope(["sql", "CREATE TABLE customers (id INTEGER)", "local", "-f", "json"], capsys)
     assert code == 4
     assert body["error"]["code"] == "sql_error"
-    assert body["error"]["message"] == "table clientes already exists"
+    assert body["error"]["message"] == "table customers already exists"
 
 
 # QA-SQL-007
 def test_explain_returns_a_plan(local_db, capsys):
-    code, body = envelope(["sql", "SELECT id FROM clientes", "local", "--explain", "-f", "json"], capsys)
+    code, body = envelope(["sql", "SELECT id FROM customers", "local", "--explain", "-f", "json"], capsys)
     assert code == 0
     plan = body["data"]["plan"]
     assert plan and all(isinstance(line, str) for line in plan)
-    assert any("clientes" in line for line in plan)
+    assert any("customers" in line for line in plan)
 
 
 # QA-SQL-008
@@ -108,18 +108,18 @@ def test_an_unknown_verb_is_usage_not_sql_error(local_db, capsys):
 
 # QA-SQL-010
 def test_a_sql_file_path_is_read(local_db, tmp_path, capsys):
-    arquivo = tmp_path / "consulta.sql"
-    arquivo.write_text("SELECT COUNT(*) AS n FROM pedidos", encoding="utf-8")
-    code, body = envelope(["sql", str(arquivo), "local", "-f", "json"], capsys)
+    file = tmp_path / "query.sql"
+    file.write_text("SELECT COUNT(*) AS n FROM orders", encoding="utf-8")
+    code, body = envelope(["sql", str(file), "local", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["rows"] == [[4]]
-    assert body["data"]["sql"] == "SELECT COUNT(*) AS n FROM pedidos"
+    assert body["data"]["sql"] == "SELECT COUNT(*) AS n FROM orders"
 
 
 # QA-SQL-011
 @pytest.mark.parametrize("fmt,suffix", [("csv", ".csv"), ("json", ".json"), ("txt", ".txt"), ("html", ".html")])
 def test_export_writes_a_file_per_format(local_db, tmp_path, capsys, fmt, suffix):
-    code, body = envelope(["sql", "SELECT id, nome FROM clientes", "local", "-e", fmt, "-f", "json"], capsys)
+    code, body = envelope(["sql", "SELECT id, name FROM customers", "local", "-e", fmt, "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["format"] == fmt
     exported = Path(body["data"]["exported"])
@@ -149,7 +149,7 @@ def test_an_unknown_connection_is_not_found(local_db, capsys):
 
 # QA-SQL-014
 def test_table_format_prints_the_rows(local_db, capsys):
-    code, out, err = invoke(["sql", "SELECT nome FROM clientes WHERE id=1", "local"], capsys)
+    code, out, err = invoke(["sql", "SELECT name FROM customers WHERE id=1", "local"], capsys)
     assert code == 0
     assert "Ana" in out
     assert err == ""
@@ -160,7 +160,7 @@ def test_export_on_a_dml_is_refused_before_the_write(local_db, tmp_path, capsys)
     """Refused before the statement runs, not after: refusing afterwards
     would mean the row was written and the caller still got exit 2."""
     code, body = envelope(
-        ["sql", "UPDATE clientes SET status='X' WHERE id=1", "local",
+        ["sql", "UPDATE customers SET status='X' WHERE id=1", "local",
          "--commit", "-e", "csv", "-f", "json"],
         capsys,
     )
@@ -194,7 +194,7 @@ def test_a_select_still_exports(local_db, capsys):
     """The guard names statement types, not the flag: what returns rows is
     untouched."""
     code, body = envelope(
-        ["sql", "SELECT id, nome FROM clientes", "local", "-e", "csv", "-f", "json"], capsys,
+        ["sql", "SELECT id, name FROM customers", "local", "-e", "csv", "-f", "json"], capsys,
     )
     assert code == 0
     assert Path(body["data"]["exported"]).is_file()
@@ -206,16 +206,16 @@ def test_explain_exports_the_plan(local_db, tmp_path, capsys):
     refuses `--export`, so without its own arm the flag would be accepted
     and ignored here -- the bug the guard exists to stop."""
     code, body = envelope(
-        ["sql", "SELECT id FROM clientes", "local", "--explain", "-e", "csv", "-f", "json"],
+        ["sql", "SELECT id FROM customers", "local", "--explain", "-e", "csv", "-f", "json"],
         capsys,
     )
     assert code == 0
     assert body["data"]["format"] == "csv"
     exportado = Path(body["data"]["exported"])
     assert tmp_path in exportado.parents
-    conteudo = exportado.read_text(encoding="utf-8")
-    assert conteudo.splitlines()[0] == "plan"
-    assert "clientes" in conteudo
+    content = exportado.read_text(encoding="utf-8")
+    assert content.splitlines()[0] == "plan"
+    assert "customers" in content
 
 
 # QA-SQL-020
@@ -224,7 +224,7 @@ def test_the_read_only_refusal_comes_before_the_export_one(read_only_db, capsys)
     connection refusing: reporting the flag first costs a round trip to
     learn the connection is protected."""
     code, body = envelope(
-        ["sql", "UPDATE clientes SET status='X' WHERE id=1", "ro", "--commit", "-e", "csv", "-f", "json"],
+        ["sql", "UPDATE customers SET status='X' WHERE id=1", "ro", "--commit", "-e", "csv", "-f", "json"],
         capsys,
     )
     assert code == 2
@@ -244,9 +244,10 @@ def test_a_param_the_statement_never_binds_is_refused(local_db, capsys):
 # QA-SQL-023
 def test_a_missing_sql_file_says_so(local_db, tmp_path, capsys):
     """A path ending in `.sql` is not a statement. Read as SQL it came back
-    "Tipo de SQL nao suportado", which says nothing about the typo."""
-    caminho = tmp_path / "nao_existe.sql"
-    code, body = envelope(["sql", str(caminho), "local", "-f", "json"], capsys)
+    "Tipo de SQL nao suportado", which says nothing about the typo.
+    """
+    path = tmp_path / "nao_existe.sql"
+    code, body = envelope(["sql", str(path), "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == f'File "{caminho}" not found.'
+    assert body["error"]["message"] == f'File "{path}" not found.'

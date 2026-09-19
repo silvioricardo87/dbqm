@@ -215,15 +215,15 @@ class TestTheTwoTuiOnlyPaths:
                         conn=_conn(read_only=False))
         assert db.cursor.call_count == 1
 
-    @pytest.mark.parametrize("mensagem_de", [
+    @pytest.mark.parametrize("message_of", [
         "dbqm.core.object_browser",
         "dbqm.core.package_editor",
     ])
-    def test_neither_message_names_an_unreachable_flag(self, mensagem_de):
+    def test_neither_message_names_an_unreachable_flag(self, message_of):
         import importlib
         import inspect
 
-        fonte = inspect.getsource(importlib.import_module(mensagem_de))
-        assert "--force-write" not in fonte, (
+        source = inspect.getsource(importlib.import_module(message_of))
+        assert "--force-write" not in source, (
             "these paths are TUI-only; --force-write is a flag on `dbqm sql`"
         )

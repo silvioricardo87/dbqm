@@ -7,12 +7,12 @@ def test_sanitize_id_ascii():
 
 
 def test_sanitize_id_accents():
-    assert sanitize_id("investigacao-apolice") == "investigacao-apolice"
+    assert sanitize_id("investigation-policy") == "investigation-policy"
 
 
 def test_sanitize_id_accents_unicode():
-    result = sanitize_id("investigacao-apolice")
-    assert result == "investigacao-apolice"
+    result = sanitize_id("investigation-policy")
+    assert result == "investigation-policy"
 
 
 def test_sanitize_id_spaces():
@@ -78,7 +78,7 @@ def test_escape_markup_nested():
 # ---------------------------------------------------------------------------
 #
 # It existed with no test at all: every folder used in the UI suite was
-# prefix-free ("Grupo A", "FolderA", "Pasta0") and none contained "/", so the
+# prefix-free ("Group A", "FolderA", "Pasta0") and none contained "/", so the
 # elision branch never ran — replacing the function body with `return ""`
 # kept 326 tests green. These cases, plus the screen test that reads the
 # painted LABEL, are what kills that mutant.
@@ -88,9 +88,9 @@ def test_common_folder_prefix_single_family():
     """The case that motivated the function: one family dominates the whole
     list."""
     assert common_folder_prefix([
-        "Mapfre Sustentacao/Faturamento",
-        "Mapfre Sustentacao/Apolice",
-    ]) == "Mapfre Sustentacao/"
+        "Mapfre Maintenance/Billing",
+        "Mapfre Maintenance/Policy",
+    ]) == "Mapfre Maintenance/"
 
 
 def test_common_folder_prefix_several_segments():
@@ -102,20 +102,20 @@ def test_common_folder_prefix_nothing_in_common():
     """Two families side by side: the common prefix shrinks on its own to ""
     and the list goes back to showing the whole path — the reason the prefix
     is computed on every load instead of being hardcoded as a literal."""
-    assert common_folder_prefix(["Mapfre/Faturamento", "Interno/Backlog"]) == ""
+    assert common_folder_prefix(["Mapfre/Billing", "Interno/Backlog"]) == ""
 
 
 def test_common_folder_prefix_compares_segments_not_characters():
-    """"Fatura" is a prefix of "Faturamento" in characters, but not in
+    """"Fatura" is a prefix of "Billing" in characters, but not in
     segments — eliding here would cut off the start of a folder name."""
-    assert common_folder_prefix(["Faturamento", "Fatura"]) == ""
+    assert common_folder_prefix(["Billing", "Fatura"]) == ""
 
 
 def test_common_folder_prefix_fewer_than_two():
     """With zero or one folder there is no redundancy to remove: the list's
     only label has to show up in full."""
     assert common_folder_prefix([]) == ""
-    assert common_folder_prefix(["Mapfre Sustentacao/Faturamento"]) == ""
+    assert common_folder_prefix(["Mapfre Maintenance/Billing"]) == ""
 
 
 def test_common_folder_prefix_folder_that_prefixes_its_sibling():

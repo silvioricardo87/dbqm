@@ -34,10 +34,10 @@ def test_validate_accepts_a_connection_that_exists(tmp_config_dir):
 
 def test_build_derives_table_columns_and_params(tmp_config_dir):
     q = build({"name": "q", "connection": "c1",
-               "sql": "SELECT ID, NOME FROM CLIENTES WHERE ID = :id ORDER BY NOME"})
-    assert q.table == "CLIENTES"
-    assert q.columns == ["id", "nome"]
-    assert q.order_by == "NOME"
+               "sql": "SELECT ID, NAME FROM CUSTOMERS WHERE ID = :id ORDER BY NAME"})
+    assert q.table == "CUSTOMERS"
+    assert q.columns == ["id", "name"]
+    assert q.order_by == "NAME"
     assert [p.name for p in q.params] == ["id"]
 
 

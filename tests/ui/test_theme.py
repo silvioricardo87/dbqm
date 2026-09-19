@@ -27,14 +27,15 @@ def test_get_theme_returns_light():
 
 
 def test_light_defines_accent_and_panel():
-    """Confere a fiacao (theme.py -> tokens.py), nunca o valor do hex.
+    """Check the wiring (theme.py -> tokens.py), never the value of the hex.
 
-    Um teste que compara contra um hex literal reprova toda vez que a
-    paleta e repintada (a propria Task 8 do design system e prova disso) e
-    nao pega o bug real: se `_build_theme` parasse de mapear
-    `background=tokens["ds-background"]`, um hex sincronizado a mao no teste faria
-    a asserção passar mesmo com a fiacao quebrada. Comparar contra
-    LIGHT_TOKENS prova a ligacao, nao a memoria de qual paleta esta ativa.
+    A test comparing against a literal hex fails every time the palette is
+    repainted (design system Task 8 is proof of that on its own) and does not
+    catch the real bug: if `_build_theme` stopped mapping
+    `background=tokens["ds-background"]`, a hex kept in sync by hand in the
+    test would make the assertion pass with the wiring broken. Comparing
+    against LIGHT_TOKENS proves the link, not the memory of which palette is
+    active.
     """
     from dbqm.design.tokens import LIGHT_TOKENS
 
@@ -49,9 +50,9 @@ def test_theme_exposes_every_token_as_a_css_variable():
     """Os componentes so podem consumir a camada semantica se ela chegar la."""
     from dbqm.design.tokens import DARK_TOKENS
 
-    variaveis = get_theme("plano-escuro").variables
-    for chave in DARK_TOKENS:
-        assert chave in variaveis, f"token {chave} nao chega ao CSS"
+    variables = get_theme("plano-escuro").variables
+    for key in DARK_TOKENS:
+        assert key in variables, f'token {key} never reaches the CSS'
 
 
 def test_legacy_theme_names_still_work():

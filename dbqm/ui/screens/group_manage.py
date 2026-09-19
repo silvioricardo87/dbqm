@@ -845,7 +845,7 @@ class GroupManageScreen(Vertical):
                 break
         save_groups(groups)
         self._load_groups()
-        label = f'"{folder}"' if folder else "(sem pasta)"
+        label = f'"{folder}"' if folder else t("common.no_folder")
         self.notify(t("group_manage.moved_to", name=self._folder_group_name, folder=label))
 
     # -- Remove --

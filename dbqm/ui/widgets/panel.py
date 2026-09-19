@@ -152,16 +152,16 @@ class Panel(Vertical):
         and fails if the coupling is lost. It is the reason this cannot go
         back to failing quietly.
         """
-        altura = self.styles.height
-        if altura is None or not altura.is_auto:
+        height = self.styles.height
+        if height is None or not height.is_auto:
             return
-        corpo = self.query_one("#panel-body", Vertical)
-        teto = self.styles.max_height
-        if teto is not None:
-            if teto.unit is not Unit.CELLS:
+        body = self.query_one("#panel-body", Vertical)
+        ceiling = self.styles.max_height
+        if ceiling is not None:
+            if ceiling.unit is not Unit.CELLS:
                 return
-            corpo.styles.max_height = max(int(teto.value) - self.CHROME, 1)
-        corpo.add_class("-content")
+            body.styles.max_height = max(int(ceiling.value) - self.CHROME, 1)
+        body.add_class("-content")
 
     @property
     def body(self) -> Vertical:

@@ -93,11 +93,11 @@ class DBQMApp(App):
         from dbqm.i18n import resolve_language
         from dbqm.models.settings import load_settings
 
-        configuracao = load_settings()
-        resolve_language(configuracao.language)
-        for tema in TEXTUAL_THEMES.values():
-            self.register_theme(tema)
-        self.theme = get_theme(configuracao.theme).name
+        configuration = load_settings()
+        resolve_language(configuration.language)
+        for theme in TEXTUAL_THEMES.values():
+            self.register_theme(theme)
+        self.theme = get_theme(configuration.theme).name
 
     BINDINGS = [
         # Descriptions in English: `BINDINGS` is built at import time, before
@@ -138,7 +138,7 @@ class DBQMApp(App):
     ]
 
     def compose(self) -> ComposeResult:
-        # First-run (no connections) opens on the Conexoes tab. Decided here so
+        # First-run (no connections) opens on the Connections tab. Decided here so
         # TabbedContent starts on the right tab with no deferred switch that
         # could race with early user input.
         from dbqm.models.connection import load_connections
@@ -224,7 +224,7 @@ class DBQMApp(App):
             lambda: self.call_after_refresh(self._finish_initial_mount, initial_tab)
         )
 
-        # First-run: no connections configured. The Conexoes tab is already
+        # First-run: no connections configured. The Connections tab is already
         # active (chosen in compose); just welcome the user.
         if not connections:
             self.notify(
@@ -323,8 +323,8 @@ class DBQMApp(App):
         """
         # The pinned action belongs to the tab that put it there (see
         # `ActionBar.set_pinned_action`): clearing it here, BEFORE asking
-        # the new screen, is what stops the Ferramentas' `Esc Voltar` from
-        # showing up in Conexoes, where it goes back nowhere. The screen
+        # the new screen, is what stops the Tools' `Esc Back` from
+        # showing up in Connections, where it goes back nowhere. The screen
         # that still needs it puts it back in its own `_set_actions`.
         try:
             self.query_one(ActionBar).set_pinned_action(None)
@@ -607,7 +607,7 @@ class DBQMApp(App):
                 # navigation, which section 7 of the grammar forbids.
                 screen.back_to_start()
             elif screen_id == "tools-screen":
-                # Same reason: the five "Voltar" that lived inside the
+                # Same reason: the five "Back" that lived inside the
                 # tool panes were navigation done by button and left in
                 # Task 8. `ToolsScreen._set_actions` draws the `Esc` in the
                 # bar while one of them is open.

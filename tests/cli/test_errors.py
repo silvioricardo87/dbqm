@@ -24,11 +24,11 @@ class TestExitCode:
 
 class TestErrorCodes:
     def test_every_token_maps_to_an_exit_code(self):
-        esperados = {
+        expected_ones = {
             "usage", "not_found", "validation", "connection_failed",
             "sql_error", "divergent", "unexpected", "read_only",
         }
-        assert set(ERROR_CODES) == esperados
+        assert set(ERROR_CODES) == expected_ones
         assert all(isinstance(v, ExitCode) for v in ERROR_CODES.values())
 
     def test_three_tokens_share_exit_2_on_purpose(self):

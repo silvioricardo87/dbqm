@@ -146,10 +146,11 @@ class OracleClientsScreen(Vertical):
 
     def on_mount(self) -> None:
         installed = self.query_one("#oc-installed-table", DataTable)
-        installed.add_columns("Diretorio", "Versao")
+        installed.add_columns(t("common.directory"), t("common.version"))
 
         available = self.query_one("#oc-available-table", DataTable)
-        available.add_columns("Versao", "Arquitetura", "Formato")
+        available.add_columns(t("common.version"), t("common.architecture"),
+                              t("common.format"))
 
         self._refresh_installed()
         self._refresh_available()

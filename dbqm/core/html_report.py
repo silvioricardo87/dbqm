@@ -13,22 +13,22 @@ from dbqm.design.tokens import LIGHT_TOKENS, DARK_TOKENS
 
 
 def css_variables(tokens: dict[str, str]) -> str:
-    """Emite os design tokens como custom properties, para o <style> do relatorio."""
-    linhas = "\n".join(f"  --{chave}: {valor};" for chave, valor in sorted(tokens.items()))
-    return f":root {{\n{linhas}\n}}"
+    """Emit the design tokens as custom properties, for the report's <style>."""
+    lines = "\n".join(f"  --{key}: {value};" for key, value in sorted(tokens.items()))
+    return f":root {{\n{lines}\n}}"
 
 
 def _light_theme_block(tokens: dict[str, str]) -> str:
-    """Sobrescreve os tokens dentro de uma media query, para o SO/navegador do leitor.
+    """Override the tokens inside a media query, for the reader's OS or browser.
 
-    O relatorio e um arquivo HTML autonomo — nao ha tema ativo da TUI para
-    herdar — entao ele responde a preferencia de cor do sistema em vez de
-    ficar preso a uma variante fixa. A base (:root, tema escuro) ja carrega a
-    paleta completa; aqui so a variante clara sobrescreve, entao nenhum token
-    fica com definicao unica dentro da media query.
+    The report is a self-contained HTML file — there is no active TUI theme to
+    inherit — so it answers the system's colour preference instead of being
+    stuck with one variant. The base (`:root`, the dark theme) already carries
+    the full palette; only the light variant is overridden here, so no token
+    has its single definition inside the media query.
     """
-    linhas = "\n".join(f"    --{chave}: {valor};" for chave, valor in sorted(tokens.items()))
-    return f"@media (prefers-color-scheme: light) {{\n  :root {{\n{linhas}\n  }}\n}}"
+    lines = "\n".join(f"    --{key}: {value};" for key, value in sorted(tokens.items()))
+    return f"@media (prefers-color-scheme: light) {{\n  :root {{\n{lines}\n  }}\n}}"
 
 
 #: Layout rules shared by every report shell -- reset, body, header, the

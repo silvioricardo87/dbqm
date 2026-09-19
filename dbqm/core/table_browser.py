@@ -216,8 +216,8 @@ def detect_label_column(db, db_type: str, ref_table: str, pk_col: str) -> str | 
             safe = _validate_identifier(ref_table)
             cursor.execute(f'PRAGMA table_info("{safe}")')
             for _cid, name, dtype, _nn, _d, _pk in cursor.fetchall():
-                tipo = (dtype or "").upper()
-                if name != pk_col and any(t in tipo for t in ("CHAR", "TEXT", "CLOB")):
+                kind = (dtype or "").upper()
+                if name != pk_col and any(t in kind for t in ("CHAR", "TEXT", "CLOB")):
                     return name
             return None
         else:

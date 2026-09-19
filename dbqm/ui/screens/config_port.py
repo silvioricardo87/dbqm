@@ -25,7 +25,7 @@ class ConfigPortScreen(Vertical):
     The exit from this screen is the `Esc`, handled by whoever hosts it
     (`SettingsScreen.back_to_start`, reached through
     `DBQMApp.action_go_back`) and announced by
-    `SettingsScreen._set_actions`. There used to be a "Voltar" button here
+    `SettingsScreen._set_actions`. There used to be a "Back" button here
     that mounted a new `SettingsScreen` inside `#screen-area`, a container
     removed in e02b8a8 (v1.17.0): for six weeks it only notified
     "Erro: No nodes match '#screen-area'". Task 7 resurrected the route and
@@ -124,7 +124,7 @@ class ConfigPortScreen(Vertical):
         # A list, not two buttons: choosing between export and import is
         # NAVIGATION — it leads to a form, it does not run anything. Two
         # buttons side by side were a menu in disguise, the same shape the
-        # Ferramentas menu had (section 7 of the grammar).
+        # Tools menu had (section 7 of the grammar).
         with Panel(t("panel.export_or_import"), id="cp-mode-phase"):
             yield OptionList(id="cp-mode-list")
 
@@ -155,11 +155,11 @@ class ConfigPortScreen(Vertical):
                 yield Button(t("config_port.import_mode"), id="cp-do-import", variant="primary")
 
     def on_mount(self) -> None:
-        lista = self.query_one("#cp-mode-list", OptionList)
-        lista.clear_options()
-        for chave, identidade, desambiguacao in self.modes():
-            lista.add_option(
-                NamedOption(hierarchical_item(identidade, desambiguacao), chave)
+        option_list = self.query_one("#cp-mode-list", OptionList)
+        option_list.clear_options()
+        for key, identidade, disambiguation in self.modes():
+            option_list.add_option(
+                NamedOption(hierarchical_item(identidade, disambiguation), key)
             )
         if self._initial_mode == "export":
             self._show_export_phase()
@@ -226,10 +226,10 @@ class ConfigPortScreen(Vertical):
         if event.option_list.id != "cp-mode-list":
             return
         event.stop()
-        chave = getattr(event.option, "name", "")
-        if chave == "export":
+        key = getattr(event.option, "name", "")
+        if key == "export":
             self._show_export_phase()
-        elif chave == "import":
+        elif key == "import":
             self._show_import_phase()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

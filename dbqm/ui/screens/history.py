@@ -127,11 +127,11 @@ class HistoryScreen(Vertical):
         if not self._entries:
             # Hiding the table is what the other ten empty lists in dbqm
             # already did (`connections`, `query_list`, `browser`, ...):
-            # without it, the `Data Conexao Tipo SQL Tempo Status` header was
+            # without it, the `Date Connection Type SQL Time Status` header was
             # painted right against the empty state, promising a table that
             # does not exist. The DETAIL panel goes away for the same reason
             # — there is no record to detail — and giving its 8 lines back to
-            # the panel above is what makes the identity line (`Historico`)
+            # the panel above is what makes the identity line (`History`)
             # fit at 80x24, where before it was clipped entirely.
             empty.display = True
             table.display = False

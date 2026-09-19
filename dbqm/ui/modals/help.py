@@ -20,7 +20,7 @@ def help_text() -> str:
     out, so a longer word in another language cannot push the descriptions
     out of line.
     """
-    secoes = [
+    sections = [
         (t("shortcuts.section_general"), [
             ("Ctrl+B", t("shortcuts.toggle_sidebar")),
             ("Ctrl+Q", t("shortcuts.quit")),
@@ -42,15 +42,15 @@ def help_text() -> str:
             ("R", t("shortcuts.rerun")),
         ]),
     ]
-    largura = max(len(tecla) for _, atalhos in secoes for tecla, _ in atalhos)
-    linhas: list[str] = []
-    for titulo, atalhos in secoes:
-        linhas.append(f"[bold $ds-text-strong]{titulo}[/]")
-        linhas.extend(f"  {tecla.ljust(largura)}  {descricao}"
-                      for tecla, descricao in atalhos)
-        linhas.append("")
-    linhas.append(f'[dim]{t("shortcuts.dismiss")}[/dim]')
-    return "\n".join(linhas)
+    width = max(len(key_name) for _, shortcuts in sections for key_name, _ in shortcuts)
+    lines: list[str] = []
+    for title, shortcuts in sections:
+        lines.append(f"[bold $ds-text-strong]{title}[/]")
+        lines.extend(f"  {key_name.ljust(width)}  {description}"
+                      for key_name, description in shortcuts)
+        lines.append("")
+    lines.append(f'[dim]{t("shortcuts.dismiss")}[/dim]')
+    return "\n".join(lines)
 
 
 class HelpModal(ModalScreen[None]):

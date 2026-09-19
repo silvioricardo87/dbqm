@@ -47,7 +47,7 @@ def multi_row_result():
     qr = QueryResult(
         query_name="REGISTROS",
         connection_name="conn1",
-        columns=["ID", "NOME", "STATUS"],
+        columns=["ID", "NAME", "STATUS"],
         rows=[
             [1, "Alice", "ativo"],
             [2, "Bob", "inativo"],
@@ -92,7 +92,7 @@ class TestExtractPlaceholders:
         assert extract_placeholders("{{a}}{{b}}") == ["a", "b"]
 
     def test_placeholder_with_underscores(self):
-        assert extract_placeholders("{{etapa_1_fonte}}") == ["etapa_1_fonte"]
+        assert extract_placeholders("{{step_1_source}}") == ["step_1_source"]
 
     def test_non_word_chars_not_captured(self):
         """Placeholders with spaces or special chars are not matched."""
@@ -106,10 +106,10 @@ class TestExtractPlaceholders:
 
 class TestResolveAutoFields:
     def test_param_source(self, group_result):
-        fields = {"titulo": "param:CORRETOR"}
+        fields = {"title": "param:CORRETOR"}
         params = {"CORRETOR": "108866"}
         resolved = resolve_auto_fields(group_result, params, fields)
-        assert resolved["titulo"] == "108866"
+        assert resolved["title"] == "108866"
 
     def test_param_missing_returns_empty(self, group_result):
         fields = {"x": "param:NONEXISTENT"}
@@ -124,12 +124,12 @@ class TestResolveAutoFields:
     def test_query_count_label(self, group_result):
         fields = {"label": "query:ASD_CORRETOR:_count_label"}
         resolved = resolve_auto_fields(group_result, {}, fields)
-        assert resolved["label"] == "1 registro"
+        assert resolved["label"] == "1 row"
 
     def test_query_count_label_plural(self, group_result):
         fields = {"label": "query:VW_ESTRUTURA:_count_label"}
         resolved = resolve_auto_fields(group_result, {}, fields)
-        assert resolved["label"] == "0 registros"
+        assert resolved["label"] == "0 rows"
 
     def test_query_column_value(self, group_result):
         fields = {"susep": "query:ASD_CORRETOR:SUSEP"}
@@ -149,7 +149,7 @@ class TestResolveAutoFields:
     def test_query_status_empty(self, group_result):
         fields = {"s": "query:VW_ESTRUTURA:_status"}
         resolved = resolve_auto_fields(group_result, {}, fields)
-        assert resolved["s"] == "VAZIO"
+        assert resolved["s"] == "EMPTY"
 
     def test_query_name(self, group_result):
         fields = {"n": "query:ASD_CORRETOR:_name"}
@@ -157,9 +157,9 @@ class TestResolveAutoFields:
         assert resolved["n"] == "ASD_CORRETOR"
 
     def test_literal_source(self, group_result):
-        fields = {"header": "literal:INVESTIGACAO"}
+        fields = {"header": "literal:INVESTIGATION"}
         resolved = resolve_auto_fields(group_result, {}, fields)
-        assert resolved["header"] == "INVESTIGACAO"
+        assert resolved["header"] == "INVESTIGATION"
 
     def test_literal_with_colons(self, group_result):
         """Literal text after first colon is preserved, even if it contains colons."""
@@ -216,9 +216,9 @@ class TestResolveAutoFields:
 
     def test_multi_row_specific_indices(self, multi_row_result):
         fields = {
-            "first": "query:REGISTROS:NOME:0",
-            "second": "query:REGISTROS:NOME:1",
-            "third": "query:REGISTROS:NOME:2",
+            "first": "query:REGISTROS:NAME:0",
+            "second": "query:REGISTROS:NAME:1",
+            "third": "query:REGISTROS:NAME:2",
         }
         resolved = resolve_auto_fields(multi_row_result, {}, fields)
         assert resolved["first"] == "Alice"
@@ -233,21 +233,21 @@ class TestResolveAutoFields:
     def test_multi_row_count_label(self, multi_row_result):
         fields = {"l": "query:REGISTROS:_count_label"}
         resolved = resolve_auto_fields(multi_row_result, {}, fields)
-        assert resolved["l"] == "3 registros"
+        assert resolved["l"] == "3 rows"
 
     def test_mixed_sources(self, group_result):
         """Multiple source types resolve together."""
         fields = {
-            "titulo": "literal:INVESTIGACAO",
-            "corretor": "param:CORRETOR",
+            "title": "literal:INVESTIGATION",
+            "broker": "param:CORRETOR",
             "susep": "query:ASD_CORRETOR:SUSEP",
             "count_vw": "query:VW_ESTRUTURA:_count",
             "manual_field": "",
         }
         params = {"CORRETOR": "108866"}
         resolved = resolve_auto_fields(group_result, params, fields)
-        assert resolved["titulo"] == "INVESTIGACAO"
-        assert resolved["corretor"] == "108866"
+        assert resolved["title"] == "INVESTIGATION"
+        assert resolved["broker"] == "108866"
         assert resolved["susep"] == "00000202098947"
         assert resolved["count_vw"] == "0"
         assert "manual_field" not in resolved
@@ -324,26 +324,26 @@ class TestRenderTemplate:
 
     def test_realistic_template(self):
         content = (
-            "INVESTIGACAO - {{titulo}}\n\n"
-            "ANALISE: {{analise}}\n\n"
-            "ETAPAS:\n"
-            "- ({{etapa1_fonte}}): {{etapa1_count}} registros. {{etapa1_status}}.\n"
-            "- ({{etapa2_fonte}}): {{etapa2_count}} registros. {{etapa2_status}}.\n"
+            "INVESTIGATION - {{title}}\n\n"
+            "ANALYSIS: {{analysis}}\n\n"
+            "STEPS:\n"
+            "- ({{step1_source}}): {{step1_count}} rows. {{step1_status}}.\n"
+            "- ({{step2_source}}): {{step2_count}} rows. {{step2_status}}.\n"
         )
         values = {
-            "titulo": "CONSULTA APOLICE",
-            "analise": "Corretora nao consegue cotar",
-            "etapa1_fonte": "ASD_CORRETOR",
-            "etapa1_count": "1",
-            "etapa1_status": "OK",
-            "etapa2_fonte": "VW_ESTRUTURA",
-            "etapa2_count": "0",
-            "etapa2_status": "PROBLEMA IDENTIFICADO",
+            "title": "POLICY LOOKUP",
+            "analysis": "Broker cannot quote",
+            "step1_source": "ASD_CORRETOR",
+            "step1_count": "1",
+            "step1_status": "OK",
+            "step2_source": "VW_ESTRUTURA",
+            "step2_count": "0",
+            "step2_status": "PROBLEM FOUND",
         }
         result = render_template(content, values)
-        assert "INVESTIGACAO - CONSULTA APOLICE" in result
-        assert "1 registros. OK." in result
-        assert "0 registros. PROBLEMA IDENTIFICADO." in result
+        assert "INVESTIGATION - POLICY LOOKUP" in result
+        assert "1 rows. OK." in result
+        assert "0 rows. PROBLEM FOUND." in result
 
 
 # ------------------------------------------------------------------
@@ -354,7 +354,7 @@ class TestEndToEnd:
     """Full pipeline: extract -> resolve -> get_input -> render."""
 
     def test_all_auto_fields(self, group_result):
-        content = "Corretor {{susep}} tem {{count}} registro(s). Status: {{status}}."
+        content = "Broker {{susep}} has {{count}} row(s). Status: {{status}}."
         fields = {
             "susep": "query:ASD_CORRETOR:SUSEP",
             "count": "query:ASD_CORRETOR:_count",
@@ -369,29 +369,29 @@ class TestEndToEnd:
         assert input_fields == []
 
         result = render_template(content, resolved)
-        assert result == "Corretor 00000202098947 tem 1 registro(s). Status: OK."
+        assert result == "Broker 00000202098947 has 1 row(s). Status: OK."
 
     def test_mixed_auto_and_input(self, group_result):
-        content = "{{titulo}}\n{{fonte}}: {{count}} registros"
+        content = "{{title}}\n{{source}}: {{count}} rows"
         fields = {
-            "fonte": "query:VW_ESTRUTURA:_name",
+            "source": "query:VW_ESTRUTURA:_name",
             "count": "query:VW_ESTRUTURA:_count",
         }
 
         placeholders = extract_placeholders(content)
         resolved = resolve_auto_fields(group_result, {}, fields)
         input_fields = get_input_fields(placeholders, resolved)
-        assert input_fields == ["titulo"]
+        assert input_fields == ["title"]
 
         # Simulate user filling the input
-        all_values = {**resolved, "titulo": "Minha Investigacao"}
+        all_values = {**resolved, "title": "My Investigation"}
         result = render_template(content, all_values)
-        assert result == "Minha Investigacao\nVW_ESTRUTURA: 0 registros"
+        assert result == "My Investigation\nVW_ESTRUTURA: 0 rows"
 
     def test_params_in_template(self, group_result):
-        content = "Corretor {{cod}} (SUSEP {{susep}})"
+        content = "Broker {{code}} (SUSEP {{susep}})"
         fields = {
-            "cod": "param:CORRETOR",
+            "code": "param:CORRETOR",
             "susep": "query:ASD_CORRETOR:SUSEP",
         }
         params = {"CORRETOR": "108866"}
@@ -399,19 +399,19 @@ class TestEndToEnd:
         placeholders = extract_placeholders(content)
         resolved = resolve_auto_fields(group_result, params, fields)
         result = render_template(content, resolved)
-        assert result == "Corretor 108866 (SUSEP 00000202098947)"
+        assert result == "Broker 108866 (SUSEP 00000202098947)"
 
     def test_multi_row_template(self, multi_row_result):
         content = (
             "REGISTROS ({{total}}):\n"
-            "1. {{nome1}} - {{status1}}\n"
-            "2. {{nome2}} - {{status2}}\n"
+            "1. {{name1}} - {{status1}}\n"
+            "2. {{name2}} - {{status2}}\n"
         )
         fields = {
             "total": "query:REGISTROS:_count",
-            "nome1": "query:REGISTROS:NOME:0",
+            "name1": "query:REGISTROS:NAME:0",
             "status1": "query:REGISTROS:STATUS:0",
-            "nome2": "query:REGISTROS:NOME:1",
+            "name2": "query:REGISTROS:NAME:1",
             "status2": "query:REGISTROS:STATUS:1",
         }
 
@@ -424,22 +424,22 @@ class TestEndToEnd:
     def test_full_investigation_template(self, group_result):
         """Simulates the real-world investigation template from the user example."""
         content = (
-            "INVESTIGACAO - {{titulo}}\n\n"
-            "ANALISE: {{analise}}\n\n"
-            "ENTIDADES: CD_INTERNO_CORRETOR {{cod}}, SUSEP {{susep}}\n\n"
-            "ETAPAS:\n"
-            "- ({{etapa1_nome}}): Corretor existe com SUSEP {{susep}}, TP_DOCUMENTO {{tp_doc}}. {{etapa1_verdict}}.\n"
-            "- ({{etapa2_nome}}): {{etapa2_count_label}}. {{etapa2_verdict}}.\n"
+            "INVESTIGATION - {{title}}\n\n"
+            "ANALYSIS: {{analysis}}\n\n"
+            "ENTITIES: CD_INTERNO_CORRETOR {{code}}, SUSEP {{susep}}\n\n"
+            "STEPS:\n"
+            "- ({{step1_name}}): the broker exists with SUSEP {{susep}}, TP_DOCUMENTO {{tp_doc}}. {{step1_verdict}}.\n"
+            "- ({{step2_name}}): {{step2_count_label}}. {{step2_verdict}}.\n"
         )
         fields = {
-            "cod": "param:CORRETOR",
+            "code": "param:CORRETOR",
             "susep": "query:ASD_CORRETOR:SUSEP",
             "tp_doc": "query:ASD_CORRETOR:TP_DOCUMENTO",
-            "etapa1_nome": "query:ASD_CORRETOR:_name",
-            "etapa1_verdict": "literal:OK",
-            "etapa2_nome": "query:VW_ESTRUTURA:_name",
-            "etapa2_count_label": "query:VW_ESTRUTURA:_count_label",
-            "etapa2_verdict": "literal:PROBLEMA IDENTIFICADO",
+            "step1_name": "query:ASD_CORRETOR:_name",
+            "step1_verdict": "literal:OK",
+            "step2_name": "query:VW_ESTRUTURA:_name",
+            "step2_count_label": "query:VW_ESTRUTURA:_count_label",
+            "step2_verdict": "literal:PROBLEMA IDENTIFICADO",
             # these are manual input fields (not in fields dict)
         }
         params = {"CORRETOR": "108866"}
@@ -448,22 +448,22 @@ class TestEndToEnd:
         resolved = resolve_auto_fields(group_result, params, fields)
 
         input_fields = get_input_fields(placeholders, resolved)
-        assert "titulo" in input_fields
-        assert "analise" in input_fields
+        assert "title" in input_fields
+        assert "analysis" in input_fields
 
         all_values = {
             **resolved,
-            "titulo": "CONSULTA APOLICE",
-            "analise": "Corretora AMO nao consegue cotar seguro automovel",
+            "title": "POLICY LOOKUP",
+            "analysis": "Broker AMO cannot quote motor insurance",
         }
         result = render_template(content, all_values)
 
-        assert "INVESTIGACAO - CONSULTA APOLICE" in result
+        assert "INVESTIGATION - POLICY LOOKUP" in result
         assert "CD_INTERNO_CORRETOR 108866" in result
         assert "SUSEP 00000202098947" in result
         assert "TP_DOCUMENTO CGC" in result
         assert "(ASD_CORRETOR):" in result
         assert "OK." in result
         assert "(VW_ESTRUTURA):" in result
-        assert "0 registros" in result
+        assert "0 rows" in result
         assert "PROBLEMA IDENTIFICADO." in result

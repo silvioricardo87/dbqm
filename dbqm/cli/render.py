@@ -13,14 +13,15 @@ from dbqm.design.tokens import DARK_TOKENS
 
 
 def rich_theme() -> _RichTheme:
-    """Tema do Rich construido a partir dos design tokens.
+    """A Rich theme built from the design tokens.
 
-    O CLI roda em terminal de fundo desconhecido, entao usa sempre a variante
-    escura: ela e a unica cuja legibilidade nao depende de o terminal ser claro.
-    Os nomes trocam '-' por '.' para seguir a convencao de estilo do Rich.
+    The CLI runs in a terminal whose background it cannot know, so it always
+    uses the dark variant: it is the only one whose legibility does not depend
+    on the terminal being light. The names trade '-' for '.' to follow Rich's
+    own style convention.
     """
     return _RichTheme(
-        {chave.replace("-", "."): valor for chave, valor in DARK_TOKENS.items()}
+        {key.replace("-", "."): value for key, value in DARK_TOKENS.items()}
     )
 
 
@@ -73,25 +74,25 @@ def _print_query_result(result: Any, output_format: str = "table") -> None:
 
 
 def _colored_comparison_lines(comparisons: list[ComparisonResult]) -> list[str]:
-    """Linhas de resumo do grupo, coloridas pelo eixo de veredito.
+    """The group's summary lines, coloured by the verdict axis.
 
-    Reconstroi o texto a partir de `ComparisonResult` (contagens), em vez de
-    reimprimir `group_result.summary_lines` cru: assim cada contagem recebe
-    o token do eixo a que pertence (igual/diferente/ausente) sem depender do
-    texto que o core escreve — core/ permanece livre de markup.
+    Rebuilt from `ComparisonResult` (the counts) rather than reprinting
+    `group_result.summary_lines` raw: each count then gets the token of the
+    axis it belongs to (equal/different/absent) without depending on the text
+    core writes — core/ stays free of markup.
     """
-    linhas: list[str] = []
+    lines: list[str] = []
     for comp in comparisons:
-        linhas.append(t("group.summary_column", column=comp.column))
+        lines.append(t("group.summary_column", column=comp.column))
         # The labels differ in length between languages, so the column is
         # aligned from the widest of them rather than from typed-in spaces.
-        rotulos = [t("comparison.equal"), t("comparison.normalized"),
+        labels = [t("comparison.equal"), t("comparison.normalized"),
                    t("comparison.different"), t("comparison.absent")]
-        largura = max(len(r) for r in rotulos)
-        linhas.append(f"  [ds.verdict.match]{rotulos[0]:<{largura}}[/] {comp.equal_count}")
+        width = max(len(r) for r in labels)
+        lines.append(f"  [ds.verdict.match]{labels[0]:<{width}}[/] {comp.equal_count}")
         if comp.normalized_count > 0:
-            linhas.append(
-                f"  [ds.verdict.match]{rotulos[1]:<{largura}}[/] {comp.normalized_count}")
-        linhas.append(f"  [ds.verdict.diff]{rotulos[2]:<{largura}}[/] {comp.diff_count}")
-        linhas.append(f"  [ds.verdict.absent]{rotulos[3]:<{largura}}[/] {comp.absent_count}")
-    return linhas
+            lines.append(
+                f"  [ds.verdict.match]{labels[1]:<{width}}[/] {comp.normalized_count}")
+        lines.append(f"  [ds.verdict.diff]{labels[2]:<{width}}[/] {comp.diff_count}")
+        lines.append(f"  [ds.verdict.absent]{labels[3]:<{width}}[/] {comp.absent_count}")
+    return lines

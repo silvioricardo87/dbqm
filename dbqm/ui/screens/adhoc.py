@@ -38,8 +38,8 @@ def _format_plsql_message(result: AdhocResult) -> str:
     """
     from dbqm.core.query_engine import block_label
 
-    rotulo = t("sql.block_ran_header", label=block_label(result.db_type))
-    return f"[bold]{rotulo}[/] ({result.elapsed:.2f}s)"
+    label = t("sql.block_ran_header", label=block_label(result.db_type))
+    return f"[bold]{label}[/] ({result.elapsed:.2f}s)"
 
 
 class AdhocScreen(Vertical):

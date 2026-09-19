@@ -37,9 +37,9 @@ FRAMES = {
 # door open — swapping one word passed the guard with the box intact.
 BORDER = re.compile(
     r"\b(?:border|outline)(?P<lado>-top|-bottom|-left|-right)?"
-    r"\s*:\s*(?P<valor>[^;{}\n]*?)\s*[;}]"
+    r"\s*:\s*(?P<value>[^;{}\n]*?)\s*[;}]"
 )
-ABRE_REGRA = re.compile(r"^\s*(?P<seletor>[^{}]+?)\s*\{")
+OPENS_A_RULE = re.compile(r"^\s*(?P<seletor>[^{}]+?)\s*\{")
 
 # Exemptions by (file, selector), with the reason written down. By
 # SELECTOR and not by file on purpose: a new section box in the same file
@@ -93,19 +93,19 @@ def raw_borders() -> list[tuple[str, int, str, str]]:
 
     Returns `(file, line, selector, declaration)`.
     """
-    achados: list[tuple[str, int, str, str]] = []
-    for arquivo in sorted(UI_ROOT.rglob("*.py")):
-        rel = _rel(arquivo)
+    found: list[tuple[str, int, str, str]] = []
+    for file in sorted(UI_ROOT.rglob("*.py")):
+        rel = _rel(file)
         if rel in FRAMES:
             continue
-        seletor = ""
-        for numero, linha in enumerate(
-            arquivo.read_text(encoding="utf-8").splitlines(), start=1
+        selector = ""
+        for number, line in enumerate(
+            file.read_text(encoding="utf-8").splitlines(), start=1
         ):
-            abre = ABRE_REGRA.match(linha)
-            if abre:
-                seletor = abre.group("seletor")
-            for m in BORDER.finditer(linha):
+            opens = OPENS_A_RULE.match(line)
+            if opens:
+                selector = opens.group("seletor")
+            for m in BORDER.finditer(line):
                 # A single side is a rule, not a box.
                 if m.group("lado"):
                     continue
@@ -113,26 +113,26 @@ def raw_borders() -> list[tuple[str, int, str, str]]:
                 # test excluded the whole line whenever it contained the word
                 # "none" in any position — `#nonexistent { border: round
                 # $accent; }` would escape. Here it is the VALUE that decides.
-                if m.group("valor").split()[0:1] == ["none"]:
+                if m.group("value").split()[0:1] == ["none"]:
                     continue
-                if (rel, seletor) in EXEMPT:
+                if (rel, selector) in EXEMPT:
                     continue
-                achados.append((rel, numero, seletor, m.group(0)))
-    return achados
+                found.append((rel, number, selector, m.group(0)))
+    return found
 
 
 def test_the_border_scan_finds_files():
     """A guard that scans zero files passes without watching anything."""
-    arquivos = list(UI_ROOT.rglob("*.py"))
-    assert len(arquivos) > 20, f"varredura vazia ou rasa: {len(arquivos)} arquivos"
+    files = list(UI_ROOT.rglob("*.py"))
+    assert len(files) > 20, f"varredura vazia ou rasa: {len(files)} arquivos"
     assert all((PROJECT_ROOT / rel).is_file() for rel in FRAMES)
 
 
 def test_no_raw_border_outside_a_frame_component():
     """A third frame vocabulary was how the product got to three."""
-    fora = raw_borders()
-    assert not fora, "caixa desenhada fora de Panel/Dialog:\n" + "\n".join(
-        f"  {rel}:{n}  [{sel}]  {decl}" for rel, n, sel, decl in fora
+    outside = raw_borders()
+    assert not outside, "caixa desenhada fora de Panel/Dialog:\n" + "\n".join(
+        f"  {rel}:{n}  [{sel}]  {decl}" for rel, n, sel, decl in outside
     )
 
 
@@ -144,10 +144,10 @@ def test_the_guard_sees_outline_as_a_box():
     the frame, and swapping one word made a new box slip past the guard.
     The `outline-<side>` remain a rule, like the `border-<side>`.
     """
-    caixa = BORDER.search("    #qualquer-tela { outline: round $accent; }")
-    assert caixa is not None and caixa.group("lado") is None
-    regua = BORDER.search("    #qualquer-tela { outline-bottom: solid $ds-border; }")
-    assert regua is not None and regua.group("lado") == "-bottom"
+    box = BORDER.search("    #qualquer-tela { outline: round $accent; }")
+    assert box is not None and box.group("lado") is None
+    rule_line = BORDER.search("    #qualquer-tela { outline-bottom: solid $ds-border; }")
+    assert rule_line is not None and rule_line.group("lado") == "-bottom"
 
 
 # ======================================================================
@@ -161,9 +161,9 @@ def test_the_guard_sees_outline_as_a_box():
 # describes.
 CENTERING = re.compile(
     r"(?<![\w-])(?:content-)?align(?:-horizontal)?\s*:\s*"
-    r"(?P<valor>[^;{}\n]*?)\s*[;}]"
+    r"(?P<value>[^;{}\n]*?)\s*[;}]"
 )
-CLASSE = re.compile(r"^class\s+(?P<nome>\w+)\s*(?:\((?P<bases>[^)]*)\))?\s*:")
+CLASS_LINE = re.compile(r"^class\s+(?P<name>\w+)\s*(?:\((?P<bases>[^)]*)\))?\s*:")
 
 # Exemptions by (file, selector), with the reason written down — same
 # format as the border guard. None of them is an action cluster: they are
@@ -183,7 +183,7 @@ CENTERING_EXEMPT = {
     #
     # Measured, because the difference matters: today the call-to-action
     # button is NOT centered. In the real DBQMApp at 100x30, `hist-empty`
-    # occupies x=2..96 and the `Executar consulta` button renders at x=4 —
+    # occupies x=2..96 and the `Run query` button renders at x=4 —
     # stuck against the padding, aligned left. The reason is that the two
     # `Static` of the empty state are `width: 100%`: they fix the width of
     # the group of children, and `align`/`content-align` on the container
@@ -242,8 +242,8 @@ CENTERING_EXEMPT = {
 #     inside the class), and the price of not closing it is known.
 
 
-def clusters_centralizados(
-    aplicar_isencoes: bool = True,
+def centered_clusters(
+    apply_exemptions: bool = True,
 ) -> list[tuple[str, int, str, str]]:
     """Every layout centering outside a dialog.
 
@@ -252,37 +252,37 @@ def clusters_centralizados(
     which is what the canary uses to measure how much the dialog detection
     exempts.
     """
-    achados: list[tuple[str, int, str, str]] = []
-    for arquivo in sorted(UI_ROOT.rglob("*.py")):
-        rel = _rel(arquivo)
-        dialogo = False
-        seletor = ""
-        for numero, linha in enumerate(
-            arquivo.read_text(encoding="utf-8").splitlines(), start=1
+    found: list[tuple[str, int, str, str]] = []
+    for file in sorted(UI_ROOT.rglob("*.py")):
+        rel = _rel(file)
+        dialog = False
+        selector = ""
+        for number, line in enumerate(
+            file.read_text(encoding="utf-8").splitlines(), start=1
         ):
-            classe = CLASSE.match(linha)
-            if classe:
-                nome = classe.group("nome")
-                bases = classe.group("bases") or ""
-                dialogo = any(
-                    marca in texto
-                    for texto in (nome, bases)
-                    for marca in ("Modal", "Dialog")
+            class_name = CLASS_LINE.match(line)
+            if class_name:
+                name = class_name.group("name")
+                bases = class_name.group("bases") or ""
+                dialog = any(
+                    marker in text
+                    for text in (name, bases)
+                    for marker in ("Modal", "Dialog")
                 )
-                seletor = ""
+                selector = ""
                 continue
-            abre = ABRE_REGRA.match(linha)
-            if abre:
-                seletor = abre.group("seletor")
-            if dialogo:
+            opens = OPENS_A_RULE.match(line)
+            if opens:
+                selector = opens.group("seletor")
+            if dialog:
                 continue
-            for m in CENTERING.finditer(linha):
-                if "center" not in m.group("valor"):
+            for m in CENTERING.finditer(line):
+                if "center" not in m.group("value"):
                     continue
-                if aplicar_isencoes and (rel, seletor) in CENTERING_EXEMPT:
+                if apply_exemptions and (rel, selector) in CENTERING_EXEMPT:
                     continue
-                achados.append((rel, numero, seletor, m.group(0)))
-    return achados
+                found.append((rel, number, selector, m.group(0)))
+    return found
 
 
 def test_no_centered_button_cluster_outside_a_dialog():
@@ -291,10 +291,8 @@ def test_no_centered_button_cluster_outside_a_dialog():
     On a working screen, centering disconnects the action from what it
     operates on: the action has to touch the panel that is its subject.
     """
-    fora = clusters_centralizados()
-    assert not fora, "centralizacao em tela de trabalho:\n" + "\n".join(
-        f"  {rel}:{n}  [{sel}]  {decl}" for rel, n, sel, decl in fora
-    )
+    outside = centered_clusters()
+    assert not outside, 'centering on a working screen:\n' + '\n'.join((f'  {rel}:{n}  [{sel}]  {decl}' for rel, n, sel, decl in outside))
 
 
 def test_the_centering_scan_sees_the_dialogs():
@@ -305,10 +303,10 @@ def test_the_centering_scan_sees_the_dialogs():
     the test above starts failing the whole product.
     """
     total = 0
-    for arquivo in UI_ROOT.rglob("*.py"):
-        for linha in arquivo.read_text(encoding="utf-8").splitlines():
-            for m in CENTERING.finditer(linha):
-                if "center" in m.group("valor"):
+    for file in UI_ROOT.rglob("*.py"):
+        for line in file.read_text(encoding="utf-8").splitlines():
+            for m in CENTERING.finditer(line):
+                if "center" in m.group("value"):
                     total += 1
     assert total > 40, f"varredura rasa demais: {total} centralizacoes"
     # Measured at d2367bb: 62 centering declarations in dbqm/ui, 57 of them
@@ -318,14 +316,14 @@ def test_the_centering_scan_sees_the_dialogs():
     # which only fired if the dialog detection broke almost entirely. It
     # tolerated losing 25 modals in silence — and a canary that tolerates
     # losing half is not a canary, it is decoration.
-    fora_de_dialogo = clusters_centralizados(aplicar_isencoes=False)
-    assert len(fora_de_dialogo) <= 8, (
+    outside_a_dialog = centered_clusters(apply_exemptions=False)
+    assert len(outside_a_dialog) <= 8, (
         "a deteccao de dialogo parou de isentar os modais: %d centralizacoes "
         "fora de dialogo (eram 5)\n%s"
         % (
-            len(fora_de_dialogo),
+            len(outside_a_dialog),
             "\n".join(
-                "  %s:%d  [%s]" % (r, n, s_) for r, n, s_, _d in fora_de_dialogo
+                "  %s:%d  [%s]" % (r, n, s_) for r, n, s_, _d in outside_a_dialog
             ),
         )
     )
@@ -334,10 +332,10 @@ def test_the_centering_scan_sees_the_dialogs():
     # declares it. If the regex stops matching it, `dialogo` gets stuck on
     # the value of the PREVIOUS class in the file and the exemption becomes
     # luck.
-    casada = CLASSE.match("class ConfirmModal(ModalScreen[bool]):")
-    assert casada is not None
-    assert casada.group("nome") == "ConfirmModal"
-    assert casada.group("bases") == "ModalScreen[bool]"
+    matched = CLASS_LINE.match("class ConfirmModal(ModalScreen[bool]):")
+    assert matched is not None
+    assert matched.group("name") == "ConfirmModal"
+    assert matched.group("bases") == "ModalScreen[bool]"
 
 
 # ======================================================================
@@ -349,7 +347,7 @@ def test_the_centering_scan_sees_the_dialogs():
 # the other four of this phase — and because a grammar guard hidden in the
 # middle of 5 thousand lines of screen tests is not found by whoever is
 # going to break it.
-def mencoes_a_listview() -> list[str]:
+def listview_mentions() -> list[str]:
     """Every file of `dbqm/ui` that still mentions `ListView`.
 
     Matches ANY mention, not `ListView(`: the first draft only saw the
@@ -362,9 +360,9 @@ def mencoes_a_listview() -> list[str]:
     and does not find it.
     """
     return [
-        _rel(arquivo)
-        for arquivo in sorted(UI_ROOT.rglob("*.py"))
-        if "ListView" in arquivo.read_text(encoding="utf-8")
+        _rel(file)
+        for file in sorted(UI_ROOT.rglob("*.py"))
+        if "ListView" in file.read_text(encoding="utf-8")
     ]
 
 
@@ -387,10 +385,10 @@ def test_listview_left_the_vocabulary():
     Two components for one function is what the phase 1 inventory test
     fails; section 5 of the grammar chose `OptionList`.
     """
-    fontes = list(UI_ROOT.rglob("*.py"))
-    assert fontes, "varredura nao achou fonte nenhuma em %s" % UI_ROOT
-    achados = mencoes_a_listview()
-    assert not achados, "ListView ainda mencionado em: %s" % achados
+    sources = list(UI_ROOT.rglob("*.py"))
+    assert sources, 'the scan found no source at all in %s' % UI_ROOT
+    found = listview_mentions()
+    assert not found, 'ListView is still mentioned in: %s' % found
 
 
 # ======================================================================
@@ -414,13 +412,13 @@ def test_listview_left_the_vocabulary():
 #   - anything outside `dbqm/ui` — CLI and tests are not scanned.
 
 
-def _modulos() -> list[tuple[str, ast.Module]]:
+def _modules() -> list[tuple[str, ast.Module]]:
     """(relative path, tree) of each source of `dbqm/ui`."""
-    modulos = []
-    for arquivo in sorted(UI_ROOT.rglob("*.py")):
-        texto = arquivo.read_text(encoding="utf-8")
-        modulos.append((_rel(arquivo), ast.parse(texto, filename=str(arquivo))))
-    return modulos
+    modules = []
+    for file in sorted(UI_ROOT.rglob("*.py")):
+        text = file.read_text(encoding="utf-8")
+        modules.append((_rel(file), ast.parse(text, filename=str(file))))
+    return modules
 
 
 def _called_name(no: ast.Call) -> str:
@@ -466,7 +464,7 @@ FLATTENED_EXEMPT = {
 #     escapes;
 #   - `f"{x}"` with ONE field passes on purpose — it is identity with a
 #     prefix (`f"📄  {t.name}"` in the templates sidebar), not glued-on
-#     metadata. It is from TWO fields on one line that the `nome (tipo -
+#     metadata. It is from TWO fields on one line that the `name (tipo -
 #     alvo) | descricao` that section 5 forbids is born;
 #   - the exemption is by (file, constructor): a SECOND flattened
 #     `Selection` in the same file would pass too. In exchange, a
@@ -474,35 +472,35 @@ FLATTENED_EXEMPT = {
 
 
 def _interpolated_fields(no: ast.JoinedStr) -> int:
-    return sum(1 for parte in no.values if isinstance(parte, ast.FormattedValue))
+    return sum(1 for part in no.values if isinstance(part, ast.FormattedValue))
 
 
-def _operandos_da_soma(no: ast.AST) -> list[ast.AST]:
+def _addition_operands(no: ast.AST) -> list[ast.AST]:
     """Flattens `a + b + c` into the list of operands."""
     if isinstance(no, ast.BinOp) and isinstance(no.op, ast.Add):
-        return _operandos_da_soma(no.left) + _operandos_da_soma(no.right)
+        return _addition_operands(no.left) + _addition_operands(no.right)
     return [no]
 
 
-def _achatamento(no: ast.AST) -> str:
+def _flattening(no: ast.AST) -> str:
     """Describes the flattening, or "" if the node flattens nothing."""
     if isinstance(no, ast.JoinedStr):
-        campos = _interpolated_fields(no)
-        if campos >= 2:
-            return "f-string com %d campos numa linha so" % campos
+        fields = _interpolated_fields(no)
+        if fields >= 2:
+            return "f-string com %d campos numa linha so" % fields
         return ""
     if isinstance(no, ast.BinOp) and isinstance(no.op, ast.Add):
-        partes = _operandos_da_soma(no)
-        colas = [
+        parts = _addition_operands(no)
+        glue = [
             p.value
-            for p in partes
+            for p in parts
             if isinstance(p, ast.Constant)
             and isinstance(p.value, str)
             and p.value.strip()
         ]
-        variaveis = [p for p in partes if not isinstance(p, ast.Constant)]
-        if colas and variaveis:
-            return "concatenacao com separador %r" % colas[0]
+        variables = [p for p in parts if not isinstance(p, ast.Constant)]
+        if glue and variables:
+            return "concatenacao com separador %r" % glue[0]
     return ""
 
 
@@ -511,54 +509,54 @@ def flattened_labels() -> list[tuple[str, int, str, str]]:
 
     Returns `(file, line, constructor, reason)`.
     """
-    achados: list[tuple[str, int, str, str]] = []
-    for rel, modulo in _modulos():
+    found: list[tuple[str, int, str, str]] = []
+    for rel, module_ in _modules():
         # One indirection: `label = f"..."` and then `Selection(label, ...)`.
         # Without this, moving the f-string into a variable disarms the
         # guard — and that is exactly how the product's only real case is
         # written.
-        atribuicoes: dict[str, ast.AST] = {}
-        for no in ast.walk(modulo):
+        assignments: dict[str, ast.AST] = {}
+        for no in ast.walk(module_):
             if isinstance(no, ast.Assign) and len(no.targets) == 1:
-                alvo = no.targets[0]
-                if isinstance(alvo, ast.Name):
-                    atribuicoes[alvo.id] = no.value
-        for no in ast.walk(modulo):
+                target = no.targets[0]
+                if isinstance(target, ast.Name):
+                    assignments[target.id] = no.value
+        for no in ast.walk(module_):
             if not isinstance(no, ast.Call) or not no.args:
                 continue
-            construtor = _called_name(no)
-            if construtor not in ITEM_BUILDERS:
+            constructor = _called_name(no)
+            if constructor not in ITEM_BUILDERS:
                 continue
-            primeiro = no.args[0]
-            if isinstance(primeiro, ast.Name):
-                primeiro = atribuicoes.get(primeiro.id, primeiro)
-            motivo = _achatamento(primeiro)
-            if not motivo:
+            first = no.args[0]
+            if isinstance(first, ast.Name):
+                first = assignments.get(first.id, first)
+            reason = _flattening(first)
+            if not reason:
                 continue
-            if (rel, construtor) in FLATTENED_EXEMPT:
+            if (rel, constructor) in FLATTENED_EXEMPT:
                 continue
-            achados.append((rel, no.lineno, construtor, motivo))
-    return achados
+            found.append((rel, no.lineno, constructor, reason))
+    return found
 
 
 def test_the_label_scan_sees_the_item_builders():
     """A guard that finds no constructor watches no list at all."""
-    vistos = {
+    seen = {
         _called_name(no)
-        for _rel_, modulo in _modulos()
-        for no in ast.walk(modulo)
+        for _rel_, module_ in _modules()
+        for no in ast.walk(module_)
         if isinstance(no, ast.Call)
     }
-    assert ITEM_BUILDERS <= vistos, (
+    assert ITEM_BUILDERS <= seen, (
         "construtor de item de lista sumiu do produto: %s"
-        % (ITEM_BUILDERS - vistos)
+        % (ITEM_BUILDERS - seen)
     )
     # The shape the guard needs to recognize, verified here and not merely
     # trusted: two fields in a string are flattening, one field is not.
-    dois = ast.parse('Option(f"{a} | {b}")').body[0].value.args[0]
+    two = ast.parse('Option(f"{a} | {b}")').body[0].value.args[0]
     um = ast.parse('Option(f"icone {a}")').body[0].value.args[0]
-    assert _achatamento(dois)
-    assert not _achatamento(um)
+    assert _flattening(two)
+    assert not _flattening(um)
 
 
 def test_list_label_is_not_a_flattened_string():
@@ -570,10 +568,10 @@ def test_list_label_is_not_a_flattened_string():
     that originated this phase. The cure is `hierarchical_item`, not a
     better separator.
     """
-    fora = flattened_labels()
-    assert not fora, "item de lista achatado numa string:\n" + "\n".join(
-        f"  {rel}:{n}  {construtor}(...)  {motivo}"
-        for rel, n, construtor, motivo in fora
+    outside = flattened_labels()
+    assert not outside, "item de lista achatado numa string:\n" + "\n".join(
+        f"  {rel}:{n}  {constructor}(...)  {reason}"
+        for rel, n, constructor, reason in outside
     )
 
 
@@ -590,7 +588,7 @@ def test_list_label_is_not_a_flattened_string():
 #
 # A fixed-schema table (`add_columns("#", "Nome", "Descricao")`) was
 # written by someone who knew its width; it does not fall under this rule.
-def _e_nome_fixo(arg: ast.AST) -> bool:
+def _is_a_fixed_name(arg: ast.AST) -> bool:
     """A column name written by whoever knew the table's width.
 
     A string literal is one. So is `t("some.key")`: the name comes from
@@ -611,27 +609,27 @@ def _e_nome_fixo(arg: ast.AST) -> bool:
     )
 
 
-def _dynamic_columns(escopo: ast.AST) -> list[tuple[int, str, ast.Call]]:
+def _dynamic_columns(scope: ast.AST) -> list[tuple[int, str, ast.Call]]:
     """`add_column(...)` whose column name comes from the data, in this scope.
 
     Returns `(line, argument, call)`.
     """
-    dinamicas: list[tuple[int, str, ast.Call]] = []
-    for no in ast.walk(escopo):
+    dynamic: list[tuple[int, str, ast.Call]] = []
+    for no in ast.walk(scope):
         if not (isinstance(no, ast.Call) and _called_name(no) in {
             "add_column",
             "add_columns",
         }):
             continue
         for arg in no.args:
-            if not _e_nome_fixo(arg):
-                dinamicas.append((no.lineno, ast.unparse(arg), no))
+            if not _is_a_fixed_name(arg):
+                dynamic.append((no.lineno, ast.unparse(arg), no))
                 break
-    return dinamicas
+    return dynamic
 
 
-def _fixes_the_key(escopo: ast.AST) -> bool:
-    for no in ast.walk(escopo):
+def _fixes_the_key(scope: ast.AST) -> bool:
+    for no in ast.walk(scope):
         if isinstance(no, ast.Attribute) and no.attr == "fixed_columns":
             return True
         if isinstance(no, ast.keyword) and no.arg == "fixed_columns":
@@ -652,31 +650,31 @@ def result_tables_without_fixed_key() -> list[tuple[str, int, str]]:
     this one was caught by the breakage test of the very task that wrote
     it.
     """
-    achados: list[tuple[str, int, str]] = []
-    for rel, modulo in _modulos():
-        pais: dict[int, ast.AST] = {}
+    found: list[tuple[str, int, str]] = []
+    for rel, module_ in _modules():
+        parents: dict[int, ast.AST] = {}
         nos: dict[int, ast.AST] = {}
-        for pai in ast.walk(modulo):
-            for filho in ast.iter_child_nodes(pai):
-                pais[id(filho)] = pai
-                nos[id(filho)] = filho
-        for linha, arg, chamada in _dynamic_columns(modulo):
+        for parent in ast.walk(module_):
+            for child in ast.iter_child_nodes(parent):
+                parents[id(child)] = parent
+                nos[id(child)] = child
+        for line, arg, call in _dynamic_columns(module_):
             # Scope = the innermost function that contains the call (or the
             # module, if it is loose). The key can be fixed there or in any
             # function that surrounds it — both readings are legible; what
             # the guard refuses is the fixing living in another branch of
             # the file.
-            escopos: list[ast.AST] = []
-            atual = pais.get(id(chamada))
-            while atual is not None:
-                if isinstance(atual, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    escopos.append(atual)
-                atual = pais.get(id(atual))
-            if not escopos:
-                escopos = [modulo]
-            if not any(_fixes_the_key(e) for e in escopos):
-                achados.append((rel, linha, arg))
-    return achados
+            scopes: list[ast.AST] = []
+            current = parents.get(id(call))
+            while current is not None:
+                if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    scopes.append(current)
+                current = parents.get(id(current))
+            if not scopes:
+                scopes = [module_]
+            if not any(_fixes_the_key(e) for e in scopes):
+                found.append((rel, line, arg))
+    return found
 
 
 # Known limits, chosen:
@@ -705,21 +703,21 @@ def result_tables_without_fixed_key() -> list[tuple[str, int, str]]:
 def test_the_table_scan_finds_the_columns():
     """If nobody builds columns anymore, this guard stopped watching."""
     total = 0
-    for _, modulo in _modulos():
-        for no in ast.walk(modulo):
+    for _, module_ in _modules():
+        for no in ast.walk(module_):
             if isinstance(no, ast.Call) and _called_name(no) in {
                 "add_column",
                 "add_columns",
             }:
                 total += 1
-    assert total > 15, "varredura rasa demais: %d chamadas de coluna" % total
+    assert total > 15, 'the scan is too shallow: %d column calls' % total
 
 
 def test_result_table_fixes_the_key_column():
     """Scrolling without fixing the key destroys the comparison (section 6)."""
-    fora = result_tables_without_fixed_key()
-    assert not fora, "tabela de resultado sem chave fixa:\n" + "\n".join(
-        f"  {rel}:{n}  add_column({arg})" for rel, n, arg in fora
+    outside = result_tables_without_fixed_key()
+    assert not outside, "tabela de resultado sem chave fixa:\n" + "\n".join(
+        f"  {rel}:{n}  add_column({arg})" for rel, n, arg in outside
     )
 
 
@@ -728,7 +726,7 @@ def test_result_table_fixes_the_key_column():
 # ======================================================================
 #
 # The other half of section 7: "a button is an action, never navigation
-# nor a menu". The menu half was solved in Task 8 (`Ferramentas` and the
+# nor a menu". The menu half was solved in Task 8 (`Tools` and the
 # mode selector of `config_port` became a choosable list) and the
 # centering one has guard 2. This one had no guard at all — and the scope
 # note of Task 8 said that ONE call-to-action navigated. There are FOUR.
@@ -741,10 +739,10 @@ NAVIGATION = {"action_switch_tab", "open_tool"}
 
 # Exemptions by (file, button id), with the reason written down. The four
 # CTAs below are empty states: `EmptyState` (dbqm/ui/widgets/empty_state.py)
-# REQUIRES `acao_rotulo` and `acao_id` — the four parameters are mandatory
-# on purpose, to prevent "Nenhuma consulta configurada" without offering
+# REQUIRES `action_label` and `action_id` — the four parameters are mandatory
+# on purpose, to prevent "No query configured" without offering
 # the way out. When the honest way out of an empty state is in another tab
-# (there is no query to create HERE; it is born in Coleta), the only way
+# (there is no query to create HERE; it is born in Collect), the only way
 # to honor the contract is to navigate.
 #
 # Leaving the four like that was a decision, not an oversight: making the
@@ -753,16 +751,16 @@ NAVIGATION = {"action_switch_tab", "open_tool"}
 # the spec). What this guard delivers meanwhile is the CEILING: there are
 # four, they are named, and the fifth fails the suite.
 NAVIGATION_EXEMPT = {
-    # "Run query" -> Consultas tab. There is no history to create
+    # "Run query" -> Queries tab. There is no history to create
     # here; it is born from an execution in another tab.
     ("dbqm/ui/screens/history.py", "run-query"),
-    # "Create query" -> Coleta tab. A query is saved from there ("Salvar
-    # como consulta"), never from this screen.
+    # "Create query" -> Collect tab. A query is saved from there ("Save
+    # as query"), never from this screen.
     ("dbqm/ui/screens/query_exec.py", "create-query-collect"),
-    # "Manage groups" -> Grupos tool. This screen EXECUTES groups;
+    # "Manage groups" -> Groups tool. This screen EXECUTES groups;
     # creating is the job of the tool next door.
     ("dbqm/ui/screens/group_run.py", "manage-groups"),
-    # "Open Tools" -> Ferramentas tab. The templates sidebar shows
+    # "Open Tools" -> Tools tab. The templates sidebar shows
     # templates; they are created in the Templates tool.
     ("dbqm/ui/widgets/templates_sidebar.py", "open-tools"),
 }
@@ -805,7 +803,7 @@ NAVIGATION_EXEMPT = {
 #     side are the behavior tests of each CTA, not this scan.
 
 
-def _e_handler_de_botao(no: ast.AST) -> bool:
+def _is_button_handler(no: ast.AST) -> bool:
     if not isinstance(no, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return False
     if no.name.startswith("on_button_pressed"):
@@ -813,9 +811,9 @@ def _e_handler_de_botao(no: ast.AST) -> bool:
     # Also by the parameter's TYPE and by the decorator: a renamed handler
     # (`@on(Button.Pressed)` or `def _cliquei(self, e: Button.Pressed)`)
     # is still a button handler.
-    anotacoes = [ast.unparse(a.annotation) for a in no.args.args if a.annotation]
-    decoradores = [ast.unparse(d) for d in no.decorator_list]
-    return any("Button.Pressed" in t for t in anotacoes + decoradores)
+    annotations = [ast.unparse(a.annotation) for a in no.args.args if a.annotation]
+    decorators = [ast.unparse(d) for d in no.decorator_list]
+    return any("Button.Pressed" in t for t in annotations + decorators)
 
 
 def _branch_ids(no: ast.AST, parents: dict[ast.AST, ast.AST], root: ast.AST) -> set[str]:
@@ -833,38 +831,38 @@ def _branch_ids(no: ast.AST, parents: dict[ast.AST, ast.AST], root: ast.AST) -> 
     have dropped.
     """
     ids: set[str] = set()
-    filho: ast.AST = no
-    atual = parents.get(no)
-    while atual is not None and atual is not root:
-        if isinstance(atual, ast.If) and not any(filho is s for s in atual.orelse):
-            for teste in ast.walk(atual.test):
-                if isinstance(teste, ast.Constant) and isinstance(teste.value, str):
-                    ids.add(teste.value)
-        filho = atual
-        atual = parents.get(atual)
+    child: ast.AST = no
+    current = parents.get(no)
+    while current is not None and current is not root:
+        if isinstance(current, ast.If) and not any(child is s for s in current.orelse):
+            for test_name in ast.walk(current.test):
+                if isinstance(test_name, ast.Constant) and isinstance(test_name.value, str):
+                    ids.add(test_name.value)
+        child = current
+        current = parents.get(current)
     return ids
 
 
-def botoes_que_navegam() -> list[tuple[str, int, str, str]]:
+def navigating_buttons() -> list[tuple[str, int, str, str]]:
     """Every button handler that switches tabs or opens another tool.
 
     Returns `(file, line, button id, navigation verb)`.
     """
-    achados: list[tuple[str, int, str, str]] = []
-    for rel, modulo in _modulos():
-        for handler in ast.walk(modulo):
-            if not _e_handler_de_botao(handler):
+    found: list[tuple[str, int, str, str]] = []
+    for rel, module_ in _modules():
+        for handler in ast.walk(module_):
+            if not _is_button_handler(handler):
                 continue
-            pais: dict[ast.AST, ast.AST] = {}
-            for pai in ast.walk(handler):
-                for filho in ast.iter_child_nodes(pai):
-                    pais[filho] = pai
+            parents: dict[ast.AST, ast.AST] = {}
+            for parent in ast.walk(handler):
+                for child in ast.iter_child_nodes(parent):
+                    parents[child] = parent
             for no in ast.walk(handler):
-                verbo = ""
+                verb = ""
                 if isinstance(no, ast.Attribute) and no.attr in NAVIGATION:
-                    verbo = no.attr
+                    verb = no.attr
                 elif isinstance(no, ast.Name) and no.id in NAVIGATION:
-                    verbo = no.id
+                    verb = no.id
                 elif (
                     isinstance(no, ast.Constant)
                     and isinstance(no.value, str)
@@ -872,44 +870,43 @@ def botoes_que_navegam() -> list[tuple[str, int, str, str]]:
                 ):
                     # `getattr(self.app, "action_switch_tab", None)` — the
                     # shape the four real CTAs use.
-                    verbo = no.value
-                if not verbo:
+                    verb = no.value
+                if not verb:
                     continue
-                ids = _branch_ids(no, pais, handler) - NAVIGATION
-                botao = sorted(ids)[0] if ids else ""
-                if (rel, botao) in NAVIGATION_EXEMPT:
+                ids = _branch_ids(no, parents, handler) - NAVIGATION
+                button = sorted(ids)[0] if ids else ""
+                if (rel, button) in NAVIGATION_EXEMPT:
                     continue
-                achados.append((rel, no.lineno, botao, verbo))
-    return achados
+                found.append((rel, no.lineno, button, verb))
+    return found
 
 
 def test_the_navigation_scan_sees_the_handlers():
     """A guard that finds no button handler watches no button at all."""
     handlers = [
         no
-        for _rel_, modulo in _modulos()
-        for no in ast.walk(modulo)
-        if _e_handler_de_botao(no)
+        for _rel_, module_ in _modules()
+        for no in ast.walk(module_)
+        if _is_button_handler(no)
     ]
     assert len(handlers) > 15, "varredura rasa demais: %d handlers" % len(handlers)
     # The exemptions are worth something by BEING real: if an exempt CTA
     # stops navigating (or stops existing), the exemption becomes dead
     # letter and the ceiling of four stops being a measured ceiling.
-    sem_isencao = {(rel, botao) for rel, _n, botao, _v in _botoes_que_navegam_cru()}
-    assert NAVIGATION_EXEMPT <= sem_isencao, (
-        "isencao que nao corresponde a nenhum botao real: %s"
-        % (NAVIGATION_EXEMPT - sem_isencao)
+    without_exemption = {(rel, button) for rel, _n, button, _v in _navigating_buttons_raw()}
+    assert NAVIGATION_EXEMPT <= without_exemption, (
+        'an exemption matching no real button: %s' % (NAVIGATION_EXEMPT - without_exemption)
     )
 
 
-def _botoes_que_navegam_cru() -> list[tuple[str, int, str, str]]:
+def _navigating_buttons_raw() -> list[tuple[str, int, str, str]]:
     """`botoes_que_navegam()` without applying the exemptions."""
-    guardadas = set(NAVIGATION_EXEMPT)
+    kept = set(NAVIGATION_EXEMPT)
     NAVIGATION_EXEMPT.clear()
     try:
-        return botoes_que_navegam()
+        return navigating_buttons()
     finally:
-        NAVIGATION_EXEMPT.update(guardadas)
+        NAVIGATION_EXEMPT.update(kept)
 
 
 def test_button_does_not_navigate():
@@ -920,7 +917,7 @@ def test_button_does_not_navigate():
     does something else — besides making the next layout grow a menu
     button, which is what Task 8 has just undone.
     """
-    fora = botoes_que_navegam()
-    assert not fora, "botao usado como navegacao:\n" + "\n".join(
-        f"  {rel}:{n}  [{botao or '?'}]  -> {verbo}" for rel, n, botao, verbo in fora
+    outside = navigating_buttons()
+    assert not outside, "botao usado como navegacao:\n" + "\n".join(
+        f"  {rel}:{n}  [{button or '?'}]  -> {verb}" for rel, n, button, verb in outside
     )

@@ -430,7 +430,7 @@ COMMAND_MAP = {
 }
 
 
-def _resolver_idioma() -> None:
+def _resolve_the_language() -> None:
     """`DBQM_LANG`, else the stored setting, else English.
 
     A settings file that cannot be read must not stop a command from running:
@@ -450,7 +450,7 @@ def run_cli(argv: list[str] | None = None) -> bool:
     """Parse CLI args and execute command. Returns True if a command was handled."""
     # Before the parser: `--help` renders flag descriptions, which are
     # user-facing text like any other.
-    _resolver_idioma()
+    _resolve_the_language()
 
     parser = build_parser()
     args = parser.parse_args(argv)

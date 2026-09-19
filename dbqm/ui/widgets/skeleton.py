@@ -1,17 +1,17 @@
-"""Skeleton de carregamento: a forma do conteudo que vem.
+"""A loading skeleton: the shape of the content that is coming.
 
-Um rodopio centralizado nao diz nada sobre o que esta chegando e deixa o
-layout saltar quando o conteudo entra. O esqueleto reserva o espaco certo:
-`linhas` x `colunas` de blocos, na forma da tabela que vai substitui-lo.
+A centred spinner says nothing about what is arriving and lets the layout
+jump when the content lands. The skeleton reserves the right space:
+`lines` x `columns` of blocks, in the shape of the table that will replace
+it.
 
-Fechado de proposito, no mesmo espirito de `dialog.py`/`verdict.py`: os
-unicos dois graus de liberdade sao `linhas` e `colunas`, ambos inteiros —
-nao ha variante de estilo para sobrescrever. Um chamador que precisar de
-outra aparencia precisa de um widget novo, nunca de
-`skeleton.styles.*` depois de construir; ``test_dialog_has_no_style_
-override_outside_the_component`` (varredura de `.styles.(width|height) =`
-em toda `dbqm/ui/`) ja fecha essa porta para qualquer widget, este
-incluido.
+Closed on purpose, in the same spirit as `dialog.py`/`verdict.py`: the
+only two degrees of freedom are `lines` and `columns`, both integers —
+there is no style variant to override. A caller who needs another
+appearance needs a new widget, never `skeleton.styles.*` after
+construction; ``test_dialog_has_no_style_override_outside_the_component``
+(a sweep for `.styles.(width|height) =` across all of `dbqm/ui/`) already
+closes that door for every widget, this one included.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from textual.widgets import Static
 
 
 class Skeleton(Vertical):
-    """Placeholder com a forma de uma tabela de `linhas` x `colunas`."""
+    """A placeholder shaped like a table of `lines` x `columns`."""
 
     DEFAULT_CSS = """
     Skeleton { height: auto; width: 100%; }

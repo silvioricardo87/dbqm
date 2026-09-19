@@ -47,8 +47,8 @@ def cmd_test(args: argparse.Namespace) -> None:
     if not conn:
         if args.format == "json":
             fail("test", "not_found", t("connection.not_found_named", name=args.connection))
-        nao_achada = escape(t("connection.not_found_named", name=args.connection))
-        console.print(f"[ds.op.failure]{nao_achada}[/ds.op.failure]")
+        not_found = escape(t("connection.not_found_named", name=args.connection))
+        console.print(f"[ds.op.failure]{not_found}[/ds.op.failure]")
         sys.exit(int(exit_for("not_found")))
 
     succeeded, msg = deps.test_connection(conn)
@@ -136,8 +136,8 @@ def cmd_list(args: argparse.Namespace) -> None:
     else:
         if args.format == "json":
             fail(f"list.{resource}", "usage", t("list.unknown_resource", resource=resource))
-        desconhecido = escape(t("list.unknown_resource", resource=resource))
-        console.print(f"[ds.op.failure]{desconhecido}[/ds.op.failure]")
+        unknown_one = escape(t("list.unknown_resource", resource=resource))
+        console.print(f"[ds.op.failure]{unknown_one}[/ds.op.failure]")
         sys.exit(int(exit_for("usage")))
 
 
@@ -185,8 +185,8 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     if not conn:
         if args.format == "json":
             fail("ddl", "not_found", t("connection.not_found_named", name=args.connection))
-        nao_achada = escape(t("connection.not_found_named", name=args.connection))
-        console.print(f"[ds.op.failure]{nao_achada}[/ds.op.failure]")
+        not_found = escape(t("connection.not_found_named", name=args.connection))
+        console.print(f"[ds.op.failure]{not_found}[/ds.op.failure]")
         sys.exit(int(exit_for("not_found")))
 
     def on_progress(current, total, obj_type, obj_name):

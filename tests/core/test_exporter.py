@@ -95,7 +95,7 @@ class TestQueryExports:
         result = AdhocResult(
             sql_type="PLSQL", connection_name="prod", elapsed=0.12,
             committed=True,
-            output_lines=["processando registro 1", "processando registro 2"],
+            output_lines=["processing record 1", "processing record 2"],
         )
         path = export_dbms_output(
             result, "BEGIN NULL; END;", "2026-06-17 10:00:00", label="meu_bloco",
@@ -105,8 +105,8 @@ class TestQueryExports:
         # Evidence carries SQL, date/time, output and outcome
         assert "BEGIN NULL; END;" in content
         assert "2026-06-17 10:00:00" in content
-        assert "processando registro 1" in content
-        assert "processando registro 2" in content
+        assert "processing record 1" in content
+        assert "processing record 2" in content
         assert "EXECUTION EVIDENCE" in content
         assert "PL/SQL block ran successfully" in content
 
@@ -114,7 +114,7 @@ class TestQueryExports:
         from dbqm.core.exporter import export_dbms_output
         from dbqm.core.query_engine import AdhocResult
         result = AdhocResult(sql_type="PLSQL", connection_name="prod")
-        path = export_dbms_output(result, "BEGIN NULL; END;", "2026-06-17 10:00:00", label="vazio")
+        path = export_dbms_output(result, "BEGIN NULL; END;", "2026-06-17 10:00:00", label="empty")
         assert Path(path).exists()
         content = Path(path).read_text(encoding="utf-8")
         assert "(no DBMS_OUTPUT)" in content
@@ -231,7 +231,8 @@ class TestExportDirResolution:
     ):
         """Groups respect create_export_subdirs setting; with EXPORTS_DIR override it is forced True."""
         path = Path(export_group_csv(sample_group_result))
-        # Should be nested under grupos/{normalized_label}/
+        # Should be nested under grupos/{normalized_label}/ -- the
+        # folder name stays Portuguese, like the directory itself.
         assert "grupos" in path.parts
         assert path.parent.parent == tmp_config_dir / "exports" / "grupos"
 
@@ -260,7 +261,7 @@ class TestExportDirResolution:
         ))
 
         path = Path(export_group_csv(sample_group_result))
-        # No "grupos" or label subfolder — flat in target.
+        # No "groups" or label subfolder — flat in target.
         assert path.parent == target
 
 

@@ -87,10 +87,10 @@ def _is_select_only(sql: str) -> bool:
     """
     from dbqm.core.read_only import statement_count
 
-    limpa = _strip_leading_comments(sql)
-    if statement_count(limpa) != 1:
+    cleaned = _strip_leading_comments(sql)
+    if statement_count(cleaned) != 1:
         return False
-    parsed = sqlparse.parse(limpa)
+    parsed = sqlparse.parse(cleaned)
     if not parsed:
         return False
     stmt_type = parsed[0].get_type()
@@ -356,11 +356,11 @@ def _collect_result_sets(cursor) -> tuple[list[str], list[list[Any]], list[str]]
         # `nextset` is optional in DB-API: a driver may not define it, and some
         # raise instead of returning False past the last set. Either way there
         # is nothing more to read.
-        avancar = getattr(cursor, "nextset", None)
-        if not callable(avancar):
+        advance = getattr(cursor, "nextset", None)
+        if not callable(advance):
             break
         try:
-            if not avancar():
+            if not advance():
                 break
         except Exception:
             break
@@ -372,11 +372,11 @@ def _collect_result_sets(cursor) -> tuple[list[str], list[list[Any]], list[str]]
     if len(sets) == 1:
         return columns, rows, []
 
-    notas = [t("sql.result_sets_returned", count=len(sets))]
-    for i, (cols, linhas) in enumerate(sets[:-1], start=1):
-        notas.append(t("sql.result_set_shape", index=f"  {i}", rows=len(linhas),
+    notes = [t("sql.result_sets_returned", count=len(sets))]
+    for i, (cols, lines) in enumerate(sets[:-1], start=1):
+        notes.append(t("sql.result_set_shape", index=f"  {i}", rows=len(lines),
                        columns=", ".join(cols)))
-    return columns, rows, notas
+    return columns, rows, notes
 
 
 def _read_dbms_output(cursor) -> list[str]:

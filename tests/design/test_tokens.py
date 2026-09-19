@@ -21,28 +21,28 @@ def test_themes_declare_exactly_the_same_keys():
 
 
 def test_every_registered_theme_has_the_same_keys():
-    esperado = set(DARK_TOKENS)
-    for nome, tokens in THEMES.items():
-        assert set(tokens) == esperado, f"tema {nome} diverge"
+    expected = set(DARK_TOKENS)
+    for name, tokens in THEMES.items():
+        assert set(tokens) == expected, f"tema {name} diverge"
 
 
 def test_every_token_has_an_explicit_hex_value():
     """`auto 60%` is not computable from the file; hex is."""
-    for nome, tokens in THEMES.items():
-        for chave, valor in tokens.items():
-            assert valor.startswith("#") and len(valor) == 7, f"{nome}.{chave}={valor}"
+    for name, tokens in THEMES.items():
+        for key, value in tokens.items():
+            assert value.startswith("#") and len(value) == 7, f"{name}.{key}={value}"
 
 
 def test_every_declared_surface_exists_as_a_token():
-    for tema, tokens in THEMES.items():
+    for theme, tokens in THEMES.items():
         for s in SURFACES:
-            assert s in tokens, f"tema {tema} nao define a superficie {s}"
+            assert s in tokens, f'theme {theme} does not define the surface {s}'
 
 
 def test_every_text_token_declares_which_backgrounds_it_is_valid_over():
     for token in VALID_OVER:
-        assert token in DARK_TOKENS, f"{token} declarado em VALID_OVER nao existe"
-        assert VALID_OVER[token], f"{token} nao declara nenhum fundo valido"
+        assert token in DARK_TOKENS, f'{token}, declared in VALID_OVER, does not exist'
+        assert VALID_OVER[token], f'{token} declares no valid background'
 
 
 # --------------------------------------------------------------------------
@@ -87,20 +87,19 @@ DOCUMENTED_BUILTINS = frozenset({
 
 
 def _css_variables_used() -> set[str]:
-    achadas: set[str] = set()
-    for arquivo in sorted(UI_ROOT.rglob("*.py")):
-        texto = arquivo.read_text(encoding="utf-8")
-        for bloco in _DEFAULT_CSS_BLOCK.findall(texto):
+    found_ones: set[str] = set()
+    for file in sorted(UI_ROOT.rglob("*.py")):
+        text = file.read_text(encoding="utf-8")
+        for bloco in _DEFAULT_CSS_BLOCK.findall(text):
             for m in _CSS_VARIABLE.finditer(bloco):
-                achadas.add(m.group(1))
-    return achadas
+                found_ones.add(m.group(1))
+    return found_ones
 
 
 def test_every_css_variable_is_a_token_or_a_documented_builtin():
-    permitidas = set(DARK_TOKENS) | DOCUMENTED_BUILTINS
-    usadas = _css_variables_used()
-    desconhecidas = usadas - permitidas
-    assert not desconhecidas, (
-        f"DEFAULT_CSS referencia variavel(is) que nao sao token nem builtin "
-        f"documentado: {sorted(desconhecidas)}"
+    allowed = set(DARK_TOKENS) | DOCUMENTED_BUILTINS
+    used = _css_variables_used()
+    unknown = used - allowed
+    assert not unknown, (
+        f'DEFAULT_CSS references variable(s) that are neither a token nor a documented builtin: {sorted(unknown)}'
     )

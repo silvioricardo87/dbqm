@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Final
 
-TEXTOS: Final[dict[str, str]] = {
+TEXTS: Final[dict[str, str]] = {
     # -- connection_builder ------------------------------------------------
     "connection.name_required": "Nome obrigatorio.",
     "connection.type_required": "Selecione o tipo de banco.",
@@ -108,6 +108,15 @@ TEXTOS: Final[dict[str, str]] = {
     "common.value": 'Valor',
     "common.key": 'Chave',
     "common.remove_needs_yes": 'Use --yes para remover sem confirmacao.',
+    "common.no_folder": '(sem pasta)',
+    "common.name": 'Nome',
+    "common.fields": 'Campos',
+    "common.yes_short_word": 'sim',
+    "common.no_short_word": 'nao',
+    "common.directory": 'Diretorio',
+    "common.version": 'Versao',
+    "common.architecture": 'Arquitetura',
+    "common.format": 'Formato',
     "common.yes_answers": 's,sim',
     "config.list_title": 'Configuracoes',
     "config.bool_invalid": 'Valor invalido para "{key}": "{value}". Use true/false, 1/0 ou sim/nao.',
@@ -534,6 +543,10 @@ TEXTOS: Final[dict[str, str]] = {
     "templates_sidebar.empty_why": 'Crie templates na aba Ferramentas para reaproveitar consultas com parametros',
     "templates_sidebar.open_tools": 'Abrir Ferramentas',
     "result_table.page_info": 'Pagina {page}/{total} ({rows} registros)',
+    "template.count_label_one": '{count} registro',
+    "template.count_label_many": '{count} registros',
+    "template.status_empty": 'VAZIO',
+    "result_table.record": 'Registro {number}',
     "result_table.rows_count": '{rows} registros',
     "result_table.no_results": '(sem resultados)',
     "status_bar.no_connection": 'sem conexao',
@@ -709,6 +722,8 @@ TEXTOS: Final[dict[str, str]] = {
     "group_run.copied": 'Copiado para a area de transferencia!',
     "group_run.copy_failed": 'Erro ao copiar. Selecione e copie manualmente.',
     "group_run.result_info": '{rows} | {seconds}s | {connection}',
+    "action.show_original": 'Original',
+    "action.show_mapped": 'De-Para',
     "action.flat_pivot": 'Flat/Pivot',
     "action.filter": 'Filtrar',
     "action.export": 'Exportar',
