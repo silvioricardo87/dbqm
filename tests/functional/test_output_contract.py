@@ -20,7 +20,7 @@ DOC = Path(__file__).resolve().parents[2] / "docs" / "qa" / "output-contract.md"
 
 
 @pytest.fixture
-def por_status(local_db, capsys) -> str:
+def by_status(local_db, capsys) -> str:
     code, _ = envelope(
         ["query", "add", "por_status", "--connection", "local",
          "--sql", "SELECT id FROM clientes WHERE status = :st", "-f", "json"],
@@ -62,7 +62,7 @@ def test_the_failure_envelope_has_exactly_three_keys(local_db, capsys):
     ("connection_failed", ["sql", "SELECT 1", "broken", "-f", "json"]),
     ("sql_error", ["sql", "SELECT * FROM nao_existe", "local", "-f", "json"]),
 ])
-def test_the_exit_field_matches_the_process_exit(read_only_db, broken_db, por_status, capsys, token, argv):
+def test_the_exit_field_matches_the_process_exit(read_only_db, broken_db, by_status, capsys, token, argv):
     code, body = envelope(argv, capsys)
     assert body["error"]["code"] == token
     assert body["error"]["exit"] == code == int(ERROR_CODES[token])
@@ -90,8 +90,8 @@ def test_exit_2_not_found(local_db, capsys):
 
 
 # QA-OUT-007
-def test_exit_2_validation(por_status, capsys):
-    code, body = envelope(["run", por_status, "-f", "json"], capsys)
+def test_exit_2_validation(by_status, capsys):
+    code, body = envelope(["run", by_status, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
 
@@ -139,6 +139,6 @@ def test_this_document_matches_the_error_table_in_code():
     """The token table in the document is read, not retyped: a token added
     to `ERROR_CODES` without a documented exit, or documented with the
     wrong one, fails here."""
-    linhas = re.findall(r"^\| `(\w+)` \| (\d) \|", DOC.read_text(encoding="utf-8"), re.MULTILINE)
-    documentado = {token: int(saida) for token, saida in linhas}
-    assert documentado == {token: int(saida) for token, saida in ERROR_CODES.items()}
+    lines = re.findall(r"^\| `(\w+)` \| (\d) \|", DOC.read_text(encoding="utf-8"), re.MULTILINE)
+    documented = {token: int(output) for token, output in lines}
+    assert documented == {token: int(output) for token, output in ERROR_CODES.items()}

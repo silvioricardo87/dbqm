@@ -1,4 +1,4 @@
-"""Modal for configuring DE-PARA (value mapping) on query columns."""
+"""Modal for configuring value mapping on query columns."""
 from __future__ import annotations
 
 from textual.app import ComposeResult
@@ -12,7 +12,7 @@ from dbqm.ui.widgets.dialog import Dialog
 
 
 class ColumnMapsModal(ModalScreen[dict[str, dict[str, str]] | None]):
-    """Configure column value mappings (DE-PARA).
+    """Configure column value mappings.
 
     Dismisses with updated maps dict on save, or None on cancel/ESC.
     """

@@ -58,29 +58,28 @@ def escape_markup(text: str) -> str:
 
 
 def common_folder_prefix(folders: list[str]) -> str:
-    """Maior prefixo de segmentos (separados por "/") compartilhado por
-    TODAS as pastas dadas, incluindo a barra final — "" se houver menos de
-    duas pastas ou se nenhum segmento inicial for comum a todas.
+    """The longest run of leading "/"-separated segments shared by ALL the
+    folders given, trailing slash included — "" when there are fewer than two
+    folders, or when no leading segment is common to all of them.
 
-    Usado para decidir se o rotulo de uma pasta num Select pode elidir o
-    prefixo (ex.: "Mapfre Sustentacao/Faturamento" -> "Faturamento"): o
-    calculo e feito a cada chamada, contra as pastas reais, nao contra um
-    literal fixado no codigo. Isso importa porque a redundancia so existe
-    enquanto UMA familia de pastas domina a lista inteira — no dia em que
-    uma segunda familia (outro prefixo) aparecer ao lado da primeira, o
-    prefixo comum a TODAS encolhe (tipicamente pra "") sozinho, e a lista
-    volta a mostrar o caminho inteiro sem precisar de uma mudanca de
-    codigo. Fixar o literal "Mapfre Sustentacao/" faria o oposto: ganharia
-    largura hoje e esconderia informacao no dia em que deixasse de ser
-    verdade.
+    Used to decide whether a folder's label in a Select may elide the prefix
+    (e.g. "Mapfre Sustentacao/Faturamento" -> "Faturamento"). It is computed
+    on every call, against the real folders, never against a literal pinned in
+    the code. That matters because the redundancy only exists while ONE family
+    of folders dominates the whole list — the day a second family (another
+    prefix) appears beside the first, the prefix common to ALL of them shrinks
+    (typically to "") on its own, and the list goes back to showing the full
+    path with no code change. Pinning the literal "Mapfre Sustentacao/" would
+    do the opposite: buy width today and hide information the day it stopped
+    being true.
     """
     if len(folders) < 2:
         return ""
-    segmentos = [p.split("/") for p in folders]
-    comuns: list[str] = []
-    for grupo in zip(*segmentos, strict=False):
-        if len(set(grupo)) == 1:
-            comuns.append(grupo[0])
+    segments = [p.split("/") for p in folders]
+    common: list[str] = []
+    for group in zip(*segments, strict=False):
+        if len(set(group)) == 1:
+            common.append(group[0])
         else:
             break
-    return "/".join(comuns) + "/" if comuns else ""
+    return "/".join(common) + "/" if common else ""

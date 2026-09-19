@@ -8,7 +8,7 @@ brought the ceiling to zero.
 from tests.design._scan import violations
 
 # Brought to zero in Task 7: the HTML report was the last source of literal colour.
-TETO = 0
+CEILING = 0
 
 
 def test_literal_color_does_not_grow():
@@ -16,8 +16,8 @@ def test_literal_color_does_not_grow():
     figure" (`==`) collapse into the same comparison — there is no slack left
     below zero for the two to be distinct tests. Only one is left, with the
     message that names the offending files."""
-    achados = violations()
-    assert len(achados) == TETO, (
-        f"{len(achados)} cores literais, teto {TETO}. Novas:\n"
-        + "\n".join(f"  {a}:{linha}  {t}" for a, linha, t in achados[:20])
+    found = violations()
+    assert len(found) == CEILING, (
+        f"{len(found)} cores literais, teto {CEILING}. Novas:\n"
+        + "\n".join(f"  {a}:{line}  {t}" for a, line, t in found[:20])
     )

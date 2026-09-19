@@ -23,13 +23,13 @@ ROOT = Path(__file__).resolve().parents[2] / "dbqm"
 # several lines, so the scan has to be multi-line (balanced parentheses over
 # the whole text of the file, not line by line). A naive scan already let 4
 # cases hidden that way slip through.
-_CHAMADA = re.compile(r"\b(?:Static|add_row|update)\s*\(")
-_PALAVRA_VAZIO = re.compile(r"Nenhum[a-z]*", re.I | re.S)
+_CALL = re.compile(r"\b(?:Static|add_row|update)\s*\(")
+_EMPTY_WORD = re.compile(r"Nenhum[a-z]*", re.I | re.S)
 
 # Exemptions: "Nenhum X" inside a watched call that is NOT a list empty
 # state — these are status readouts of a single field, with no possible
 # "create the first one". Exempted with the reason, so nobody "fixes" them back.
-ISENCOES_ESTADO_VAZIO = {
+EMPTY_STATE_EXEMPT = {
     # history.py: "Nenhum registro selecionado" is the nothing-selected
     # placeholder of the detail panel — it shows up even with the table
     # full of rows, when none is highlighted. There is no "create the first
@@ -48,39 +48,39 @@ def _watched_calls(text: str):
     in the file, with balanced parentheses — multi-line by construction,
     because the balancing walks the whole text without stopping at a line
     break."""
-    for m in _CHAMADA.finditer(text):
-        inicio_parens = m.end() - 1
-        profundidade = 0
-        fim = None
-        for i in range(inicio_parens, len(text)):
+    for m in _CALL.finditer(text):
+        parens_start = m.end() - 1
+        depth = 0
+        end = None
+        for i in range(parens_start, len(text)):
             if text[i] == "(":
-                profundidade += 1
+                depth += 1
             elif text[i] == ")":
-                profundidade -= 1
-                if profundidade == 0:
-                    fim = i
+                depth -= 1
+                if depth == 0:
+                    end = i
                     break
-        if fim is not None:
-            yield m.start(), text[m.start() : fim + 1]
+        if end is not None:
+            yield m.start(), text[m.start() : end + 1]
 
 
 def test_empty_state_is_not_hand_written():
     """A loose "Nenhum X" in Static/add_row/update is the antipattern that
     EmptyState solves."""
-    fora = []
-    for arquivo in sorted((ROOT / "ui").rglob("*.py")):
-        if arquivo.name == "empty_state.py":
+    outside = []
+    for file in sorted((ROOT / "ui").rglob("*.py")):
+        if file.name == "empty_state.py":
             continue
-        texto = arquivo.read_text(encoding="utf-8")
-        rel = arquivo.relative_to(ROOT.parent).as_posix()
-        for pos, chamada in _watched_calls(texto):
-            if not _PALAVRA_VAZIO.search(chamada):
+        text = file.read_text(encoding="utf-8")
+        rel = file.relative_to(ROOT.parent).as_posix()
+        for pos, call in _watched_calls(text):
+            if not _EMPTY_WORD.search(call):
                 continue
-            if rel in ISENCOES_ESTADO_VAZIO:
+            if rel in EMPTY_STATE_EXEMPT:
                 continue
-            linha = texto.count("\n", 0, pos) + 1
-            fora.append(f"{rel}:{linha}")
-    assert not fora, f"estado vazio escrito a mao em: {fora}"
+            line = text.count("\n", 0, pos) + 1
+            outside.append(f"{rel}:{line}")
+    assert not outside, f"estado vazio escrito a mao em: {outside}"
 
 
 # ---------------------------------------------------------------------------
@@ -95,14 +95,14 @@ def test_empty_state_is_not_hand_written():
 
 
 def test_dialog_frame_exists_in_a_single_place():
-    fora = []
-    for arquivo in sorted(ROOT.rglob("*.py")):
-        if arquivo.name == "dialog.py":
+    outside = []
+    for file in sorted(ROOT.rglob("*.py")):
+        if file.name == "dialog.py":
             continue
-        texto = arquivo.read_text(encoding="utf-8")
-        if "border: thick" in texto:
-            fora.append(arquivo.relative_to(ROOT.parent).as_posix())
-    assert not fora, f"moldura de dialog escrita a mao em: {fora}"
+        text = file.read_text(encoding="utf-8")
+        if "border: thick" in text:
+            outside.append(file.relative_to(ROOT.parent).as_posix())
+    assert not outside, f"moldura de dialog escrita a mao em: {outside}"
 
 
 # ---------------------------------------------------------------------------
@@ -130,11 +130,11 @@ def test_dialog_frame_exists_in_a_single_place():
 
 
 def test_skeleton_block_exists_in_a_single_place():
-    fora = []
-    for arquivo in sorted(ROOT.rglob("*.py")):
-        if arquivo.name == "skeleton.py":
+    outside = []
+    for file in sorted(ROOT.rglob("*.py")):
+        if file.name == "skeleton.py":
             continue
-        texto = arquivo.read_text(encoding="utf-8")
-        if "$ds-surface-raised" in texto:
-            fora.append(arquivo.relative_to(ROOT.parent).as_posix())
-    assert not fora, f"bloco de esqueleto escrito a mao em: {fora}"
+        text = file.read_text(encoding="utf-8")
+        if "$ds-surface-raised" in text:
+            outside.append(file.relative_to(ROOT.parent).as_posix())
+    assert not outside, f"bloco de esqueleto escrito a mao em: {outside}"

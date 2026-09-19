@@ -108,9 +108,9 @@ def test_an_unknown_verb_is_usage_not_sql_error(local_db, capsys):
 
 # QA-SQL-010
 def test_a_sql_file_path_is_read(local_db, tmp_path, capsys):
-    arquivo = tmp_path / "consulta.sql"
-    arquivo.write_text("SELECT COUNT(*) AS n FROM pedidos", encoding="utf-8")
-    code, body = envelope(["sql", str(arquivo), "local", "-f", "json"], capsys)
+    file = tmp_path / "consulta.sql"
+    file.write_text("SELECT COUNT(*) AS n FROM pedidos", encoding="utf-8")
+    code, body = envelope(["sql", str(file), "local", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["rows"] == [[4]]
     assert body["data"]["sql"] == "SELECT COUNT(*) AS n FROM pedidos"
@@ -213,9 +213,9 @@ def test_explain_exports_the_plan(local_db, tmp_path, capsys):
     assert body["data"]["format"] == "csv"
     exportado = Path(body["data"]["exported"])
     assert tmp_path in exportado.parents
-    conteudo = exportado.read_text(encoding="utf-8")
-    assert conteudo.splitlines()[0] == "plan"
-    assert "clientes" in conteudo
+    content = exportado.read_text(encoding="utf-8")
+    assert content.splitlines()[0] == "plan"
+    assert "clientes" in content
 
 
 # QA-SQL-020
@@ -244,9 +244,10 @@ def test_a_param_the_statement_never_binds_is_refused(local_db, capsys):
 # QA-SQL-023
 def test_a_missing_sql_file_says_so(local_db, tmp_path, capsys):
     """A path ending in `.sql` is not a statement. Read as SQL it came back
-    "Tipo de SQL nao suportado", which says nothing about the typo."""
-    caminho = tmp_path / "nao_existe.sql"
-    code, body = envelope(["sql", str(caminho), "local", "-f", "json"], capsys)
+    "Tipo de SQL nao suportado", which says nothing about the typo.
+    """
+    path = tmp_path / "nao_existe.sql"
+    code, body = envelope(["sql", str(path), "local", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "not_found"
-    assert body["error"]["message"] == f'File "{caminho}" not found.'
+    assert body["error"]["message"] == f'File "{path}" not found.'

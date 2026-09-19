@@ -6,12 +6,12 @@ import pytest
 
 from tests.functional.conftest import envelope
 
-CONTEUDO = "SELECT * FROM {{tabela}}"
+CONTENT = "SELECT * FROM {{tabela}}"
 
 
 @pytest.fixture
 def t1(tmp_config_dir, capsys) -> str:
-    code, body = envelope(["template", "add", "t1", "--content", CONTEUDO, "--description", "td", "-f", "json"], capsys)
+    code, body = envelope(["template", "add", "t1", "--content", CONTENT, "--description", "td", "-f", "json"], capsys)
     assert code == 0 and body["data"] == {"name": "t1", "created": True}
     return "t1"
 
@@ -21,7 +21,7 @@ def test_add_then_show(t1, capsys):
     code, body = envelope(["template", "show", t1, "-f", "json"], capsys)
     assert code == 0
     assert body["command"] == "template.show"
-    assert body["data"]["content"] == CONTEUDO
+    assert body["data"]["content"] == CONTENT
     assert body["data"]["description"] == "td"
 
 
@@ -32,14 +32,14 @@ def test_add_refuses_a_duplicate_and_keeps_the_original(t1, capsys):
     assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == 'Template "t1" already exists.'
     _, body = envelope(["template", "show", t1, "-f", "json"], capsys)
-    assert body["data"]["content"] == CONTEUDO
+    assert body["data"]["content"] == CONTENT
 
 
 # QA-TPL-003
 def test_content_file_is_read(tmp_config_dir, tmp_path, capsys):
-    arquivo = tmp_path / "t2.sql"
-    arquivo.write_text("SELECT {{coluna}}\nFROM {{tabela}}\n", encoding="utf-8")
-    code, _ = envelope(["template", "add", "t2", "--content-file", str(arquivo), "-f", "json"], capsys)
+    file = tmp_path / "t2.sql"
+    file.write_text("SELECT {{coluna}}\nFROM {{tabela}}\n", encoding="utf-8")
+    code, _ = envelope(["template", "add", "t2", "--content-file", str(file), "-f", "json"], capsys)
     assert code == 0
     _, body = envelope(["template", "show", "t2", "-f", "json"], capsys)
     assert body["data"]["content"] == "SELECT {{coluna}}\nFROM {{tabela}}\n"
@@ -52,7 +52,7 @@ def test_update_changes_only_what_it_is_given(t1, capsys):
     assert body["data"] == {"name": "t1", "updated": True}
     _, body = envelope(["template", "show", t1, "-f", "json"], capsys)
     assert body["data"]["description"] == "nova"
-    assert body["data"]["content"] == CONTEUDO
+    assert body["data"]["content"] == CONTENT
 
 
 # QA-TPL-005

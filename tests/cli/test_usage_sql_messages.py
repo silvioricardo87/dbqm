@@ -23,10 +23,10 @@ from dbqm.i18n import set_language, t
 
 
 @pytest.fixture(autouse=True)
-def _restaurar_idioma():
-    anterior = set_language(None)
+def _restore_the_language():
+    previous = set_language(None)
     yield
-    set_language(anterior)
+    set_language(previous)
 
 
 class TestSqlFailures:
@@ -43,11 +43,11 @@ class TestSqlFailures:
     def test_the_guard_refusing_is_its_own_token(self):
         assert _sql_error_code("anything", "read_only") == "read_only"
 
-    @pytest.mark.parametrize("idioma", ["en", "pt"])
-    def test_the_classification_does_not_depend_on_the_language(self, idioma):
+    @pytest.mark.parametrize("language", ["en", "pt"])
+    def test_the_classification_does_not_depend_on_the_language(self, language):
         """The point of the change: the same condition, read by a caller in
         either language, is the same token."""
-        set_language(idioma)
+        set_language(language)
         assert _sql_error_code(t("sql.select_only"), "usage") == "usage"
         assert _sql_error_code(t("sql.unsupported_type"), "usage") == "usage"
         assert _sql_error_code(t("sql.explain_unsupported", type="mysql"), "usage") == "usage"
@@ -55,22 +55,22 @@ class TestSqlFailures:
 
 class TestDdlFailures:
     @staticmethod
-    def _resultado(**kwargs) -> ExtractionResult:
+    def _result(**kwargs) -> ExtractionResult:
         base = {"object_name": "T", "object_type": "TABLE", "owner": "", "connection_name": "c"}
         return ExtractionResult(**{**base, **kwargs})
 
     def test_an_object_that_is_not_there_is_not_found(self):
-        assert _ddl_error_code(self._resultado(not_found=True)) == "not_found"
+        assert _ddl_error_code(self._result(not_found=True)) == "not_found"
 
     def test_an_extraction_that_failed_is_sql_error(self):
-        assert _ddl_error_code(self._resultado(errors=["ORA-01031"])) == "sql_error"
+        assert _ddl_error_code(self._result(errors=["ORA-01031"])) == "sql_error"
 
-    @pytest.mark.parametrize("idioma", ["en", "pt"])
-    def test_it_does_not_depend_on_the_language_either(self, idioma):
-        set_language(idioma)
-        resultado = self._resultado(errors=[t("ddl.object_not_found", name="T")],
+    @pytest.mark.parametrize("language", ["en", "pt"])
+    def test_it_does_not_depend_on_the_language_either(self, language):
+        set_language(language)
+        result = self._result(errors=[t("ddl.object_not_found", name="T")],
                                     not_found=True)
-        assert _ddl_error_code(resultado) == "not_found"
+        assert _ddl_error_code(result) == "not_found"
 
 
 def test_core_no_longer_needs_the_cli_to_recognise_its_sentences():

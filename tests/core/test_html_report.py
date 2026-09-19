@@ -47,19 +47,19 @@ class TestBuildHtml:
 
 
 def test_report_uses_design_system_colors():
-    """O relatorio tinha paleta propria so porque core/ nao podia importar ui/."""
+    """The report had a palette of its own only because core/ could not import ui/."""
     from dbqm.core.html_report import css_variables
     from dbqm.design.tokens import DARK_TOKENS
 
     css = css_variables(DARK_TOKENS)
-    for chave, valor in DARK_TOKENS.items():
-        assert f"--{chave}: {valor}" in css
+    for key, value in DARK_TOKENS.items():
+        assert f"--{key}: {value}" in css
 
 
 def test_report_no_longer_carries_the_old_palette():
-    fonte = Path("dbqm/core/html_report.py").read_text(encoding="utf-8")
-    for orfa in ("#00d4ff", "#16213e", "#4caf50", "#ff9800", "#f44336"):
-        assert orfa not in fonte, f"{orfa} sobrou da paleta paralela"
+    source = Path("dbqm/core/html_report.py").read_text(encoding="utf-8")
+    for orphan in ("#00d4ff", "#16213e", "#4caf50", "#ff9800", "#f44336"):
+        assert orphan not in source, f"{orphan} sobrou da paleta paralela"
 
 
 def _result(rows=None, columns=None):
@@ -76,56 +76,56 @@ def _result(rows=None, columns=None):
 
 def test_query_html_writes_an_html_file(tmp_path, monkeypatch):
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    caminho = export_query_html(_result())
-    assert caminho.endswith(".html")
-    assert Path(caminho).exists()
+    path = export_query_html(_result())
+    assert path.endswith(".html")
+    assert Path(path).exists()
 
 
 def test_query_html_renders_every_cell(tmp_path, monkeypatch):
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    texto = Path(export_query_html(_result())).read_text(encoding="utf-8")
-    assert "<td>Ana</td>" in texto
-    assert "ID" in texto and "NOME" in texto
+    text = Path(export_query_html(_result())).read_text(encoding="utf-8")
+    assert "<td>Ana</td>" in text
+    assert "ID" in text and "NOME" in text
 
 
 def test_query_html_renders_none_as_an_empty_cell(tmp_path, monkeypatch):
     """A None must not reach the page as the literal string 'None'."""
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    texto = Path(export_query_html(_result())).read_text(encoding="utf-8")
-    assert "<td></td>" in texto
-    assert ">None<" not in texto
+    text = Path(export_query_html(_result())).read_text(encoding="utf-8")
+    assert "<td></td>" in text
+    assert ">None<" not in text
 
 
 def test_query_html_escapes_values(tmp_path, monkeypatch):
     """A value is data, never markup."""
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    linhas = [["<script>alert(1)</script>", "x"]]
-    texto = Path(export_query_html(_result(rows=linhas))).read_text(encoding="utf-8")
-    assert "<script>alert(1)</script>" not in texto
-    assert escape("<script>alert(1)</script>") in texto
+    lines = [["<script>alert(1)</script>", "x"]]
+    text = Path(export_query_html(_result(rows=lines))).read_text(encoding="utf-8")
+    assert "<script>alert(1)</script>" not in text
+    assert escape("<script>alert(1)</script>") in text
 
 
 def test_query_html_escapes_column_names(tmp_path, monkeypatch):
     """A column name is data too -- an expression alias can carry anything."""
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    resultado = _result(columns=["<b>ID</b>", "NOME"], rows=[[1, "Ana"]])
-    texto = Path(export_query_html(resultado)).read_text(encoding="utf-8")
-    assert "<th><b>ID</b></th>" not in texto
-    assert escape("<b>ID</b>") in texto
+    result = _result(columns=["<b>ID</b>", "NOME"], rows=[[1, "Ana"]])
+    text = Path(export_query_html(result)).read_text(encoding="utf-8")
+    assert "<th><b>ID</b></th>" not in text
+    assert escape("<b>ID</b>") in text
 
 
 def test_query_html_survives_zero_rows(tmp_path, monkeypatch):
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    texto = Path(export_query_html(_result(rows=[]))).read_text(encoding="utf-8")
-    assert "<table" in texto
+    text = Path(export_query_html(_result(rows=[]))).read_text(encoding="utf-8")
+    assert "<table" in text
 
 
 def test_query_html_carries_the_design_tokens(tmp_path, monkeypatch):
     """Same shell as the group report -- not a second, drifting stylesheet."""
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    texto = Path(export_query_html(_result())).read_text(encoding="utf-8")
-    assert "prefers-color-scheme: light" in texto
-    assert "--" in texto and ":root" in texto
+    text = Path(export_query_html(_result())).read_text(encoding="utf-8")
+    assert "prefers-color-scheme: light" in text
+    assert "--" in text and ":root" in text
 
 
 def test_query_html_lands_beside_its_csv_sibling(tmp_path, monkeypatch):
@@ -143,8 +143,8 @@ def test_query_html_lands_beside_its_csv_sibling(tmp_path, monkeypatch):
 
 def test_query_html_names_the_file_after_the_connection(tmp_path, monkeypatch):
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    caminho = export_query_html(_result())
-    assert "prod" in Path(caminho).name
+    path = export_query_html(_result())
+    assert "prod" in Path(path).name
 
 
 def test_query_html_renders_zero_as_itself_not_as_an_empty_cell(tmp_path, monkeypatch):
@@ -153,7 +153,7 @@ def test_query_html_renders_zero_as_itself_not_as_an_empty_cell(tmp_path, monkey
     None; this fixture has a 0 and a None side by side so that distinction is
     actually exercised, unlike a fixture whose only falsy value is None."""
     monkeypatch.setattr("dbqm.core.exporter.EXPORTS_DIR", tmp_path)
-    resultado = _result(columns=["QTD", "OBS", "STATUS"], rows=[[0, "", None]])
-    texto = Path(export_query_html(resultado)).read_text(encoding="utf-8")
-    assert "<td>0</td>" in texto
-    assert texto.count("<td></td>") >= 2
+    result = _result(columns=["QTD", "OBS", "STATUS"], rows=[[0, "", None]])
+    text = Path(export_query_html(result)).read_text(encoding="utf-8")
+    assert "<td>0</td>" in text
+    assert text.count("<td></td>") >= 2

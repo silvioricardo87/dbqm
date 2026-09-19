@@ -1,7 +1,7 @@
 """Multi-Exec screen — run one ad-hoc SQL across a checkbox-selected set of
 connections and compare the results (redesign "Option 3").
 
-The old query-based group execution lives in ``group_run.py`` (Ferramentas tab).
+The old query-based group execution lives in ``group_run.py`` (Tools tab).
 """
 from __future__ import annotations
 
@@ -340,5 +340,5 @@ class GroupExecScreen(Vertical):
         # in a group whose key a person curated.
         from dbqm.core.group_engine import duplicate_key_warnings
 
-        for aviso in duplicate_key_warnings(group_result):
-            self.notify(aviso, severity="warning", timeout=8)
+        for warning in duplicate_key_warnings(group_result):
+            self.notify(warning, severity="warning", timeout=8)

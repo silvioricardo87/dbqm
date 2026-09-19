@@ -60,7 +60,7 @@ async def test_ctrl_b_toggles_templates_sidebar(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_first_run_switches_to_connections_tab(tmp_config_dir):
-    """When no connections exist, the app lands on the Conexoes tab."""
+    """When no connections exist, the app lands on the Connections tab."""
     app = DBQMApp()
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -80,7 +80,7 @@ async def test_config_tab_hosts_settings_screen(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_connections_tab_hosts_connections_screen(tmp_config_dir):
-    """The Conexoes tab hosts the ConnectionsScreen and sets its actions."""
+    """The Connections tab hosts the ConnectionsScreen and sets its actions."""
     from dbqm.ui.screens.connections import ConnectionsScreen
     from dbqm.ui.widgets.action_bar import ActionBar
 
@@ -97,7 +97,7 @@ async def test_connections_tab_hosts_connections_screen(tmp_config_dir):
 async def test_all_panes_enabled_after_mount(tmp_config_dir):
     """After the initial mount focus-storm settles, no TabPane is disabled
     (so every tab header is mouse-clickable), and the intended initial tab
-    (no connections configured -> Conexoes) is the active one.
+    (no connections configured -> Connections) is the active one.
     """
     app = DBQMApp()
     async with app.run_test() as pilot:
@@ -152,7 +152,7 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
     even with the pane already hidden by the `ContentSwitcher`, which was
     what made the race invisible. What is asserted is what the screen
     PAINTS, not just the value of `active`: with the wrong tab active, it
-    is the Conexoes content that shows up.
+    is the Connections content that shows up.
     """
     from tests.ui._helpers import rendered_text
 
@@ -163,16 +163,16 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
         tabs.active = "tab-history"
         await pilot.pause()
 
-        intruso = next(
+        intruder = next(
             w for w in app.query_one("#connections-screen").query("*") if w.can_focus
         )
-        intruso.focus()
+        intruder.focus()
         await pilot.pause()
 
         assert tabs.active == "tab-history"
-        pintado = rendered_text(app)
-        assert "HISTORY" in pintado
-        assert "CONEXOES" not in pintado
+        painted = rendered_text(app)
+        assert "HISTORY" in painted
+        assert "CONEXOES" not in painted
 
 
 @pytest.mark.asyncio
@@ -187,14 +187,14 @@ async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir)
     app = DBQMApp()
     async with app.run_test() as pilot:
         await pilot.press("f5")
-        # The delayed focus that the Conexoes screen schedules in its own
+        # The delayed focus that the Connections screen schedules in its own
         # `on_mount` arrives AFTER the key. Fired here on purpose, so the
         # race always happens — left loose, it only showed up once every
         # ten runs, and a test that fails 1/10 of the time guards nothing.
-        intruso = next(
+        intruder = next(
             w for w in app.query_one("#connections-screen").query("*") if w.can_focus
         )
-        intruso.focus()
+        intruder.focus()
         for _ in range(4):
             await pilot.pause()
         assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
@@ -218,9 +218,9 @@ def test_dbqm_app_registers_and_activates_theme_on_construction(tmp_config_dir):
 
     app = DBQMApp()
 
-    for nome in TEXTUAL_THEMES:
-        assert nome in app.available_themes, f"tema {nome} nao registrado na construcao"
-    assert app.theme in TEXTUAL_THEMES, f"tema ativo ({app.theme!r}) nao e um dos nossos"
+    for name in TEXTUAL_THEMES:
+        assert name in app.available_themes, f'theme {name} was not registered at construction'
+    assert app.theme in TEXTUAL_THEMES, f'the active theme ({app.theme!r}) is not one of ours'
 
 
 # ======================================================================
@@ -247,20 +247,20 @@ async def _open_config_tool(pilot, app, key):
 
     await pilot.press("f6")
     await pilot.pause()
-    lista = app.query_one("#settings-tools-list", OptionList)
-    lista.focus()
+    option_list = app.query_one("#settings-tools-list", OptionList)
+    option_list.focus()
     await pilot.pause()
-    alvo = next(
+    target = next(
         i
-        for i in range(lista.option_count)
-        if lista.get_option_at_index(i).name == key
+        for i in range(option_list.option_count)
+        if option_list.get_option_at_index(i).name == key
     )
-    lista.highlighted = alvo
+    option_list.highlighted = target
     await pilot.press("enter")
     await pilot.pause()
     await pilot.wait_for_scheduled_animations()
     await pilot.pause()
-    return lista
+    return option_list
 
 
 @pytest.mark.asyncio
@@ -280,13 +280,13 @@ async def test_settings_opens_the_oracle_clients_manager(tmp_config_dir):
         await _open_config_tool(pilot, app, "oracle-clients")
 
         assert app.query(OracleClientsScreen), (
-            "a tela de Oracle Instant Clients nao foi montada pela rota real"
+            'the Oracle Instant Clients screen was not mounted by the real route'
         )
-        pintado = rendered_text(app)
-        assert "DETECTED PLATFORM" in pintado, (
-            "a tela montou mas nao e desenhada: %r" % pintado[:400]
+        painted = rendered_text(app)
+        assert "DETECTED PLATFORM" in painted, (
+            'the screen mounted but is not drawn: %r' % painted[:400]
         )
-        assert "No nodes match" not in pintado
+        assert "No nodes match" not in painted
 
 
 @pytest.mark.asyncio
@@ -300,7 +300,7 @@ async def test_settings_opens_export_import(tmp_config_dir):
         await _open_config_tool(pilot, app, "portability")
 
         assert app.query(ConfigPortScreen), (
-            "a tela de Exportar/Importar nao foi montada pela rota real"
+            'the Export/Import screen was not mounted by the real route'
         )
         assert "EXPORT" in rendered_text(app).upper()
 
@@ -326,10 +326,10 @@ async def test_escape_returns_from_the_tool_to_settings(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = rendered_text(app)
-        assert "DETECTED PLATFORM" not in pintado, "Esc nao voltou"
-        assert "ORACLE INSTANT CLIENT" in pintado.upper(), (
-            "voltou para lugar nenhum: %r" % pintado[:400]
+        painted = rendered_text(app)
+        assert "DETECTED PLATFORM" not in painted, 'Esc did not go back'
+        assert "ORACLE INSTANT CLIENT" in painted.upper(), (
+            'it went back nowhere: %r' % painted[:400]
         )
 
 
@@ -337,7 +337,7 @@ async def test_escape_returns_from_the_tool_to_settings(tmp_config_dir):
 async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
     """The way out of config_port works — and it is now `Esc`, not a button.
 
-    History this test keeps: the "Voltar" that used to live at
+    History this test keeps: the "Back" that used to live at
     `config_port.py:177` mounted a fresh `SettingsScreen` inside
     `#screen-area`, a container removed in v1.17.0, and for six weeks it
     only notified "Erro: No nodes match". Task 7 brought the route back to
@@ -352,12 +352,12 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await _open_config_tool(pilot, app, "portability")
-        tela = app.query_one(ConfigPortScreen)
+        screen = app.query_one(ConfigPortScreen)
 
         # Enter a DEEP phase: that is where going back has to work from.
-        tela._show_export_phase()
+        screen._show_export_phase()
         await pilot.pause()
-        assert tela.query_one("#cp-export-phase").display is True
+        assert screen.query_one("#cp-export-phase").display is True
 
         app.action_go_back()
         await pilot.pause()
@@ -365,9 +365,9 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
         await pilot.pause()
         # The screen stays mounted (an export worker may still be alive);
         # what has to change is what the tab PAINTS.
-        pintado = rendered_text(app).upper()
-        assert "EXPORT OR IMPORT" not in pintado, "o Voltar nao voltou"
-        assert "MORE SETTINGS" in pintado
+        painted = rendered_text(app).upper()
+        assert "EXPORT OR IMPORT" not in painted, 'Back did not go back'
+        assert "MORE SETTINGS" in painted
 
 
 @pytest.mark.asyncio
@@ -388,27 +388,27 @@ async def test_no_settings_route_fails_silently(tmp_config_dir):
     """
     from tests.ui._helpers import rendered_text
 
-    esperado = {
+    expected = {
         "portability": "EXPORT OR IMPORT",
         "oracle-clients": "DETECTED PLATFORM",
     }
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        for chave, marca in esperado.items():
-            await _open_config_tool(pilot, app, chave)
-            assert marca in rendered_text(app).upper(), (
-                "a rota %r nao chegou: %r nao e desenhado" % (chave, marca)
+        for key, marker in expected.items():
+            await _open_config_tool(pilot, app, key)
+            assert marker in rendered_text(app).upper(), (
+                'route %r never arrived: %r is not drawn' % (key, marker)
             )
             assert len(app.screen_stack) == 1, (
                 "a rota %r empilhou um modal (de erro?): %r"
-                % (chave, app.screen_stack)
+                % (key, app.screen_stack)
             )
             app.action_go_back()
             await pilot.pause()
-        erros = [
+        errors = [
             n.message for n in app._notifications if n.severity == "error"
         ]
-        assert not erros, "rota de Configuracoes notificou erro: %r" % erros
+        assert not errors, "rota de Configuracoes notificou erro: %r" % errors
 
 
 @pytest.mark.asyncio
@@ -428,24 +428,23 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
     """
     from tests.ui._helpers import rendered_lines, rendered_text
 
-    def anuncia_voltar(app):
+    def announces_back(app):
         return any(
-            "Esc" in linha and "Back" in linha
-            for linha in rendered_lines(app)
+            "Esc" in line and "Back" in line
+            for line in rendered_lines(app)
         )
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("f6")
         await pilot.pause()
-        assert not anuncia_voltar(app), (
-            "nos paineis nao ha de onde voltar; anunciar `Esc` seria mentira"
+        assert not announces_back(app), (
+            'inside the panels there is nowhere to go back to; announcing `Esc` would be a lie'
         )
 
         await _open_config_tool(pilot, app, "oracle-clients")
-        assert anuncia_voltar(app), (
-            "a tela hospedada nao diz como se sai dela: %r"
-            % rendered_lines(app)[-4:]
+        assert announces_back(app), (
+            'the hosted screen does not say how to leave it: %r' % rendered_lines(app)[-4:]
         )
 
         # Leaving the tab and coming back must not erase the announcement:
@@ -458,7 +457,7 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        assert anuncia_voltar(app), "trocar de aba e voltar apagou o anuncio"
+        assert announces_back(app), 'changing tab and coming back erased the announcement'
 
         # And what it announces also works by CLICK, which is the other way
         # of triggering the bar. Clicked where it is written, and not by
@@ -467,17 +466,17 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
         # `ActionBar`, and the app's forwarding (which checks the sender so
         # as not to loop) does not happen — a test like that would measure
         # a route the click does not use.
-        linhas = rendered_lines(app)
+        lines = rendered_lines(app)
         y = next(
-            i for i, linha in enumerate(linhas)
-            if "Esc" in linha and "Back" in linha
+            i for i, line in enumerate(lines)
+            if "Esc" in line and "Back" in line
         )
-        await pilot.click(offset=(linhas[y].index("Back"), y))
+        await pilot.click(offset=(lines[y].index("Back"), y))
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
         assert "DETECTED PLATFORM" not in rendered_text(app).upper()
-        assert not anuncia_voltar(app), "voltou, e o anuncio ficou"
+        assert not announces_back(app), "voltou, e o anuncio ficou"
 
 
 @pytest.mark.asyncio
@@ -498,8 +497,8 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await _open_config_tool(pilot, app, "portability")
-        tela = app.query_one(ConfigPortScreen)
-        tela._show_export_phase()
+        screen = app.query_one(ConfigPortScreen)
+        screen._show_export_phase()
         await pilot.pause()
         assert "EXPORT CONFIGURATION" in rendered_text(app).upper()
 
@@ -507,18 +506,17 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
         await pilot.pause()
         await _open_config_tool(pilot, app, "portability")
 
-        pintado = rendered_text(app).upper()
-        assert "EXPORT OR IMPORT" in pintado, (
-            "reabriu numa fase que a entrada da lista nao prometeu: %r"
-            % pintado[-600:]
+        painted = rendered_text(app).upper()
+        assert "EXPORT OR IMPORT" in painted, (
+            'it reopened in a phase the list entry did not promise: %r' % painted[-600:]
         )
-        assert "CONFIRMAR SENHA" not in pintado, (
+        assert "CONFIRMAR SENHA" not in painted, (
             "o formulario de exportacao continua na frente ao reabrir"
         )
 
 
 @pytest.fixture
-def dois_clients_instalados(tmp_config_dir, monkeypatch):
+def two_installed_clients(tmp_config_dir, monkeypatch):
     """Two Instant Clients installed, and the architecture validation off.
 
     Without this the test would depend on what exists on the machine of
@@ -533,10 +531,10 @@ def dois_clients_instalados(tmp_config_dir, monkeypatch):
 
     base = tmp_config_dir / "clients"
     base.mkdir()
-    for nome in ("instantclient_19_x64", "instantclient_23_x64"):
-        (base / nome).mkdir()
+    for name in ("instantclient_19_x64", "instantclient_23_x64"):
+        (base / name).mkdir()
 
-    monkeypatch.setattr(dbm, "validate_oracle_client_dir", lambda caminho: None)
+    monkeypatch.setattr(dbm, "validate_oracle_client_dir", lambda path: None)
     monkeypatch.setattr(oci, "CLIENTS_DIR", base)
     monkeypatch.setattr(oc, "CLIENTS_DIR", base)
     return base
@@ -544,7 +542,7 @@ def dois_clients_instalados(tmp_config_dir, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_clients_manager_opens_in_a_titled_panel(
-    dois_clients_instalados, tmp_config_dir
+    two_installed_clients, tmp_config_dir
 ):
     """Opening the manager must not land in the middle of a table with no
     header.
@@ -567,16 +565,16 @@ async def test_clients_manager_opens_in_a_titled_panel(
 
         # The first lines painted below the tab strip: that is where there
         # has to be a panel title saying where the person has landed.
-        topo = [linha for linha in rendered_lines(app)[3:] if linha.strip()][:3]
+        top = [line for line in rendered_lines(app)[3:] if line.strip()][:3]
         assert any(
-            "DETECTED PLATFORM" in linha or "INSTALLED CLIENTS" in linha
-            for linha in topo
-        ), ("a tela abriu no meio de um painel, sem titulo a vista: %r" % topo)
+            "DETECTED PLATFORM" in line or "INSTALLED CLIENTS" in line
+            for line in top
+        ), ('the screen opened in the middle of a panel, with no title in sight: %r' % top)
 
 
 @pytest.mark.asyncio
 async def test_choosing_a_client_updates_the_status_on_return(
-    dois_clients_instalados, tmp_config_dir
+    two_installed_clients, tmp_config_dir
 ):
     """The `Client in use` label must not contradict what was just saved.
 
@@ -595,27 +593,27 @@ async def test_choosing_a_client_updates_the_status_on_return(
     from dbqm.models.settings import Settings, load_settings, save_settings
     from tests.ui._helpers import rendered_text
 
-    antigo = dois_clients_instalados / "instantclient_23_x64"
-    novo = dois_clients_instalados / "instantclient_19_x64"
-    save_settings(Settings(oracle_client_dir=str(antigo)))
+    old = two_installed_clients / "instantclient_23_x64"
+    new = two_installed_clients / "instantclient_19_x64"
+    save_settings(Settings(oracle_client_dir=str(old)))
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("f6")
         await pilot.pause()
-        antes = rendered_text(app)
-        assert "instantclient_23_x64" in antes, (
-            "o teste nao partiu do estado que descreve: %r" % antes[:400]
+        before = rendered_text(app)
+        assert "instantclient_23_x64" in before, (
+            'the test did not start from the state it describes: %r' % before[:400]
         )
 
         await _open_config_tool(pilot, app, "oracle-clients")
-        tabela = app.query_one("#oc-installed-table", DataTable)
-        tabela.move_cursor(row=0)
+        table = app.query_one("#oc-installed-table", DataTable)
+        table.move_cursor(row=0)
         await pilot.pause()
         app.query_one("#oc-use-btn", Button).press()
         await pilot.pause()
-        assert load_settings().oracle_client_dir == str(novo), (
-            "o gerenciador nao gravou a escolha — o teste mediria outra coisa"
+        assert load_settings().oracle_client_dir == str(new), (
+            'the manager did not record the choice \u2014 the test would be measuring something else'
         )
 
         await pilot.press("escape")
@@ -623,12 +621,12 @@ async def test_choosing_a_client_updates_the_status_on_return(
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        depois = rendered_text(app)
-        assert "instantclient_19_x64" in depois, (
-            "o `Client in use` nao acompanhou a escolha: %r" % depois[:600]
+        after = rendered_text(app)
+        assert "instantclient_19_x64" in after, (
+            '`Client in use` did not follow the choice: %r' % after[:600]
         )
-        assert "instantclient_23_x64" not in depois, (
-            "o `Client in use` ainda mostra o client anterior: %r" % depois[:600]
+        assert "instantclient_23_x64" not in after, (
+            '`Client in use` still shows the previous client: %r' % after[:600]
         )
 
 
@@ -638,25 +636,25 @@ async def test_choosing_a_client_updates_the_status_on_return(
 
 
 async def _open_tool(pilot, app, key):
-    """Walk the real path: Ferramentas tab -> list -> Enter."""
+    """Walk the real path: Tools tab -> list -> Enter."""
     from textual.widgets import OptionList
 
     await pilot.press("f8")
     await pilot.pause()
-    lista = app.query_one("#tools-menu-list", OptionList)
-    lista.focus()
+    option_list = app.query_one("#tools-menu-list", OptionList)
+    option_list.focus()
     await pilot.pause()
-    alvo = next(
+    target = next(
         i
-        for i in range(lista.option_count)
-        if lista.get_option_at_index(i).name == key
+        for i in range(option_list.option_count)
+        if option_list.get_option_at_index(i).name == key
     )
-    lista.highlighted = alvo
+    option_list.highlighted = target
     await pilot.press("enter")
     await pilot.pause()
     await pilot.wait_for_scheduled_animations()
     await pilot.pause()
-    return lista
+    return option_list
 
 
 @pytest.mark.asyncio
@@ -678,16 +676,16 @@ async def test_tools_shows_all_five_at_80x24(tmp_config_dir):
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.press("f8")
         await pilot.pause()
-        pintado = rendered_text(app)
-        for nome in (
+        painted = rendered_text(app)
+        for name in (
             "Manage Groups",
             "Manage Templates",
             "Package Editor",
             "Run Routine",
             "Run Group",
         ):
-            assert nome in pintado, (
-                "%r nao aparece a 80x24: %r" % (nome, pintado[:800])
+            assert name in painted, (
+                '%r does not appear at 80x24: %r' % (name, painted[:800])
             )
 
 
@@ -706,12 +704,11 @@ async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await _open_tool(pilot, app, "templates")
-        assert app.query(TemplateManageScreen), "a ferramenta nao foi montada"
+        assert app.query(TemplateManageScreen), 'the tool was not mounted'
 
-        pintado = rendered_text(app)
-        assert "Back" in pintado, (
-            "a unica saida da ferramenta nao esta escrita em lugar nenhum: %r"
-            % pintado[-400:]
+        painted = rendered_text(app)
+        assert "Back" in painted, (
+            'the tool\'s only way out is written nowhere: %r' % painted[-400:]
         )
 
         await pilot.press("escape")
@@ -719,19 +716,19 @@ async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        pintado = rendered_text(app)
-        assert "TOOLS" in pintado.upper(), (
-            "o Esc nao voltou para o menu: %r" % pintado[:600]
+        painted = rendered_text(app)
+        assert "TOOLS" in painted.upper(), (
+            'Esc did not go back to the menu: %r' % painted[:600]
         )
-        assert "Package Editor" in pintado
+        assert "Package Editor" in painted
 
 
 @pytest.mark.asyncio
 async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir):
     """The pinned action belongs to the tab that put it there.
 
-    `Esc Voltar` is a promise: pressing Esc returns to the Ferramentas
-    menu. In Conexoes it goes back nowhere, and a bar that promises a way
+    `Esc Back` is a promise: pressing Esc returns to the Tools
+    menu. In Connections it goes back nowhere, and a bar that promises a way
     out that does not exist is worse than an empty bar. Fails if
     `DBQMApp.on_tabbed_content_tab_activated` stops clearing the pinned
     action when switching tabs.
@@ -743,7 +740,7 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
     async with app.run_test(size=(80, 24)) as pilot:
         await _open_tool(pilot, app, "templates")
         assert "Back" in rendered_text(app), (
-            "o teste nao partiu do estado que descreve"
+            'the test did not start from the state it describes'
         )
 
         await pilot.press("f2")
@@ -751,15 +748,14 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
 
-        barra = app.query_one(ActionBar)
-        assert barra._pinned_action is None
-        pintado = rendered_text(app)
-        assert "Back" not in pintado, (
-            "o Esc Voltar das Ferramentas sobrou em Conexoes: %r"
-            % pintado[-300:]
+        bar = app.query_one(ActionBar)
+        assert bar._pinned_action is None
+        painted = rendered_text(app)
+        assert "Back" not in painted, (
+            'the Tools `Esc Back` was left over in Connections: %r' % painted[-300:]
         )
-        assert "New" in pintado, (
-            "a aba nova nem pintou suas proprias acoes: %r" % pintado[-300:]
+        assert "New" in painted, (
+            'the new tab did not even paint its own actions: %r' % painted[-300:]
         )
 
         # And coming back brings BOTH back: the tool's own actions (which
@@ -768,26 +764,26 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        pintado = rendered_text(app)
-        assert "Back" in pintado, (
-            "a saida sumiu ao reentrar na aba: %r" % pintado[-300:]
+        painted = rendered_text(app)
+        assert "Back" in painted, (
+            'the way out vanished on re-entering the tab: %r' % painted[-300:]
         )
-        assert "Rename" in pintado, (
-            "as acoes da ferramenta nao voltaram: %r" % pintado[-300:]
+        assert "Rename" in painted, (
+            'the tool\'s actions did not come back: %r' % painted[-300:]
         )
-        assert "Test" not in pintado, (
-            "sobrou acao da aba Conexoes: %r" % pintado[-300:]
+        assert "Test" not in painted, (
+            'an action from the Connections tab was left over: %r' % painted[-300:]
         )
 
 
 # ======================================================================
-# The Consultas list: a description continuation never in the identity
+# The Queries list: a description continuation never in the identity
 # column.
 #
 # This is the defect that opened the whole phase, in the maintainer's
 # words: "a lista de conexoes acima de duas linhas fica dificil de
 # distinguir quando termina o nome de uma conexao e quando comeca outra".
-# Conexoes was cured; Consultas stayed sick at EVERY width, because
+# Connections was cured; Queries stayed sick at EVERY width, because
 # `query_list` handed the description over as one long line and Textual's
 # automatic wrapping (done at render time, after the `Content` is
 # assembled) has no way of indenting the continuation.
@@ -800,12 +796,12 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
 # ======================================================================
 
 
-def _queries_with_long_description(quantidade: int = 24):
+def _queries_with_long_description(how_many: int = 24):
     """Enough queries for the list to SCROLL, half of them with a
     description that does not fit on one line of the panel."""
     from dbqm.models.query import Query
 
-    longa = (
+    long_one = (
         "Descricao longa o bastante para transbordar a largura do painel "
         "e provar a hierarquia do item em mais de uma quebra por largura."
     )
@@ -815,9 +811,9 @@ def _queries_with_long_description(quantidade: int = 24):
             sql="select 1 from dual",
             connection="ASDADM",
             table="ASD",
-            description=longa if i % 2 == 0 else "curta",
+            description=long_one if i % 2 == 0 else "curta",
         )
-        for i in range(quantidade)
+        for i in range(how_many)
     ]
 
 
@@ -835,7 +831,7 @@ async def test_query_list_wrap_width_fits_while_scrolling(tmp_config_dir):
     present). Proves the assumption against the mounted widget.
 
     Measures WITH THE LIST SCROLLING and reads `scrollable_content_region`,
-    not `content_region`: the lesson that closed the same fix in Conexoes
+    not `content_region`: the lesson that closed the same fix in Connections
     after three failed rounds is that `content_region` does NOT subtract
     the scrollbar — a width derived from it with a short list passes the
     test and comes out wrong in use. The assertion is the RELATION (text +
@@ -852,18 +848,18 @@ async def test_query_list_wrap_width_fits_while_scrolling(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await _open_queries(pilot)
-        lista = app.query_one("#ql-listview", OptionList)
-        assert lista.show_vertical_scrollbar, (
+        option_list = app.query_one("#ql-listview", OptionList)
+        assert option_list.show_vertical_scrollbar, (
             "o teste so prova o pior caso se a lista estiver realmente "
             "rolando"
         )
-        assert _TEXT_WIDTH + len(_INDENT) <= lista.scrollable_content_region.width
+        assert _TEXT_WIDTH + len(_INDENT) <= option_list.scrollable_content_region.width
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
+@pytest.mark.parametrize("size", [(80, 24), (120, 34)])
 async def test_query_description_never_falls_into_the_identity_column(
-    tmp_config_dir, tamanho
+    tmp_config_dir, size
 ):
     """No description line may start in the identity column.
 
@@ -885,48 +881,45 @@ async def test_query_description_never_falls_into_the_identity_column(
     save_queries(_queries_with_long_description())
 
     app = DBQMApp()
-    async with app.run_test(size=tamanho) as pilot:
+    async with app.run_test(size=size) as pilot:
         await _open_queries(pilot)
-        lista = app.query_one("#ql-listview", OptionList)
-        assert lista.show_vertical_scrollbar, (
-            "o defeito so aparece com a lista rolando (a barra rouba 2 "
-            "colunas): o teste nao partiu do estado que descreve"
+        option_list = app.query_one("#ql-listview", OptionList)
+        assert option_list.show_vertical_scrollbar, (
+            'the defect only shows with the list scrolling (the bar steals 2 columns): the test did not start from the state it describes'
         )
 
-        regiao = lista.scrollable_content_region
+        region = option_list.scrollable_content_region
         painted = rendered_lines(app)
-        linhas = [
-            painted[y][regiao.x : regiao.x + regiao.width]
-            for y in range(regiao.y, min(regiao.y + regiao.height, len(painted)))
+        lines = [
+            painted[y][region.x : region.x + region.width]
+            for y in range(region.y, min(region.y + region.height, len(painted)))
         ]
 
         # The identity is the only line allowed to touch column 0 — and it
         # announces itself with the favourite star.
-        continuacoes = [
-            linha for linha in linhas
-            if linha.strip() and not linha.startswith((" ", "★", "☆"))
+        continuations = [
+            line for line in lines
+            if line.strip() and not line.startswith((" ", "★", "☆"))
         ]
-        assert not continuacoes, (
-            "linha de descricao/desambiguacao na coluna da identidade "
-            "em %sx%s: %r" % (tamanho[0], tamanho[1], continuacoes)
+        assert not continuations, (
+            'a description/disambiguation line in the identity column at %sx%s: %r' % (size[0], size[1], continuations)
         )
 
         # And the list really did show a description of more than one line
         # — otherwise the test would pass for having nothing to check.
-        recuadas = [linha for linha in linhas if linha.startswith("  Descricao longa")]
-        assert recuadas, "nenhuma descricao longa foi pintada: %r" % linhas
-        continuacao = [linha for linha in linhas if linha.startswith("  provar a hierarquia")]
-        assert continuacao, (
-            "a descricao coube numa linha so; sem transbordo nao ha o que "
-            "provar: %r" % linhas
+        indented = [line for line in lines if line.startswith("  Descricao longa")]
+        assert indented, 'no long description was painted: %r' % lines
+        continuation = [line for line in lines if line.startswith("  provar a hierarquia")]
+        assert continuation, (
+            'the description fitted on one line; with no overflow there is nothing to prove: %r' % lines
         )
 
 
 # ======================================================================
-# The Grupos list (Ferramentas -> Executar Grupo): the THIRD and last
+# The Groups list (Tools -> Run Group): the THIRD and last
 # occurrence of the same defect.
 #
-# Conexoes was cured in Task 4, Consultas in the previous commit, and
+# Connections was cured in Task 4, Queries in the previous commit, and
 # this list stayed sick for the exact same reason: `_group_option` handed
 # the group description — free user text — whole over to
 # `hierarchical_item`, the panel was elastic, and Textual's automatic
@@ -950,23 +943,23 @@ async def test_query_description_never_falls_into_the_identity_column(
 # ======================================================================
 
 
-def _groups_with_long_description(quantidade: int = 24):
+def _groups_with_long_description(how_many: int = 24):
     """Enough groups for the list to SCROLL, half of them with a
     description that does not fit on one line of the panel."""
     from dbqm.models.group import Group
 
-    longa = (
+    long_one = (
         "Descricao longa o bastante para transbordar a largura do painel "
         "e provar a hierarquia do item em mais de uma quebra por largura."
     )
     return [
         Group(
             name=f"Grupo {i:02d}",
-            description=longa if i % 2 == 0 else "curta",
+            description=long_one if i % 2 == 0 else "curta",
             queries=["q1", "q2"],
             join_key="ID",
         )
-        for i in range(quantidade)
+        for i in range(how_many)
     ]
 
 
@@ -976,7 +969,7 @@ async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
     (scrollbar present). Proves the assumption against the mounted widget.
 
     Measures WITH THE LIST SCROLLING and reads `scrollable_content_region`,
-    not `content_region`: the lesson that cost three rounds in Conexoes is
+    not `content_region`: the lesson that cost three rounds in Connections is
     that `content_region` does NOT subtract the scrollbar — a width
     derived from it on a short list passes the test and comes out wrong in
     use. The assertion is the RELATION (text + indent fits in what is
@@ -993,18 +986,18 @@ async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await _open_tool(pilot, app, "run-group")
-        lista = app.query_one("#gr-group-list", OptionList)
-        assert lista.show_vertical_scrollbar, (
+        option_list = app.query_one("#gr-group-list", OptionList)
+        assert option_list.show_vertical_scrollbar, (
             "o teste so prova o pior caso se a lista estiver realmente "
             "rolando"
         )
-        assert _TEXT_WIDTH + len(_INDENT) <= lista.scrollable_content_region.width
+        assert _TEXT_WIDTH + len(_INDENT) <= option_list.scrollable_content_region.width
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tamanho", [(80, 24), (120, 34)])
+@pytest.mark.parametrize("size", [(80, 24), (120, 34)])
 async def test_group_description_never_falls_into_the_identity_column(
-    tmp_config_dir, tamanho
+    tmp_config_dir, size
 ):
     """No description line may start in the identity column.
 
@@ -1013,7 +1006,7 @@ async def test_group_description_never_falls_into_the_identity_column(
     `Content`, which stayed green with the defect present (the `Content`
     always had the indent; what lost it was the render's wrapping).
 
-    The identity here has no favourite star like the one in Consultas, so
+    The identity here has no favourite star like the one in Queries, so
     the column-0 line is checked against the group NAMES: only they may
     touch it. Both widths are here because the automatic wrapping falls at
     different points in each one — a single one does not prove that the
@@ -1023,44 +1016,41 @@ async def test_group_description_never_falls_into_the_identity_column(
     from dbqm.models.group import save_groups
     from tests.ui._helpers import rendered_lines
 
-    grupos = _groups_with_long_description()
-    save_groups(grupos)
-    identidades = {g.name for g in grupos}
+    groups = _groups_with_long_description()
+    save_groups(groups)
+    identities = {g.name for g in groups}
 
     app = DBQMApp()
-    async with app.run_test(size=tamanho) as pilot:
+    async with app.run_test(size=size) as pilot:
         await _open_tool(pilot, app, "run-group")
-        lista = app.query_one("#gr-group-list", OptionList)
-        assert lista.show_vertical_scrollbar, (
-            "o defeito so aparece com a lista rolando (a barra rouba 2 "
-            "colunas): o teste nao partiu do estado que descreve"
+        option_list = app.query_one("#gr-group-list", OptionList)
+        assert option_list.show_vertical_scrollbar, (
+            'the defect only shows with the list scrolling (the bar steals 2 columns): the test did not start from the state it describes'
         )
 
-        regiao = lista.scrollable_content_region
+        region = option_list.scrollable_content_region
         painted = rendered_lines(app)
-        linhas = [
-            painted[y][regiao.x : regiao.x + regiao.width]
-            for y in range(regiao.y, min(regiao.y + regiao.height, len(painted)))
+        lines = [
+            painted[y][region.x : region.x + region.width]
+            for y in range(region.y, min(region.y + region.height, len(painted)))
         ]
 
-        continuacoes = [
-            linha for linha in linhas
-            if linha.strip() and not linha.startswith(" ")
-            and linha.strip() not in identidades
+        continuations = [
+            line for line in lines
+            if line.strip() and not line.startswith(" ")
+            and line.strip() not in identities
         ]
-        assert not continuacoes, (
-            "linha de descricao na coluna da identidade em %sx%s: %r"
-            % (tamanho[0], tamanho[1], continuacoes)
+        assert not continuations, (
+            'a description line in the identity column at %sx%s: %r' % (size[0], size[1], continuations)
         )
 
         # And the list really did paint a description of more than one line
         # — otherwise the test would pass for having nothing to check.
-        recuadas = [linha for linha in linhas if linha.startswith("  Descricao longa")]
-        assert recuadas, "nenhuma descricao longa foi pintada: %r" % linhas
-        continuacao = [linha for linha in linhas if linha.startswith("  provar a hierarquia")]
-        assert continuacao, (
-            "a descricao coube numa linha so; sem transbordo nao ha o que "
-            "provar: %r" % linhas
+        indented = [line for line in lines if line.startswith("  Descricao longa")]
+        assert indented, 'no long description was painted: %r' % lines
+        continuation = [line for line in lines if line.startswith("  provar a hierarquia")]
+        assert continuation, (
+            'the description fitted on one line; with no overflow there is nothing to prove: %r' % lines
         )
 
 

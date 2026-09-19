@@ -34,17 +34,17 @@ from typing import Any, Final
 from dbqm.i18n import en, pt
 
 #: Every language the catalogue carries, by the code a user writes.
-CATALOGOS: Final[dict[str, dict[str, str]]] = {
-    "en": en.TEXTOS,
-    "pt": pt.TEXTOS,
+CATALOGUES: Final[dict[str, dict[str, str]]] = {
+    "en": en.TEXTS,
+    "pt": pt.TEXTS,
 }
 
-IDIOMA_PADRAO: Final = "en"
+DEFAULT_LANGUAGE: Final = "en"
 
 #: Set by `set_language`. Module state on purpose: the alternative is
 #: threading a locale through every function that renders anything, and this
 #: process renders for exactly one user.
-_idioma: str = IDIOMA_PADRAO
+_language: str = DEFAULT_LANGUAGE
 
 
 class UnknownKey(KeyError):
@@ -53,26 +53,26 @@ class UnknownKey(KeyError):
 
 
 def available_languages() -> list[str]:
-    return sorted(CATALOGOS)
+    return sorted(CATALOGUES)
 
 
 def get_language() -> str:
-    return _idioma
+    return _language
 
 
-def set_language(idioma: str | None) -> str:
+def set_language(language: str | None) -> str:
     """Switch language, returning the one now in effect.
 
     An unknown or empty code falls back to the default rather than raising:
     this is called with whatever is in a settings file or an environment
     variable, and a typo there should not stop the program from starting.
     """
-    global _idioma
-    _idioma = idioma if idioma in CATALOGOS else IDIOMA_PADRAO
-    return _idioma
+    global _language
+    _language = language if language in CATALOGUES else DEFAULT_LANGUAGE
+    return _language
 
 
-def resolve_language(configurado: str = "") -> str:
+def resolve_language(configured: str = "") -> str:
     """The language to use, in precedence order: `DBQM_LANG`, then the
     stored setting, then the default.
 
@@ -80,17 +80,17 @@ def resolve_language(configurado: str = "") -> str:
     which is what the test suite does, and what a CI job parsing messages
     should do — without writing to the user's settings.
     """
-    return set_language(os.environ.get("DBQM_LANG") or configurado or IDIOMA_PADRAO)
+    return set_language(os.environ.get("DBQM_LANG") or configured or DEFAULT_LANGUAGE)
 
 
-def t(chave: str, /, **campos: Any) -> str:
+def t(key: str, /, **fields: Any) -> str:
     """The text for `chave`, in the current language, with `campos` filled in.
 
     Falls back to English for a key the current language has not translated
     yet — an untranslated string is worth showing in English, where an empty
     one or a raw key is not. A key no catalogue has at all raises.
     """
-    texto = CATALOGOS[_idioma].get(chave) or en.TEXTOS.get(chave)
-    if texto is None:
-        raise UnknownKey(chave)
-    return texto.format(**campos) if campos else texto
+    text = CATALOGUES[_language].get(key) or en.TEXTS.get(key)
+    if text is None:
+        raise UnknownKey(key)
+    return text.format(**fields) if fields else text

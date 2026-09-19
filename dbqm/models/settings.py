@@ -39,8 +39,8 @@ class Settings:
         this one does too now. Unknown keys are ignored, so a settings file
         written by a newer dbqm still loads on an older one.
         """
-        campos = {f.name for f in cls.__dataclass_fields__.values()}
-        return cls(**{k: v for k, v in data.items() if k in campos})
+        fields = {f.name for f in cls.__dataclass_fields__.values()}
+        return cls(**{k: v for k, v in data.items() if k in fields})
 
 
 def load_settings() -> Settings:

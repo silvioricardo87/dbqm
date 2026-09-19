@@ -83,7 +83,7 @@ _OPTION_LIST_PADDING = 2
 # common case in real use, and not subtracting it means the computed width
 # is only right for a list too short to scroll.
 #
-# This is the part that cost four rounds on the Conexoes list, and the
+# This is the part that cost four rounds on the Connections list, and the
 # reason lies in the asymmetry of Textual's API: `content_region` does NOT
 # subtract the scrollbar, `scrollable_content_region` does. A width
 # derived from `content_region` measured on a short list passes in tests
@@ -110,7 +110,7 @@ def wrap_width(panel_width: int) -> int:
     the Panel border, the body padding, the OptionList padding, the
     scrollbar (worst case) and the indent the line itself pays.
 
-    The panel width STAYS WITH THE SCREEN — Conexoes and Consultas have
+    The panel width STAYS WITH THE SCREEN — Connections and Queries have
     panels of different sizes and that is how it should be (one is the
     left column of a master-detail, the other is the whole screen). What
     is shared is the DERIVATION, which only depends on the CSS of `Panel`
@@ -195,7 +195,7 @@ def hierarchical_item(
     guaranteed indent on a very long line must pre-break it on `\n` before
     calling this function — and that is what `wrap_lines` does, at the
     width `wrap_width` derives (which already subtracts the indent that
-    every line of the field comes to pay). The Conexoes and Consultas
+    every line of the field comes to pay). The Connections and Queries
     lists do this; that is why the panels of both have a fixed width in
     the CSS.
     """

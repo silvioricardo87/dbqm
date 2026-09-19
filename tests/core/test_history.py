@@ -10,36 +10,36 @@ from dbqm.i18n import available_languages, get_language, set_language
 
 
 @pytest.fixture
-def em_cada_idioma():
+def in_each_language():
     """Run the body once per language, restoring the one in force."""
-    anterior = get_language()
+    previous = get_language()
     yield available_languages()
-    set_language(anterior)
+    set_language(previous)
 
 
 class TestKindLabel:
-    def test_the_word_changes_with_the_language(self, em_cada_idioma):
+    def test_the_word_changes_with_the_language(self, in_each_language):
         """The three surfaces that show this field now share one spelling.
 
         Before, the TUI table said "grupo", the detail panel beside it
         printed the stored "group", and so did `dbqm history -f table` --
         one field, two languages, in the same screen.
         """
-        vistos = set()
-        for idioma in em_cada_idioma:
-            set_language(idioma)
-            vistos.add((kind_label("group"), kind_label("query")))
-        assert len(vistos) == len(em_cada_idioma), (
-            f"a language reuses another's words for this field: {vistos}")
+        seen = set()
+        for language in in_each_language:
+            set_language(language)
+            seen.add((kind_label("group"), kind_label("query")))
+        assert len(seen) == len(in_each_language), (
+            f"a language reuses another's words for this field: {seen}")
 
-    def test_the_stored_value_is_not_the_shown_one(self, em_cada_idioma):
+    def test_the_stored_value_is_not_the_shown_one(self, in_each_language):
         """`-f json` and the file on disk keep English, whatever is on screen.
 
         A caller parsing `entry_type` must not have to know which language
         the machine that wrote the file was running in.
         """
-        for idioma in em_cada_idioma:
-            set_language(idioma)
+        for language in in_each_language:
+            set_language(language)
             e = HistoryEntry(id="1", timestamp="t", entry_type="group",
                              name="g", connection="c")
             assert e.to_dict()["entry_type"] == "group"

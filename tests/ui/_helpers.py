@@ -35,8 +35,8 @@ class ThemedTestApp(App):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for tema in TEXTUAL_THEMES.values():
-            self.register_theme(tema)
+        for theme in TEXTUAL_THEMES.values():
+            self.register_theme(theme)
         self.theme = DEFAULT_THEME
 
 
@@ -54,13 +54,13 @@ def rendered_names(option_list) -> list[str]:
     same name brought the whole screen down with `DuplicateID`, and a test
     that reads `id` would have stayed green while the list no longer mounted.
     """
-    nomes = []
+    names = []
     for i in range(option_list.option_count):
         prompt = option_list.get_option_at_index(i).prompt
-        texto = prompt.plain if hasattr(prompt, "plain") else str(prompt)
-        linhas = texto.splitlines() or [""]
-        nomes.append(linhas[0].lstrip(_STARS).rstrip())
-    return nomes
+        text = prompt.plain if hasattr(prompt, "plain") else str(prompt)
+        lines = text.splitlines() or [""]
+        names.append(lines[0].lstrip(_STARS).rstrip())
+    return names
 
 
 _SVG_ESCAPES = {"&#160;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"'}
@@ -81,13 +81,13 @@ def rendered_text(app) -> str:
     ("Client in use") works the way the person reads it.
     """
     svg = app.export_screenshot()
-    linhas = []
-    for bruto in re.findall(r">([^<>]*)</text>", svg):
-        texto = bruto
+    lines = []
+    for raw in re.findall(r">([^<>]*)</text>", svg):
+        text = raw
         for de, para in _SVG_ESCAPES.items():
-            texto = texto.replace(de, para)
-        linhas.append(texto.replace("\xa0", " "))
-    return "\n".join(linhas)
+            text = text.replace(de, para)
+        lines.append(text.replace("\xa0", " "))
+    return "\n".join(lines)
 
 
 def rendered_lines(app) -> list[str]:
@@ -100,13 +100,13 @@ def rendered_lines(app) -> list[str]:
     starting at y=1, and the bottom border simply did not exist.
     """
     return [
-        "".join(segmento.text for segmento in faixa)
-        for faixa in app.screen._compositor.render_strips()
+        "".join(segment.text for segment in strip_line)
+        for strip_line in app.screen._compositor.render_strips()
     ]
 
 
 def crop(app, widget) -> list[str]:
     """The lines painted inside *widget*'s region."""
-    linhas = rendered_lines(app)
+    lines = rendered_lines(app)
     r = widget.region
-    return [linha[r.x : r.x + r.width] for linha in linhas[r.y : r.y + r.height]]
+    return [line[r.x : r.x + r.width] for line in lines[r.y : r.y + r.height]]

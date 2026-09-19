@@ -70,9 +70,9 @@ def validate(values: dict) -> list[str]:
         # connecting to, and saying so beats silently ignoring the field.
         if not _text(values, "database"):
             errors.append(t("connection.sqlite_database_required"))
-        for campo in ("host", "port", "user", "mode"):
-            if _text(values, campo):
-                errors.append(t("connection.sqlite_field_unused", field=campo))
+        for field in ("host", "port", "user", "mode"):
+            if _text(values, field):
+                errors.append(t("connection.sqlite_field_unused", field=field))
         if values.get("password"):
             errors.append(t("connection.sqlite_password_unused"))
 

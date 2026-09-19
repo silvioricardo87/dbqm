@@ -275,7 +275,7 @@ class BrowserScreen(Vertical):
         if not objects:
             self.notify(t("browser.no_objects"), severity="warning")
 
-    def _on_unsupported_type(self, mensagem: str) -> None:
+    def _on_unsupported_type(self, message: str) -> None:
         """Clear the list, then say why it is empty.
 
         `core` raises for a type the engine does not have, where it used to
@@ -284,7 +284,7 @@ class BrowserScreen(Vertical):
         self._objects = []
         self._update_obj_list_visibility()
         self._populate_list()
-        self.notify(mensagem, severity="warning", timeout=8)
+        self.notify(message, severity="warning", timeout=8)
 
     def _populate_list(self) -> None:
         """Render the cached object list, applying the current text filter."""

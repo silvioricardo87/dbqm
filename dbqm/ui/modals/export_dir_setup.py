@@ -19,11 +19,13 @@ class ExportDirSetupModal(ModalScreen[bool]):
     Dismisses with True after persisting settings, False on cancel/ESC.
 
     Two states:
-    - Checkbox "Sempre usar o diretorio atual" ON (default): uses CWD; input disabled.
-    - Checkbox OFF: input enabled; user must type a path that exists.
+    - The "always use the current directory" checkbox ON (default): uses CWD;
+      the input is disabled.
+    - The checkbox OFF: the input is enabled and the user must type a path
+      that exists.
 
-    On save: writes default_export_dir (empty when checkbox ON, path otherwise)
-    and sets export_dir_prompted = True.
+    On save: writes default_export_dir (empty when the checkbox is ON, the
+    path otherwise) and sets export_dir_prompted = True.
     """
 
     DEFAULT_CSS = """

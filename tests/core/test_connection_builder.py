@@ -249,20 +249,20 @@ class TestReadOnlyInBuild:
         from dbqm.core.connection_builder import build
         from dbqm.models.connection import Connection
 
-        existente = Connection(name="c", db_type="mysql", user="u",
+        existing = Connection(name="c", db_type="mysql", user="u",
                                password="", host="antigo", read_only=True)
         c = build({"name": "c", "db_type": "mysql", "host": "novo",
-                   "user": "u"}, existing=existente)
+                   "user": "u"}, existing=existing)
         assert c.read_only is True, "an unrelated update must not unlock"
 
     def test_a_present_false_unlocks(self):
         from dbqm.core.connection_builder import build
         from dbqm.models.connection import Connection
 
-        existente = Connection(name="c", db_type="mysql", user="u",
+        existing = Connection(name="c", db_type="mysql", user="u",
                                password="", read_only=True)
         c = build({"name": "c", "db_type": "mysql", "host": "h", "user": "u",
-                   "read_only": False}, existing=existente)
+                   "read_only": False}, existing=existing)
         assert c.read_only is False
 
 
@@ -273,14 +273,14 @@ class TestSqlite:
         assert validate({"name": "l", "db_type": "sqlite", "database": "a.db"}) == []
 
     def test_sqlite_without_a_database_is_refused(self, tmp_config_dir):
-        erros = validate({"name": "l", "db_type": "sqlite"})
-        assert any("database file" in e.lower() for e in erros)
+        errors = validate({"name": "l", "db_type": "sqlite"})
+        assert any("database file" in e.lower() for e in errors)
 
     def test_sqlite_refuses_a_host_it_cannot_use(self, tmp_config_dir):
         """A user who typed a host for a SQLite file has misunderstood
         something; saying so beats ignoring it."""
-        erros = validate({"name": "l", "db_type": "sqlite", "database": "a.db", "host": "srv"})
-        assert any("host" in e.lower() for e in erros)
+        errors = validate({"name": "l", "db_type": "sqlite", "database": "a.db", "host": "srv"})
+        assert any("host" in e.lower() for e in errors)
 
     def test_build_stores_only_the_file(self, tmp_config_dir):
         """No empty host lingering in the JSON to read like a real one."""

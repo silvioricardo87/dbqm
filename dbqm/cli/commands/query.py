@@ -116,12 +116,12 @@ def _refuse_undeclared_params(
     """
     if not param_values:
         return
-    declarados = set(deps.detect_params(sql))
-    desconhecidos = sorted(set(param_values) - declarados)
-    if desconhecidos:
+    declared = set(deps.detect_params(sql))
+    unknown = sorted(set(param_values) - declared)
+    if unknown:
         _fail_or_print(
             args, command, "validation",
-            t("param.not_in_sql", name=desconhecidos[0]),
+            t("param.not_in_sql", name=unknown[0]),
         )
 
 
@@ -133,14 +133,14 @@ def _sql_or_file(sql: str) -> str:
     not a file is SQL: a statement is never a file name by accident, and
     letting the driver reject it says more than a guess here would.
     """
-    caminho = Path(sql)
-    if caminho.is_file():
-        return caminho.read_text(encoding="utf-8")
-    if caminho.suffix.lower() == ".sql":
+    path = Path(sql)
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    if path.suffix.lower() == ".sql":
         # Nothing that ends in `.sql` is a statement. Left as SQL it reached
-        # `classify_sql` and came back "Tipo de SQL nao suportado", which
+        # `classify_sql` and came back "unsupported SQL type", which
         # says nothing about the typo in the path.
-        raise FileNotFoundError(str(caminho))
+        raise FileNotFoundError(str(path))
     return sql
 
 
@@ -194,12 +194,12 @@ def cmd_run(args: argparse.Namespace) -> None:
     # refused an undeclared parameter; `run` ignored it. `run-group` is
     # deliberately left alone: its `shared_params` cross several queries and
     # a parameter some of them do not use is the point.
-    declarados = {p.name for p in query.params}
-    desconhecidos = sorted(set(param_values) - declarados)
-    if desconhecidos:
+    declared = {p.name for p in query.params}
+    unknown = sorted(set(param_values) - declared)
+    if unknown:
         _fail_or_print(
             args, "run", "validation",
-            t("run.param_not_declared", query=query.name, parameter=desconhecidos[0]),
+            t("run.param_not_declared", query=query.name, parameter=unknown[0]),
         )
 
     # Fill missing params with defaults
@@ -329,13 +329,13 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # `cmd_run_group` answered it. The columns are derived the same way
     # `multi` derives them, and the caller is told that is what happened.
     compare_columns = list(group.compare_columns)
-    derivadas: list[str] = []
+    derived: list[str] = []
     if not compare_columns:
         try:
-            _, derivadas = deps.derive_comparison_columns(query_results)
+            _, derived = deps.derive_comparison_columns(query_results)
         except deps.NoComparableColumns as e:
             _fail_or_print(args, "run-group", "validation", str(e))
-        compare_columns = [c for c in derivadas if c != group.join_key]
+        compare_columns = [c for c in derived if c != group.join_key]
         if not compare_columns:
             _fail_or_print(
                 args, "run-group", "validation",
@@ -357,9 +357,9 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     # `ds.text.muted` is this design system's warning ink (see
     # `ui/theme.py`): a warning with no colour of its own, because the
     # result it qualifies is still the headline.
-    avisos = duplicate_key_warnings(group_result)
-    if derivadas:
-        avisos.insert(0, (
+    warnings = duplicate_key_warnings(group_result)
+    if derived:
+        warnings.insert(0, (
             t("group.comparing_common", name=group.name, columns=", ".join(compare_columns))
         ))
 
@@ -368,11 +368,11 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         path = _export_group(args, "run-group", group_result, param_values)
         if args.format == "json":
             ok("run-group", {"exported": str(path), "format": fmt},
-               warnings=avisos or None)
+               warnings=warnings or None)
         else:
             console.print(t("export.done", path=path))
-            for aviso in avisos:
-                console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
+            for warning in warnings:
+                console.print(f"[ds.text.muted]{escape(warning)}[/ds.text.muted]")
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
@@ -394,7 +394,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
                 for c in group_result.comparisons
             ],
         }
-        ok("run-group", data, warnings=avisos or None)
+        ok("run-group", data, warnings=warnings or None)
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
@@ -404,8 +404,8 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     console.print(t("group.header", name=group_result.group_name, status=status))
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
-    for aviso in avisos:
-        console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
+    for warning in warnings:
+        console.print(f"[ds.text.muted]{escape(warning)}[/ds.text.muted]")
     if not group_result.all_match:
         sys.exit(int(exit_for("divergent")))
 
@@ -574,18 +574,18 @@ def cmd_multi(args: argparse.Namespace) -> None:
         results, join_key=join_key, compare_columns=compare_columns,
     )
 
-    avisos = duplicate_key_warnings(group_result)
+    warnings = duplicate_key_warnings(group_result)
 
     if args.export:
         fmt = args.export
         path = _export_group(args, "multi", group_result, param_values)
         if args.format == "json":
             ok("multi", {"exported": str(path), "format": fmt, "join_key": join_key},
-               warnings=avisos or None)
+               warnings=warnings or None)
         else:
             console.print(t("export.done", path=path))
-            for aviso in avisos:
-                console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
+            for warning in warnings:
+                console.print(f"[ds.text.muted]{escape(warning)}[/ds.text.muted]")
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
@@ -607,19 +607,19 @@ def cmd_multi(args: argparse.Namespace) -> None:
                 for c in group_result.comparisons
             ],
         }
-        ok("multi", data, warnings=avisos or None)
+        ok("multi", data, warnings=warnings or None)
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
         return
 
     status = (f"[ds.verdict.match]{t('verdict.consistent')}[/]" if group_result.all_match
               else f"[ds.verdict.diff]{t('verdict.divergent')}[/]")
-    conexoes = ", ".join(results)
-    console.print(t("multi.header", connections=conexoes, key=join_key, status=status))
+    connections = ", ".join(results)
+    console.print(t("multi.header", connections=connections, key=join_key, status=status))
     for line in render._colored_comparison_lines(group_result.comparisons):
         console.print(f"  {line}")
-    for aviso in avisos:
-        console.print(f"[ds.text.muted]{escape(aviso)}[/ds.text.muted]")
+    for warning in warnings:
+        console.print(f"[ds.text.muted]{escape(warning)}[/ds.text.muted]")
     if not group_result.all_match:
         sys.exit(int(exit_for("divergent")))
 
@@ -736,8 +736,8 @@ def cmd_sql(args: argparse.Namespace) -> None:
             code = _sql_error_code(result.error, result.error_kind)
             if args.format == "json":
                 fail("sql", code, result.error or t("sql.ddl_failed"))
-            aviso = t("sql.ddl_compile_errors", seconds=f"{result.elapsed:.2f}")
-            console.print(f"[ds.op.failure]{aviso}[/ds.op.failure]")
+            warning = t("sql.ddl_compile_errors", seconds=f"{result.elapsed:.2f}")
+            console.print(f"[ds.op.failure]{warning}[/ds.op.failure]")
             console.print(f"[ds.op.failure]{result.error}[/ds.op.failure]")
             sys.exit(int(exit_for(code)))
         if args.format == "json":
@@ -1055,8 +1055,8 @@ def cmd_call(args: argparse.Namespace) -> None:
     if result.return_value is not None:
         console.print(t("call.return_value", value=result.return_value),
                       markup=False, highlight=False)
-    for nome, valor in result.out_values.items():
-        console.print(f"{nome}: {valor}", markup=False, highlight=False)
+    for name, value in result.out_values.items():
+        console.print(f"{name}: {value}", markup=False, highlight=False)
     for line in result.output_lines:
         console.print(line, markup=False, highlight=False)
     if committed:

@@ -263,15 +263,15 @@ def list_objects(db, db_type: str, obj_type: str) -> list[str]:
     here" instead of "this question does not apply here". An unrecognized
     `obj_type` string still returns `[]`: that is an unknown key, not a lie.
 
-    Limite conhecido, nao corrigido aqui: para `obj_type="ROUTINE"` (todos os
-    engines), a consulta junta PROCEDURE e FUNCTION e devolve so o nome
-    (`object_name`/`routine_name`) — quem chama nao tem como saber qual e
-    qual. A UI (`dbqm/ui/screens/browser.py`, filtro "Rotinas") por isso
-    mostra "Rotina" pra ambos, sem distinguir. Corrigir de verdade exige
-    mudar a forma de retorno desta funcao (de `list[str]` pra algo como
-    `list[tuple[str, str]]`, nome+tipo por objeto) em TODAS as branches de
-    ROUTINE abaixo, nao so na de Oracle — fora do escopo de quem so mexe em
-    tela.
+    A known limit, not fixed here: for `obj_type="ROUTINE"` (on every engine)
+    the query unions PROCEDURE and FUNCTION and returns only the name
+    (`object_name`/`routine_name`) — the caller has no way to tell which is
+    which. That is why the UI (`dbqm/ui/screens/browser.py`, the "Routines"
+    filter) shows "Routine" for both. Fixing it properly means changing this
+    function's return shape (from `list[str]` to something like
+    `list[tuple[str, str]]`, name plus type per object) in EVERY ROUTINE
+    branch below, not only Oracle's — out of scope for anyone who is only
+    touching a screen.
     """
     obj_upper = obj_type.upper()
 
@@ -972,9 +972,9 @@ def get_standalone_routine_info(
         raise UnsupportedEngine(t("engine.routines_oracle_only", type=db_type))
     cursor = db.cursor()
     try:
-        owner, tipo_real = _resolve_standalone_routine(cursor, routine_name)
-        if tipo_real:
-            routine_type = tipo_real
+        owner, real_kind = _resolve_standalone_routine(cursor, routine_name)
+        if real_kind:
+            routine_type = real_kind
         cursor.execute("""
             SELECT argument_name, data_type, in_out, default_value, position
             FROM all_arguments
@@ -1240,15 +1240,15 @@ def execute_routine(
 
         # Hand OUT params and the return value back, marked so they can be
         # told apart from what the routine printed itself.
-        marcador = _output_marker()
+        marker = _output_marker()
         for p_name, var_name in out_vars.items():
             begin_lines.append(
-                f"  DBMS_OUTPUT.PUT_LINE('{marcador}{p_name}=' || {var_name});"
+                f"  DBMS_OUTPUT.PUT_LINE('{marker}{p_name}=' || {var_name});"
             )
 
         if return_var:
             begin_lines.append(
-                f"  DBMS_OUTPUT.PUT_LINE('{marcador}RETURN=' || {return_var});"
+                f"  DBMS_OUTPUT.PUT_LINE('{marker}RETURN=' || {return_var});"
             )
 
         # Assemble block
@@ -1273,17 +1273,17 @@ def execute_routine(
         return_value: Any = None
 
         for line_val in _read_dbms_output(cursor):
-            if not line_val.startswith(marcador):
+            if not line_val.startswith(marker):
                 # Whatever the routine printed, verbatim -- including a line
                 # that happens to read `RETURN=...`, which is the routine's
                 # to print and no longer mistaken for the real return value.
                 output_lines.append(line_val)
                 continue
-            nome, _, valor = line_val[len(marcador):].partition("=")
-            if nome == "RETURN":
-                return_value = valor
+            name, _, value = line_val[len(marker):].partition("=")
+            if name == "RETURN":
+                return_value = value
             else:
-                out_values[nome] = valor
+                out_values[name] = value
 
         elapsed = time.time() - start
         return RoutineExecutionResult(

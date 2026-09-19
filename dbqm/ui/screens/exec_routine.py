@@ -438,15 +438,15 @@ class ExecRoutineScreen(Vertical):
             self.call_after_refresh(first_inp.focus)
 
     def _mount_run_controls(self, param_area: VerticalScroll) -> None:
-        """The Executar button and the commit choice, mounted together.
+        """The Run button and the commit choice, mounted together.
 
         A routine can write, and until 2.10.0 this screen never committed:
         `execute_routine` leaves the decision to its caller (which is why
-        `dbqm call` has `--commit`), and no caller here made it -- the
-        screen reported "Executado com sucesso" and the driver rolled the
-        work back at close. Unchecked, the rollback is now explicit and the
-        result panel says so; checked, the work is kept. Off by default:
-        running a routine to see what it does must not write.
+        `dbqm call` has `--commit`), and no caller here made it -- the screen
+        reported success and the driver rolled the work back at close.
+        Unchecked, the rollback is now explicit and the result panel says so;
+        checked, the work is kept. Off by default: running a routine to see what
+        it does must not write.
         """
         param_area.mount(
             Checkbox(t("exec_routine.confirm_commit"), id="er-commit-toggle", value=False)
@@ -553,8 +553,8 @@ class ExecRoutineScreen(Vertical):
                              f"{result.return_value}")
             if result.out_values:
                 lines.append(f'\n[bold]{t("exec_routine.out_params")}[/]')
-                for nome, valor in result.out_values.items():
-                    lines.append(f"  {escape_markup(nome)} = {escape_markup(str(valor))}")
+                for name, value in result.out_values.items():
+                    lines.append(f"  {escape_markup(name)} = {escape_markup(str(value))}")
             if result.output_lines:
                 lines.append(f'\n[bold]{t("exec_routine.output")}[/]')
                 for line in result.output_lines:
@@ -563,9 +563,9 @@ class ExecRoutineScreen(Vertical):
                 lines.append(f'\n[dim]{t("exec_routine.no_return")}[/]')
             # What happened to the work, always -- the screen used to say
             # "sucesso" over a transaction the driver then threw away.
-            desfecho = (t("exec_routine.committed") if committed
+            outcome = (t("exec_routine.committed") if committed
                         else t("exec_routine.rolled_back"))
-            lines.append(f"\n[dim]{desfecho}[/]")
+            lines.append(f"\n[dim]{outcome}[/]")
         else:
             lines = [
                 f'[bold $ds-op-failure]{t("exec_routine.run_failed")}[/] ({result.elapsed:.2f}s)',

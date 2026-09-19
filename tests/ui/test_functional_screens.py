@@ -31,8 +31,8 @@ from tests.functional.conftest import (  # noqa: F401 -- the fixtures are re-exp
 )
 from tests.ui._helpers import ThemedTestApp
 
-ATIVOS = "SELECT id, nome FROM clientes WHERE status = 'A' ORDER BY id"
-PED = "SELECT id, valor FROM pedidos ORDER BY id"
+ACTIVE = "SELECT id, nome FROM clientes WHERE status = 'A' ORDER BY id"
+ORDERS = "SELECT id, valor FROM pedidos ORDER BY id"
 
 
 class QueryExecTestApp(ThemedTestApp):
@@ -63,7 +63,7 @@ def _notifications(app) -> list[str]:
 async def test_query_exec_runs_a_saved_query_and_shows_the_row_count(local_db, capsys):
     """`query_exec`: pick the saved query, let the worker run it for real,
     read `#result-info` -- "2 rows" comes from the database."""
-    code, _ = envelope(["query", "add", "ativos", "--connection", "local", "--sql", ATIVOS, "-f", "json"], capsys)
+    code, _ = envelope(["query", "add", "ativos", "--connection", "local", "--sql", ACTIVE, "-f", "json"], capsys)
     assert code == 0
     query = find_query("ativos")
     conn = find_connection("local")
@@ -109,8 +109,8 @@ async def test_adhoc_executes_a_select_and_shows_the_rows(local_db):
 async def test_group_run_runs_a_group_and_shows_the_verdict(local2_db, capsys):
     """`group_run`: the group over `local` and `local2` -- which differ in
     one pedido -- is run for real and the widget says DIVERGENTE."""
-    for nome, conn in (("ped_local", "local"), ("ped_local2", "local2")):
-        code, _ = envelope(["query", "add", nome, "--connection", conn, "--sql", PED, "-f", "json"], capsys)
+    for name, conn in (("ped_local", "local"), ("ped_local2", "local2")):
+        code, _ = envelope(["query", "add", name, "--connection", conn, "--sql", ORDERS, "-f", "json"], capsys)
         assert code == 0
     code, _ = envelope(
         ["group", "add", "pedidos", "--query", "ped_local", "--query", "ped_local2",
@@ -152,11 +152,11 @@ async def test_browser_extracts_sqlite_ddl_through_the_core_dispatch(local_db):
         await worker.wait()
         await pilot.pause()
 
-        avisos = _notifications(app)
-        assert any(a.startswith("DDL saved") for a in avisos), avisos
-    arquivos = list((Path(paths.EXPORTS_DIR) / "ddl").rglob("*.sql"))
-    assert arquivos, "no .sql under exports/ddl"
-    assert "CREATE TABLE clientes" in "".join(a.read_text(encoding="utf-8") for a in arquivos)
+        warnings = _notifications(app)
+        assert any(a.startswith("DDL saved") for a in warnings), warnings
+    files = list((Path(paths.EXPORTS_DIR) / "ddl").rglob("*.sql"))
+    assert files, "no .sql under exports/ddl"
+    assert "CREATE TABLE clientes" in "".join(a.read_text(encoding="utf-8") for a in files)
 
 
 @pytest.mark.asyncio
@@ -184,10 +184,10 @@ async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, caps
     key covers one row per key and is silent about the rest."""
     from dbqm.ui.screens.group_run import GroupRunScreen
 
-    por_cliente = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
-    for nome, conn in (("pc_local", "local"), ("pc_local2", "local2")):
+    by_client = "SELECT cliente_id AS id, valor FROM pedidos ORDER BY id"
+    for name, conn in (("pc_local", "local"), ("pc_local2", "local2")):
         code, _ = envelope(
-            ["query", "add", nome, "--connection", conn, "--sql", por_cliente, "-f", "json"], capsys,
+            ["query", "add", name, "--connection", conn, "--sql", by_client, "-f", "json"], capsys,
         )
         assert code == 0
     code, _ = envelope(
@@ -206,8 +206,8 @@ async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, caps
         await worker.wait()
         await pilot.pause()
 
-        avisos = [n.message for n in app._notifications]
-        assert avisos == [
+        warnings = [n.message for n in app._notifications]
+        assert warnings == [
             "Key 'id' has repeated values in 'pc_local': 2 row(s) left out of the comparison.",
             "Key 'id' has repeated values in 'pc_local2': 2 row(s) left out of the comparison.",
         ]
@@ -218,9 +218,9 @@ async def test_group_run_says_nothing_when_the_key_is_unique(local2_db, capsys):
     from dbqm.ui.screens.group_run import GroupRunScreen
 
     ped = "SELECT id, valor FROM pedidos ORDER BY id"
-    for nome, conn in (("ped_local", "local"), ("ped_local2", "local2")):
+    for name, conn in (("ped_local", "local"), ("ped_local2", "local2")):
         code, _ = envelope(
-            ["query", "add", nome, "--connection", conn, "--sql", ped, "-f", "json"], capsys,
+            ["query", "add", name, "--connection", conn, "--sql", ped, "-f", "json"], capsys,
         )
         assert code == 0
     code, _ = envelope(

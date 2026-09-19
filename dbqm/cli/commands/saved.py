@@ -57,8 +57,8 @@ _QUERY_OUTCOME_VERB = {
 
 def _print_query_outcome(output_format: str, name: str, outcome: str) -> None:
     if output_format == "json":
-        verbo = _QUERY_OUTCOME_VERB[outcome]
-        ok(f"query.{verbo}", {"name": name, outcome: True})
+        verb = _QUERY_OUTCOME_VERB[outcome]
+        ok(f"query.{verb}", {"name": name, outcome: True})
         return
     console.print(escape(t(_QUERY_OUTCOME_KEY[outcome], name=name)))
 
@@ -227,8 +227,8 @@ def _query_rm(args: argparse.Namespace) -> None:
         # which would put prose on the stream the envelope owns.
         print(t("query.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
-        resposta = input().strip().lower()
-        if resposta not in t("common.yes_answers").split(","):
+        answer = input().strip().lower()
+        if answer not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("query.rm", {"name": args.name, "removed": False})
             else:
@@ -322,8 +322,8 @@ _GROUP_OUTCOME_VERB = {
 
 def _print_group_outcome(output_format: str, name: str, outcome: str) -> None:
     if output_format == "json":
-        verbo = _GROUP_OUTCOME_VERB[outcome]
-        ok(f"group.{verbo}", {"name": name, outcome: True})
+        verb = _GROUP_OUTCOME_VERB[outcome]
+        ok(f"group.{verb}", {"name": name, outcome: True})
         return
     console.print(escape(t(_GROUP_OUTCOME_KEY[outcome], name=name)))
 
@@ -446,8 +446,8 @@ def _group_rm(args: argparse.Namespace) -> None:
         # which would put prose on the stream the envelope owns.
         print(t("group.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
-        resposta = input().strip().lower()
-        if resposta not in t("common.yes_answers").split(","):
+        answer = input().strip().lower()
+        if answer not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("group.rm", {"name": args.name, "removed": False})
             else:
@@ -532,8 +532,8 @@ _TEMPLATE_OUTCOME_VERB = {
 
 def _print_template_outcome(output_format: str, name: str, outcome: str) -> None:
     if output_format == "json":
-        verbo = _TEMPLATE_OUTCOME_VERB[outcome]
-        ok(f"template.{verbo}", {"name": name, outcome: True})
+        verb = _TEMPLATE_OUTCOME_VERB[outcome]
+        ok(f"template.{verb}", {"name": name, outcome: True})
         return
     console.print(escape(t(_TEMPLATE_OUTCOME_KEY[outcome], name=name)))
 
@@ -680,8 +680,8 @@ def _template_rm(args: argparse.Namespace) -> None:
         # which would put prose on the stream the envelope owns.
         print(t("template.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
-        resposta = input().strip().lower()
-        if resposta not in t("common.yes_answers").split(","):
+        answer = input().strip().lower()
+        if answer not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("template.rm", {"name": args.name, "removed": False})
             else:

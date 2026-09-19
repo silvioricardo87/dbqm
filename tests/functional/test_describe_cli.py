@@ -26,12 +26,12 @@ def test_every_dispatched_command_is_described(described):
 
 # QA-DESC-002
 def test_the_four_curation_groups_list_their_subcommands_with_arguments(described):
-    for grupo in CURATION:
-        subs = {s["name"]: s for s in described[grupo]["subcommands"]}
-        assert VERBS <= set(subs), grupo
-        for verbo in VERBS:
-            assert subs[verbo]["arguments"], f"{grupo} {verbo} has no arguments"
-            assert subs[verbo]["arguments"][0]["flags"] == ["name"] or verbo == "list"
+    for group in CURATION:
+        subs = {s["name"]: s for s in described[group]["subcommands"]}
+        assert VERBS <= set(subs), group
+        for verb in VERBS:
+            assert subs[verb]["arguments"], f"{group} {verb} has no arguments"
+            assert subs[verb]["arguments"][0]["flags"] == ["name"] or verb == "list"
 
 
 # QA-DESC-003
@@ -47,18 +47,18 @@ def test_an_argument_carries_flags_required_and_choices(described):
 
 # QA-DESC-004
 def test_a_leaf_has_no_subcommands_key(described):
-    for folha in ("run", "sql", "multi", "objects", "describe-cli"):
-        assert "subcommands" not in described[folha], folha
-    for grupo in CURATION:
-        assert "subcommands" in described[grupo]
+    for leaf in ("run", "sql", "multi", "objects", "describe-cli"):
+        assert "subcommands" not in described[leaf], leaf
+    for group in CURATION:
+        assert "subcommands" in described[group]
 
 
 # QA-DESC-005
 def test_table_format_names_every_command(tmp_config_dir, capsys):
     code, out, _ = invoke(["describe-cli"], capsys)
     assert code == 0
-    for nome in COMMAND_MAP:
-        assert nome in out, nome
+    for name in COMMAND_MAP:
+        assert name in out, name
 
 
 # QA-DESC-006

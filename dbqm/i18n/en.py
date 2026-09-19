@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Final
 
-TEXTOS: Final[dict[str, str]] = {
+TEXTS: Final[dict[str, str]] = {
     # -- connection_builder: what makes a connection valid -----------------
     "connection.name_required": "Name is required.",
     "connection.type_required": "Choose a database type.",

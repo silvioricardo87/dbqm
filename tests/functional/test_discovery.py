@@ -47,11 +47,11 @@ def test_describe_reports_pk_nullability_and_the_unique_index(local_db, capsys):
     code, body = envelope(["describe", "clientes", "local", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["object_type"] == "TABLE"
-    colunas = _columns(body)
-    assert list(colunas) == ["id", "nome", "status"]
-    assert colunas["id"]["is_pk"] is True and colunas["id"]["data_type"] == "INTEGER"
-    assert colunas["nome"]["nullable"] is False and colunas["nome"]["data_type"] == "TEXT"
-    assert colunas["status"]["is_pk"] is False
+    columns = _columns(body)
+    assert list(columns) == ["id", "nome", "status"]
+    assert columns["id"]["is_pk"] is True and columns["id"]["data_type"] == "INTEGER"
+    assert columns["nome"]["nullable"] is False and columns["nome"]["data_type"] == "TEXT"
+    assert columns["status"]["is_pk"] is False
     assert body["data"]["indexes"] == [{"name": "ix_clientes_nome", "columns": ["nome"], "is_unique": True}]
 
 
@@ -115,15 +115,15 @@ def test_rows_pages_with_limit_and_offset(local_db, capsys):
 
 
 # QA-DISC-012
-@pytest.mark.parametrize("flag,valor,mensagem", [
+@pytest.mark.parametrize("flag, value, message", [
     ("--limit", "0", "--limit must be greater than zero."),
     ("--offset", "-1", "--offset cannot be negative."),
 ])
-def test_rows_refuses_a_bad_page(local_db, capsys, flag, valor, mensagem):
-    code, body = envelope(["rows", "clientes", "local", flag, valor, "-f", "json"], capsys)
+def test_rows_refuses_a_bad_page(local_db, capsys, flag, value, message):
+    code, body = envelope(["rows", "clientes", "local", flag, value, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == mensagem
+    assert body["error"]["message"] == message
 
 
 # QA-DISC-013
@@ -138,10 +138,10 @@ def test_rows_of_an_unknown_table_is_not_found(local_db, capsys):
 def test_rows_csv_prints_a_header_and_the_rows(local_db, capsys):
     code, out, _ = invoke(["rows", "clientes", "local", "-f", "csv"], capsys)
     assert code == 0
-    linhas = out.strip().splitlines()
-    assert linhas[0] == "id,nome,status"
-    assert len(linhas) == 4
-    assert "2,Bia,I" in linhas
+    lines = out.strip().splitlines()
+    assert lines[0] == "id,nome,status"
+    assert len(lines) == 4
+    assert "2,Bia,I" in lines
 
 
 # QA-DISC-015

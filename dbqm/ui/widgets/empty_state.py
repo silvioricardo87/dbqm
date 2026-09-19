@@ -1,8 +1,8 @@
-"""EmptyState: a primeira tela de todo usuario novo, em todo modulo.
+"""EmptyState: the first screen every new user meets, in every module.
 
-Os quatro parametros sao obrigatorios de proposito. E o que impede repetir
-"Nenhuma consulta configurada" sem oferecer a saida — o antipadrao que estava
-em 22 dos 23 estados vazios do dbqm.
+The four parameters are mandatory on purpose. That is what stops anyone
+repeating "No query configured" without offering the way out — the
+antipattern that was in 22 of dbqm's 23 empty states.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from textual.widgets import Button, Static
 
 
 class EmptyState(Vertical):
-    """Diz o que e aquilo, por que esta vazio, e oferece a primeira acao."""
+    """Say what this is, why it is empty, and offer the first action."""
 
     DEFAULT_CSS = """
     EmptyState {

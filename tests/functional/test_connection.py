@@ -14,13 +14,13 @@ from tests.functional.conftest import envelope, seed_sqlite
 
 def _add_local(path: Path, capsys, name: str = "local", **extra: str) -> tuple[int, dict]:
     argv = ["connection", "add", name, "--type", "sqlite", "--database", str(path), "--no-password"]
-    for chave, valor in extra.items():
-        argv += [f"--{chave}", valor]
+    for key, value in extra.items():
+        argv += [f"--{key}", value]
     return envelope([*argv, "-f", "json"], capsys)
 
 
 @pytest.fixture
-def arquivo(tmp_config_dir, tmp_path) -> Path:
+def file(tmp_config_dir, tmp_path) -> Path:
     """A seeded file and no connection: the tests register it themselves,
     through the CLI, because `add` is what they test."""
     path = tmp_path / "local.db"
@@ -29,15 +29,15 @@ def arquivo(tmp_config_dir, tmp_path) -> Path:
 
 
 @pytest.fixture
-def local(arquivo, capsys) -> Path:
-    code, body = _add_local(arquivo, capsys, description="seed")
+def local(file, capsys) -> Path:
+    code, body = _add_local(file, capsys, description="seed")
     assert code == 0 and body["data"] == {"name": "local", "created": True}
-    return arquivo
+    return file
 
 
 # QA-CONN-001
-def test_add_creates_a_connection_that_answers(arquivo, capsys):
-    code, body = _add_local(arquivo, capsys, description="seed")
+def test_add_creates_a_connection_that_answers(file, capsys):
+    code, body = _add_local(file, capsys, description="seed")
     assert code == 0
     assert body["command"] == "connection.add"
     assert body["data"] == {"name": "local", "created": True}
@@ -62,8 +62,8 @@ def test_sqlite_needs_a_database(tmp_config_dir, capsys):
 
 
 # QA-CONN-004
-def test_sqlite_refuses_a_host(arquivo, capsys):
-    code, body = _add_local(arquivo, capsys, name="comhost", host="x")
+def test_sqlite_refuses_a_host(file, capsys):
+    code, body = _add_local(file, capsys, name="comhost", host="x")
     assert code == 2
     assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == "SQLite does not use host; leave it blank."
@@ -71,15 +71,15 @@ def test_sqlite_refuses_a_host(arquivo, capsys):
 
 # QA-CONN-005
 def test_update_changes_only_what_it_is_given(local, capsys):
-    _, antes = envelope(["connection", "show", "local", "-f", "json"], capsys)
+    _, before = envelope(["connection", "show", "local", "-f", "json"], capsys)
     code, body = envelope(["connection", "update", "local", "--read-only", "-f", "json"], capsys)
     assert code == 0
     assert body["data"] == {"name": "local", "updated": True}
-    _, depois = envelope(["connection", "show", "local", "-f", "json"], capsys)
-    assert antes["data"]["read_only"] is False
-    assert depois["data"]["read_only"] is True
-    for campo in ("description", "db_type", "database", "created_at"):
-        assert depois["data"][campo] == antes["data"][campo]
+    _, after = envelope(["connection", "show", "local", "-f", "json"], capsys)
+    assert before["data"]["read_only"] is False
+    assert after["data"]["read_only"] is True
+    for field in ("description", "db_type", "database", "created_at"):
+        assert after["data"][field] == before["data"][field]
 
 
 # QA-CONN-006
@@ -177,15 +177,15 @@ def test_query_add_needs_a_registered_connection(local, capsys):
 
 # QA-CONN-014
 def test_query_update_changes_only_what_it_is_given(q1, capsys):
-    _, antes = envelope(["query", "show", q1, "-f", "json"], capsys)
+    _, before = envelope(["query", "show", q1, "-f", "json"], capsys)
     code, body = envelope(["query", "update", q1, "--favorite", "-f", "json"], capsys)
     assert code == 0
     assert body["data"] == {"name": "q1", "updated": True}
-    _, depois = envelope(["query", "show", q1, "-f", "json"], capsys)
-    assert antes["data"]["is_favorite"] is False
-    assert depois["data"]["is_favorite"] is True
-    for campo in ("description", "folder", "sql", "connection", "created_at"):
-        assert depois["data"][campo] == antes["data"][campo]
+    _, after = envelope(["query", "show", q1, "-f", "json"], capsys)
+    assert before["data"]["is_favorite"] is False
+    assert after["data"]["is_favorite"] is True
+    for field in ("description", "folder", "sql", "connection", "created_at"):
+        assert after["data"][field] == before["data"][field]
 
 
 # QA-CONN-015
@@ -218,9 +218,9 @@ def test_query_rm_needs_yes_off_a_tty(q1, capsys):
 
 @pytest.fixture
 def g1(local, capsys) -> str:
-    for nome in ("qa", "qb"):
+    for name in ("qa", "qb"):
         code, _ = envelope(
-            ["query", "add", nome, "--connection", "local", "--sql", "SELECT id FROM clientes", "-f", "json"], capsys,
+            ["query", "add", name, "--connection", "local", "--sql", "SELECT id FROM clientes", "-f", "json"], capsys,
         )
         assert code == 0
     code, body = envelope(
@@ -252,15 +252,15 @@ def test_group_add_refuses_a_duplicate(g1, capsys):
 
 # QA-CONN-019
 def test_group_update_changes_only_what_it_is_given(g1, capsys):
-    _, antes = envelope(["group", "show", g1, "-f", "json"], capsys)
+    _, before = envelope(["group", "show", g1, "-f", "json"], capsys)
     code, body = envelope(["group", "update", g1, "--folder", "pasta", "-f", "json"], capsys)
     assert code == 0
     assert body["data"] == {"name": "g1", "updated": True}
-    _, depois = envelope(["group", "show", g1, "-f", "json"], capsys)
-    assert antes["data"]["folder"] == ""
-    assert depois["data"]["folder"] == "pasta"
-    for campo in ("description", "queries", "join_key", "created_at"):
-        assert depois["data"][campo] == antes["data"][campo]
+    _, after = envelope(["group", "show", g1, "-f", "json"], capsys)
+    assert before["data"]["folder"] == ""
+    assert after["data"]["folder"] == "pasta"
+    for field in ("description", "queries", "join_key", "created_at"):
+        assert after["data"][field] == before["data"][field]
 
 
 # QA-CONN-020

@@ -375,8 +375,8 @@ def duplicate_key_warnings(group_result: GroupResult) -> list[str]:
     if not group_result.comparisons:
         return []
     return [
-        t("group.duplicate_key_rows", key=group_result.join_key, side=nome, rows=n)
-        for nome, n in sorted(group_result.comparisons[0].duplicate_rows.items())
+        t("group.duplicate_key_rows", key=group_result.join_key, side=name, rows=n)
+        for name, n in sorted(group_result.comparisons[0].duplicate_rows.items())
     ]
 
 

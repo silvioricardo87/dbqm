@@ -212,11 +212,11 @@ class TestGetStandaloneRoutineInfo:
     """
 
     @staticmethod
-    def _cursor(argumentos, objeto=("APP", "PROCEDURE")):
+    def _cursor(arguments, object_=("APP", "PROCEDURE")):
         mock_db = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = objeto
-        mock_cursor.fetchall.return_value = argumentos
+        mock_cursor.fetchone.return_value = object_
+        mock_cursor.fetchall.return_value = arguments
         mock_db.cursor.return_value = mock_cursor
         return mock_db, mock_cursor
 
@@ -240,7 +240,7 @@ class TestGetStandaloneRoutineInfo:
         mock_db, mock_cursor = self._cursor([
             (None, "NUMBER", "OUT", None, 0),  # return type
             ("P_INPUT", "VARCHAR2", "IN", None, 1),
-        ], objeto=("APP", "FUNCTION"))
+        ], object_=("APP", "FUNCTION"))
 
         info = get_standalone_routine_info(mock_db, "FN_CALC", "FUNCTION")
         assert info.return_type == "NUMBER"
@@ -261,15 +261,15 @@ class TestGetStandaloneRoutineInfo:
         was built without its parameters."""
         mock_db, mock_cursor = self._cursor([
             ("P_ID", "NUMBER", "IN", None, 1),
-        ], objeto=("OUTRO_SCHEMA", "PROCEDURE"))
+        ], object_=("OUTRO_SCHEMA", "PROCEDURE"))
 
         info = get_standalone_routine_info(mock_db, "MY_PROC")
 
-        resolucao, argumentos = mock_cursor.execute.call_args_list
-        assert "all_objects" in resolucao[0][0]
-        assert resolucao[0][1] == {"name": "MY_PROC"}
-        assert "owner = USER" not in argumentos[0][0]
-        assert argumentos[0][1]["owner"] == "OUTRO_SCHEMA"
+        resolution, arguments = mock_cursor.execute.call_args_list
+        assert "all_objects" in resolution[0][0]
+        assert resolution[0][1] == {"name": "MY_PROC"}
+        assert "owner = USER" not in arguments[0][0]
+        assert arguments[0][1]["owner"] == "OUTRO_SCHEMA"
         assert [p.name for p in info.params] == ["P_ID"]
 
     def test_all_objects_wins_over_the_type_the_caller_guessed(self):
@@ -278,7 +278,7 @@ class TestGetStandaloneRoutineInfo:
         the routine; it answers."""
         mock_db, _ = self._cursor([
             (None, "NUMBER", "OUT", None, 0),
-        ], objeto=("APP", "FUNCTION"))
+        ], object_=("APP", "FUNCTION"))
 
         info = get_standalone_routine_info(mock_db, "FN_CALC", "PROCEDURE")
 
@@ -289,14 +289,14 @@ class TestGetStandaloneRoutineInfo:
         """No row means the caller cannot see the name at all. The lookup
         does not invent a refusal: an empty `params` reaches the caller and
         the statement reaches Oracle, which answers PLS-00201."""
-        mock_db, mock_cursor = self._cursor([], objeto=None)
+        mock_db, mock_cursor = self._cursor([], object_=None)
 
         info = get_standalone_routine_info(mock_db, "NAO_EXISTE", "FUNCTION")
 
         assert info.routine_type == "FUNCTION"
         assert info.params == []
-        argumentos = mock_cursor.execute.call_args_list[1]
-        assert argumentos[0][1]["owner"] is None
+        arguments = mock_cursor.execute.call_args_list[1]
+        assert arguments[0][1]["owner"] is None
 
     def test_in_out_direction_mapping(self):
         mock_db = MagicMock()
@@ -376,7 +376,7 @@ class TestUnsupportedEngine:
         db.cursor.assert_called()
 
 
-def _db_com_colunas(linhas):
+def _db_with_columns(lines):
     """A db whose cursor returns `linhas` for the columns query.
 
     Row shape, per `get_table_structure`:
@@ -385,7 +385,7 @@ def _db_com_colunas(linhas):
     from unittest.mock import MagicMock
 
     db = MagicMock()
-    db.cursor.return_value.fetchall.return_value = list(linhas)
+    db.cursor.return_value.fetchall.return_value = list(lines)
     return db
 
 
@@ -397,20 +397,20 @@ class TestGetTableStructure:
 
         from dbqm.core.object_browser import get_table_structure
 
-        db = _db_com_colunas([
+        db = _db_with_columns([
             ("ID", "NUMBER", 22, 10, 0, "N"),
             ("VALOR", "NUMBER", 22, 12, 2, "Y"),
         ])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "PEDIDOS")
 
-        assert estrutura.table == "PEDIDOS"
-        assert [c.name for c in estrutura.columns] == ["ID", "VALOR"]
-        assert estrutura.columns[0].data_type == "NUMBER"
-        assert estrutura.columns[0].nullable is False, "Oracle spells it N"
-        assert estrutura.columns[1].nullable is True, "Oracle spells it Y"
+        assert structure.table == "PEDIDOS"
+        assert [c.name for c in structure.columns] == ["ID", "VALOR"]
+        assert structure.columns[0].data_type == "NUMBER"
+        assert structure.columns[0].nullable is False, "Oracle spells it N"
+        assert structure.columns[1].nullable is True, "Oracle spells it Y"
 
     def test_the_other_engines_spell_nullability_differently(self):
         """Oracle compares against "Y"; everyone else against "YES". A test
@@ -419,20 +419,20 @@ class TestGetTableStructure:
 
         from dbqm.core.object_browser import get_table_structure
 
-        db = _db_com_colunas([
+        db = _db_with_columns([
             ("ID", "int", 4, 10, 0, "NO"),
             ("VALOR", "decimal", 9, 12, 2, "YES"),
         ])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            estrutura = get_table_structure(db, "sqlserver", "PEDIDOS")
+            structure = get_table_structure(db, "sqlserver", "PEDIDOS")
 
-        assert estrutura.columns[0].nullable is False
+        assert structure.columns[0].nullable is False
         # The load-bearing half. "NO" is False against both "Y" and "YES", so
         # a NOT NULL column alone cannot tell the right comparison from the
         # wrong one; only a nullable column can.
-        assert estrutura.columns[1].nullable is True
+        assert structure.columns[1].nullable is True
 
     def test_a_primary_key_column_is_marked(self):
         """`is_pk` is how `describe` shows the key without a second call."""
@@ -440,16 +440,16 @@ class TestGetTableStructure:
 
         from dbqm.core.object_browser import get_table_structure
 
-        db = _db_com_colunas([
+        db = _db_with_columns([
             ("ID", "NUMBER", 22, 10, 0, "N"),
             ("VALOR", "NUMBER", 22, 12, 2, "Y"),
         ])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "PEDIDOS")
 
-        assert [c.name for c in estrutura.columns if c.is_pk] == ["ID"]
+        assert [c.name for c in structure.columns if c.is_pk] == ["ID"]
 
     def test_a_lowercase_column_still_matches_its_key(self):
         """The lookup upper-cases the column name before checking. PostgreSQL
@@ -458,13 +458,13 @@ class TestGetTableStructure:
 
         from dbqm.core.object_browser import get_table_structure
 
-        db = _db_com_colunas([("id", "integer", 4, 32, 0, "NO")])
+        db = _db_with_columns([("id", "integer", 4, 32, 0, "NO")])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value={"ID"}), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            estrutura = get_table_structure(db, "postgresql", "pedidos")
+            structure = get_table_structure(db, "postgresql", "pedidos")
 
-        assert estrutura.columns[0].is_pk is True
+        assert structure.columns[0].is_pk is True
 
     def test_a_foreign_key_column_carries_its_reference(self):
         """`fk_ref` is why `describe` needs no separate FK query."""
@@ -472,29 +472,29 @@ class TestGetTableStructure:
 
         from dbqm.core.object_browser import get_table_structure
 
-        db = _db_com_colunas([("CLIENTE_ID", "NUMBER", 22, 10, 0, "N")])
+        db = _db_with_columns([("CLIENTE_ID", "NUMBER", 22, 10, 0, "N")])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map",
                    return_value={"CLIENTE_ID": "CLIENTES.ID"}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "PEDIDOS")
 
-        assert estrutura.columns[0].fk_ref == "CLIENTES.ID"
+        assert structure.columns[0].fk_ref == "CLIENTES.ID"
 
     def test_indexes_come_back(self):
         from unittest.mock import patch
 
         from dbqm.core.object_browser import IndexInfo, get_table_structure
 
-        db = _db_com_colunas([("ID", "NUMBER", 22, 10, 0, "N")])
+        db = _db_with_columns([("ID", "NUMBER", 22, 10, 0, "N")])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes",
                    return_value=[IndexInfo("PK_PEDIDOS", ["ID"], True)]):
-            estrutura = get_table_structure(db, "oracle", "PEDIDOS")
+            structure = get_table_structure(db, "oracle", "PEDIDOS")
 
-        assert [i.name for i in estrutura.indexes] == ["PK_PEDIDOS"]
-        assert estrutura.indexes[0].is_unique is True
+        assert [i.name for i in structure.indexes] == ["PK_PEDIDOS"]
+        assert structure.indexes[0].is_unique is True
 
     def test_a_table_with_no_columns_returns_empty_not_an_error(self):
         """A name that matches nothing is a normal answer, not an exception —
@@ -504,13 +504,13 @@ class TestGetTableStructure:
 
         from dbqm.core.object_browser import get_table_structure
 
-        db = _db_com_colunas([])
+        db = _db_with_columns([])
         with patch("dbqm.core.object_browser._get_pk_columns", return_value=set()), \
              patch("dbqm.core.object_browser._get_fk_map", return_value={}), \
              patch("dbqm.core.object_browser._get_indexes", return_value=[]):
-            estrutura = get_table_structure(db, "oracle", "NAO_EXISTE")
+            structure = get_table_structure(db, "oracle", "NAO_EXISTE")
 
-        assert estrutura.columns == []
+        assert structure.columns == []
 
 
 class TestGetViewDefinition:
@@ -519,7 +519,7 @@ class TestGetViewDefinition:
     def test_it_returns_the_sql(self):
         from dbqm.core.object_browser import get_view_definition
 
-        db = _db_com_colunas([])
+        db = _db_with_columns([])
         # For db_type "oracle", get_view_definition first calls _detect_owner,
         # which also reads via cursor.fetchone() on the SAME mocked cursor.
         # A 1-tuple works there (it only reads row[0]) but then blows up with
@@ -536,7 +536,7 @@ class TestGetViewDefinition:
         object does not exist, so this must not raise."""
         from dbqm.core.object_browser import get_view_definition
 
-        db = _db_com_colunas([])
+        db = _db_with_columns([])
         db.cursor.return_value.fetchone.return_value = None
         view = get_view_definition(db, "oracle", "NAO_EXISTE")
 
@@ -588,11 +588,11 @@ class TestSqliteCatalog:
         from dbqm.core.object_browser import get_table_structure
         db = sqlite_catalog
         est = get_table_structure(db, "sqlite", "clientes")
-        por_nome = {c.name: c for c in est.columns}
-        assert por_nome["id"].is_pk is True
-        assert por_nome["nome"].nullable is False
-        assert por_nome["status"].nullable is True
-        assert por_nome["nome"].data_type == "TEXT"
+        by_name = {c.name: c for c in est.columns}
+        assert by_name["id"].is_pk is True
+        assert by_name["nome"].nullable is False
+        assert by_name["status"].nullable is True
+        assert by_name["nome"].data_type == "TEXT"
         idx = {i.name: i for i in est.indexes}
         assert idx["ix_clientes_nome"].columns == ["nome"]
         assert idx["ix_clientes_nome"].is_unique is True
@@ -601,9 +601,9 @@ class TestSqliteCatalog:
         from dbqm.core.object_browser import get_table_structure
         db = sqlite_catalog
         est = get_table_structure(db, "sqlite", "pedidos")
-        por_nome = {c.name: c for c in est.columns}
-        assert por_nome["cliente_id"].fk_ref == "clientes.id"
-        assert por_nome["id"].fk_ref == ""
+        by_name = {c.name: c for c in est.columns}
+        assert by_name["cliente_id"].fk_ref == "clientes.id"
+        assert by_name["id"].fk_ref == ""
 
     def test_view_definition_is_the_create_statement(self, sqlite_catalog):
         from dbqm.core.object_browser import get_view_definition
@@ -637,9 +637,9 @@ class TestSqliteHasNoRoutines:
         from dbqm.models.connection import Connection
         db = MagicMock()
         conn = Connection(name="l", db_type="sqlite", user="", password="", database=":memory:")
-        rotina = RoutineInfo(name="P", routine_type="PROCEDURE", params=[])
+        routine_info = RoutineInfo(name="P", routine_type="PROCEDURE", params=[])
         with pytest.raises(UnsupportedEngine):
-            execute_routine(db, "", rotina, {}, conn=conn)
+            execute_routine(db, "", routine_info, {}, conn=conn)
         db.cursor.assert_not_called()
 
 
@@ -651,15 +651,15 @@ class TestExecuteRoutineHandsValuesBack:
     routine printing its own `RETURN=...` shadowed the real return value.
     """
 
-    MARCADOR = re.compile(r"##dbqm[0-9a-f]{8}##")
+    MARKER = re.compile(r"##dbqm[0-9a-f]{8}##")
 
-    def _run(self, linhas_extra=(), routine=None):
+    def _run(self, extra_lines=(), routine=None):
         from dbqm.core.object_browser import (
             RoutineInfo, RoutineParam, execute_routine,
         )
         from dbqm.models.connection import Connection
 
-        rotina = routine or RoutineInfo(
+        routine_info = routine or RoutineInfo(
             name="SOMA", routine_type="FUNCTION", return_type="NUMBER",
             params=[
                 RoutineParam(name="A", data_type="NUMBER", direction="IN"),
@@ -670,49 +670,49 @@ class TestExecuteRoutineHandsValuesBack:
         db = MagicMock()
         cursor = MagicMock()
         db.cursor.return_value = cursor
-        executados: list[str] = []
-        cursor.execute.side_effect = lambda sql, binds=None: executados.append(sql)
+        executed: list[str] = []
+        cursor.execute.side_effect = lambda sql, binds=None: executed.append(sql)
 
-        def linhas(_cursor):
-            marcador = self.MARCADOR.search("\n".join(executados)).group(0)
+        def lines(_cursor):
+            marker = self.MARKER.search("\n".join(executed)).group(0)
             return [
-                f"{marcador}R=5",
-                *linhas_extra,
-                f"{marcador}RETURN=12",
+                f"{marker}R=5",
+                *extra_lines,
+                f"{marker}RETURN=12",
             ]
 
-        with patch("dbqm.core.query_engine._read_dbms_output", linhas):
-            resultado = execute_routine(db, "PKG", rotina, {"A": "7"}, conn=conn)
-        return resultado, executados
+        with patch("dbqm.core.query_engine._read_dbms_output", lines):
+            result = execute_routine(db, "PKG", routine_info, {"A": "7"}, conn=conn)
+        return result, executed
 
     def test_out_values_are_their_own_field(self):
-        resultado, _ = self._run()
-        assert resultado.success is True
-        assert resultado.out_values == {"R": "5"}
-        assert resultado.return_value == "12"
-        assert resultado.output_lines == []
+        result, _ = self._run()
+        assert result.success is True
+        assert result.out_values == {"R": "5"}
+        assert result.return_value == "12"
+        assert result.output_lines == []
 
     def test_a_routine_printing_RETURN_no_longer_shadows_the_real_one(self):
         """The line the routine printed stays in `output_lines`, verbatim,
         and the return value is still the one the block handed back."""
-        resultado, _ = self._run(linhas_extra=["RETURN=eu nao sou o retorno"])
-        assert resultado.return_value == "12"
-        assert resultado.output_lines == ["RETURN=eu nao sou o retorno"]
+        result, _ = self._run(extra_lines=["RETURN=eu nao sou o retorno"])
+        assert result.return_value == "12"
+        assert result.output_lines == ["RETURN=eu nao sou o retorno"]
 
     def test_a_line_the_routine_printed_is_not_read_as_an_out_value(self):
-        resultado, _ = self._run(linhas_extra=["R=99", "processando..."])
-        assert resultado.out_values == {"R": "5"}
-        assert resultado.output_lines == ["R=99", "processando..."]
+        result, _ = self._run(extra_lines=["R=99", "processando..."])
+        assert result.out_values == {"R": "5"}
+        assert result.output_lines == ["R=99", "processando..."]
 
     def test_the_marker_is_generated_per_execution(self):
         """A constant could appear in a routine's own source; a marker that
         did not exist when the routine was compiled cannot."""
-        _, primeiro = self._run()
-        _, segundo = self._run()
-        um = self.MARCADOR.search("\n".join(primeiro)).group(0)
-        outro = self.MARCADOR.search("\n".join(segundo)).group(0)
-        assert um != outro
+        _, first = self._run()
+        _, second = self._run()
+        um = self.MARKER.search("\n".join(first)).group(0)
+        other = self.MARKER.search("\n".join(second)).group(0)
+        assert um != other
 
     def test_to_dict_carries_the_out_values(self):
-        resultado, _ = self._run()
-        assert resultado.to_dict()["out_values"] == {"R": "5"}
+        result, _ = self._run()
+        assert result.to_dict()["out_values"] == {"R": "5"}

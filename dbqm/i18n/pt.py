@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Final
 
-TEXTOS: Final[dict[str, str]] = {
+TEXTS: Final[dict[str, str]] = {
     # -- connection_builder ------------------------------------------------
     "connection.name_required": "Nome obrigatorio.",
     "connection.type_required": "Selecione o tipo de banco.",

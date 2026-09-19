@@ -144,7 +144,7 @@ class TestFindOracleClientDir:
         return tmp_path
 
     @pytest.fixture(autouse=True)
-    def _sem_config_do_usuario(self, tmp_path, monkeypatch):
+    def _without_user_config(self, tmp_path, monkeypatch):
         """Cut these tests off from the developer's real ~/.dbqm/settings.json.
 
         `_find_oracle_client_dir` resolves through `_configured_client_dir`,
@@ -317,7 +317,7 @@ class TestGuidanceSurvivesTruncation:
     been silently cut. It is a type now, which no translation touches.
     """
 
-    def _conexao(self):
+    def _connection(self):
         from dbqm.models.connection import Connection
 
         return Connection(name="ora", db_type="oracle", user="u", password="p",
@@ -330,9 +330,9 @@ class TestGuidanceSurvivesTruncation:
 
         with patch("dbqm.core.db_manager.get_connection",
                    side_effect=RuntimeError("ORA-12541: TNS:no listener\nlinha 2\nlinha 3")):
-            ok, mensagem = test_connection(self._conexao())
+            ok, message = test_connection(self._connection())
         assert ok is False
-        assert "linha 2" not in mensagem
+        assert "linha 2" not in message
 
     def test_our_own_guidance_comes_through_whole(self):
         from unittest.mock import patch
@@ -341,9 +341,9 @@ class TestGuidanceSurvivesTruncation:
 
         with patch("dbqm.core.db_manager.get_connection",
                    side_effect=GuidanceError("primeira\nsegunda\nterceira")):
-            ok, mensagem = test_connection(self._conexao())
+            ok, message = test_connection(self._connection())
         assert ok is False
-        assert "segunda" in mensagem and "terceira" in mensagem
+        assert "segunda" in message and "terceira" in message
 
     def test_it_does_not_depend_on_what_the_message_says(self):
         """The whole point: a message with none of the old marker wording is
@@ -354,8 +354,8 @@ class TestGuidanceSurvivesTruncation:
 
         with patch("dbqm.core.db_manager.get_connection",
                    side_effect=GuidanceError("nothing here names a menu\nsecond line")):
-            ok, mensagem = test_connection(self._conexao())
-        assert "second line" in mensagem
+            ok, message = test_connection(self._connection())
+        assert "second line" in message
 
     def test_the_configured_client_error_is_guidance(self):
         from dbqm.core.db_manager import GuidanceError, OracleClientConfigError

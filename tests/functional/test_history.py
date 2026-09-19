@@ -34,16 +34,16 @@ def test_each_run_is_one_entry_with_its_facts(ativos, capsys):
     for _ in range(2):
         code, _ = envelope(["run", ativos, "-f", "json"], capsys)
         assert code == 0
-    registros = _history(capsys)
-    assert len(registros) == 2
-    for r in registros:
+    records = _history(capsys)
+    assert len(records) == 2
+    for r in records:
         assert r["entry_type"] == "query"
         assert r["name"] == "ativos"
         assert r["connection"] == "local"
         assert r["success"] is True
         assert r["row_count"] == 2
         assert r["id"] and r["timestamp"]
-    assert registros[0]["id"] != registros[1]["id"]
+    assert records[0]["id"] != records[1]["id"]
 
 
 # QA-HIST-003
@@ -54,10 +54,10 @@ def test_a_failed_run_is_recorded_with_its_error(local_db, capsys):
     assert code == 0
     code, _ = envelope(["run", "quebrada", "-f", "json"], capsys)
     assert code == 4
-    registros = _history(capsys)
-    assert len(registros) == 1
-    assert registros[0]["success"] is False
-    assert registros[0]["error"] == "no such table: nao_existe"
+    records = _history(capsys)
+    assert len(records) == 1
+    assert records[0]["success"] is False
+    assert records[0]["error"] == "no such table: nao_existe"
 
 
 # QA-HIST-004
@@ -65,11 +65,11 @@ def test_n_caps_the_count_newest_first(ativos, capsys):
     for _ in range(3):
         code, _ = envelope(["run", ativos, "-f", "json"], capsys)
         assert code == 0
-    todos = _history(capsys)
-    assert len(todos) == 3
-    dois = _history(capsys, "-n", "2")
-    assert [r["id"] for r in dois] == [r["id"] for r in todos[:2]]
-    assert todos[0]["timestamp"] >= todos[-1]["timestamp"]
+    all_of_them = _history(capsys)
+    assert len(all_of_them) == 3
+    two = _history(capsys, "-n", "2")
+    assert [r["id"] for r in two] == [r["id"] for r in all_of_them[:2]]
+    assert all_of_them[0]["timestamp"] >= all_of_them[-1]["timestamp"]
 
 
 # QA-HIST-005
@@ -92,14 +92,14 @@ def test_table_format_prints_the_entries(ativos, capsys):
 
 
 # QA-HIST-007
-@pytest.mark.parametrize("valor", ["0", "-5"])
-def test_a_limit_below_one_is_refused(ativos, capsys, valor):
+@pytest.mark.parametrize("value", ["0", "-5"])
+def test_a_limit_below_one_is_refused(ativos, capsys, value):
     """`-n 0` fell through `args.limit or 20` and silently meant the
     default; `-n -5` reached `entries[:-5]` and silently meant "all but the
     last five". `rows` validates its own limits the same way."""
     code, _ = envelope(["run", ativos, "-f", "json"], capsys)
     assert code == 0
-    code, body = envelope(["history", "-n", valor, "-f", "json"], capsys)
+    code, body = envelope(["history", "-n", value, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == "-n must be greater than zero."

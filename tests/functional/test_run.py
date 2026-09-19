@@ -12,20 +12,20 @@ import pytest
 
 from tests.functional.conftest import envelope, invoke
 
-ATIVOS = "SELECT id, nome FROM clientes WHERE status = 'A' ORDER BY id"
-POR_STATUS = "SELECT id, nome FROM clientes WHERE status = :st ORDER BY id"
+ACTIVE = "SELECT id, nome FROM clientes WHERE status = 'A' ORDER BY id"
+BY_STATUS = "SELECT id, nome FROM clientes WHERE status = :st ORDER BY id"
 
 
 @pytest.fixture
 def ativos(local_db, capsys) -> str:
-    code, body = envelope(["query", "add", "ativos", "--connection", "local", "--sql", ATIVOS, "-f", "json"], capsys)
+    code, body = envelope(["query", "add", "ativos", "--connection", "local", "--sql", ACTIVE, "-f", "json"], capsys)
     assert code == 0 and body["data"] == {"name": "ativos", "created": True}
     return "ativos"
 
 
 @pytest.fixture
-def por_status(local_db, capsys) -> str:
-    code, _ = envelope(["query", "add", "por_status", "--connection", "local", "--sql", POR_STATUS, "-f", "json"], capsys)
+def by_status(local_db, capsys) -> str:
+    code, _ = envelope(["query", "add", "por_status", "--connection", "local", "--sql", BY_STATUS, "-f", "json"], capsys)
     assert code == 0
     return "por_status"
 
@@ -42,15 +42,15 @@ def test_query_add_then_run_end_to_end(ativos, capsys):
 
 
 # QA-QUERY-002
-def test_a_param_reaches_the_sql(por_status, capsys):
-    code, body = envelope(["run", por_status, "-p", "st=I", "-f", "json"], capsys)
+def test_a_param_reaches_the_sql(by_status, capsys):
+    code, body = envelope(["run", by_status, "-p", "st=I", "-f", "json"], capsys)
     assert code == 0
     assert body["data"]["rows"] == [[2, "Bia"]]
 
 
 # QA-QUERY-003
-def test_a_missing_required_param_is_validation(por_status, capsys):
-    code, body = envelope(["run", por_status, "-f", "json"], capsys)
+def test_a_missing_required_param_is_validation(by_status, capsys):
+    code, body = envelope(["run", by_status, "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
     assert body["error"]["message"] == "Required parameters missing: st"
@@ -101,9 +101,9 @@ def test_export_writes_the_file_and_reports_it(ativos, tmp_path, capsys):
     exported = Path(body["data"]["exported"])
     assert exported.suffix == ".csv"
     assert tmp_path in exported.parents
-    linhas = exported.read_text(encoding="utf-8").splitlines()
-    assert linhas[0] == "id,nome"
-    assert "Ana" in linhas[1]
+    lines = exported.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "id,nome"
+    assert "Ana" in lines[1]
 
 
 # QA-QUERY-009
@@ -121,12 +121,12 @@ def test_a_run_is_recorded_in_history(ativos, capsys):
     assert code == 0
     code, body = envelope(["history", "-f", "json"], capsys)
     assert code == 0
-    registros = [e for e in body["data"] if e["name"] == "ativos"]
-    assert len(registros) == 1
-    assert registros[0]["connection"] == "local"
-    assert registros[0]["entry_type"] == "query"
-    assert registros[0]["success"] is True
-    assert registros[0]["row_count"] == 2
+    records = [e for e in body["data"] if e["name"] == "ativos"]
+    assert len(records) == 1
+    assert records[0]["connection"] == "local"
+    assert records[0]["entry_type"] == "query"
+    assert records[0]["success"] is True
+    assert records[0]["row_count"] == 2
 
 
 # QA-QUERY-012
@@ -140,9 +140,9 @@ def test_a_param_the_query_does_not_declare_is_refused(ativos, capsys):
 
 
 # QA-QUERY-013
-def test_a_declared_param_alongside_an_undeclared_one_is_still_refused(por_status, capsys):
+def test_a_declared_param_alongside_an_undeclared_one_is_still_refused(by_status, capsys):
     code, body = envelope(
-        ["run", por_status, "-p", "st=A", "-p", "lixo=9", "-f", "json"], capsys,
+        ["run", by_status, "-p", "st=A", "-p", "lixo=9", "-f", "json"], capsys,
     )
     assert code == 2
     assert body["error"]["message"] == 'Query "por_status" does not declare the parameter "lixo".'

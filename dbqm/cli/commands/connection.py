@@ -43,8 +43,8 @@ _CONNECTION_OUTCOME_VERB = {
 
 def _print_connection_outcome(output_format: str, name: str, outcome: str) -> None:
     if output_format == "json":
-        verbo = _CONNECTION_OUTCOME_VERB[outcome]
-        ok(f"connection.{verbo}", {"name": name, outcome: True})
+        verb = _CONNECTION_OUTCOME_VERB[outcome]
+        ok(f"connection.{verb}", {"name": name, outcome: True})
         return
     console.print(escape(t(_CONNECTION_OUTCOME_KEY[outcome], name=name)))
 
@@ -235,8 +235,8 @@ def _connection_rm(args: argparse.Namespace) -> None:
         # which would put prose on the stream the envelope owns.
         print(t("connection.confirm_remove", name=args.name), end="",
               file=sys.stderr, flush=True)
-        resposta = input().strip().lower()
-        if resposta not in t("common.yes_answers").split(","):
+        answer = input().strip().lower()
+        if answer not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("connection.rm", {"name": args.name, "removed": False})
             else:

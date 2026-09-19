@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from dbqm.i18n import (
-    IDIOMA_PADRAO,
+    DEFAULT_LANGUAGE,
     UnknownKey,
     available_languages,
     get_language,
@@ -15,12 +15,12 @@ from dbqm.i18n import (
 
 
 @pytest.fixture(autouse=True)
-def _restaurar_idioma():
+def _restore_the_language():
     """Module state, so every test puts it back. A test that leaked a
     language would change what the next one reads."""
-    anterior = get_language()
+    previous = get_language()
     yield
-    set_language(anterior)
+    set_language(previous)
 
 
 class TestLookup:
@@ -41,11 +41,11 @@ class TestLookup:
     def test_the_same_key_in_two_languages_keeps_the_value(self):
         """The sentence changes; what was interpolated into it does not."""
         set_language("en")
-        ingles = t("read_only.refused", name="prod")
+        english = t("read_only.refused", name="prod")
         set_language("pt")
-        portugues = t("read_only.refused", name="prod")
-        assert ingles != portugues
-        assert "'prod'" in ingles and "'prod'" in portugues
+        portuguese = t("read_only.refused", name="prod")
+        assert english != portuguese
+        assert "'prod'" in english and "'prod'" in portuguese
 
     def test_a_key_nobody_defines_raises(self):
         """Not an empty string and not the key itself: a string the user was
@@ -56,18 +56,18 @@ class TestLookup:
 
 class TestFallback:
     def test_an_untranslated_key_falls_back_to_english(self, monkeypatch):
-        from dbqm.i18n import CATALOGOS
+        from dbqm.i18n import CATALOGUES
 
-        monkeypatch.setitem(CATALOGOS, "xx", {})
+        monkeypatch.setitem(CATALOGUES, "xx", {})
         set_language("xx")
         assert t("connection.name_required") == "Name is required."
 
     def test_a_language_nobody_has_falls_back_to_the_default(self):
-        assert set_language("klingon") == IDIOMA_PADRAO
-        assert get_language() == IDIOMA_PADRAO
+        assert set_language("klingon") == DEFAULT_LANGUAGE
+        assert get_language() == DEFAULT_LANGUAGE
 
     def test_none_falls_back_to_the_default(self):
-        assert set_language(None) == IDIOMA_PADRAO
+        assert set_language(None) == DEFAULT_LANGUAGE
 
 
 class TestWhoDecides:
@@ -83,15 +83,15 @@ class TestWhoDecides:
 
     def test_nothing_configured_means_the_default(self, monkeypatch):
         monkeypatch.delenv("DBQM_LANG", raising=False)
-        assert resolve_language("") == IDIOMA_PADRAO
+        assert resolve_language("") == DEFAULT_LANGUAGE
 
     def test_an_unusable_environment_value_does_not_stop_the_program(self, monkeypatch):
         monkeypatch.setenv("DBQM_LANG", "nao-existe")
-        assert resolve_language("pt") == IDIOMA_PADRAO
+        assert resolve_language("pt") == DEFAULT_LANGUAGE
 
 
 def test_the_languages_it_offers_are_the_ones_it_has():
-    from dbqm.i18n import CATALOGOS
+    from dbqm.i18n import CATALOGUES
 
-    assert available_languages() == sorted(CATALOGOS)
-    assert IDIOMA_PADRAO in available_languages()
+    assert available_languages() == sorted(CATALOGUES)
+    assert DEFAULT_LANGUAGE in available_languages()

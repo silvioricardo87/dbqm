@@ -71,10 +71,10 @@ class TestMasterKeyCrypto:
         monkeypatch.setattr("dbqm.core.crypto.KEY_FILE", tmp_path / ".dbqm_key")
         with pytest.raises(ValueError) as exc:
             decrypt("nao-e-um-token-fernet")
-        mensagem = str(exc.value)
-        assert mensagem, "the error must not be empty, which was the whole bug"
-        assert ".dbqm_key" in mensagem
-        assert "--password-stdin" in mensagem
+        message = str(exc.value)
+        assert message, "the error must not be empty, which was the whole bug"
+        assert ".dbqm_key" in message
+        assert "--password-stdin" in message
 
     def test_key_created_on_first_use(self, tmp_path, monkeypatch):
         key_file = tmp_path / ".dbqm_key"

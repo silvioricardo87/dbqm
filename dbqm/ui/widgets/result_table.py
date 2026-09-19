@@ -91,8 +91,8 @@ class ResultTable(Vertical, can_focus=False):
     def result_info(self) -> str:
         if self._result is None:
             return ""
-        linhas = t("result_table.rows_count", rows=self._result.row_count)
-        return f"{linhas} | {self._result.elapsed:.2f}s | {self._result.connection_name}"
+        lines = t("result_table.rows_count", rows=self._result.row_count)
+        return f"{lines} | {self._result.elapsed:.2f}s | {self._result.connection_name}"
 
     def load_result(self, result: QueryResult) -> None:
         """Load a QueryResult into the table."""
@@ -204,12 +204,12 @@ class ResultTable(Vertical, can_focus=False):
             # in $ds-text — swaps `*** Registro N ***`/plain text for colour
             # with meaning. The right-alignment of the labels is kept: it is
             # what makes a stacked record scannable.
-            cabecalho = escape_markup(f"Registro {base + i + 1}")
-            lines = [f"[bold $ds-text-strong]{cabecalho}[/]"]
+            header = escape_markup(f"Registro {base + i + 1}")
+            lines = [f"[bold $ds-text-strong]{header}[/]"]
             for col, val in zip(str_columns, row, strict=True):
                 display_val = str(val) if val is not None else ""
-                rotulo = f"{escape_markup(col):>{max_col_len}}"
-                valor = escape_markup(display_val)
-                lines.append(f"  [$ds-text-muted]{rotulo}[/]: [$ds-text]{valor}[/]")
+                label = f"{escape_markup(col):>{max_col_len}}"
+                value = escape_markup(display_val)
+                lines.append(f"  [$ds-text-muted]{label}[/]: [$ds-text]{value}[/]")
             blocks.append("\n".join(lines))
         self._vertical_view.update(Content.from_markup("\n\n".join(blocks)))

@@ -27,20 +27,20 @@ def _legacy_modules() -> list[str]:
     first one would leave a side door open: a second `ignore_errors` block
     would exempt modules that these tests never see.
     """
-    raiz = Path(__file__).resolve().parents[2]
-    config = tomllib.loads((raiz / "pyproject.toml").read_text(encoding="utf-8"))
-    legado: list[str] = []
+    root = Path(__file__).resolve().parents[2]
+    config = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    legacy: list[str] = []
     for bloco in config["tool"]["mypy"].get("overrides", []):
         if bloco.get("ignore_errors"):
-            modulo = bloco["module"]
-            legado.extend([modulo] if isinstance(modulo, str) else modulo)
-    return legado
+            module_ = bloco["module"]
+            legacy.extend([module_] if isinstance(module_, str) else module_)
+    return legacy
 
 
 def test_the_legacy_list_has_not_grown():
-    legado = _legacy_modules()
-    assert len(legado) <= MAX_LEGACY_MODULES, (
-        f"{len(legado)} modules are exempt from strict typing, up from "
+    legacy = _legacy_modules()
+    assert len(legacy) <= MAX_LEGACY_MODULES, (
+        f"{len(legacy)} modules are exempt from strict typing, up from "
         f"{MAX_LEGACY_MODULES}. The list shrinks; it does not grow. A new "
         "module is strict from its first line."
     )
@@ -48,11 +48,11 @@ def test_the_legacy_list_has_not_grown():
 
 def test_every_exempt_module_exists():
     """A stale entry silently exempts nothing and hides the real count."""
-    raiz = Path(__file__).resolve().parents[2]
-    for modulo in _legacy_modules():
-        caminho = raiz / (modulo.replace(".", "/") + ".py")
-        assert caminho.exists(), (
-            f"{modulo} is exempt from strict typing but does not exist. "
+    root = Path(__file__).resolve().parents[2]
+    for module_ in _legacy_modules():
+        path = root / (module_.replace(".", "/") + ".py")
+        assert path.exists(), (
+            f"{module_} is exempt from strict typing but does not exist. "
             "Remove the entry."
         )
 

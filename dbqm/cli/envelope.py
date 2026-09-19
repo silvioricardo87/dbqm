@@ -42,9 +42,9 @@ def ok(command: str, data: Any, *, warnings: list[str] | None = None) -> None:
 
 def fail(command: str, code: str, message: str, *, detail: str = "") -> NoReturn:
     """Emit a failure on stderr and exit with the code that token maps to."""
-    saida = exit_for(code)
-    erro: dict[str, Any] = {"code": code, "message": message, "exit": int(saida)}
+    output = exit_for(code)
+    error: dict[str, Any] = {"code": code, "message": message, "exit": int(output)}
     if detail:
-        erro["detail"] = detail
-    _write(sys.stderr, {"ok": False, "command": command, "error": erro})
-    sys.exit(int(saida))
+        error["detail"] = detail
+    _write(sys.stderr, {"ok": False, "command": command, "error": error})
+    sys.exit(int(output))

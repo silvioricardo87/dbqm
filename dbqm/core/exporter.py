@@ -186,15 +186,15 @@ def _evidence_status(result: AdhocResult) -> str:
     """One-line outcome summary for the evidence footer."""
     if not result.success:
         return t("export.status_error", error=result.error)
-    tipo = result.sql_type
-    if tipo == "PLSQL":
+    kind = result.sql_type
+    if kind == "PLSQL":
         return t("export.status_plsql")
-    if tipo in ("INSERT", "UPDATE", "DELETE"):
+    if kind in ("INSERT", "UPDATE", "DELETE"):
         commit = t("export.commit_done") if result.committed else t("export.commit_pending")
         return t("export.status_dml", count=result.rows_affected, commit=commit)
-    if tipo == "SELECT":
+    if kind == "SELECT":
         return t("export.status_select", rows=result.row_count)
-    if tipo == "DDL":
+    if kind == "DDL":
         return t("export.status_ddl")
     return t("export.status_ok")
 
@@ -209,21 +209,21 @@ def format_dbms_evidence(result: AdhocResult, sql: str, timestamp: str) -> str:
     # The colons line up, and they have to keep lining up in a language
     # whose words are not the length of the Portuguese ones. Padded to the
     # widest label in the language actually in use, not to a count typed in.
-    cabecalho = [
+    header = [
         (t("export.label_connection"), result.connection_name),
         (t("export.label_datetime"), timestamp),
         (t("export.label_type"), result.sql_type),
     ]
-    rodape = [
+    footer = [
         (t("export.label_result"), _evidence_status(result)),
         (t("export.label_time"), f"{result.elapsed:.3f}s"),
     ]
-    largura = max(len(rotulo) for rotulo, _ in cabecalho + rodape)
+    width = max(len(label) for label, _ in header + footer)
     lines = [
         _EVIDENCE_RULE,
         t("export.evidence_title"),
         _EVIDENCE_RULE,
-        *[f" {rotulo.ljust(largura)}: {valor}" for rotulo, valor in cabecalho],
+        *[f" {label.ljust(width)}: {value}" for label, value in header],
         _EVIDENCE_SUB,
         " " + t("export.evidence_sql_ran"),
         _EVIDENCE_SUB,
@@ -235,7 +235,7 @@ def format_dbms_evidence(result: AdhocResult, sql: str, timestamp: str) -> str:
     lines.extend(out if out else [t("export.evidence_no_output")])
     lines.extend([
         _EVIDENCE_SUB,
-        *[f" {rotulo.ljust(largura)}: {valor}" for rotulo, valor in rodape],
+        *[f" {label.ljust(width)}: {value}" for label, value in footer],
         _EVIDENCE_RULE,
     ])
     return "\n".join(lines)
@@ -390,15 +390,15 @@ def export_group_csv(group_result: GroupResult, params: dict | None = None) -> s
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
 
     with filepath.open("w", newline="", encoding="utf-8") as f:
-        veredito = (t("verdict.consistent") if group_result.all_match
+        verdict = (t("verdict.consistent") if group_result.all_match
                     else t("verdict.divergent"))
-        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if params:
             for k, v in params.items():
                 f.write(f'# {t("export.label_param")}: {k} = {v}\n')
         f.write(f'# {t("export.label_group")}: {group_result.group_name}\n')
-        f.write(f'# {t("export.label_date")}: {agora}\n')
-        f.write(f'# {t("export.label_result")}: {veredito}\n\n')
+        f.write(f'# {t("export.label_date")}: {now}\n')
+        f.write(f'# {t("export.label_result")}: {verdict}\n\n')
 
         writer = csv.writer(f)
         header = ([t("export.column_key"), t("export.column_query")]
@@ -471,7 +471,7 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
     query_names, compare_columns, all_keys, lookup = _build_pivoted_data(group_result)
 
     lines = []
-    veredito = (t("verdict.consistent") if group_result.all_match
+    verdict = (t("verdict.consistent") if group_result.all_match
                 else t("verdict.divergent"))
     lines.append(f'{t("export.label_group")}: {group_result.group_name}')
     lines.append(f'{t("export.label_date")}: '
@@ -479,18 +479,18 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
     if params:
         for k, v in params.items():
             lines.append(f'{t("export.label_param")}: {k} = {v}')
-    lines.append(f'{t("export.label_result")}: {veredito}')
+    lines.append(f'{t("export.label_result")}: {verdict}')
     lines.append("")
 
     for key in all_keys:
         lines.append(f'{t("export.column_key")}: {key}')
 
-        # Calculate column widths. `consulta` and `status` are dict keys, not
+        # Calculate column widths. `query` and `status` are dict keys, not
         # text: what gets printed is the label beside each of them.
-        rot_consulta = t("export.column_query")
-        rot_status = t("export.column_status")
-        rot_resultado = t("export.label_result")
-        col_w = {"query": max(len(rot_resultado), len(rot_consulta),
+        label_query = t("export.column_query")
+        label_status = t("export.column_status")
+        label_result = t("export.label_result")
+        col_w = {"query": max(len(label_result), len(label_query),
                                  max(len(qn) for qn in query_names))}
         for col in compare_columns:
             col_w[col] = len(col)
@@ -502,13 +502,13 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
             comp_row = lookup.get((key, col))
             if comp_row:
                 col_w[col] = max(col_w[col], len(_status_label(comp_row.status)))
-        col_w["status"] = max(7, len(_status_label("ABSENT")), len(rot_status))
+        col_w["status"] = max(7, len(_status_label("ABSENT")), len(label_status))
 
         # Header
         hdr = " | ".join([
-            rot_consulta.ljust(col_w["query"]),
+            label_query.ljust(col_w["query"]),
             *[c.ljust(col_w[c]) for c in compare_columns],
-            rot_status.ljust(col_w["status"]),
+            label_status.ljust(col_w["status"]),
         ])
         sep = "-+-".join([
             "-" * col_w["query"],
@@ -531,7 +531,7 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
         # Result row
         lines.append(sep)
         col_statuses = []
-        parts = [rot_resultado.ljust(col_w["query"])]
+        parts = [label_result.ljust(col_w["query"])]
         for col in compare_columns:
             comp_row = lookup.get((key, col))
             status = comp_row.status if comp_row else "ABSENT"
@@ -543,17 +543,17 @@ def export_group_txt(group_result: GroupResult, params: dict | None = None) -> s
         lines.append("")
 
     # Summary
-    rotulos = [t("comparison.equal"), t("comparison.normalized"),
+    labels = [t("comparison.equal"), t("comparison.normalized"),
                t("comparison.different"), t("comparison.absent")]
-    largura = max(len(r) for r in rotulos)
+    width = max(len(r) for r in labels)
     for comp in group_result.comparisons:
         lines.append(f'{t("export.label_column")}: {comp.column}')
-        lines.append(f"  {rotulos[0].ljust(largura)} {comp.equal_count}/{comp.total_keys}")
+        lines.append(f"  {labels[0].ljust(width)} {comp.equal_count}/{comp.total_keys}")
         if comp.normalized_count > 0:
             lines.append(
-                f"  {rotulos[1].ljust(largura)} {comp.normalized_count}/{comp.total_keys}")
-        lines.append(f"  {rotulos[2].ljust(largura)} {comp.diff_count}/{comp.total_keys}")
-        lines.append(f"  {rotulos[3].ljust(largura)} {comp.absent_count}/{comp.total_keys}")
+                f"  {labels[1].ljust(width)} {comp.normalized_count}/{comp.total_keys}")
+        lines.append(f"  {labels[2].ljust(width)} {comp.diff_count}/{comp.total_keys}")
+        lines.append(f"  {labels[3].ljust(width)} {comp.absent_count}/{comp.total_keys}")
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
     return str(filepath)
@@ -576,15 +576,15 @@ def export_group_flat_csv(group_result: GroupResult, params: dict | None = None)
     query_names = list(group_result.query_results.keys())
 
     with filepath.open("w", newline="", encoding="utf-8") as f:
-        veredito = (t("verdict.consistent") if group_result.all_match
+        verdict = (t("verdict.consistent") if group_result.all_match
                     else t("verdict.divergent"))
-        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if params:
             for k, v in params.items():
                 f.write(f'# {t("export.label_param")}: {k} = {v}\n')
         f.write(f'# {t("export.label_group")}: {group_result.group_name}\n')
-        f.write(f'# {t("export.label_date")}: {agora}\n')
-        f.write(f'# {t("export.label_result")}: {veredito}\n\n')
+        f.write(f'# {t("export.label_date")}: {now}\n')
+        f.write(f'# {t("export.label_result")}: {verdict}\n\n')
 
         writer = csv.writer(f)
         for comp in group_result.comparisons:
@@ -647,7 +647,7 @@ def export_group_flat_txt(group_result: GroupResult, params: dict | None = None)
     query_names = list(group_result.query_results.keys())
 
     lines = []
-    veredito = (t("verdict.consistent") if group_result.all_match
+    verdict = (t("verdict.consistent") if group_result.all_match
                 else t("verdict.divergent"))
     lines.append(f'{t("export.label_group")}: {group_result.group_name}')
     lines.append(f'{t("export.label_date")}: '
@@ -655,16 +655,16 @@ def export_group_flat_txt(group_result: GroupResult, params: dict | None = None)
     if params:
         for k, v in params.items():
             lines.append(f'{t("export.label_param")}: {k} = {v}')
-    lines.append(f'{t("export.label_result")}: {veredito}')
+    lines.append(f'{t("export.label_result")}: {verdict}')
     lines.append("")
 
     for comp in group_result.comparisons:
         lines.append(f'{t("export.label_column")}: {comp.column}')
 
         # Calculate column widths
-        rot_chave = t("export.column_key")
-        rot_status = t("export.column_status")
-        col_w = {"key": len(rot_chave)}
+        label_key = t("export.column_key")
+        label_status = t("export.column_status")
+        col_w = {"key": len(label_key)}
         for row in comp.rows:
             col_w["key"] = max(col_w["key"], len(str(row.key_value)))
         for qn in query_names:
@@ -672,15 +672,15 @@ def export_group_flat_txt(group_result: GroupResult, params: dict | None = None)
             for row in comp.rows:
                 val = row.values.get(qn)
                 col_w[qn] = max(col_w[qn], len(str(val) if val is not None else "-"))
-        col_w["status"] = max(len(rot_status),
+        col_w["status"] = max(len(label_status),
                               *(len(_flat_status_label(s))
                                 for s in ("OK", "OK*", "DIFF", "ABSENT")))
 
         # Header
         hdr = " | ".join([
-            rot_chave.ljust(col_w["key"]),
+            label_key.ljust(col_w["key"]),
             *[qn.ljust(col_w[qn]) for qn in query_names],
-            rot_status.ljust(col_w["status"]),
+            label_status.ljust(col_w["status"]),
         ])
         sep = "-+-".join([
             "-" * col_w["key"],

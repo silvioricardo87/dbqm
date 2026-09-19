@@ -93,8 +93,8 @@ def test_every_write_verb_is_refused(read_only_db, capsys, sql):
     assert code == 2
     assert body["error"]["code"] == "read_only"
     assert body["error"]["message"] == REFUSAL
-    code, contagem = envelope(["sql", "SELECT COUNT(*) FROM clientes", "local", "-f", "json"], capsys)
-    assert contagem["data"]["rows"] == [[3]]
+    code, count = envelope(["sql", "SELECT COUNT(*) FROM clientes", "local", "-f", "json"], capsys)
+    assert count["data"]["rows"] == [[3]]
     assert sorted(_tables(capsys)) == ["clientes", "pedidos"]
 
 

@@ -61,10 +61,10 @@ def _add_connection_fields(parser: argparse.ArgumentParser) -> None:
                         help=t("help.connection.tns_name"))
     parser.add_argument("--user", help=t("help.connection.user"))
     parser.add_argument("--description", help=t("help.connection.description"))
-    senha = parser.add_mutually_exclusive_group()
-    senha.add_argument("--password-stdin", action="store_true", dest="password_stdin",
+    password = parser.add_mutually_exclusive_group()
+    password.add_argument("--password-stdin", action="store_true", dest="password_stdin",
                        help=t("help.connection.password_stdin"))
-    senha.add_argument("--no-password", action="store_true", dest="no_password",
+    password.add_argument("--no-password", action="store_true", dest="no_password",
                        help=t("help.connection.no_password"))
     grupo_ro = parser.add_mutually_exclusive_group()
     grupo_ro.add_argument("--read-only", dest="read_only", action="store_true",
@@ -88,16 +88,16 @@ def _add_query_fields(parser: argparse.ArgumentParser) -> None:
     exclusive -- only one way to say what the query runs.
     """
     parser.add_argument("--connection", help=t("help.query.connection"))
-    sql_grupo = parser.add_mutually_exclusive_group()
-    sql_grupo.add_argument("--sql", help=t("help.query.sql"))
-    sql_grupo.add_argument("--sql-file", dest="sql_file",
+    group_sql = parser.add_mutually_exclusive_group()
+    group_sql.add_argument("--sql", help=t("help.query.sql"))
+    group_sql.add_argument("--sql-file", dest="sql_file",
                            help=t("help.query.sql_file"))
     parser.add_argument("--description", help=t("help.query.description"))
     parser.add_argument("--folder", help=t("help.query.folder"))
-    fav_grupo = parser.add_mutually_exclusive_group()
-    fav_grupo.add_argument("--favorite", dest="is_favorite", action="store_true",
+    fav_group = parser.add_mutually_exclusive_group()
+    fav_group.add_argument("--favorite", dest="is_favorite", action="store_true",
                            default=None, help=t("help.query.favorite"))
-    fav_grupo.add_argument("--no-favorite", dest="is_favorite", action="store_false",
+    fav_group.add_argument("--no-favorite", dest="is_favorite", action="store_false",
                            help=t("help.query.no_favorite"))
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
                         help=t("help.template.format"))
@@ -135,9 +135,9 @@ def _add_template_fields(parser: argparse.ArgumentParser) -> None:
     exclusive -- only one way to say what the template holds, mirroring
     `--sql`/`--sql-file`.
     """
-    content_grupo = parser.add_mutually_exclusive_group()
-    content_grupo.add_argument("--content", help=t("help.template.content"))
-    content_grupo.add_argument("--content-file", dest="content_file",
+    group_content = parser.add_mutually_exclusive_group()
+    group_content.add_argument("--content", help=t("help.template.content"))
+    group_content.add_argument("--content-file", dest="content_file",
                                help=t("help.template.content_file"))
     parser.add_argument("--description", help=t("help.template.description"))
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",
@@ -210,12 +210,12 @@ def resolve_password(
             # the parser itself is the source of that fact — a hand-kept list
             # of which command has which flag is a second truth waiting to
             # drift.
-            dica = (
+            hint = (
                 t("password.no_password_hint")
                 if getattr(args, "no_password", None) is not None
                 else ""
             )
-            message = t("password.empty_on_stdin") + dica
+            message = t("password.empty_on_stdin") + hint
             if fmt == "json":
                 fail(command, "usage", message)
             console.print(f"[ds.op.failure]{message}[/ds.op.failure]")

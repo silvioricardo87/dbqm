@@ -42,13 +42,13 @@ from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
 # The PRICE, written down because it is a choice and not a pure gain: the
 # selection panel STOPS BEING ELASTIC (it used to grow with the terminal,
 # 116 columns on a 120-column terminal; now it stops at 76). It was the
-# trade accepted in the Conexoes and Consultas lists and it is the same
+# trade accepted in the Connections and Queries lists and it is the same
 # one here: a guaranteed indent on the continuation requires wrapping on
 # `\n` before the render (see `hierarchical_item`), and wrapping on `\n`
 # requires knowing the width before the render.
 #
-# 76, and not 42: this list has the SHAPE of Consultas, not that of
-# Conexoes. Conexoes uses 42 because it is the left column of a
+# 76, and not 42: this list has the SHAPE of Queries, not that of
+# Connections. Connections uses 42 because it is the left column of a
 # master-detail (the list shares the screen with the edit form); here the
 # selection takes up the whole screen and gives way to the results phase
 # when a group is chosen — the same phase swap as `QueryExecScreen`. And
@@ -60,7 +60,7 @@ _LIST_PANEL_WIDTH = 76
 
 # Text columns left over inside that panel. The derivation (Panel border,
 # body padding, OptionList padding, scrollbar in the worst case, line
-# indent) lives in `wrap_width`, shared with Conexoes and Consultas; what
+# indent) lives in `wrap_width`, shared with Connections and Queries; what
 # belongs to this screen is only the panel width above. See there as well
 # the trap that cost four rounds: `content_region` does NOT subtract the
 # scrollbar, `scrollable_content_region` does.
@@ -96,8 +96,8 @@ def _group_option(group: Any) -> NamedOption:
     """
     name = group.name
     n_queries = len(group.queries)
-    chave = "group_run.queries_one" if n_queries == 1 else "group_run.queries_many"
-    queries_label = t(chave, count=n_queries)
+    key = "group_run.queries_one" if n_queries == 1 else "group_run.queries_many"
+    queries_label = t(key, count=n_queries)
 
     # WRAP, not truncate: no character is lost, the description only gains
     # a `\n` every `_TEXT_WIDTH` columns. Without this it reached
@@ -112,10 +112,10 @@ def _group_option(group: Any) -> NamedOption:
     # ("2 consultas"), it is not user text and has no way of overflowing
     # 66 columns; wrapping it would be ceremony with no defect to justify
     # it.
-    contexto = wrap_lines(group.description or "", _TEXT_WIDTH)
+    context = wrap_lines(group.description or "", _TEXT_WIDTH)
 
-    conteudo = hierarchical_item(name, queries_label, contexto)
-    return NamedOption(conteudo, name)
+    content = hierarchical_item(name, queries_label, context)
+    return NamedOption(content, name)
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ class GroupRunScreen(Vertical):
         self._raw_query_rows: dict[str, list[list]] | None = None  # original rows per query
         self._showing_mapped: bool = True
         self._all_groups: list = []
-        # "" = Todas, None = Sem pasta, any other value = folder name
+        # "" = all, None = no folder, any other value = a folder name
         # — same scheme as `QueryExecScreen._active_folder`.
         self._active_folder: str | None = ""
         self._has_folders: bool = False
@@ -244,21 +244,21 @@ class GroupRunScreen(Vertical):
         # `QueryExecScreen._load_selection`.
         from collections import Counter
 
-        contagem_pastas = Counter(g.folder for g in groups if g.folder)
-        folders = sorted(contagem_pastas)
+        folder_counts = Counter(g.folder for g in groups if g.folder)
+        folders = sorted(folder_counts)
         self._has_folders = bool(folders)
 
         group_list = OptionList(id="gr-group-list")
 
         if folders:
-            prefixo = common_folder_prefix(folders)
+            prefix = common_folder_prefix(folders)
             options = [(t("common.all_count", count=len(groups)), "")]
             for folder in folders:
-                rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
-                options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
-            sem_pasta = sum(1 for g in groups if not g.folder)
-            if sem_pasta:
-                options.append((t("common.no_folder_count", count=sem_pasta), None))
+                label = folder[len(prefix):] if prefix and folder.startswith(prefix) else folder
+                options.append((f"{label} ({folder_counts[folder]})", folder))
+            no_folder = sum(1 for g in groups if not g.folder)
+            if no_folder:
+                options.append((t("common.no_folder_count", count=no_folder), None))
             selection.mount(
                 NavSelect(options, allow_blank=False, id="gr-folder-select")
             )
@@ -353,7 +353,7 @@ class GroupRunScreen(Vertical):
         if not isinstance(event.option, NamedOption):
             return
         # An empty name goes through as well: `_on_group_chosen` answers
-        # "Grupo nao encontrado", which is information — better than a
+        # "Group not found", which is information — better than a
         # visible row that does nothing when chosen.
         self._on_group_chosen(event.option.name)
 
@@ -585,8 +585,8 @@ class GroupRunScreen(Vertical):
         # A key whose values repeat means the verdict above covers one row
         # per key and says nothing about the others. The CLI puts this in
         # `warnings`; a person looking at the screen deserves the same fact.
-        for aviso in duplicate_key_warnings(group_result):
-            self.notify(aviso, severity="warning", timeout=8)
+        for warning in duplicate_key_warnings(group_result):
+            self.notify(warning, severity="warning", timeout=8)
 
         # Set up action bar
         self._set_result_actions()
@@ -674,7 +674,7 @@ class GroupRunScreen(Vertical):
         grw.toggle_mode()
 
     def _handle_toggle_mapping(self) -> None:
-        """Toggle between mapped (de-para) and original values in group results."""
+        """Toggle between mapped and original values in group results."""
         import copy
         if self._current_group_result is None or self._raw_query_rows is None:
             return

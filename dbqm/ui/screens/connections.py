@@ -77,15 +77,15 @@ def _format_description(description: str) -> str:
     if not description:
         return ""
     flat = " ".join(description.split())
-    linhas = textwrap.wrap(flat, width=_DESCRIPTION_WIDTH) or [""]
-    if len(linhas) <= _DESCRIPTION_MAX_LINES:
-        return "\n".join(linhas)
-    linhas = linhas[:_DESCRIPTION_MAX_LINES]
-    ultima = linhas[-1].rstrip()
-    if len(ultima) > _DESCRIPTION_WIDTH - 3:
-        ultima = ultima[: _DESCRIPTION_WIDTH - 3].rstrip()
-    linhas[-1] = ultima + "..."
-    return "\n".join(linhas)
+    lines = textwrap.wrap(flat, width=_DESCRIPTION_WIDTH) or [""]
+    if len(lines) <= _DESCRIPTION_MAX_LINES:
+        return "\n".join(lines)
+    lines = lines[:_DESCRIPTION_MAX_LINES]
+    last = lines[-1].rstrip()
+    if len(last) > _DESCRIPTION_WIDTH - 3:
+        last = last[: _DESCRIPTION_WIDTH - 3].rstrip()
+    lines[-1] = last + "..."
+    return "\n".join(lines)
 
 
 class ConnectionsScreen(Vertical):
@@ -196,7 +196,7 @@ class ConnectionsScreen(Vertical):
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
         self._loaded_name: str | None = None
-        self._senha_ilegivel = False
+        self._unreadable_password = False
         self._remove_name: str | None = None
         self._rename_old_name: str | None = None
 
@@ -348,9 +348,9 @@ class ConnectionsScreen(Vertical):
             # for in a list of connections. Type+target disambiguate similar
             # entries; the description is optional context, indented and
             # dimmed.
-            desambiguacao = f"{db_label} - {conn.display_target()}"
-            contexto = _format_description(conn.description)
-            item = hierarchical_item(conn.name, desambiguacao, contexto)
+            disambiguation = f"{db_label} - {conn.display_target()}"
+            context = _format_description(conn.description)
+            item = hierarchical_item(conn.name, disambiguation, context)
             option_list.add_option(Option(item, id=conn.name))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
@@ -478,12 +478,12 @@ class ConnectionsScreen(Vertical):
         # A stored password that will not decrypt must not be destroyed by the
         # next save. The field shows blank either way, so without this flag an
         # unreadable credential and a deliberately cleared one look identical.
-        self._senha_ilegivel = False
+        self._unreadable_password = False
         if conn.password:
             try:
                 password = decrypt(conn.password)
             except Exception:
-                self._senha_ilegivel = True
+                self._unreadable_password = True
         self.query_one("#conn-form-pass", Input).value = password
 
         self.query_one("#conn-form-desc", TextArea).text = conn.description or ""
@@ -492,7 +492,7 @@ class ConnectionsScreen(Vertical):
     def _clear_form(self) -> None:
         """Reset the form to a blank state, ready for a new connection."""
         self._loaded_name = None
-        self._senha_ilegivel = False
+        self._unreadable_password = False
 
         name_input = self.query_one("#conn-form-name", Input)
         name_input.value = ""
@@ -665,12 +665,12 @@ class ConnectionsScreen(Vertical):
         # empty box then means the user emptied it. Typing the name of an
         # existing connection into a blank form shows nothing about what is
         # stored, and a blank box there must not wipe it.
-        campo_e_autoridade = (
-            not self._senha_ilegivel and self._loaded_name == values["name"]
+        field_and_authority = (
+            not self._unreadable_password and self._loaded_name == values["name"]
         )
         if password.strip():
             values["password"] = password
-        elif campo_e_autoridade:
+        elif field_and_authority:
             values["password"] = ""
         return values
 
@@ -687,8 +687,8 @@ class ConnectionsScreen(Vertical):
         self._load_connections()
         self._update_status_bar()
         self._select_in_list(conn.name)
-        chave = "connection.created" if created else "connection.updated"
-        self.notify(t(chave, name=conn.name))
+        key = "connection.created" if created else "connection.updated"
+        self.notify(t(key, name=conn.name))
 
     # ------------------------------------------------------------------
     # Rename

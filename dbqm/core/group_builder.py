@@ -53,9 +53,9 @@ def validate(values: dict[str, Any]) -> list[str]:
         # name, so the same name twice collapses to one side and the
         # comparison can only ever report agreement -- with itself. `multi`
         # refuses the same shape for a repeated `-c`.
-        repetidas = sorted({q for q in queries if queries.count(q) > 1})
-        if repetidas:
-            errors.append(t("group.query_repeated", name=repetidas[0]))
+        repeated = sorted({q for q in queries if queries.count(q) > 1})
+        if repeated:
+            errors.append(t("group.query_repeated", name=repeated[0]))
 
     if not _text(values, "join_key"):
         errors.append(t("group.join_key_required"))

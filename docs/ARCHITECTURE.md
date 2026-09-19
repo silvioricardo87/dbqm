@@ -251,6 +251,20 @@ screens were the exception. Making Portuguese a translation rather than the
 source removed the exception: there is now one language in the repository and
 a file of alternatives beside it.
 
+The list above was the rule long before it was the fact. The screens made it
+visible, and once they moved, what was left was a suite whose locals were
+`corpo`, `saida` and `rotulo`, thirty-seven docstrings and ninety-seven
+assertion messages in Portuguese, and prose naming tabs (`Conexoes`,
+`Ferramentas`) that had been renamed weeks earlier. All of it is English now.
+Two things are deliberately not:
+
+- `dbqm/i18n/pt.py`, which is the translation, and the marker-word list in
+  `tests/design/test_i18n_policy.py`, which exists to recognise Portuguese.
+- Quoted evidence — the maintainer's complaint that opened the settings
+  rework, and the exact sentences a screen used to paint. Translating the
+  evidence for a decision would put words in someone's mouth; the reasoning
+  around the quote is English.
+
 Three things that only became visible once a second language existed, each
 now a guard in `tests/design/test_i18n_policy.py`:
 

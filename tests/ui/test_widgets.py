@@ -79,20 +79,20 @@ async def test_status_bar_dot_contrasts_with_the_bar_background():
 
     app = StatusBarTestApp()
     async with app.run_test():
-        barra = app.query_one(StatusBar)
-        barra.set_connection("MGORA7ORA9")
+        bar = app.query_one(StatusBar)
+        bar.set_connection("MGORA7ORA9")
         await app.workers.wait_for_complete()
-        content = barra.render()
-        pecas = list(content.render(Style.null(), end="", parse_style=Style.parse))
-        cor_bolinha = next(
-            estilo.foreground for texto, estilo in pecas if "●" in texto
+        content = bar.render()
+        pieces = list(content.render(Style.null(), end="", parse_style=Style.parse))
+        dot_color = next(
+            style.foreground for text, style in pieces if "●" in text
         )
-        cor_fundo_barra = barra.styles.background
+        bar_background_color = bar.styles.background
 
-        contraste = ratio(cor_bolinha.hex, cor_fundo_barra.hex)
-        assert contraste >= 3.0, (
-            f"bolinha ({cor_bolinha.hex}) sobre o fundo real da barra "
-            f"({cor_fundo_barra.hex}) = {contraste:.2f}:1, abaixo do piso de interface"
+        contrast = ratio(dot_color.hex, bar_background_color.hex)
+        assert contrast >= 3.0, (
+            f"bolinha ({dot_color.hex}) sobre o fundo real da barra "
+            f"({bar_background_color.hex}) = {contrast:.2f}:1, abaixo do piso de interface"
         )
 
 
@@ -104,9 +104,9 @@ def test_verdict_communicates_state_beyond_color():
     """Accessibility floor: colour alone does not communicate state."""
     from dbqm.ui.widgets.verdict import mark_verdict
 
-    glifos = {mark_verdict(v).split("]")[1].split("[")[0] for v in
+    glyphs = {mark_verdict(v).split("]")[1].split("[")[0] for v in
               ("match", "match-normalized", "diff", "absent")}
-    assert len(glifos) == 4, f"glifos repetidos: {glifos}"
+    assert len(glyphs) == 4, f"glifos repetidos: {glyphs}"
 
 
 def test_match_verdict_uses_the_token_of_its_own_axis():
@@ -132,7 +132,7 @@ def test_successful_operation_gets_no_ink():
     from dbqm.ui.widgets.verdict import mark_operation
 
     ok = mark_operation("ok")
-    assert "$" not in ok, f"operacao bem sucedida nao deve carregar token de cor: {ok!r}"
+    assert "$" not in ok, f'a successful operation must carry no colour token: {ok!r}'
     assert "[bold]" in ok, f"operacao bem sucedida perde peso sem cor: {ok!r}"
     assert "$ds-op-failure" in mark_operation("failure")
 
@@ -145,13 +145,13 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
     would pass the whole suite in silence."""
     from pathlib import Path
 
-    raiz_screens = Path(__file__).resolve().parents[2] / "dbqm" / "ui" / "screens"
+    screens_root = Path(__file__).resolve().parents[2] / "dbqm" / "ui" / "screens"
     sites = {
         "adhoc.py": [
             # The label is picked by dialect now — a T-SQL batch is not PL/SQL
             # — so what is pinned is the markup, which is what this guard is
             # about, not the wording.
-            'return f"[bold]{rotulo}[/] ({result.elapsed:.2f}s)"',
+            'return f"[bold]{label}[/] ({result.elapsed:.2f}s)"',
             # The words come from the catalogue; the markup stays here,
             # which is what this guard is about.
             'f"[bold]{t(\'adhoc.ddl_ok\')}[/] ({result.elapsed:.2f}s)"',
@@ -169,11 +169,11 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
             ),
         ],
     }
-    for nome_arquivo, trechos in sites.items():
-        texto = (raiz_screens / nome_arquivo).read_text(encoding="utf-8")
-        for trecho in trechos:
-            assert trecho in texto, (
-                f"{nome_arquivo}: markup de sucesso mudou ou perdeu o [bold]: {trecho!r}"
+    for file_name, snippets in sites.items():
+        text = (screens_root / file_name).read_text(encoding="utf-8")
+        for snippet in snippets:
+            assert snippet in text, (
+                f'{file_name}: the success markup changed or lost its [bold]: {snippet!r}'
             )
 
 
@@ -197,14 +197,14 @@ def test_mark_verdict_label_swaps_the_label_and_keeps_glyph_and_token():
     """
     from dbqm.ui.widgets.verdict import mark_verdict
 
-    padrao = mark_verdict("diff")
-    customizado = mark_verdict("diff", label="DIVERGENTE")
+    standard = mark_verdict("diff")
+    customised = mark_verdict("diff", label="DIVERGENTE")
 
-    assert "DIVERGENTE" in customizado
-    assert "DIFERE" not in customizado
-    assert "$ds-verdict-diff" in customizado
+    assert "DIVERGENTE" in customised
+    assert "DIFERE" not in customised
+    assert "$ds-verdict-diff" in customised
     # same glyph as the default, without duplicating its "DIFERE" label
-    assert customizado.split("]")[1].split(" ", 1)[0] == padrao.split("]")[1].split(" ", 1)[0]
+    assert customised.split("]")[1].split(" ", 1)[0] == standard.split("]")[1].split(" ", 1)[0]
 
 
 def test_mark_verdict_escapes_the_label_so_markup_cannot_leak():
@@ -217,22 +217,22 @@ def test_mark_verdict_escapes_the_label_so_markup_cannot_leak():
     from textual.content import Content
     from dbqm.ui.widgets.verdict import mark_verdict
 
-    perigoso = "fim[/][$ds-op-failure]injetado"
-    saida = mark_verdict("match", label=perigoso)
+    dangerous = "fim[/][$ds-op-failure]injetado"
+    output = mark_verdict("match", label=dangerous)
 
     # only the component's own legitimate closing tag is left unescaped
-    assert saida.count("[/]") == 1
-    assert saida.endswith("[/]")
+    assert output.count("[/]") == 1
+    assert output.endswith("[/]")
 
     # the whole markup resolves as ONE SINGLE span, with the state's token —
     # if the dangerous text had escaped the escaping, a second span would
     # show up (the injected "[$ds-op-failure]" opening a style of its own)
     # or the "injetado" text would end up outside any span.
-    conteudo = Content.from_markup(saida)
-    assert len(conteudo.spans) == 1
-    assert conteudo.spans[0].style == "$ds-verdict-match"
-    assert "fim" in conteudo.plain
-    assert "injetado" in conteudo.plain
+    content = Content.from_markup(output)
+    assert len(content.spans) == 1
+    assert content.spans[0].style == "$ds-verdict-match"
+    assert "fim" in content.plain
+    assert "injetado" in content.plain
 
 
 def test_no_hand_rolled_verdict_markup_outside_the_component():
@@ -242,14 +242,14 @@ def test_no_hand_rolled_verdict_markup_outside_the_component():
     not a fifth case tomorrow.
 
     The distinction that decides what goes into
-    `PROSA_DE_ERRO_FORA_DO_ESCOPO` below: a MARKER names a state within a
-    closed vocabulary (`igual`/`difere`/`ausente`/`ok`/`falha`/...) and for
-    that reason NEEDS a glyph — colour alone is never enough, because the
+    `ERROR_PROSE_OUT_OF_SCOPE` below: a MARKER names a state within a closed
+    vocabulary (`igual`/`difere`/`ausente`/`ok`/`falha`/...) and for that
+    reason NEEDS a glyph — colour alone is never enough, because the
     vocabulary is finite and repeated all over the interface. PROSE already
     names the failure in words of its own, written once for that specific
-    error ("DDL executado com erros de compilacao", "Erro na execucao") —
-    the colour only reinforces what the sentence already says, so painting
-    that prose with `$ds-op-failure` is not the same hole this test closes.
+    error ("DDL ran with compilation errors", "Execution failed") — the
+    colour only reinforces what the sentence already says, so painting that
+    prose with `$ds-op-failure` is not the same hole this test closes.
 
     The verdict axis (`$veredito-*`) is only ever a marker, never prose,
     anywhere in the interface today — which is why it stays a genuinely
@@ -261,14 +261,14 @@ def test_no_hand_rolled_verdict_markup_outside_the_component():
     (DDL, routine, Oracle client, settings), colouring of error prose that
     already names the failure in words — outside the scope of
     `mark_operation` by nature, not out of laziness; converting those
-    screens would prepend "x FALHA" in front of sentences such as "Erro na
-    execucao", the same duplication the `texto` parameter has just removed
-    from the comparison summary. `PROSA_DE_ERRO_FORA_DO_ESCOPO` locks the
-    exact number of occurrences per file so that the door closes for any
-    NEW occurrence (in those files or in any other) without reopening the
-    conversation about these five. If one of them is rewritten to cite a
-    state from the closed vocabulary instead of prose, the number here
-    changes with it — the test calls it out in both directions.
+    screens would prepend "x FAIL" in front of sentences such as "Execution
+    failed", the same duplication the `text` parameter has just removed from
+    the comparison summary. `ERROR_PROSE_OUT_OF_SCOPE` locks the exact number
+    of occurrences per file so that the door closes for any NEW occurrence
+    (in those files or in any other) without reopening the conversation about
+    these five. If one of them is rewritten to cite a state from the closed
+    vocabulary instead of prose, the number here changes with it — the test
+    calls it out in both directions.
 
     `DEFAULT_CSS` blocks are ignored: they are static style declaration for
     the widget (the same use `theme.py` makes of the tokens), not dynamic
@@ -277,24 +277,23 @@ def test_no_hand_rolled_verdict_markup_outside_the_component():
 
     Deliberate limit of this test, accepted at review (do not widen it
     without reopening the conversation): it is a text scan over `dbqm/ui/`,
-    so it does not catch a token reassembled by interpolation or split
-    across concatenated literals, it does not catch a token constant
-    defined outside `dbqm/ui` and merely referenced here, and it does not
-    catch markup assembled in `dbqm/core`/`dbqm/cli.py` and only rendered
-    by a UI widget.
+    so it does not catch a token reassembled by interpolation or split across
+    concatenated literals, it does not catch a token constant defined outside
+    `dbqm/ui` and merely referenced here, and it does not catch markup
+    assembled in `dbqm/core`/`dbqm/cli.py` and only rendered by a UI widget.
     """
     import re
     from pathlib import Path
 
-    raiz_ui = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
-    padrao_token = re.compile(r"\$veredito-[a-z]+|\$ds-op-failure")
-    padrao_css = re.compile(r'DEFAULT_CSS\s*=\s*""".*?"""', re.DOTALL)
+    ui_root = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
+    token_pattern = re.compile(r"\$veredito-[a-z]+|\$ds-op-failure")
+    css_pattern = re.compile(r'DEFAULT_CSS\s*=\s*""".*?"""', re.DOTALL)
 
     # Error prose that already names the failure in words of its own —
     # outside the scope of mark_operation by nature (see the docstring).
     # Path relative to dbqm/ui -> exact number of occurrences of
     # `$ds-op-failure` today.
-    PROSA_DE_ERRO_FORA_DO_ESCOPO: dict[str, int] = {
+    ERROR_PROSE_OUT_OF_SCOPE: dict[str, int] = {
         "screens/adhoc.py": 2,  # header + DDL compilation error detail
         "screens/exec_routine.py": 2,  # header + execution error detail
         "screens/oracle_clients.py": 1,  # info/ok/err level of free messages
@@ -302,21 +301,21 @@ def test_no_hand_rolled_verdict_markup_outside_the_component():
         "screens/settings.py": 1,  # exception text embedded in a label
     }
 
-    ofensores = []
-    for arquivo in sorted(raiz_ui.rglob("*.py")):
-        rel = str(arquivo.relative_to(raiz_ui)).replace("\\", "/")
+    offenders = []
+    for file in sorted(ui_root.rglob("*.py")):
+        rel = str(file.relative_to(ui_root)).replace("\\", "/")
         if rel == "widgets/verdict.py":
             continue
-        texto_fonte = arquivo.read_text(encoding="utf-8")
-        texto_sem_css = padrao_css.sub("", texto_fonte)
-        n = len(padrao_token.findall(texto_sem_css))
-        permitido = PROSA_DE_ERRO_FORA_DO_ESCOPO.get(rel, 0)
-        if n != permitido:
-            ofensores.append(f"{rel}: {n} ocorrencia(s), esperado {permitido}")
+        source_text = file.read_text(encoding="utf-8")
+        text_without_css = css_pattern.sub("", source_text)
+        n = len(token_pattern.findall(text_without_css))
+        allowed = ERROR_PROSE_OUT_OF_SCOPE.get(rel, 0)
+        if n != allowed:
+            offenders.append(f"{rel}: {n} ocorrencia(s), esperado {allowed}")
 
-    assert not ofensores, (
+    assert not offenders, (
         "markup de veredito/operacao montado a mao fora de verdict.py, "
-        f"alem da prosa de erro documentada em PROSA_DE_ERRO_FORA_DO_ESCOPO: {ofensores}"
+        f"alem da prosa de erro documentada em PROSA_DE_ERRO_FORA_DO_ESCOPO: {offenders}"
     )
 
 
@@ -589,8 +588,8 @@ async def test_result_table_key_column_stays_rendered_while_scrolling():
     """
     from textual.widgets import DataTable
 
-    colunas = ["CHAVE_REGISTRO"] + [f"COLUNA_LARGA_NUMERO_{i:02d}" for i in range(1, 9)]
-    linha = ["REG-0001"] + [f"valor-{i:02d}-xxxxxxxxxx" for i in range(1, 9)]
+    columns = ["CHAVE_REGISTRO"] + [f"COLUNA_LARGA_NUMERO_{i:02d}" for i in range(1, 9)]
+    line = ["REG-0001"] + [f"valor-{i:02d}-xxxxxxxxxx" for i in range(1, 9)]
 
     class App_(ThemedTestApp):
         def compose(self):
@@ -599,16 +598,16 @@ async def test_result_table_key_column_stays_rendered_while_scrolling():
     app = App_()
     async with app.run_test(size=(40, 15)) as pilot:
         rt = app.query_one("#rt", ResultTable)
-        rt.load_result(_result(colunas, [linha]))
+        rt.load_result(_result(columns, [line]))
         await pilot.pause()
         dt = rt.query_one(DataTable)
 
         # Before scrolling: the key is visible and the last wide column is
         # NOT — confirms the scenario really does require sideways
         # scrolling.
-        antes = app.export_screenshot()
-        assert "CHAVE_REGISTRO" in antes
-        assert "COLUNA_LARGA_NUMERO_08" not in antes
+        before = app.export_screenshot()
+        assert "CHAVE_REGISTRO" in before
+        assert "COLUNA_LARGA_NUMERO_08" not in before
 
         # Really scrolls, all the way to the end.
         for _ in range(40):
@@ -620,10 +619,10 @@ async def test_result_table_key_column_stays_rendered_while_scrolling():
         # painted on screen, and the column that was previously out of sight
         # has now shown up — proving that non-fixed columns scrolled
         # underneath it.
-        depois = app.export_screenshot()
-        assert "CHAVE_REGISTRO" in depois
-        assert "REG-0001" in depois
-        assert "COLUNA_LARGA_NUMERO_08" in depois
+        after = app.export_screenshot()
+        assert "CHAVE_REGISTRO" in after
+        assert "REG-0001" in after
+        assert "COLUNA_LARGA_NUMERO_08" in after
 
 
 # ---------------------------------------------------------------------------
@@ -885,11 +884,11 @@ async def test_query_list_paints_two_queries_with_the_same_name():
         assert option_list.option_count == 2
         assert rendered_names(option_list) == ["dup", "dup"]
         # The two rows are still distinguishable by what disambiguates them.
-        pintado = [
+        painted = [
             option_list.get_option_at_index(i).prompt.plain for i in range(2)
         ]
-        assert "c1 - t1" in pintado[0]
-        assert "c2 - t2" in pintado[1]
+        assert "c1 - t1" in painted[0]
+        assert "c2 - t2" in painted[1]
 
 
 @pytest.mark.asyncio
@@ -941,8 +940,9 @@ async def test_query_list_unnamed_query_still_responds():
     An empty name is not creatable through the UI, but with the name
     travelling as `id` the `or None` turned the row into a visible row that
     did NOTHING when chosen. Posting the empty name makes the screen answer
-    "Consulta '' nao encontrada" — information, which is what the ListView
-    version delivered."""
+    "Query '' not found" — information, which is what the ListView version
+    delivered.
+    """
     from textual.widgets import OptionList
 
     messages = []
@@ -1004,12 +1004,12 @@ async def test_query_list_mounted_item_has_visible_hierarchy():
     from textual.style import Style
     from textual.widgets import OptionList
 
-    def cor_no_offset(conteudo, offset):
-        estilo = Style()
-        for start, end, span_style in conteudo.spans:
+    def color_at_offset(content, offset):
+        style = Style()
+        for start, end, span_style in content.spans:
             if start <= offset < end:
-                estilo = estilo + Style.parse(span_style)
-        return estilo.foreground
+                style = style + Style.parse(span_style)
+        return style.foreground
 
     queries = [
         {
@@ -1025,24 +1025,24 @@ async def test_query_list_mounted_item_has_visible_hierarchy():
         await pilot.pause()
 
         option_list = ql.query_one("#ql-listview", OptionList)
-        conteudo = option_list.get_option_at_index(0).prompt
-        texto = conteudo.plain
+        content = option_list.get_option_at_index(0).prompt
+        text = content.plain
 
-        assert chr(10) in texto, "item pintado deve ocupar mais de uma linha"
-        assert " | " not in texto
+        assert chr(10) in text, 'a painted item must take more than one line'
+        assert " | " not in text
 
-        cor_forte = Style.parse("$ds-text-strong").foreground
-        cor_apoio = Style.parse("$ds-text-muted").foreground
-        cor_desabilitado = Style.parse("$ds-text-disabled").foreground
-        assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
+        strong_color = Style.parse("$ds-text-strong").foreground
+        muted_color = Style.parse("$ds-text-muted").foreground
+        disabled_color = Style.parse("$ds-text-disabled").foreground
+        assert len({strong_color, muted_color, disabled_color}) == 3
 
-        pos_identidade = texto.index("consulta_longa")
-        pos_desambiguacao = texto.index("MGORA7ORA9")
-        pos_contexto = texto.index("Verifica")
+        after_identity = text.index("consulta_longa")
+        after_disambiguation = text.index("MGORA7ORA9")
+        after_context = text.index("Verifica")
 
-        assert cor_no_offset(conteudo, pos_identidade) == cor_forte
-        assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
-        assert cor_no_offset(conteudo, pos_contexto) == cor_desabilitado
+        assert color_at_offset(content, after_identity) == strong_color
+        assert color_at_offset(content, after_disambiguation) == muted_color
+        assert color_at_offset(content, after_context) == disabled_color
 
 
 # ---------------------------------------------------------------------------
@@ -1171,27 +1171,27 @@ async def test_group_result_key_stays_rendered_while_scrolling():
     """
     from textual.widgets import DataTable
 
-    nomes = [f"CONSULTA_LONGA_{i:02d}" for i in range(1, 6)] + ["FIM_DA_TABELA"]
-    resultados = {
-        nome: QueryResult(
-            query_name=nome, connection_name="conn",
+    names = [f"CONSULTA_LONGA_{i:02d}" for i in range(1, 6)] + ["FIM_DA_TABELA"]
+    results = {
+        name: QueryResult(
+            query_name=name, connection_name="conn",
             columns=["id", "status"], rows=[[1, "ativa"]],
             row_count=1, elapsed=0.1,
         )
-        for nome in nomes
+        for name in names
     }
-    comparacao = ComparisonResult(
+    comparison = ComparisonResult(
         column="status",
         rows=[
             ComparisonRow(
                 key_value="REG-0001",
                 values={
-                    nome: (
+                    name: (
                         "valor-fim"
-                        if nome == "FIM_DA_TABELA"
-                        else "valor-comprido-%s" % nome[-2:]
+                        if name == "FIM_DA_TABELA"
+                        else "valor-comprido-%s" % name[-2:]
                     )
-                    for nome in nomes
+                    for name in names
                 },
                 status="OK",
             )
@@ -1199,10 +1199,10 @@ async def test_group_result_key_stays_rendered_while_scrolling():
         total_keys=1, equal_count=1, diff_count=0, absent_count=0,
         normalized_count=0,
     )
-    largo = GroupResult(
+    wide = GroupResult(
         group_name="grupo_largo",
-        query_results=resultados,
-        comparisons=[comparacao],
+        query_results=results,
+        comparisons=[comparison],
         all_match=True,
         summary_lines=["Coluna: status"],
     )
@@ -1210,30 +1210,30 @@ async def test_group_result_key_stays_rendered_while_scrolling():
     app = GroupResultTestApp()
     async with app.run_test(size=(40, 15)) as pilot:
         w = app.query_one(GroupResultWidget)
-        w.load_result(largo)
+        w.load_result(wide)
         await pilot.pause()
-        tabela = w.query_one(DataTable)
-        tabela.focus()
+        table = w.query_one(DataTable)
+        table.focus()
         await pilot.pause()
 
         # The scenario only proves something if it really does not fit.
-        antes = app.export_screenshot()
-        assert "Key" in antes
-        assert "FIM_DA_TABELA" not in antes
+        before = app.export_screenshot()
+        assert "Key" in before
+        assert "FIM_DA_TABELA" not in before
 
         for _ in range(60):
             await pilot.press("right")
         await pilot.pause()
-        assert tabela.scroll_x > 0
+        assert table.scroll_x > 0
 
-        depois = app.export_screenshot()
-        assert "Key" in depois
-        assert "REG-0001" in depois
+        after = app.export_screenshot()
+        assert "Key" in after
+        assert "REG-0001" in after
         # The last column's name is short on purpose: scrolling all the way
         # to the end, a column with a long header would show up clipped
         # ("ULTA_...") and the assertion would fail because of width, not
         # because of the fixing.
-        assert "FIM_DA_TABELA" in depois
+        assert "FIM_DA_TABELA" in after
 
 
 @pytest.mark.asyncio
@@ -1289,7 +1289,7 @@ async def test_group_result_status_column_resolves_verdict_colors():
         summary_lines=[],
     )
 
-    esperado = {
+    expected = {
         "1": THEMES["plano-escuro"]["ds-verdict-match"],
         "2": THEMES["plano-escuro"]["ds-verdict-match"],
         "3": THEMES["plano-escuro"]["ds-verdict-diff"],
@@ -1303,14 +1303,14 @@ async def test_group_result_status_column_resolves_verdict_colors():
         await pilot.pause()
         table = w.query(DataTable).first()
 
-        for chave, hex_esperado in esperado.items():
-            conteudo = table.get_cell(chave, "status")
-            pecas = list(
-                conteudo.render(Style.null(), end="", parse_style=Style.parse)
+        for key, hex_expected in expected.items():
+            content = table.get_cell(key, "status")
+            pieces = list(
+                content.render(Style.null(), end="", parse_style=Style.parse)
             )
-            cor = next(estilo.foreground for texto, estilo in pecas if texto.strip())
-            assert cor.hex.lower() == hex_esperado.lower(), (
-                f"celula da chave {chave}: esperava {hex_esperado}, "
+            cor = next(style.foreground for text, style in pieces if text.strip())
+            assert cor.hex.lower() == hex_expected.lower(), (
+                f"celula da chave {key}: esperava {hex_expected}, "
                 f"resolveu {cor.hex}"
             )
 
@@ -1372,19 +1372,18 @@ async def test_dense_panel_gives_back_the_two_padding_lines():
     app = _App()
     async with app.run_test(size=(40, 24)) as pilot:
         await pilot.pause()
-        folgado = app.query_one("#folgado", Panel)
-        denso = app.query_one("#denso", Panel)
-        assert denso.has_class("-dense")
-        assert folgado.region.height - denso.region.height == 2, (
-            "o modificador nao devolveu as duas linhas: folgado=%r denso=%r"
-            % (folgado.region, denso.region)
+        roomy = app.query_one("#folgado", Panel)
+        dense = app.query_one("#denso", Panel)
+        assert dense.has_class("-dense")
+        assert roomy.region.height - dense.region.height == 2, (
+            'the modifier did not give back the two lines: roomy=%r dense=%r' % (roomy.region, dense.region)
         )
-        moldura = crop(app, denso)
-        assert moldura[0].startswith("╭") and moldura[-1].startswith("╰"), (
-            "a moldura do painel denso deixou de ser desenhada: %r" % moldura
+        frame = crop(app, dense)
+        assert frame[0].startswith("╭") and frame[-1].startswith("╰"), (
+            'the dense panel\'s frame stopped being drawn: %r' % frame
         )
-        assert any("uma linha" in linha for linha in moldura), (
-            "o conteudo do painel denso nao e pintado: %r" % moldura
+        assert any("uma linha" in line for line in frame), (
+            'the dense panel\'s content is not painted: %r' % frame
         )
 
 
@@ -1411,8 +1410,8 @@ async def test_dialog_renders_the_title():
 
     app = _DialogApp()
     async with app.run_test():
-        titulo = app.query_one("#d-title", Static)
-        assert "Confirmar exclusao" in titulo.render().plain
+        title = app.query_one("#d-title", Static)
+        assert "Confirmar exclusao" in title.render().plain
 
 
 def test_dialog_screen_variant_fills_the_viewport():
@@ -1450,27 +1449,26 @@ def test_dialog_has_no_style_override_outside_the_component():
     import re
     from pathlib import Path
 
-    raiz_ui = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
-    padrao_python = re.compile(r"\.styles\.(width|height)\s*=")
-    padrao_css_id = re.compile(r"#[\w-]*dialog[\w-]*\s*\{([^}]*)\}", re.IGNORECASE)
-    padrao_css_prop = re.compile(r"(?<![\w-])(max-height|min-height|width|height)\s*:")
+    ui_root = Path(__file__).resolve().parents[2] / "dbqm" / "ui"
+    python_pattern = re.compile(r"\.styles\.(width|height)\s*=")
+    css_id_pattern = re.compile(r"#[\w-]*dialog[\w-]*\s*\{([^}]*)\}", re.IGNORECASE)
+    css_prop_pattern = re.compile(r"(?<![\w-])(max-height|min-height|width|height)\s*:")
 
-    ofensores = []
-    for arquivo in sorted(raiz_ui.rglob("*.py")):
-        if arquivo.name == "dialog.py":
+    offenders = []
+    for file in sorted(ui_root.rglob("*.py")):
+        if file.name == "dialog.py":
             continue
-        texto = arquivo.read_text(encoding="utf-8")
-        for m in padrao_python.finditer(texto):
-            linha = texto.count(chr(10), 0, m.start()) + 1
-            ofensores.append(f"{arquivo.relative_to(raiz_ui)}:{linha}")
-        for bloco in padrao_css_id.finditer(texto):
-            if padrao_css_prop.search(bloco.group(1)):
-                linha = texto.count(chr(10), 0, bloco.start()) + 1
-                ofensores.append(f"{arquivo.relative_to(raiz_ui)}:{linha}")
+        text = file.read_text(encoding="utf-8")
+        for m in python_pattern.finditer(text):
+            line = text.count(chr(10), 0, m.start()) + 1
+            offenders.append(f"{file.relative_to(ui_root)}:{line}")
+        for bloco in css_id_pattern.finditer(text):
+            if css_prop_pattern.search(bloco.group(1)):
+                line = text.count(chr(10), 0, bloco.start()) + 1
+                offenders.append(f"{file.relative_to(ui_root)}:{line}")
 
-    assert not ofensores, (
-        "width/height/max-height/min-height de Dialog so pode ser definido "
-        f"dentro de dialog.py; achei override(s) fora do componente: {ofensores}"
+    assert not offenders, (
+        f'width/height/max-height/min-height of Dialog may only be set inside dialog.py; found override(s) outside the component: {offenders}'
     )
 
 
@@ -1577,7 +1575,7 @@ def test_empty_state_requires_an_action():
     from dbqm.ui.widgets.empty_state import EmptyState
 
     with pytest.raises(TypeError):
-        EmptyState("Consultas", "Voce ainda nao salvou nenhuma")  # no action
+        EmptyState("Queries", "You have not saved any yet")  # no action
 
 
 @pytest.mark.asyncio
@@ -1588,16 +1586,16 @@ async def test_empty_state_offers_the_first_action():
     class _EmptyStateApp(ThemedTestApp):
         def compose(self) -> ComposeResult:
             yield EmptyState(
-                what="Consultas",
-                why="Voce ainda nao salvou nenhuma consulta",
-                action_label="Criar consulta",
+                what="Queries",
+                why="You have not saved any query yet",
+                action_label="Create query",
                 action_id="create-query",
             )
 
     app = _EmptyStateApp()
     async with app.run_test():
-        botao = app.query_one("#create-query", Button)
-        assert botao.label.plain == "Criar consulta"
+        button = app.query_one("#create-query", Button)
+        assert button.label.plain == "Create query"
 
 
 # ---------------------------------------------------------------------------
@@ -1610,11 +1608,11 @@ async def test_skeleton_has_the_shape_of_the_content_to_come():
     layout jump when the real result arrives."""
     from dbqm.ui.widgets.skeleton import Skeleton
 
-    class _EsqueletoApp(ThemedTestApp):
+    class _SkeletonApp(ThemedTestApp):
         def compose(self) -> ComposeResult:
             yield Skeleton(rows=6, columns=3, id="e")
 
-    app = _EsqueletoApp()
+    app = _SkeletonApp()
     async with app.run_test():
         esqueleto = app.query_one("#e", Skeleton)
         assert len(esqueleto.query(".skeleton-row")) == 6
@@ -1626,14 +1624,14 @@ async def test_read_only_is_visually_distinct_from_disabled():
     confusing the two is the defect this task exists to prevent."""
     from textual.widgets import Input
 
-    class _EstadosApp(ThemedTestApp):
+    class _StatesApp(ThemedTestApp):
         CSS = "Input { width: 20; }"
 
         def compose(self) -> ComposeResult:
             yield Input(value="a", id="ro", classes="-read-only")
             yield Input(value="b", id="off", disabled=True)
 
-    app = _EstadosApp()
+    app = _StatesApp()
     async with app.run_test():
         ro = app.query_one("#ro", Input)
         off = app.query_one("#off", Input)
@@ -1648,10 +1646,10 @@ def test_hierarchical_item_puts_identity_alone_on_the_first_line():
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
     c = hierarchical_item("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day")
-    linhas = str(c).split("\n")
-    assert linhas[0].strip() == "MGORA7ORA9"
-    assert "Oracle/TNS" in linhas[1]
-    assert "Producao" in linhas[2]
+    lines = str(c).split("\n")
+    assert lines[0].strip() == "MGORA7ORA9"
+    assert "Oracle/TNS" in lines[1]
+    assert "Producao" in lines[2]
 
 
 def test_hierarchical_item_omits_empty_lines():
@@ -1666,10 +1664,10 @@ def test_hierarchical_item_omits_only_the_middle_line_when_only_it_is_missing():
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
     c = hierarchical_item("MGORA7ORA9", "Oracle/TNS - MGORA7ORA9")
-    linhas = str(c).split("\n")
-    assert len(linhas) == 2
-    assert linhas[0].strip() == "MGORA7ORA9"
-    assert "Oracle/TNS" in linhas[1]
+    lines = str(c).split("\n")
+    assert len(lines) == 2
+    assert lines[0].strip() == "MGORA7ORA9"
+    assert "Oracle/TNS" in lines[1]
 
 
 def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
@@ -1683,23 +1681,23 @@ def test_hierarchical_item_indents_every_line_of_a_multi_line_field():
     begins."""
     from dbqm.ui.widgets.hierarchical_list import _INDENT, hierarchical_item
 
-    contexto = (
+    context = (
         "Portal ASDADM em ATSSUS ambiente\n"
         "da sustentacao Mapfre com\n"
         "replicacao"
     )
-    c = hierarchical_item("ASDADM (ASD)", "Oracle/TNS - ATSSUS", contexto)
-    linhas = str(c).split("\n")
-    assert len(linhas) == 5
-    assert linhas[0] == "ASDADM (ASD)"
+    c = hierarchical_item("ASDADM (ASD)", "Oracle/TNS - ATSSUS", context)
+    lines = str(c).split("\n")
+    assert len(lines) == 5
+    assert lines[0] == "ASDADM (ASD)"
     # The four disambiguation+context lines ALL have the same indent -
     # none of them starts in column 0, the identity column.
-    for linha in linhas[1:]:
-        assert linha.startswith(_INDENT), f"linha sem recuo: {linha!r}"
-    assert linhas[1] == _INDENT + "Oracle/TNS - ATSSUS"
-    assert linhas[2] == _INDENT + "Portal ASDADM em ATSSUS ambiente"
-    assert linhas[3] == _INDENT + "da sustentacao Mapfre com"
-    assert linhas[4] == _INDENT + "replicacao"
+    for line in lines[1:]:
+        assert line.startswith(_INDENT), f'a line with no indent: {line!r}'
+    assert lines[1] == _INDENT + "Oracle/TNS - ATSSUS"
+    assert lines[2] == _INDENT + "Portal ASDADM em ATSSUS ambiente"
+    assert lines[3] == _INDENT + "da sustentacao Mapfre com"
+    assert lines[4] == _INDENT + "replicacao"
 
 
 def test_hierarchical_item_does_not_read_content_brackets_as_markup():
@@ -1716,10 +1714,10 @@ def test_hierarchical_item_does_not_read_content_brackets_as_markup():
     """
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
-    entrada = "Proposta [PROD] com [/] e ] solto"
-    c = hierarchical_item(entrada, entrada, entrada)
-    for linha in str(c).split("\n"):
-        assert entrada in linha
+    entry = "Proposta [PROD] com [/] e ] solto"
+    c = hierarchical_item(entry, entry, entry)
+    for line in str(c).split("\n"):
+        assert entry in line
 
 
 @pytest.mark.asyncio
@@ -1731,12 +1729,12 @@ async def test_hierarchical_item_uses_the_grammar_color_hierarchy():
 
     from dbqm.ui.widgets.hierarchical_list import hierarchical_item
 
-    def cor_no_offset(conteudo, offset):
-        estilo = Style()
-        for start, end, span_style in conteudo.spans:
+    def color_at_offset(content, offset):
+        style = Style()
+        for start, end, span_style in content.spans:
             if start <= offset < end:
-                estilo = estilo + Style.parse(span_style)
-        return estilo.foreground
+                style = style + Style.parse(span_style)
+        return style.foreground
 
     class _App(ThemedTestApp):
         def compose(self) -> ComposeResult:
@@ -1744,20 +1742,20 @@ async def test_hierarchical_item_uses_the_grammar_color_hierarchy():
 
     app = _App()
     async with app.run_test():
-        conteudo = hierarchical_item(
+        content = hierarchical_item(
             "MGORA7ORA9", "Oracle/TNS - MGORA7ORA9", "Producao prod-day"
         )
-        texto = conteudo.plain
+        text = content.plain
 
-        cor_forte = Style.parse("$ds-text-strong").foreground
-        cor_apoio = Style.parse("$ds-text-muted").foreground
-        cor_desabilitado = Style.parse("$ds-text-disabled").foreground
-        assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
+        strong_color = Style.parse("$ds-text-strong").foreground
+        muted_color = Style.parse("$ds-text-muted").foreground
+        disabled_color = Style.parse("$ds-text-disabled").foreground
+        assert len({strong_color, muted_color, disabled_color}) == 3
 
-        pos_identidade = texto.index("MGORA7ORA9")
-        pos_desambiguacao = texto.index("Oracle/TNS")
-        pos_contexto = texto.index("Producao")
+        after_identity = text.index("MGORA7ORA9")
+        after_disambiguation = text.index("Oracle/TNS")
+        after_context = text.index("Producao")
 
-        assert cor_no_offset(conteudo, pos_identidade) == cor_forte
-        assert cor_no_offset(conteudo, pos_desambiguacao) == cor_apoio
-        assert cor_no_offset(conteudo, pos_contexto) == cor_desabilitado
+        assert color_at_offset(content, after_identity) == strong_color
+        assert color_at_offset(content, after_disambiguation) == muted_color
+        assert color_at_offset(content, after_context) == disabled_color

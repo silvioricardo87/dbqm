@@ -60,10 +60,10 @@ class TestExtractSqliteDdl:
 
     def test_progress_counts_the_table_and_its_children(self, catalog):
         db, _ = catalog
-        visto = []
+        seen_ = []
         extract_sqlite_ddl(db, "clientes", _result("clientes"),
-                           on_progress=lambda i, n, t, nome: visto.append((i, n, t)))
-        assert visto == [(1, 3, "TABLE"), (2, 3, "INDEX"), (3, 3, "TRIGGER")]
+                           on_progress=lambda i, n, t, name: seen_.append((i, n, t)))
+        assert seen_ == [(1, 3, "TABLE"), (2, 3, "INDEX"), (3, 3, "TRIGGER")]
 
 
 class TestExtractDdlDispatch:

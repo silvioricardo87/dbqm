@@ -1,4 +1,4 @@
-"""Camada de design do dbqm: tokens consumidos pela TUI, pelo CLI e pelo HTML."""
+"""dbqm's design layer: the tokens the TUI, the CLI and the HTML report read."""
 from dbqm.design.tokens import (
     INTERFACE_FLOOR,
     TEXT_FLOOR,

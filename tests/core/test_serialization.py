@@ -34,30 +34,30 @@ def _core_modules():
             yield modinfo.name
 
 
-def _dataclasses_publicas():
-    for nome in _core_modules():
-        mod = importlib.import_module(nome)
+def _public_dataclasses():
+    for name in _core_modules():
+        mod = importlib.import_module(name)
         for attr in vars(mod).values():
             if (
                 dataclasses.is_dataclass(attr)
                 and isinstance(attr, type)
-                and attr.__module__ == nome
-                and f"{nome}.{attr.__name__}" not in EXCLUDED
+                and attr.__module__ == name
+                and f"{name}.{attr.__name__}" not in EXCLUDED
             ):
-                yield nome, attr
+                yield name, attr
 
 
 class TestInventory:
     def test_every_core_dataclass_has_to_dict(self):
         """A guard, in the style of tests/design: the next one is born with it."""
-        faltando = [
+        missing_ones = [
             f"{mod}.{cls.__name__}"
-            for mod, cls in _dataclasses_publicas()
+            for mod, cls in _public_dataclasses()
             if not callable(getattr(cls, "to_dict", None))
         ]
-        assert not faltando, (
+        assert not missing_ones, (
             "these reach a CLI output and cannot serialise themselves: "
-            f"{faltando}"
+            f"{missing_ones}"
         )
 
     def test_there_are_nineteen_of_them(self):
@@ -67,14 +67,14 @@ class TestInventory:
         (ExtractedObject, ExtractionResult, RoutineExtractionResult), 1 from
         history (HistoryEntry) — 2 more (ClientPackage, InstalledClient) are
         named in EXCLUDED, not counted here."""
-        assert len(list(_dataclasses_publicas())) == 19
+        assert len(list(_public_dataclasses())) == 19
 
     def test_no_dataclass_emits_a_password(self):
         """The rule: to_dict never emits a secret. `connection show` redacts
         precisely because serialisation is chosen, not automatic."""
-        for _, cls in _dataclasses_publicas():
-            campos = {f.name for f in dataclasses.fields(cls)}
-            assert "password" not in campos, (
+        for _, cls in _public_dataclasses():
+            fields = {f.name for f in dataclasses.fields(cls)}
+            assert "password" not in fields, (
                 f"{cls.__name__} has a password field; its to_dict must redact "
                 "it and this test must be updated to say so"
             )
@@ -84,7 +84,7 @@ class TestShapes:
     def test_table_structure_round_trips_through_json(self):
         from dbqm.core.object_browser import ColumnInfo, IndexInfo, TableStructure
 
-        estrutura = TableStructure(
+        structure = TableStructure(
             table="PEDIDOS",
             columns=[ColumnInfo(
                 name="ID", data_type="NUMBER", data_length=None,
@@ -92,7 +92,7 @@ class TestShapes:
             )],
             indexes=[IndexInfo(name="PK_PEDIDOS", columns=["ID"], is_unique=True)],
         )
-        d = estrutura.to_dict()
+        d = structure.to_dict()
         assert d["table"] == "PEDIDOS"
         assert d["columns"][0]["name"] == "ID"
         assert d["indexes"][0]["is_unique"] is True

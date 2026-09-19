@@ -19,12 +19,12 @@ def test_stdout_returns_the_create_table_and_its_index(local_db, capsys):
     assert code == 0
     assert body["command"] == "ddl"
     assert body["data"]["path"] is None
-    objetos = _by_name(body)
-    assert list(objetos) == ["clientes", "ix_clientes_nome"]
-    assert objetos["clientes"]["obj_type"] == "TABLE"
-    assert objetos["clientes"]["ddl"].startswith("CREATE TABLE clientes")
-    assert objetos["clientes"]["ddl"].rstrip().endswith(";")
-    assert objetos["ix_clientes_nome"] == {"name": "ix_clientes_nome", "obj_type": "INDEX", "ddl": CREATE_INDEX}
+    objects = _by_name(body)
+    assert list(objects) == ["clientes", "ix_clientes_nome"]
+    assert objects["clientes"]["obj_type"] == "TABLE"
+    assert objects["clientes"]["ddl"].startswith("CREATE TABLE clientes")
+    assert objects["clientes"]["ddl"].rstrip().endswith(";")
+    assert objects["ix_clientes_nome"] == {"name": "ix_clientes_nome", "obj_type": "INDEX", "ddl": CREATE_INDEX}
 
 
 # QA-DDL-002
@@ -58,13 +58,13 @@ def test_a_view_is_extracted(local_db, capsys):
 def test_without_stdout_a_sql_file_is_written(local_db, tmp_path, capsys):
     code, body = envelope(["ddl", "clientes", "local", "-f", "json"], capsys)
     assert code == 0
-    pasta = Path(body["data"]["path"])
-    assert pasta.is_dir()
-    assert tmp_path in pasta.parents
-    arquivos = sorted(pasta.glob("*.sql"))
-    assert arquivos, "no .sql written"
-    conteudo = "".join(a.read_text(encoding="utf-8") for a in arquivos)
-    assert "CREATE TABLE clientes" in conteudo
+    folder = Path(body["data"]["path"])
+    assert folder.is_dir()
+    assert tmp_path in folder.parents
+    files = sorted(folder.glob("*.sql"))
+    assert files, "no .sql written"
+    content = "".join(a.read_text(encoding="utf-8") for a in files)
+    assert "CREATE TABLE clientes" in content
 
 
 # QA-DDL-006

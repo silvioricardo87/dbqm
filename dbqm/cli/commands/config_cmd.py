@@ -78,10 +78,10 @@ def _parse_bool(args: argparse.Namespace, command: str, key: str, raw: str) -> b
 
 def _parse_theme(args: argparse.Namespace, command: str, raw: str) -> str:
     if raw not in THEMES:
-        temas = ", ".join(sorted(THEMES.keys()))
+        themes = ", ".join(sorted(THEMES.keys()))
         _fail_or_print(
             args, command, "validation",
-            t("config.theme_invalid", theme=raw, valid=temas),
+            t("config.theme_invalid", theme=raw, valid=themes),
         )
     return raw
 
@@ -92,11 +92,11 @@ def _parse_language(args: argparse.Namespace, command: str, raw: str) -> str:
     here, and one that does not exist cannot be stored."""
     from dbqm.i18n import available_languages
 
-    idiomas = available_languages()
-    if raw not in idiomas:
+    languages = available_languages()
+    if raw not in languages:
         _fail_or_print(
             args, command, "validation",
-            t("config.language_invalid", language=raw, valid=", ".join(idiomas)),
+            t("config.language_invalid", language=raw, valid=", ".join(languages)),
         )
     return raw
 
