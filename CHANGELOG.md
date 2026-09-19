@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.11.1] — 2026-09-19
+
+A PATCH release: documentation that had fallen behind 2.11.0, one `--help`
+string that was wrong, and the licence file the project always claimed to
+have.
+
+### Fixed
+
+- **`--explain`'s help text omitted SQLite.** It named Oracle, PostgreSQL and
+  MySQL; SQLite has answered with `EXPLAIN QUERY PLAN` since the engine was
+  added. The only code change in this release.
+- **`docs/CLI.md` showed output the program no longer produces** — the
+  read-only JSON envelope, the `describe` table (`Coluna | Tipo | Nulo`) and
+  the `rows` footer (`3 registros em 0.61s`), all transcribed before English
+  became the source language. Recaptured from a real run.
+- **Sample names and screen names had moved.** The README, `PYPI.md` and
+  `docs/CLI.md` still used a Portuguese sample schema next to English
+  screenshots; `docs/ARCHITECTURE.md` named tabs by labels that no longer
+  exist; the README and `PYPI.md` listed the eight tabs in the wrong order;
+  and five QA scenarios quoted test fixtures that had been renamed.
+
+### Added
+
+- **`LICENSE`.** `pyproject.toml` declared MIT and the README said so, but the
+  file was never in the repository, so GitHub detected no licence at all.
+- **A capability table per engine** in the README, and connection examples for
+  SQL Server, MySQL and PostgreSQL before the SQLite one. The table is checked
+  against the dispatch in `ddl_extractor.py` and `query_engine.py`: SQL Server
+  has neither DDL extraction nor an execution plan, and SQLite does have one.
+- **Badges** — PyPI version, supported Pythons, CI, licence and downloads.
+
+### Changed
+
+- The README leads with the five engines and gives the CLI its own section
+  before the TUI.
+
 ## [2.11.0] — 2026-09-18
 
 A MINOR release: dbqm speaks English, and Portuguese became a translation.
