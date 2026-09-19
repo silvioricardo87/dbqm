@@ -32,6 +32,7 @@ from typing import Any
 from rich.markup import escape
 from rich.table import Table
 
+from dbqm.i18n import t
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
@@ -108,10 +109,10 @@ def _print_command(cmd: dict[str, Any], depth: int = 0) -> None:
     arguments = cmd["arguments"]
     if arguments:
         table = Table(show_header=True, box=None, padding=(0, 1, 0, 2))
-        table.add_column("Flags")
-        table.add_column("Obrigatorio")
-        table.add_column("Opcoes")
-        table.add_column("Descricao")
+        table.add_column(t("describe_cli.flags_column"))
+        table.add_column(t("describe_cli.required_column"))
+        table.add_column(t("describe_cli.choices_column"))
+        table.add_column(t("common.description"))
         for arg in arguments:
             flags = ", ".join(arg["flags"])
             required = "sim" if arg["required"] else "nao"
@@ -136,7 +137,7 @@ def cmd_describe_cli(args: argparse.Namespace) -> None:
     is never a true answer, so it is not one this reports.
     """
     if _subparsers_action is None:
-        message = "Parser do CLI nao inicializado."
+        message = t("describe_cli.parser_missing")
         if args.format == "json":
             fail("describe-cli", "unexpected", message)
         console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")

@@ -9,6 +9,7 @@ from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
@@ -78,29 +79,28 @@ class ExportDirSetupModal(ModalScreen[bool]):
         self._initial_path = initial_path
 
     def compose(self) -> ComposeResult:
-        with Dialog("Configurar local de exportacao", id="dialog"):
+        with Dialog(t("export_dir.dialog_title"), id="dialog"):
             yield Static(
-                "Escolha onde os arquivos exportados sao salvos. "
-                "Por padrao, eles ficam no diretorio onde voce executa o dbqm.",
+                t("export_dir.explain"),
                 id="description",
                 markup=False,
             )
             yield Checkbox(
-                "Sempre usar o diretorio atual",
+                t("export_dir.always_current"),
                 value=self._initial_use_cwd,
                 id="use-cwd-checkbox",
             )
             with Vertical(id="path-row"):
                 yield Input(
                     value=self._initial_path,
-                    placeholder="Ex: C:\\Users\\you\\exports",
+                    placeholder=t("export_dir.path_placeholder"),
                     id="export-dir-input",
                     disabled=self._initial_use_cwd,
                 )
             yield Static("", id="error-msg")
             with Horizontal(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         if self._initial_use_cwd:
@@ -142,14 +142,14 @@ class ExportDirSetupModal(ModalScreen[bool]):
             new_path = ""
         else:
             if not raw_path:
-                self._show_error("Informe um caminho ou marque 'usar o diretorio atual'.")
+                self._show_error(t("export_dir.need_path"))
                 return
             path_obj = Path(raw_path).expanduser()
             if not path_obj.exists():
-                self._show_error(f"Diretorio nao existe: {path_obj}")
+                self._show_error(t("path.dir_missing", path=path_obj))
                 return
             if not path_obj.is_dir():
-                self._show_error(f"O caminho nao e um diretorio: {path_obj}")
+                self._show_error(t("path.not_a_dir", path=path_obj))
                 return
             new_path = str(path_obj)
 

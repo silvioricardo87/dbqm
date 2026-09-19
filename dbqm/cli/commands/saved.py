@@ -25,6 +25,7 @@ from typing import NoReturn
 from rich.markup import escape
 from rich.table import Table
 
+from dbqm.i18n import t
 from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
@@ -39,10 +40,10 @@ _group_parser: argparse.ArgumentParser | None = None
 _template_parser: argparse.ArgumentParser | None = None
 
 
-_QUERY_OUTCOME_TEXT = {
-    "created": "criada",
-    "updated": "atualizada",
-    "removed": "removida",
+_QUERY_OUTCOME_KEY = {
+    "created": "query.created",
+    "updated": "query.updated",
+    "removed": "query.removed",
 }
 
 # `outcome` (past participle, used in the Rich sentence) to the verb the
@@ -59,7 +60,7 @@ def _print_query_outcome(output_format: str, name: str, outcome: str) -> None:
         verbo = _QUERY_OUTCOME_VERB[outcome]
         ok(f"query.{verbo}", {"name": name, outcome: True})
         return
-    console.print(f'Consulta "{escape(name)}" {_QUERY_OUTCOME_TEXT[outcome]}.')
+    console.print(escape(t(_QUERY_OUTCOME_KEY[outcome], name=name)))
 
 
 def _fail_or_print(
@@ -106,7 +107,7 @@ def _resolve_sql(args: argparse.Namespace, command: str) -> str | None:
             return Path(sql_file).read_text(encoding="utf-8")
         except OSError as exc:
             _fail_or_print(args, command, "usage",
-                            f'Nao foi possivel ler "{sql_file}": {exc}')
+                            t("file.unreadable", name=sql_file, error=exc))
     return getattr(args, "sql", None)
 
 
@@ -135,7 +136,7 @@ def _query_add(args: argparse.Namespace) -> None:
     from dbqm.models.query import save_queries
 
     if deps.find_query(args.name) is not None:
-        _exit_with_errors(args, "query.add", [f'Consulta "{args.name}" ja existe.'])
+        _exit_with_errors(args, "query.add", [t("query.already_exists", name=args.name)])
 
     sql = _resolve_sql(args, "query.add")
     values = _query_values(args, sql)
@@ -159,7 +160,7 @@ def _query_update(args: argparse.Namespace) -> None:
     existing = deps.find_query(args.name)
     if existing is None:
         _fail_or_print(args, "query.update", "not_found",
-                        f'Consulta "{args.name}" nao encontrada.')
+                        t("query.not_found_named", name=args.name))
 
     sql = _resolve_sql(args, "query.update")
     values = _query_values(args, sql)
@@ -193,7 +194,7 @@ def _query_show(args: argparse.Namespace) -> None:
     query = deps.find_query(args.name)
     if query is None:
         _fail_or_print(args, "query.show", "not_found",
-                        f'Consulta "{args.name}" nao encontrada.')
+                        t("query.not_found_named", name=args.name))
 
     data = query.to_dict()
 
@@ -201,9 +202,9 @@ def _query_show(args: argparse.Namespace) -> None:
         ok("query.show", data)
         return
 
-    table = Table(title=f"Consulta: {escape(query.name)}")
-    table.add_column("Campo")
-    table.add_column("Valor")
+    table = Table(title=escape(t("query.show_title", name=query.name)))
+    table.add_column(t("common.field"))
+    table.add_column(t("common.value"))
     for key, value in data.items():
         table.add_row(key, escape(str(value)))
     console.print(table)
@@ -214,23 +215,24 @@ def _query_rm(args: argparse.Namespace) -> None:
 
     if deps.find_query(args.name) is None:
         _fail_or_print(args, "query.rm", "not_found",
-                        f'Consulta "{args.name}" nao encontrada.')
+                        t("query.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
         # hangs on an unanswerable question is worse than one that fails.
         if not sys.stdin.isatty():
             _fail_or_print(args, "query.rm", "usage",
-                            "Use --yes para remover sem confirmacao.")
+                            t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(f'Remover a consulta "{args.name}"? [s/N] ', end="", file=sys.stderr, flush=True)
+        print(t("query.confirm_remove", name=args.name), end="",
+              file=sys.stderr, flush=True)
         resposta = input().strip().lower()
-        if resposta not in ("s", "sim"):
+        if resposta not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("query.rm", {"name": args.name, "removed": False})
             else:
-                console.print("Cancelado.")
+                console.print(t("common.cancelled"))
             return
 
     delete_query(args.name)
@@ -254,16 +256,16 @@ def _query_list(args: argparse.Namespace) -> None:
         return
 
     if not items:
-        console.print("[ds.text.muted]Nenhuma consulta configurada.[/ds.text.muted]")
+        console.print(f'[ds.text.muted]{t("query.none_configured")}[/ds.text.muted]')
         return
 
-    table = Table(title="Consultas")
-    table.add_column("Nome")
-    table.add_column("Descricao")
-    table.add_column("Conexao")
-    table.add_column("Pasta")
-    table.add_column("Parametros")
-    table.add_column("Fav")
+    table = Table(title=t("query.list_title"))
+    table.add_column(t("common.name"))
+    table.add_column(t("common.description"))
+    table.add_column(t("common.connection"))
+    table.add_column(t("common.folder"))
+    table.add_column(t("common.params"))
+    table.add_column(t("common.favorite_short"))
     for q in items:
         params = ", ".join(p.name for p in q.params) or "-"
         fav = "*" if q.is_favorite else ""
@@ -293,8 +295,7 @@ def cmd_query(args: argparse.Namespace) -> None:
             _query_parser.print_help()
         else:
             console.print(
-                "[ds.op.failure]Use: dbqm query add|update|rm|show|list"
-                "[/ds.op.failure]"
+                f'[ds.op.failure]{t("query.usage")}[/ds.op.failure]'
             )
         sys.exit(int(exit_for("validation")))
     handler(args)
@@ -304,10 +305,10 @@ def cmd_query(args: argparse.Namespace) -> None:
 # dbqm group add|update|show|rm|list
 # ---------------------------------------------------------------------------
 
-_GROUP_OUTCOME_TEXT = {
-    "created": "criado",
-    "updated": "atualizado",
-    "removed": "removido",
+_GROUP_OUTCOME_KEY = {
+    "created": "group.created",
+    "updated": "group.updated",
+    "removed": "group.removed",
 }
 
 # `outcome` (past participle, used in the Rich sentence) to the verb the
@@ -324,7 +325,7 @@ def _print_group_outcome(output_format: str, name: str, outcome: str) -> None:
         verbo = _GROUP_OUTCOME_VERB[outcome]
         ok(f"group.{verbo}", {"name": name, outcome: True})
         return
-    console.print(f'Grupo "{escape(name)}" {_GROUP_OUTCOME_TEXT[outcome]}.')
+    console.print(escape(t(_GROUP_OUTCOME_KEY[outcome], name=name)))
 
 
 def _group_values(args: argparse.Namespace) -> dict[str, object]:
@@ -354,7 +355,7 @@ def _group_add(args: argparse.Namespace) -> None:
     from dbqm.models.group import save_groups
 
     if deps.find_group(args.name) is not None:
-        _exit_with_errors(args, "group.add", [f'Grupo "{args.name}" ja existe.'])
+        _exit_with_errors(args, "group.add", [t("group.already_exists", name=args.name)])
 
     values = _group_values(args)
 
@@ -377,7 +378,7 @@ def _group_update(args: argparse.Namespace) -> None:
     existing = deps.find_group(args.name)
     if existing is None:
         _fail_or_print(args, "group.update", "not_found",
-                        f'Grupo "{args.name}" nao encontrado.')
+                        t("group.not_found_named", name=args.name))
 
     values = _group_values(args)
 
@@ -412,7 +413,7 @@ def _group_show(args: argparse.Namespace) -> None:
     group = deps.find_group(args.name)
     if group is None:
         _fail_or_print(args, "group.show", "not_found",
-                        f'Grupo "{args.name}" nao encontrado.')
+                        t("group.not_found_named", name=args.name))
 
     data = group.to_dict()
 
@@ -420,9 +421,9 @@ def _group_show(args: argparse.Namespace) -> None:
         ok("group.show", data)
         return
 
-    table = Table(title=f"Grupo: {escape(group.name)}")
-    table.add_column("Campo")
-    table.add_column("Valor")
+    table = Table(title=escape(t("group.show_title", name=group.name)))
+    table.add_column(t("common.field"))
+    table.add_column(t("common.value"))
     for key, value in data.items():
         table.add_row(key, escape(str(value)))
     console.print(table)
@@ -433,23 +434,24 @@ def _group_rm(args: argparse.Namespace) -> None:
 
     if deps.find_group(args.name) is None:
         _fail_or_print(args, "group.rm", "not_found",
-                        f'Grupo "{args.name}" nao encontrado.')
+                        t("group.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
         # hangs on an unanswerable question is worse than one that fails.
         if not sys.stdin.isatty():
             _fail_or_print(args, "group.rm", "usage",
-                            "Use --yes para remover sem confirmacao.")
+                            t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(f'Remover o grupo "{args.name}"? [s/N] ', end="", file=sys.stderr, flush=True)
+        print(t("group.confirm_remove", name=args.name), end="",
+              file=sys.stderr, flush=True)
         resposta = input().strip().lower()
-        if resposta not in ("s", "sim"):
+        if resposta not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("group.rm", {"name": args.name, "removed": False})
             else:
-                console.print("Cancelado.")
+                console.print(t("common.cancelled"))
             return
 
     delete_group(args.name)
@@ -466,15 +468,15 @@ def _group_list(args: argparse.Namespace) -> None:
         return
 
     if not items:
-        console.print("[ds.text.muted]Nenhum grupo configurado.[/ds.text.muted]")
+        console.print(f'[ds.text.muted]{t("group.none_configured")}[/ds.text.muted]')
         return
 
-    table = Table(title="Grupos")
-    table.add_column("Nome")
-    table.add_column("Descricao")
-    table.add_column("Consultas")
-    table.add_column("Chave")
-    table.add_column("Pasta")
+    table = Table(title=t("group.list_title"))
+    table.add_column(t("common.name"))
+    table.add_column(t("common.description"))
+    table.add_column(t("query.list_title"))
+    table.add_column(t("common.key"))
+    table.add_column(t("common.folder"))
     for g in items:
         desc = g.description[:50] + "..." if len(g.description) > 50 else g.description
         table.add_row(escape(g.name), escape(desc or "-"), escape(", ".join(g.queries)),
@@ -502,8 +504,7 @@ def cmd_group(args: argparse.Namespace) -> None:
             _group_parser.print_help()
         else:
             console.print(
-                "[ds.op.failure]Use: dbqm group add|update|rm|show|list"
-                "[/ds.op.failure]"
+                f'[ds.op.failure]{t("group.usage")}[/ds.op.failure]'
             )
         sys.exit(int(exit_for("validation")))
     handler(args)
@@ -513,10 +514,10 @@ def cmd_group(args: argparse.Namespace) -> None:
 # dbqm template add|update|show|rm|list
 # ---------------------------------------------------------------------------
 
-_TEMPLATE_OUTCOME_TEXT = {
-    "created": "criado",
-    "updated": "atualizado",
-    "removed": "removido",
+_TEMPLATE_OUTCOME_KEY = {
+    "created": "template.created",
+    "updated": "template.updated",
+    "removed": "template.removed",
 }
 
 # `outcome` (past participle, used in the Rich sentence) to the verb the
@@ -534,7 +535,7 @@ def _print_template_outcome(output_format: str, name: str, outcome: str) -> None
         verbo = _TEMPLATE_OUTCOME_VERB[outcome]
         ok(f"template.{verbo}", {"name": name, outcome: True})
         return
-    console.print(f'Template "{escape(name)}" {_TEMPLATE_OUTCOME_TEXT[outcome]}.')
+    console.print(escape(t(_TEMPLATE_OUTCOME_KEY[outcome], name=name)))
 
 
 def _resolve_content(args: argparse.Namespace, command: str) -> str | None:
@@ -556,7 +557,7 @@ def _resolve_content(args: argparse.Namespace, command: str) -> str | None:
             return Path(content_file).read_text(encoding="utf-8")
         except OSError as exc:
             _fail_or_print(args, command, "usage",
-                            f'Nao foi possivel ler "{content_file}": {exc}')
+                            t("file.unreadable", name=content_file, error=exc))
     return getattr(args, "content", None)
 
 
@@ -588,7 +589,7 @@ def _template_add(args: argparse.Namespace) -> None:
     from dbqm.models.template import save_templates
 
     if deps.find_template(args.name) is not None:
-        _exit_with_errors(args, "template.add", [f'Template "{args.name}" ja existe.'])
+        _exit_with_errors(args, "template.add", [t("template.already_exists", name=args.name)])
 
     content = _resolve_content(args, "template.add")
     values = _template_values(args, content)
@@ -612,7 +613,7 @@ def _template_update(args: argparse.Namespace) -> None:
     existing = deps.find_template(args.name)
     if existing is None:
         _fail_or_print(args, "template.update", "not_found",
-                        f'Template "{args.name}" nao encontrado.')
+                        t("template.not_found_named", name=args.name))
 
     content = _resolve_content(args, "template.update")
     values = _template_values(args, content)
@@ -646,7 +647,7 @@ def _template_show(args: argparse.Namespace) -> None:
     template = deps.find_template(args.name)
     if template is None:
         _fail_or_print(args, "template.show", "not_found",
-                        f'Template "{args.name}" nao encontrado.')
+                        t("template.not_found_named", name=args.name))
 
     data = template.to_dict()
 
@@ -654,9 +655,9 @@ def _template_show(args: argparse.Namespace) -> None:
         ok("template.show", data)
         return
 
-    table = Table(title=f"Template: {escape(template.name)}")
-    table.add_column("Campo")
-    table.add_column("Valor")
+    table = Table(title=escape(t("template.show_title", name=template.name)))
+    table.add_column(t("common.field"))
+    table.add_column(t("common.value"))
     for key, value in data.items():
         table.add_row(key, escape(str(value)))
     console.print(table)
@@ -667,23 +668,24 @@ def _template_rm(args: argparse.Namespace) -> None:
 
     if deps.find_template(args.name) is None:
         _fail_or_print(args, "template.rm", "not_found",
-                        f'Template "{args.name}" nao encontrado.')
+                        t("template.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
         # hangs on an unanswerable question is worse than one that fails.
         if not sys.stdin.isatty():
             _fail_or_print(args, "template.rm", "usage",
-                            "Use --yes para remover sem confirmacao.")
+                            t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(f'Remover o template "{args.name}"? [s/N] ', end="", file=sys.stderr, flush=True)
+        print(t("template.confirm_remove", name=args.name), end="",
+              file=sys.stderr, flush=True)
         resposta = input().strip().lower()
-        if resposta not in ("s", "sim"):
+        if resposta not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("template.rm", {"name": args.name, "removed": False})
             else:
-                console.print("Cancelado.")
+                console.print(t("common.cancelled"))
             return
 
     delete_template(args.name)
@@ -694,20 +696,21 @@ def _template_list(args: argparse.Namespace) -> None:
     items = deps.load_templates()
 
     if args.format == "json":
-        data = [{"name": t.name, "description": t.description} for t in items]
+        data = [{"name": item.name, "description": item.description} for item in items]
         ok("template.list", data)
         return
 
     if not items:
-        console.print("[ds.text.muted]Nenhum template configurado.[/ds.text.muted]")
+        console.print(f'[ds.text.muted]{t("template.none_configured")}[/ds.text.muted]')
         return
 
-    table = Table(title="Templates")
-    table.add_column("Nome")
-    table.add_column("Descricao")
-    for t in items:
-        desc = t.description[:50] + "..." if len(t.description) > 50 else t.description
-        table.add_row(escape(t.name), escape(desc or "-"))
+    table = Table(title=t("template.list_title"))
+    table.add_column(t("common.name"))
+    table.add_column(t("common.description"))
+    for item in items:
+        desc = (item.description[:50] + "..."
+                if len(item.description) > 50 else item.description)
+        table.add_row(escape(item.name), escape(desc or "-"))
     console.print(table)
 
 
@@ -731,8 +734,7 @@ def cmd_template(args: argparse.Namespace) -> None:
             _template_parser.print_help()
         else:
             console.print(
-                "[ds.op.failure]Use: dbqm template add|update|rm|show|list"
-                "[/ds.op.failure]"
+                f'[ds.op.failure]{t("template.usage")}[/ds.op.failure]'
             )
         sys.exit(int(exit_for("validation")))
     handler(args)

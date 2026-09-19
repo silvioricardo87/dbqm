@@ -179,9 +179,10 @@ Commits that bypass Steps 1–5 are only allowed for the closed list of exceptio
 - **The language cascade resolves to English**, and dbqm states the rule
   explicitly rather than leaving it to inference: identifiers, comments,
   docstrings, test names, assertion messages, commit messages, PR titles and
-  bodies, and everything under `docs/`. **Portuguese without accents** is
-  reserved for what a user reads on screen. The full rule, and the incident that
-  earned it, are in `AGENTS.md`.
+  bodies, everything under `docs/`, **and what a user reads on screen**.
+  Screen text is not written in a widget at all: it lives in `dbqm/i18n/en.py`
+  and is reached through `t("key")`. Portuguese is a translation, in
+  `dbqm/i18n/pt.py`, still without accents. The full rule is in `AGENTS.md`.
 - **Conversation with the maintainer happens in Portuguese** and is exempt —
   the rule governs what gets written into the repository, not how the work is
   discussed. A commit quoting something the maintainer said quotes it verbatim

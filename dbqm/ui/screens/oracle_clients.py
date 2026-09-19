@@ -13,6 +13,7 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, DataTable, ProgressBar, Static
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.core import oracle_client_installer as oci
 from dbqm.core.paths import CLIENTS_DIR
 from dbqm.ui.modals.confirm import ConfirmModal
@@ -104,7 +105,7 @@ class OracleClientsScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with Panel(
-            "🖥️  PLATAFORMA DETECTADA",
+            t("panel.detected_platform"),
             id="oc-platform-panel",
             dense=True,
         ):
@@ -115,29 +116,29 @@ class OracleClientsScreen(Vertical):
                 markup=True,
             )
             yield Static(
-                f"[dim]Diretorio de instalacao:[/] {CLIENTS_DIR}",
+                f'[dim]{t("oracle_clients.install_dir")}[/] {CLIENTS_DIR}',
                 id="oc-clients-dir",
                 markup=True,
             )
 
-        with Panel("📦  CLIENTS INSTALADOS", id="oc-installed-panel"):
+        with Panel(t("panel.installed_clients"), id="oc-installed-panel"):
             yield EmptyState(
-                what="Clients instalados",
-                why="O Oracle Instant Client permite conectar a bancos Oracle sem instalacao completa",
-                action_label="Escolher client",
-                action_id="escolher-client",
+                what=t("oracle_clients.installed"),
+                why=t("oracle_clients.empty_why"),
+                action_label=t("oracle_clients.choose_client"),
+                action_id="choose-client",
                 id="oc-installed-empty",
             )
             yield DataTable(id="oc-installed-table", cursor_type="row")
             with Horizontal(classes="oc-actions"):
-                yield Button("Usar este client", variant="primary", id="oc-use-btn")
-                yield Button("Remover selecionado", variant="error", id="oc-remove-btn")
-                yield Button("Atualizar lista", variant="default", id="oc-refresh-btn")
+                yield Button(t("oracle_clients.use_this"), variant="primary", id="oc-use-btn")
+                yield Button(t("common.remove_selected"), variant="error", id="oc-remove-btn")
+                yield Button(t("oracle_clients.refresh"), variant="default", id="oc-refresh-btn")
 
-        with Panel("⬇️  DISPONIVEIS PARA DOWNLOAD", id="oc-available-panel"):
+        with Panel(t("panel.available_downloads"), id="oc-available-panel"):
             yield DataTable(id="oc-available-table", cursor_type="row")
             with Horizontal(classes="oc-actions"):
-                yield Button("Instalar selecionado", variant="primary", id="oc-install-btn")
+                yield Button(t("oracle_clients.install_selected"), variant="primary", id="oc-install-btn")
 
         yield Static("", id="oc-status", markup=True)
         with Horizontal(id="oc-progress-row"):
@@ -200,7 +201,7 @@ class OracleClientsScreen(Vertical):
         table.clear()
         if not self._available:
             table.add_row(
-                "[dim]Sem pacotes catalogados para esta plataforma.[/]", "", "",
+                f'[dim]{t("oracle_clients.no_packages")}[/]', "", "",
             )
             return
         for pkg in self._available:
@@ -231,7 +232,7 @@ class OracleClientsScreen(Vertical):
             self._start_remove()
         elif event.button.id == "oc-use-btn":
             self._use_selected()
-        elif event.button.id == "escolher-client":
+        elif event.button.id == "choose-client":
             # The label describes exactly what this button does: it takes
             # the focus to the list of available packages. Actually
             # installing requires a row selected there (_start_install), so
@@ -246,7 +247,7 @@ class OracleClientsScreen(Vertical):
 
         selected = self._selected_installed()
         if selected is None:
-            self._set_status("Selecione um client instalado.", "err")
+            self._set_status(t("oracle_clients.select_installed"), "err")
             return
         problem = validate_oracle_client_dir(str(selected.path))
         if problem:
@@ -284,12 +285,12 @@ class OracleClientsScreen(Vertical):
             return
         pkg = self._selected_available()
         if pkg is None:
-            self.notify("Selecione um pacote disponivel.", severity="warning")
+            self.notify(t("oracle_clients.select_package"), severity="warning")
             return
         dest = CLIENTS_DIR / pkg.install_dirname
         if dest.exists() and any(dest.iterdir()):
             self.notify(
-                f"Ja existe instalacao em {dest.name}. Remova antes de reinstalar.",
+                t("oracle_clients.already_installed", folder=dest.name),
                 severity="warning",
                 timeout=6,
             )
@@ -328,20 +329,20 @@ class OracleClientsScreen(Vertical):
     def _on_install_done(self, pkg: oci.ClientPackage, path: Path) -> None:
         self._set_busy(False)
         self._set_status(f"Instalado: {path}", level="ok")
-        self.notify(f"Oracle Instant Client {pkg.version} instalado.")
+        self.notify(t("oracle_clients.installed_ok", version=pkg.version))
         self._refresh_installed()
 
     def _on_install_error(self, pkg: oci.ClientPackage, msg: str) -> None:
         self._set_busy(False)
         self._set_status(f"Falha ao instalar {pkg.version}: {msg}", level="err")
-        self.notify(f"Erro: {msg}", severity="error", timeout=8)
+        self.notify(t("adhoc.error", error=msg), severity="error", timeout=8)
 
     def _start_remove(self) -> None:
         if self._busy:
             return
         item = self._selected_installed()
         if item is None:
-            self.notify("Selecione um client instalado.", severity="warning")
+            self.notify(t("oracle_clients.select_installed"), severity="warning")
             return
 
         def _decide(yes: bool | None) -> None:
@@ -350,15 +351,15 @@ class OracleClientsScreen(Vertical):
             try:
                 oci.remove_client(item.path)
                 self._set_status(f"Removido: {item.path.name}", level="ok")
-                self.notify("Client removido.")
+                self.notify(t("oracle_clients.removed"))
                 self._refresh_installed()
             except Exception as e:
-                self.notify(f"Erro ao remover: {e}", severity="error")
+                self.notify(t("oracle_clients.remove_failed", error=e), severity="error")
 
         self.app.push_screen(
             ConfirmModal(
-                f"Remover {item.path.name}?",
-                title="Remover client",
+                t("oracle_clients.confirm_remove_path", name=item.path.name),
+                title=t("oracle_clients.confirm_remove_title"),
             ),
             _decide,
         )

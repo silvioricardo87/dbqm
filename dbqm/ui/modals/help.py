@@ -6,32 +6,51 @@ from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
-HELP_TEXT = """\
-[bold $ds-text-strong]Geral[/]
-  Ctrl+B    Toggle sidebar
-  Ctrl+Q    Sair
-  ESC       Voltar
-  /         Buscar/filtrar
-  ?         Esta ajuda
+def help_text() -> str:
+    """The shortcut sheet.
 
-[bold $ds-text-strong]Resultado de consulta[/]
-  V         Visualizacao vertical
-  E         Exportar
-  R         Reexecutar
+    A function, not a constant: a constant is built as this module is
+    imported, which is before the app resolves the language.
 
-[bold $ds-text-strong]Resultado de grupo[/]
-  F         Flat/Pivoted
-  S         Filtrar status
-  E         Exportar
-  H         Relatorio HTML
-  I         Ver individual
-  R         Reexecutar
-
-[dim]Pressione ESC, Enter ou ? para fechar[/dim]
-"""
+    The key column is padded to the widest key rather than to a count typed
+    out, so a longer word in another language cannot push the descriptions
+    out of line.
+    """
+    secoes = [
+        (t("shortcuts.section_general"), [
+            ("Ctrl+B", t("shortcuts.toggle_sidebar")),
+            ("Ctrl+Q", t("shortcuts.quit")),
+            ("ESC", t("shortcuts.back")),
+            ("/", t("shortcuts.search_filter")),
+            ("?", t("shortcuts.this_help")),
+        ]),
+        (t("shortcuts.section_query_result"), [
+            ("V", t("shortcuts.vertical_view")),
+            ("E", t("shortcuts.export")),
+            ("R", t("shortcuts.rerun")),
+        ]),
+        (t("shortcuts.section_group_result"), [
+            ("F", t("shortcuts.flat_pivoted")),
+            ("S", t("shortcuts.filter_status")),
+            ("E", t("shortcuts.export")),
+            ("H", t("shortcuts.html_report")),
+            ("I", t("shortcuts.view_individual")),
+            ("R", t("shortcuts.rerun")),
+        ]),
+    ]
+    largura = max(len(tecla) for _, atalhos in secoes for tecla, _ in atalhos)
+    linhas: list[str] = []
+    for titulo, atalhos in secoes:
+        linhas.append(f"[bold $ds-text-strong]{titulo}[/]")
+        linhas.extend(f"  {tecla.ljust(largura)}  {descricao}"
+                      for tecla, descricao in atalhos)
+        linhas.append("")
+    linhas.append(f'[dim]{t("shortcuts.dismiss")}[/dim]')
+    return "\n".join(linhas)
 
 
 class HelpModal(ModalScreen[None]):
@@ -48,14 +67,14 @@ class HelpModal(ModalScreen[None]):
     """
 
     BINDINGS = [
-        Binding("escape", "dismiss_help", "Fechar", show=False),
-        Binding("enter", "dismiss_help", "Fechar", show=False),
-        Binding("question_mark", "dismiss_help", "Fechar", show=False),
+        Binding("escape", "dismiss_help", "Close", show=False),
+        Binding("enter", "dismiss_help", "Close", show=False),
+        Binding("question_mark", "dismiss_help", "Close", show=False),
     ]
 
     def compose(self) -> ComposeResult:
-        with Dialog("Atalhos de Teclado", width="sm", id="help-dialog"):
-            yield Static(HELP_TEXT, markup=True)
+        with Dialog(t("shortcuts.title"), width="sm", id="help-dialog"):
+            yield Static(help_text(), markup=True)
 
     def action_dismiss_help(self) -> None:
         self.dismiss(None)

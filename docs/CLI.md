@@ -102,6 +102,11 @@ dbqm config get theme
 dbqm config set audit_log_enabled true
 dbqm config set theme plano-escuro
 
+# The language of every screen and message. English is the default;
+# `pt` is Portuguese. DBQM_LANG overrides the stored setting for one run.
+dbqm config set language pt
+DBQM_LANG=en dbqm list queries
+
 # Manage Oracle Instant Client installations (the only command that reaches
 # the internet)
 dbqm oracle-client available

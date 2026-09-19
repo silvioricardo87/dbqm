@@ -5,9 +5,10 @@ from datetime import datetime
 from html import escape as h
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.core.group_engine import GroupResult
 from dbqm.core.query_engine import QueryResult
-from dbqm.core.exporter import _build_filepath
+from dbqm.core.exporter import _GROUP_CATEGORY, _QUERY_CATEGORY, _build_filepath
 from dbqm.design.tokens import LIGHT_TOKENS, DARK_TOKENS
 
 
@@ -52,7 +53,7 @@ _BASE_STYLE_RULES = """\
 def export_group_html(group_result: GroupResult, params: dict[str, str] | None = None) -> str:
     """Export group comparison as a standalone HTML file. Returns file path."""
     query_names = list(group_result.query_results.keys())
-    filepath = _build_filepath("grupos", group_result.group_name, params=params, ext="html")
+    filepath = _build_filepath(_GROUP_CATEGORY, group_result.group_name, params=params, ext="html")
 
     html = _build_html(group_result, query_names, params)
     filepath.write_text(html, encoding="utf-8")
@@ -66,7 +67,7 @@ def export_query_html(
 ) -> str:
     """Export one result set as a standalone HTML file. Returns file path."""
     label = table or result.query_name
-    filepath = _build_filepath("consultas", label, result.connection_name, params, "html")
+    filepath = _build_filepath(_QUERY_CATEGORY, label, result.connection_name, params, "html")
     filepath.write_text(_build_query_html(result, label, params), encoding="utf-8")
     return str(filepath)
 
@@ -76,12 +77,14 @@ def _status_class(status: str) -> str:
 
 
 def _status_label(status: str) -> str:
-    return {"OK": "OK", "OK*": "OK*", "DIFF": "DIFERE", "ABSENT": "AUSENTE"}.get(status, status)
+    return {"OK": "OK", "OK*": "OK*", "DIFF": t("verdict.differs"),
+            "ABSENT": t("verdict.absent")}.get(status, status)
 
 
 def _build_html(group_result: GroupResult, query_names: list[str], params: dict[str, str] | None) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
+    overall = (t("verdict.consistent") if group_result.all_match
+               else t("verdict.divergent"))
     overall_class = "ok" if group_result.all_match else "diff"
 
     params_html = ""
@@ -105,25 +108,25 @@ def _build_html(group_result: GroupResult, query_names: list[str], params: dict[
         tables_html += f"""
         <h3>{h(str(comp.column))}</h3>
         <div class="filter-bar">
-            <button class="filter-btn active" data-filter="all">Todos ({comp.total_keys})</button>
-            <button class="filter-btn" data-filter="diff">Divergentes ({comp.diff_count})</button>
-            <button class="filter-btn" data-filter="absent">Ausentes ({comp.absent_count})</button>
-            <button class="filter-btn" data-filter="ok">Iguais ({comp.equal_count})</button>
+            <button class="filter-btn active" data-filter="all">{t("report.filter_all")} ({comp.total_keys})</button>
+            <button class="filter-btn" data-filter="diff">{t("report.filter_diff")} ({comp.diff_count})</button>
+            <button class="filter-btn" data-filter="absent">{t("report.filter_absent")} ({comp.absent_count})</button>
+            <button class="filter-btn" data-filter="ok">{t("report.filter_equal")} ({comp.equal_count})</button>
         </div>
         <table class="data">
-            <thead><tr><th>Chave</th>{header_cols}<th>Status</th></tr></thead>
+            <thead><tr><th>{t("report.column_key")}</th>{header_cols}<th>{t("report.column_status")}</th></tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
         <div class="summary">
-            Iguais: {comp.equal_count}/{comp.total_keys} |
-            Divergentes: {comp.diff_count}/{comp.total_keys} |
-            Ausentes: {comp.absent_count}/{comp.total_keys}
-            {"| Normalizados: " + str(comp.normalized_count) + "/" + str(comp.total_keys) if comp.normalized_count > 0 else ""}
+            {t("report.summary_equal")}: {comp.equal_count}/{comp.total_keys} |
+            {t("report.summary_diff")}: {comp.diff_count}/{comp.total_keys} |
+            {t("report.summary_absent")}: {comp.absent_count}/{comp.total_keys}
+            {"| " + t("report.summary_normalized") + ": " + str(comp.normalized_count) + "/" + str(comp.total_keys) if comp.normalized_count > 0 else ""}
         </div>
         """
 
     return f"""<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="{t('report.html_lang')}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -163,16 +166,16 @@ def _build_html(group_result: GroupResult, query_names: list[str], params: dict[
 </head>
 <body>
 <div class="header">
-    <h1>DB Query Manager - Relatorio Comparativo</h1>
+    <h1>{t("report.comparison_title")}</h1>
     <div class="meta">
-        Grupo: <strong>{h(group_result.group_name)}</strong> |
-        Data: {now} |
+        {t("export.label_group")}: <strong>{h(group_result.group_name)}</strong> |
+        {t("export.label_date")}: {now} |
         <span class="badge {overall_class}">{overall}</span>
     </div>
     {params_html}
 </div>
 
-<input type="text" class="search" placeholder="Buscar por chave..." oninput="filterSearch(this.value)">
+<input type="text" class="search" placeholder="{t('report.search_placeholder')}" oninput="filterSearch(this.value)">
 
 {tables_html}
 
@@ -215,7 +218,7 @@ def _build_query_html(result: QueryResult, label: str, params: dict[str, str] | 
             f"<tr><td><strong>{h(str(k))}</strong></td><td>{h(str(v))}</td></tr>"
             for k, v in params.items()
         )
-        params_html = f'<div class="meta">Parametros:</div><table class="params">{rows}</table>'
+        params_html = f'<div class="meta">{t("export.label_params")}:</div><table class="params">{rows}</table>'
 
     header_cols = "".join(f"<th>{h(str(col))}</th>" for col in result.columns)
     rows_html = ""
@@ -224,7 +227,7 @@ def _build_query_html(result: QueryResult, label: str, params: dict[str, str] | 
         rows_html += f"<tr>{cells}</tr>"
 
     return f"""<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="{t('report.html_lang')}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -237,13 +240,13 @@ def _build_query_html(result: QueryResult, label: str, params: dict[str, str] | 
 </head>
 <body>
 <div class="header">
-    <h1>DB Query Manager - Relatorio de Consulta</h1>
+    <h1>{t("report.query_title")}</h1>
     <div class="meta">
-        Consulta: <strong>{h(label)}</strong> |
-        Conexao: <strong>{h(result.connection_name)}</strong> |
-        Data: {now} |
-        Linhas: {result.row_count} |
-        Tempo: {result.elapsed:.3f}s
+        {t("export.label_query")}: <strong>{h(label)}</strong> |
+        {t("export.label_connection")}: <strong>{h(result.connection_name)}</strong> |
+        {t("export.label_date")}: {now} |
+        {t("report.label_lines")}: {result.row_count} |
+        {t("export.label_time")}: {result.elapsed:.3f}s
     </div>
     {params_html}
 </div>

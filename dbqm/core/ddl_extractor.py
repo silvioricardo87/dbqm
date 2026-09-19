@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from dbqm.i18n import t
 from dbqm.core.db_manager import get_connection
 from dbqm.models.connection import Connection
 from dbqm.core.paths import EXPORTS_DIR
@@ -45,6 +46,11 @@ class ExtractionResult:
     dependencies: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     saved_files: list[str] = field(default_factory=list)
+    #: The object simply is not there, as opposed to an extraction that
+    #: failed. The CLI used to tell the two apart by matching the end of
+    #: the error text, which stopped being possible once that text became
+    #: a translation -- and had never worked in any other language.
+    not_found: bool = False
 
     def to_dict(self) -> dict:
         """Wire shape. Nested dataclasses serialise through their own to_dict."""
@@ -553,7 +559,7 @@ def extract_routine(conn: Connection, package_name: str, routine_name: str) -> R
                 matches = [{"owner": resolved[0], "name": resolved[1], "type": "PACKAGE"}]
 
         if not matches:
-            result.errors.append(f"Package '{pkg}' nao encontrado.")
+            result.errors.append(t("ddl.package_not_found", name=pkg))
             return result
 
         owner = matches[0]["owner"]
@@ -563,14 +569,15 @@ def extract_routine(conn: Connection, package_name: str, routine_name: str) -> R
         # Get body source and parse routines
         body_src = _get_source(cursor, owner, pkg_name, "PACKAGE BODY")
         if not body_src:
-            result.errors.append(f"Package body '{pkg_name}' nao encontrado.")
+            result.errors.append(t("ddl.package_body_not_found", name=pkg_name))
             return result
 
         body_routines = _parse_routines(body_src)
         if routine not in body_routines:
             result.errors.append(
-                f"Rotina '{routine}' nao encontrada no body de '{pkg_name}'. "
-                f"Rotinas disponiveis: {', '.join(sorted(body_routines.keys()))}"
+                t("ddl.routine_not_in_body", routine=routine, package=pkg_name) + " "
+                + t("ddl.routines_available",
+                    routines=", ".join(sorted(body_routines.keys())))
             )
             return result
 
@@ -756,7 +763,8 @@ def extract_ddl(
                 object_name=name_upper, object_type="UNKNOWN",
                 owner="", connection_name=conn.name,
             )
-            result.errors.append(f"Objeto '{name_upper}' nao encontrado.")
+            result.errors.append(t("ddl.object_not_found", name=name_upper))
+            result.not_found = True
             return result
 
         obj = matches[0]
@@ -778,9 +786,9 @@ def extract_ddl(
                         on_progress(1, 1, obj_type, obj["name"])
                     extractor(cursor, obj["owner"], obj["name"], result)
                 else:
-                    result.errors.append(f"Tipo '{obj_type}' nao suportado para extracao.")
+                    result.errors.append(t("ddl.type_unsupported", type=obj_type))
         except Exception as e:
-            result.errors.append(f"Erro ao extrair {obj_type}: {e}")
+            result.errors.append(t("ddl.extract_failed_object", name=obj_type, error=e))
 
         return result
     finally:
@@ -812,14 +820,14 @@ def _extract_non_oracle(
     elif conn.db_type == "mysql":
         from dbqm.core.ddl_mysql import extract_mysql_ddl as extractor
     else:
-        result.errors.append(f"Extracao de DDL nao suportada para {conn.db_type}.")
+        result.errors.append(t("ddl.engine_unsupported", type=conn.db_type))
         return result
 
     db = get_connection(conn)
     try:
         extractor(db, object_name, result, on_progress)
     except Exception as e:
-        result.errors.append(f"Erro ao extrair: {e}")
+        result.errors.append(t("ddl.extract_failed_plain", error=e))
     finally:
         db.close()
     return result
@@ -945,7 +953,8 @@ def extract_dependencies_ddl(
             try:
                 EXTRACT_MAP[dep_type](cursor, dep_owner, dep_name, result)
             except Exception as e:
-                result.errors.append(f"Erro ao extrair {dep_type} {dep_owner}.{dep_name}: {e}")
+                result.errors.append(t("ddl.extract_failed_dependency", type=dep_type,
+                                   owner=dep_owner, name=dep_name, error=e))
 
         result.dependencies.clear()
         return result

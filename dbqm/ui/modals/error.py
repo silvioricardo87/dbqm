@@ -7,6 +7,7 @@ from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
@@ -43,7 +44,7 @@ class ErrorModal(ModalScreen[None]):
         with Dialog(self._title, id="error-dialog", tone="destructive", width="lg"):
             with VerticalScroll(id="error-scroll"):
                 yield Static(self._detail, id="error-detail")
-            yield Button("Fechar", variant="error", id="close-btn")
+            yield Button(t("common.close"), variant="error", id="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(None)

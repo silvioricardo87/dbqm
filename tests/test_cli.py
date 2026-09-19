@@ -936,7 +936,7 @@ class TestCmdMulti:
         result is the derived join key, `derive_comparison_columns` returns
         `(key, [])` on purpose (core allows this) -- but `cmd_multi` running
         a comparison of zero columns over genuinely divergent rows would
-        still say CONSISTENTE. `cmd_multi` refuses it instead of core."""
+        still say CONSISTENT. `cmd_multi` refuses it instead of core."""
         c1, c2 = _make_connection("c1"), _make_connection("c2")
 
         def find_conn_side(name):
@@ -1002,7 +1002,7 @@ class TestCmdMulti:
         drop the comparison. `join_key=args.key or ""` with no
         `compare_columns` makes `build_adhoc_group_result` default to an
         empty compare list, so genuinely divergent rows (same NAME, different
-        ID) would compare zero columns and report CONSISTENTE/exit 0 -- a
+        ID) would compare zero columns and report CONSISTENT/exit 0 -- a
         silent wrong answer. Keying by NAME must still compare ID and catch
         the divergence."""
         c1, c2 = _make_connection("c1"), _make_connection("c2")
@@ -1043,7 +1043,7 @@ class TestCmdMulti:
             run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2", "-e", "csv"])
             mock_csv.assert_called_once()
             saida = capsys.readouterr().out
-            assert "Exportado:" in saida
+            assert "Exported:" in saida
             assert "/tmp/multi.csv" in saida
 
     def test_export_json_format_emits_envelope(self, tmp_config_dir, capsys):
@@ -1082,7 +1082,7 @@ class TestCmdMulti:
              patch("dbqm.cli.deps.execute_across", return_value=results):
             run_cli(["multi", "SELECT 1", "-c", "c1", "-c", "c2"])
             saida = capsys.readouterr().out
-            assert "chave: ID" in saida
+            assert "key: ID" in saida
 
     def test_multiple_failures_report_every_connection_deterministically(self, tmp_config_dir, capsys):
         """The exit code must not depend on which failing connection happens
@@ -1398,8 +1398,9 @@ class TestCmdSql:
         adhoc = AdhocResult(
             sql_type="UNKNOWN", connection_name="test_conn",
             success=False,
-            error="Tipo de SQL nao suportado. Use SELECT, INSERT, UPDATE, "
-                  "DELETE, DDL (CREATE/ALTER/DROP...) ou EXPLAIN PLAN.",
+            error="Unsupported SQL type. Use SELECT, INSERT, UPDATE, "
+                  "DELETE, DDL (CREATE/ALTER/DROP...) or EXPLAIN PLAN.",
+            error_kind="usage",
         )
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.classify_sql", return_value="UNKNOWN"), \
@@ -1670,7 +1671,7 @@ class TestCmdCall:
             mock_exec.assert_not_called()
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "validation"
-        assert "nao existe" in corpo["error"]["message"]
+        assert "does not exist" in corpo["error"]["message"]
         assert "NAOEXISTE" in corpo["error"]["message"]
 
     def test_an_undeclared_parameter_is_a_validation_error(self, tmp_config_dir, capsys):
@@ -1897,24 +1898,41 @@ class TestCmdCall:
         db_handle.commit.assert_called_once()
         db_handle.rollback.assert_not_called()
 
-    def test_the_table_output_says_which_happened(self, tmp_config_dir, capsys):
+    def test_the_table_output_says_which_happened(self, tmp_config_dir, capsys,
+                                                  monkeypatch):
+        """In every language, and the two outcomes never read the same.
+
+        `--commit` is the difference between work that survives and work
+        the driver throws away, so this is the one line here that cannot
+        afford a translation reusing the other outcome's word.
+        """
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
+        from dbqm.i18n import available_languages, t
 
         conn = _make_connection()
         rotina = RoutineInfo(name="ROTINA", routine_type="PROCEDURE", params=[])
         pkg = PackageInfo(name="PKG", owner="APP", routines=[rotina])
         exec_result = RoutineExecutionResult(success=True, output_lines=[], return_value=None, elapsed=0.01)
-        with patch("dbqm.cli.deps.find_connection", return_value=conn), \
-             patch("dbqm.cli.deps.open_connection"), \
-             patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
-             patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
-            run_cli(["call", "PKG.ROTINA", "test_conn"])
-            sem_commit = capsys.readouterr().out
-            assert "desfeita" in sem_commit
+        for idioma in available_languages():
+            monkeypatch.setenv("DBQM_LANG", idioma)
+            with patch("dbqm.cli.deps.find_connection", return_value=conn), \
+                 patch("dbqm.cli.deps.open_connection"), \
+                 patch("dbqm.cli.deps.list_package_routines", return_value=pkg), \
+                 patch("dbqm.cli.deps.execute_routine", return_value=exec_result):
+                run_cli(["call", "PKG.ROTINA", "test_conn"])
+                sem_commit = capsys.readouterr().out
 
-            run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
-            com_commit = capsys.readouterr().out
-            assert "confirmada" in com_commit
+                run_cli(["call", "PKG.ROTINA", "test_conn", "--commit"])
+                com_commit = capsys.readouterr().out
+
+            # Only up to the em dash: this console encodes in cp1252 and the
+            # dash comes back as a replacement character.
+            desfeito = t("exec_routine.rolled_back").split("\u2014")[0].strip()
+            confirmado = t("exec_routine.committed").split("\u2014")[0].strip()
+            assert desfeito != confirmado, idioma
+            assert desfeito in sem_commit, idioma
+            assert confirmado in com_commit, idioma
+            assert confirmado not in sem_commit, idioma
 
     def test_the_json_envelope_carries_the_commit_state(self, tmp_config_dir, capsys):
         from dbqm.core.object_browser import PackageInfo, RoutineExecutionResult, RoutineInfo
@@ -1998,7 +2016,7 @@ class TestCmdCall:
             assert saiu.value.code == 4
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "sql_error"
-        assert "nada foi gravado" in corpo["error"]["message"]
+        assert "nothing was written" in corpo["error"]["message"]
 
     def test_a_commit_that_fails_says_nothing_was_written(self, tmp_config_dir, capsys):
         """The one outcome a caller must not have to guess at: the routine
@@ -2020,7 +2038,7 @@ class TestCmdCall:
         db_handle.rollback.assert_called_once()
         corpo = json.loads(capsys.readouterr().err)
         assert corpo["error"]["code"] == "sql_error"
-        assert "nada foi gravado" in corpo["error"]["message"]
+        assert "nothing was written" in corpo["error"]["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -2162,7 +2180,7 @@ class TestCmdDdl:
         result = ExtractionResult(
             object_name="MISSING", object_type="UNKNOWN",
             owner="", connection_name="test_conn",
-            errors=["Objeto 'MISSING' nao encontrado."],
+            errors=["Objeto 'MISSING' not found."],
         )
         with patch("dbqm.cli.deps.find_connection", return_value=conn), \
              patch("dbqm.cli.deps.extract_ddl", return_value=result):
@@ -2209,7 +2227,7 @@ class TestCmdConfig:
         corpo = json.loads(capsys.readouterr().out)
         assert corpo["command"] == "config.list"
         assert set(corpo["data"].keys()) == {
-            "audit_log_enabled", "theme", "default_export_dir",
+            "audit_log_enabled", "theme", "language", "default_export_dir",
             "export_dir_prompted", "create_export_subdirs", "oracle_client_dir",
         }
 
@@ -2439,7 +2457,7 @@ class TestCmdImportConfig:
         assert saida.out == ""
         erro = json.loads(saida.err)["error"]
         assert erro["code"] == "not_found"
-        assert erro["message"] == f"Arquivo '{caminho}' nao encontrado."
+        assert erro["message"] == f'File "{caminho}" not found.'
         spy.assert_not_called()
 
 
@@ -2636,7 +2654,7 @@ class TestCmdSqlPlsqlOutput:
         out = capsys.readouterr().out
         assert "processando 1" in out
         assert "processando 2" in out
-        assert "Bloco PL/SQL executado" in out
+        assert "PL/SQL block ran" in out
 
     def test_no_output_lines_prints_only_status(self, capsys):
         conn = _make_connection()
@@ -2649,7 +2667,7 @@ class TestCmdSqlPlsqlOutput:
              patch("dbqm.cli.deps.execute_adhoc", return_value=res):
             run_cli(["sql", "BEGIN NULL; END;", "test_conn"])
         out = capsys.readouterr().out
-        assert "Bloco PL/SQL executado" in out
+        assert "PL/SQL block ran" in out
 
 
 # ---------------------------------------------------------------------------
@@ -2897,7 +2915,7 @@ class TestConnectionAdd:
                 "connection", "add", "x", "--type", "h2", "--no-password",
             ], monkeypatch)
         assert exc.value.code == 2
-        assert "Tipo de banco invalido" in capsys.readouterr().out
+        assert "Invalid database type" in capsys.readouterr().out
 
     def test_missing_db_type_exits_2(self, tmp_config_dir, monkeypatch):
         with pytest.raises(SystemExit) as exc:
@@ -2959,7 +2977,7 @@ class TestConnectionAdd:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Criar uma conexao" in out, \
+        assert "Create a connection" in out, \
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
     def test_empty_password_stdin_exits_2_and_saves_nothing(self, tmp_config_dir, monkeypatch):
@@ -3174,9 +3192,34 @@ class TestConnectionRemoveAndList:
 
         self._seed(monkeypatch)
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+        run_cli(["connection", "rm", "alvo"])
+        assert find_connection("alvo") is None
+
+    def test_the_affirmative_is_the_one_of_the_language_in_use(self, tmp_config_dir, monkeypatch):
+        """"s" confirms in Portuguese and "y" in English. A confirmation that
+        only ever accepted one language would ignore the answer half its
+        users give it."""
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.setenv("DBQM_LANG", "pt")
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda prompt="": "s")
         run_cli(["connection", "rm", "alvo"])
         assert find_connection("alvo") is None
+
+    def test_the_other_language_affirmative_is_not_taken_as_yes(self, tmp_config_dir, monkeypatch):
+        from dbqm.cli import run_cli
+        from dbqm.models.connection import find_connection
+
+        self._seed(monkeypatch)
+        monkeypatch.delenv("DBQM_LANG", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt="": "s")
+        run_cli(["connection", "rm", "alvo"])
+        assert find_connection("alvo") is not None
 
     def test_rm_unknown_name_exits_2(self, tmp_config_dir, monkeypatch):
         from dbqm.cli import run_cli
@@ -3923,7 +3966,7 @@ class TestCmdGroup:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Criar um grupo" in out, \
+        assert "Create a group" in out, \
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
 
@@ -4204,7 +4247,7 @@ class TestCmdTemplate:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Criar um template" in out, \
+        assert "Create a template" in out, \
             "expected each subcommand's own help text, e.g. add's, to be listed"
 
 
@@ -4278,7 +4321,7 @@ class TestEmptyStdinHint:
                 self._args(), "DBQM_BUNDLE_PASSWORD", "p: ", required=True
             )
         saida = capsys.readouterr().out
-        assert "Senha vazia" in saida
+        assert "Empty password" in saida
         assert "--no-password" not in saida
 
     def test_the_real_parsers_agree_with_that_split(self):
@@ -5173,18 +5216,16 @@ class TestConnectionFailedIsReachable:
         assert saiu.value.code == 3
 
     def test_the_bad_input_messages_still_map_to_usage(self, capsys):
-        """`_sql_error_code`'s existing job must survive: two messages `core/`
-        returns are usage errors, not statement failures."""
+        """`_sql_error_code`'s existing job must survive: input `core/` never
+        sent to a driver is a usage error, not a statement failure.
+
+        Read from `error_kind`, not from the message: the message is a
+        translation now, and a classifier that reads one would be right in
+        one language and wrong in the others.
+        """
         from dbqm.cli.commands.query import _sql_error_code
 
-        # The literals, not the constant. Feeding `_USAGE_SQL_MESSAGES` back
-        # into the function that reads it passes for any content, including
-        # content `core/` no longer produces. `tests/cli/test_usage_sql_messages.py`
-        # is what keeps these strings and `core/`'s in step.
-        assert _sql_error_code("Apenas comandos SELECT sao permitidos.",
-                               "statement") == "usage"
-        assert _sql_error_code("--explain ainda nao e suportado para mysql.",
-                               "statement") == "usage"
+        assert _sql_error_code("qualquer coisa", "usage") == "usage"
         assert _sql_error_code("ORA-00942: tabela inexistente",
                                "statement") == "sql_error"
 
@@ -5342,12 +5383,13 @@ class TestDdlAgreesWithTheRest:
     unreachable database escaped as an unhandled exception -- exit 1, "a bug
     in dbqm", for a database that was merely down."""
 
-    def _extracao(self, errors):
+    def _extracao(self, errors, nao_encontrado=False):
         from dbqm.core.ddl_extractor import ExtractionResult
 
         r = ExtractionResult(object_name="OBJ", object_type="TABLE",
                              owner="", connection_name="conexao")
         r.errors = errors
+        r.not_found = nao_encontrado
         return r
 
     def test_an_unreachable_database_exits_three(self, capsys):
@@ -5375,7 +5417,8 @@ class TestDdlAgreesWithTheRest:
         from dbqm.cli import run_cli
 
         with patch("dbqm.cli.deps.find_connection", return_value=_make_connection()),              patch("dbqm.cli.deps.extract_ddl",
-                   return_value=self._extracao(["Objeto 'OBJ' nao encontrado."])):
+                   return_value=self._extracao(["Object 'OBJ' not found."],
+                                               nao_encontrado=True)):
             with pytest.raises(SystemExit) as saiu:
                 run_cli(["ddl", "OBJ", "conexao", "-f", "json"])
 
@@ -5778,7 +5821,7 @@ class TestCmdOracleClient:
         assert exc.value.code == 2
         out = capsys.readouterr().out
         assert "usage:" in out.lower(), "expected argparse's own help, not a one-line reminder"
-        assert "Baixar e instalar um Oracle Instant Client" in out, \
+        assert "Download and install an Oracle Instant Client" in out, \
             "expected each subcommand's own help text, e.g. install's, to be listed"
 
 

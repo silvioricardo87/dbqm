@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
+from dbqm.i18n import t
 from dbqm.core.query_engine import AdhocResult, QueryResult
 from dbqm.core.read_only import ReadOnlyViolation
 from dbqm.models.connection import Connection
@@ -117,7 +118,7 @@ def derive_comparison_columns(
     """
     if not results:
         raise NoComparableColumns(
-            "Consultas nao retornaram colunas comparaveis."
+            t("group.no_comparable_columns")
         )
     first = next(iter(results))
     base_cols = list(results[first].columns)
@@ -127,7 +128,7 @@ def derive_comparison_columns(
     ]
     if not common:
         raise NoComparableColumns(
-            "Consultas nao retornaram colunas comparaveis."
+            t("group.no_comparable_columns")
         )
     return common[0], common[1:]
 
@@ -374,8 +375,7 @@ def duplicate_key_warnings(group_result: GroupResult) -> list[str]:
     if not group_result.comparisons:
         return []
     return [
-        f"Chave '{group_result.join_key}' tem valores repetidos em '{nome}': "
-        f"{n} linha(s) fora da comparacao."
+        t("group.duplicate_key_rows", key=group_result.join_key, side=nome, rows=n)
         for nome, n in sorted(group_result.comparisons[0].duplicate_rows.items())
     ]
 
@@ -400,12 +400,12 @@ def build_group_result(
 
     summary_lines = []
     for comp in comparisons:
-        summary_lines.append(f"Coluna: {comp.column}")
-        summary_lines.append(f"  Iguais:       {comp.equal_count}")
+        summary_lines.append(t("group.summary_column", column=comp.column))
+        summary_lines.append(t("group.summary_equal", n=comp.equal_count))
         if comp.normalized_count > 0:
-            summary_lines.append(f"  Iguais (norm): {comp.normalized_count}")
-        summary_lines.append(f"  Diferentes:   {comp.diff_count}")
-        summary_lines.append(f"  Ausentes:     {comp.absent_count}")
+            summary_lines.append(t("group.summary_normalized", n=comp.normalized_count))
+        summary_lines.append(t("group.summary_different", n=comp.diff_count))
+        summary_lines.append(t("group.summary_absent", n=comp.absent_count))
 
     return GroupResult(
         group_name=group_name,

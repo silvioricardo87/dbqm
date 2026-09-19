@@ -55,7 +55,8 @@ class TestExtractSqliteDdl:
         r = _result("nada")
         extract_sqlite_ddl(db, "nada", r)
         assert r.objects == []
-        assert r.errors == ["Objeto 'nada' nao encontrado."]
+        assert r.errors == ["Object 'nada' not found."]
+        assert r.not_found is True
 
     def test_progress_counts_the_table_and_its_children(self, catalog):
         db, _ = catalog
@@ -90,5 +91,5 @@ class TestExtractDdlDispatch:
         conn = Connection(name="s", db_type="sqlserver", user="u", password="", host="h")
         with patch("dbqm.core.ddl_extractor.get_connection") as mock_get:
             r = extract_ddl(conn, "x")
-        assert r.errors == ["Extracao de DDL nao suportada para sqlserver."]
+        assert r.errors == ["DDL extraction is not supported for sqlserver."]
         mock_get.assert_not_called()

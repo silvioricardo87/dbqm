@@ -9,7 +9,7 @@ import pytest
 
 from tests.functional.conftest import envelope
 
-REFUSAL = "Conexao 'ro' e somente leitura. Use --force-write para enviar assim mesmo."
+REFUSAL = "Connection 'ro' is read-only. Use --force-write to send it anyway."
 
 
 def _status_of_1(capsys) -> str:
@@ -77,7 +77,7 @@ def test_two_statements_are_refused_by_count(read_only_db, capsys):
     code, body = envelope(["sql", "SELECT 1; DROP TABLE clientes", "ro", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "read_only"
-    assert "mais de um statement" in body["error"]["message"]
+    assert "more than one statement" in body["error"]["message"]
     assert "clientes" in _tables(capsys)
 
 
@@ -131,5 +131,5 @@ def test_run_of_a_writing_query_is_refused(read_only_db, capsys):
     code, body = envelope(["run", "atualiza", "-c", "ro", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "usage"
-    assert body["error"]["message"] == "Apenas comandos SELECT sao permitidos."
+    assert body["error"]["message"] == "Only SELECT statements are allowed."
     assert _status_of_1(capsys) == "A"

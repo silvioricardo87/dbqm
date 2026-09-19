@@ -229,7 +229,7 @@ async def test_oracle_clients_sections_do_not_each_eat_the_screen(monkeypatch):
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        assert "Instalar selecionado" in rendered_text(app)
+        assert "Install the selected one" in rendered_text(app)
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +274,7 @@ async def test_config_port_only_the_export_passes_the_fold(tmp_config_dir, modo,
             await pilot.pause()
             await pilot.wait_for_scheduled_animations()
             await pilot.pause()
-            assert "Exportar" in rendered_text(app)
+            assert "Export" in rendered_text(app)
 
 
 # ---------------------------------------------------------------------------
@@ -325,7 +325,7 @@ async def test_package_editor_compilation_errors_fit_and_scroll(tmp_config_dir):
         )
 
         pintado = rendered_text(app)
-        assert "erro(s) de compilacao" in pintado
+        assert "compilation error(s)" in pintado
         assert "erro 3" in pintado, "so o cabecalho e um erro cabem no painel"
 
         assert corpo.max_scroll_y > 0

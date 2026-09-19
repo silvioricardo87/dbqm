@@ -7,6 +7,7 @@ import pytest
 from textual.app import ComposeResult
 from textual.widgets import Input, Select
 
+from dbqm.i18n import IDIOMA_PADRAO, available_languages, set_language, t
 from dbqm.ui.screens.connections import ConnectionsScreen
 from dbqm.ui.screens.oracle_clients import OracleClientsScreen
 from dbqm.ui.screens.query_exec import QueryExecScreen
@@ -39,7 +40,7 @@ async def test_query_exec_screen_shows_empty_message(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_exec_empty_state_action_switches_to_coleta(tmp_config_dir):
-    """The EmptyState's "Criar consulta" button must not be a dead end —
+    """The EmptyState's "Create query" button must not be a dead end —
     queries are created from the Coleta tab ("Salvar como consulta")."""
     from textual.widgets import Button
 
@@ -55,9 +56,9 @@ async def test_query_exec_empty_state_action_switches_to_coleta(tmp_config_dir):
     app = _QueryExecWithSwitch()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryExecScreen)
-        screen.query_one("#criar-consulta-coleta", Button).press()
+        screen.query_one("#create-query-collect", Button).press()
         await pilot.pause()
-        assert switched == ["tab-coleta"]
+        assert switched == ["tab-collect"]
 
 
 @pytest.mark.asyncio
@@ -363,7 +364,7 @@ async def test_folders_become_a_select_with_counts(tmp_config_dir):
         await pilot.press("enter")
         await pilot.pause()
         assert _painted_select_labels(seletor) == [
-            "Todas (20)",
+            t("common.all_count", count=20),
             "Alfa (5)",
             "Beta (2)",
             "Delta (7)",
@@ -406,7 +407,7 @@ async def test_folder_label_elides_the_common_prefix(tmp_config_dir):
         await pilot.press("enter")
         await pilot.pause()
         assert _painted_select_labels(seletor) == [
-            "Todas (6)",
+            t("common.all_count", count=6),
             "Alpha (3)",
             "Beta (1)",
             "Gama (2)",
@@ -447,7 +448,7 @@ async def test_folder_label_shows_the_whole_path_with_two_families(
         await pilot.press("enter")
         await pilot.pause()
         assert _painted_select_labels(seletor) == [
-            "Todas (2)",
+            t("common.all_count", count=2),
             "Interno/Backlog (1)",
             "Projeto/Alpha (1)",
         ]
@@ -511,15 +512,15 @@ async def test_connections_screen_renders(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_connections_has_list_and_form_panels(tmp_config_dir):
-    """CONEXOES + EDICAO panels exist, with the list and form field ids."""
+    """CONNECTIONS + EDIT panels exist, with the list and form field ids."""
     from dbqm.ui.widgets.panel import Panel
 
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ConnectionsScreen)
         titles = [p.query_one("#panel-title").render().plain for p in screen.query(Panel)]
-        assert any("CONEXOES" in t for t in titles)
-        assert any("EDICAO" in t for t in titles)
+        assert any("CONNECTIONS" in t for t in titles)
+        assert any("EDIT" in t for t in titles)
         assert screen.query_one("#conn-list") is not None
         assert screen.query_one("#conn-form-name") is not None
         assert screen.query_one("#conn-form-type") is not None
@@ -546,12 +547,12 @@ async def test_connections_screen_empty(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_connections_empty_state_action_focuses_new_form(tmp_config_dir):
-    """The EmptyState's "Adicionar conexao" button must not be a dead end."""
+    """The EmptyState's "Add connection" button must not be a dead end."""
     from textual.widgets import Button
     app = ConnectionsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ConnectionsScreen)
-        screen.query_one("#adicionar-conexao", Button).press()
+        screen.query_one("#add-connection", Button).press()
         await pilot.pause()
         assert app.focused is screen.query_one("#conn-form-name", Input)
 
@@ -1095,7 +1096,7 @@ async def test_connections_testar_warns_without_name(tmp_config_dir):
         screen._handle_test()
         await pilot.pause()
         messages = [str(n.message) for n in app._notifications]
-        assert any("nome" in m.lower() for m in messages)
+        assert any("name" in m.lower() for m in messages)
 
 
 @pytest.mark.asyncio
@@ -1113,7 +1114,7 @@ async def test_connections_testar_starts_worker_for_named_connection(tmp_config_
         await pilot.pause()
 
         messages = [str(n.message) for n in app._notifications]
-        assert any("Testando" in m for m in messages)
+        assert any("Testing" in m for m in messages)
 
 
 # ======================================================================
@@ -1150,12 +1151,12 @@ async def test_query_manage_screen_empty(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_query_manage_empty_state_action_opens_new_query(tmp_config_dir):
-    """The EmptyState's "Criar consulta" button must not be a dead end."""
+    """The EmptyState's "Create query" button must not be a dead end."""
     from textual.widgets import Button
     app = QueryManageTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(QueryManageScreen)
-        screen.query_one("#criar-consulta", Button).press()
+        screen.query_one("#create-query", Button).press()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # SqlPasteModal opened
 
@@ -1268,7 +1269,7 @@ async def test_group_manage_screen_empty(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_group_manage_empty_state_action_opens_new_group(tmp_config_dir):
-    """The EmptyState's "Criar grupo" button must not be a dead end."""
+    """The EmptyState's "Create group" button must not be a dead end."""
     from dbqm.models.query import Query, save_queries
     from textual.widgets import Button
 
@@ -1280,7 +1281,7 @@ async def test_group_manage_empty_state_action_opens_new_group(tmp_config_dir):
     app = GroupManageTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(GroupManageScreen)
-        screen.query_one("#criar-grupo", Button).press()
+        screen.query_one("#create-group", Button).press()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # GroupCreateModal opened
 
@@ -1443,7 +1444,7 @@ async def test_group_exec_handle_execute_warns_on_no_connections_checked(tmp_con
         await pilot.pause()
 
         messages = [str(n.message) for n in app._notifications]
-        assert any("conexao" in m.lower() for m in messages)
+        assert any("connection" in m.lower() for m in messages)
         assert screen.query_one(ProgressIndicator).display is False
 
 
@@ -1616,9 +1617,9 @@ async def test_adhoc_has_params_editor_results_panels(tmp_config_dir):
         titles = [
             p.query_one("#panel-title").render().plain for p in screen.query(Panel)
         ]
-        assert any("PARAMETROS" in t for t in titles)
+        assert any("PARAMETERS" in t for t in titles)
         assert any("SQL EDITOR" in t for t in titles)
-        assert any("RESULTADOS" in t for t in titles)
+        assert any("RESULTS" in t for t in titles)
         # Results sub-toggle: a ContentSwitcher with table + output panes.
         switcher = screen.query_one("#res-switcher", ContentSwitcher)
         assert switcher is not None
@@ -1724,7 +1725,7 @@ def test_format_plsql_message_header_only():
         committed=True, output_lines=["linha um", "linha dois"],
     )
     msg = _format_plsql_message(result)
-    assert "Bloco PL/SQL executado" in msg
+    assert "PL/SQL block ran" in msg
     # Output lines are rendered in the dedicated panel, not the header static.
     assert "linha um" not in msg
 
@@ -1759,14 +1760,23 @@ async def test_adhoc_has_dbms_toggle(tmp_config_dir):
         screen = app.query_one(AdhocScreen)
         toggle = screen.query_one("#adhoc-dbms-toggle", Checkbox)
         assert toggle.value is False
-        assert str(toggle.label) == "Saida DBMS"
+        assert str(toggle.label) == "DBMS output"
 
 
 @pytest.mark.asyncio
-async def test_adhoc_dbms_toggle_aligns_with_select(tmp_config_dir):
+@pytest.mark.parametrize("idioma", sorted(available_languages()))
+async def test_adhoc_dbms_toggle_aligns_with_select(tmp_config_dir, idioma):
     """The DBMS toggle matches the connection select height and stays within
-    the SQL editor width (no header overflow past the box below)."""
+    the SQL editor width (no header overflow past the box below).
+
+    Run in every language, because the alignment depends on the text. The
+    English prompt started as "Select the connection", which is two
+    characters too wide for the 28-column panel: the Select wrapped to two
+    lines, grew to height 4, and stopped matching the toggle beside it.
+    Nothing about writing a translation suggests it could change a layout,
+    so the layout is what gets checked, once per language."""
     from textual.widgets import Checkbox, Select, TextArea
+    set_language(idioma)
     app = AdhocTestApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -1776,9 +1786,12 @@ async def test_adhoc_dbms_toggle_aligns_with_select(tmp_config_dir):
         sql_area = screen.query_one("#adhoc-sql-area", TextArea)
 
         # Same height as the connection select next to it.
-        assert toggle.region.height == select.region.height
+        assert toggle.region.height == select.region.height, (
+            f"{idioma}: the connection prompt does not fit the panel"
+        )
         # Right edge must not extend past the SQL editor below it.
         assert toggle.region.right <= sql_area.region.right
+    set_language(IDIOMA_PADRAO)
 
 
 @pytest.mark.asyncio
@@ -2035,7 +2048,7 @@ async def test_browser_screen_renders(tmp_config_dir):
 @pytest.mark.asyncio
 async def test_browser_shows_empty_state_until_connection_chosen(tmp_config_dir):
     """No connection selected yet: EmptyState replaces the object OptionList,
-    and its "Escolher conexao" button must not be a dead end."""
+    and its "Choose a connection" button must not be a dead end."""
     from textual.widgets import Button, OptionList, Select
     from dbqm.ui.widgets.empty_state import EmptyState
 
@@ -2046,7 +2059,7 @@ async def test_browser_shows_empty_state_until_connection_chosen(tmp_config_dir)
         assert empty.display is True
         assert screen.query_one("#obj-list", OptionList).display is False
 
-        screen.query_one("#escolher-conexao", Button).press()
+        screen.query_one("#choose-connection", Button).press()
         await pilot.pause()
         assert app.focused is screen.query_one("#obj-conn", Select)
 
@@ -2062,9 +2075,9 @@ async def test_browser_three_live_panels(tmp_config_dir):
         titles = [
             p.query_one("#panel-title").render().plain for p in screen.query(Panel)
         ]
-        assert any("OBJETOS" in t for t in titles)
-        assert any("COLUNAS" in t for t in titles)
-        assert any("DADOS" in t for t in titles)
+        assert any("OBJECTS" in t for t in titles)
+        assert any("COLUMNS" in t for t in titles)
+        assert any("DATA" in t for t in titles)
         assert screen.query_one("#obj-list") is not None
         assert screen.query_one("#obj-columns") is not None
         assert screen.query_one("#obj-preview") is not None
@@ -2500,8 +2513,8 @@ async def test_history_panels_have_titles(tmp_config_dir):
         screen = app.query_one(HistoryScreen)
         panels = screen.query(Panel)
         titles = [p.query_one("#panel-title").render().plain for p in panels]
-        assert any("HISTORICO" in t for t in titles)
-        assert any("DETALHES" in t for t in titles)
+        assert any("HISTORY" in t for t in titles)
+        assert any("DETAILS" in t for t in titles)
 
 
 @pytest.mark.asyncio
@@ -2520,7 +2533,7 @@ async def test_history_screen_empty(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_history_empty_state_action_switches_to_query_exec(tmp_config_dir):
-    """The EmptyState's "Executar consulta" button must not be a dead end."""
+    """The EmptyState's "Run query" button must not be a dead end."""
     from textual.widgets import Button
 
     switched = []
@@ -2535,9 +2548,9 @@ async def test_history_empty_state_action_switches_to_query_exec(tmp_config_dir)
     app = _HistoryWithSwitch()
     async with app.run_test() as pilot:
         screen = app.query_one(HistoryScreen)
-        screen.query_one("#executar-consulta", Button).press()
+        screen.query_one("#run-query", Button).press()
         await pilot.pause()
-        assert switched == ["tab-consultas"]
+        assert switched == ["tab-queries"]
 
 
 @pytest.mark.asyncio
@@ -2599,23 +2612,23 @@ async def test_empty_history_paints_identity_and_no_table(
     app = DBQMApp()
     async with app.run_test(size=tamanho) as pilot:
         await pilot.pause()
-        app.action_switch_tab("tab-historico")
+        app.action_switch_tab("tab-history")
         for _ in range(3):
             await pilot.pause()
 
         pintado = rendered_text(app)
         linhas = rendered_lines(app)
-        assert "HISTORICO" in pintado, "a aba de historico nem chegou a frente"
+        assert "HISTORY" in pintado, "a aba de historico nem chegou a frente"
 
         # The identity is checked LINE BY LINE, not with an `in` against the
-        # whole screen: the tab strip itself writes "📜  Historico", and a
-        # `"Historico" in pintado` passed green with the line clipped.
+        # whole screen: the tab strip itself writes "📜  History", and a
+        # `"History" in pintado` passed green with the line clipped.
         # Inside the panel it stands alone on its line, between the borders.
         assert any(
-            linha.strip("│ ") == "Historico" for linha in linhas
+            linha.strip("│ ") == "History" for linha in linhas
         ), "a linha de identidade do estado vazio nao foi pintada"
-        assert "Cada consulta ou grupo executado fica registrado aqui" in pintado
-        assert "Executar consulta" in pintado
+        assert "Every query or group you run is recorded here" in pintado
+        assert "Run query" in pintado
         # No column of the table may be painted.
         for coluna in ("Conexao", "Tempo", "Status"):
             assert coluna not in pintado, f"cabecalho {coluna!r} pintado no vazio"
@@ -2632,7 +2645,7 @@ async def test_empty_history_focuses_the_exit_it_offers(tmp_config_dir):
     async with app.run_test() as pilot:
         await pilot.pause()
         screen = app.query_one(HistoryScreen)
-        assert app.focused is screen.query_one("#executar-consulta", Button)
+        assert app.focused is screen.query_one("#run-query", Button)
 
 
 # ======================================================================
@@ -2822,10 +2835,10 @@ async def test_settings_oracle_section_is_reachable(tmp_config_dir, height):
         await pilot.pause()
 
         pintado = rendered_text(app)
-        assert "Definir caminho" in pintado, (
+        assert "Set the path" in pintado, (
             "o botao da secao Oracle nao e alcancavel a %d linhas de terminal" % height
         )
-        assert "Client em uso" in pintado, (
+        assert "Client in use" in pintado, (
             "o status do Instant Client nao e desenhado a %d linhas de terminal" % height
         )
 
@@ -2862,7 +2875,7 @@ async def test_each_settings_subject_has_its_own_panel(tmp_config_dir):
     app = SettingsTestApp()
     async with app.run_test(size=(120, 40)):
         titulos = " ".join(_panel_titles(app.query_one(SettingsScreen))).lower()
-        for assunto in ("tema", "auditoria", "exporta", "oracle"):
+        for assunto in ("theme", "audit", "export", "oracle"):
             assert assunto in titulos, "%s sem painel proprio: %r" % (assunto, titulos)
 
 
@@ -2900,7 +2913,7 @@ async def test_settings_at_80x24_does_not_hide_the_door(tmp_config_dir):
         await pilot.pause()
 
         pintado = rendered_text(app)
-        for entrada in ("Oracle Instant Clients", "Exportar / Importar"):
+        for entrada in ("Oracle Instant Clients", "Export / Import"):
             assert entrada in pintado, (
                 "a entrada %r de MAIS CONFIGURACOES nao e desenhada a 80x24: %r"
                 % (entrada, pintado[-800:])
@@ -2931,8 +2944,8 @@ async def test_settings_at_80x24_what_does_not_fit_scrolls(tmp_config_dir):
 
         tela = app.query_one(SettingsScreen)
         colunas = [
-            tela.query_one("#settings-col-esquerda"),
-            tela.query_one("#settings-col-direita"),
+            tela.query_one("#settings-col-left"),
+            tela.query_one("#settings-col-right"),
         ]
         for coluna in colunas:
             assert coluna.max_scroll_y > 0, (
@@ -2947,11 +2960,11 @@ async def test_settings_at_80x24_what_does_not_fit_scrolls(tmp_config_dir):
         pintado = rendered_text(app)
         # Body, and not title: a frame with the title drawn and the body off
         # screen is exactly the defect the test above checks for.
-        assert "Alterar diretorio" in pintado, (
+        assert "Change directory" in pintado, (
             "o corpo de EXPORTACAO nao aparece nem rolando ate o fim: %r"
             % pintado[-800:]
         )
-        assert "Criptografa as senhas" in pintado, (
+        assert "Encrypts the saved" in pintado, (
             "o corpo de FERNET KEY nao aparece nem rolando ate o fim: %r"
             % pintado[-800:]
         )
@@ -2996,7 +3009,7 @@ async def test_settings_widgets_live_inside_a_panel(tmp_config_dir):
             screen.query_one("#settings-theme-select", Select),
             screen.query_one("#btn-export-dir", Button),
             screen.query_one("#btn-oracle-client-dir", Button),
-            screen.query_one("#settings-ferramentas-list", OptionList),
+            screen.query_one("#settings-tools-list", OptionList),
         ]
         for widget in alvos:
             panel = next(a for a in widget.ancestors if isinstance(a, Panel))
@@ -3005,7 +3018,8 @@ async def test_settings_widgets_live_inside_a_panel(tmp_config_dir):
 
 
 @pytest.mark.asyncio
-async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir):
+@pytest.mark.parametrize("idioma", sorted(available_languages()))
+async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir, idioma):
     """Each list entry fits in two lines, with the indent intact.
 
     `hierarchical_item` indents the disambiguation to say "this belongs to
@@ -3020,11 +3034,14 @@ async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir):
     from textual.widgets import OptionList
     from tests.ui._helpers import rendered_lines
 
+    # Run in every language: the entries are short out of a layout
+    # requirement, and a translation is exactly what makes one long.
+    set_language(idioma)
     app = SettingsTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         tela = app.query_one(SettingsScreen)
-        lista = tela.query_one("#settings-ferramentas-list", OptionList)
+        lista = tela.query_one("#settings-tools-list", OptionList)
         lista.focus()
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
@@ -3037,13 +3054,14 @@ async def test_more_settings_list_does_not_wrap_at_80_columns(tmp_config_dir):
             for y in range(r.y, r.y + r.height)
         ]
         linhas = [linha for linha in linhas if linha]
-        assert len(linhas) == 2 * len(SettingsScreen.TOOLS), (
+        assert len(linhas) == 2 * len(tela.tools()), (
             "alguma entrada quebrou em mais de duas linhas: %r" % linhas
         )
         identidades = [linha for linha in linhas if not linha.startswith(" ")]
-        assert len(identidades) == len(SettingsScreen.TOOLS), (
+        assert len(identidades) == len(tela.tools()), (
             "uma continuacao voltou para a coluna 0 da identidade: %r" % linhas
         )
+    set_language(IDIOMA_PADRAO)
 
 
 @pytest.mark.asyncio
@@ -3148,7 +3166,7 @@ def test_unc_path_elision_preserves_the_server():
     `\\\\servidor\\share\\...` splits into ['', '\\\\', '', '\\\\', 'servidor', ...]:
     the first two segments are empty. Stopping at the third piece, the head
     was a single slash — two folders on two different servers elided
-    IDENTICALLY, and the `Client em uso` of a network client did not say
+    IDENTICALLY, and the `Client in use` of a network client did not say
     which machine it came from.
 
     A drive-letter path and a POSIX path stay where they were: it is the
@@ -3277,7 +3295,7 @@ async def test_no_path_overflows_the_label_box(
 
         # And the prefix and the end of the path come out on the SAME
         # PAINTED line.
-        coluna = tela.query_one("#settings-col-direita")
+        coluna = tela.query_one("#settings-col-right")
         coluna.scroll_end(animate=False)
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
@@ -3394,8 +3412,8 @@ async def test_config_port_mode_choice_is_a_list(tmp_config_dir):
         screen = app.query_one(ConfigPortScreen)
         fase = screen.query_one("#cp-mode-phase")
         assert rendered_names(fase.query_one(OptionList)) == [
-            "Exportar",
-            "Importar",
+            "Export",
+            "Import",
         ]
         assert not fase.query(Button), "botao e acao, nunca navegacao"
 
@@ -4391,7 +4409,7 @@ async def test_wizard_routine_modal_empty_state_action_focuses_name_input(tmp_co
         assert modal.query_one("#wizard-empty", EmptyState).display is True
         assert modal.query_one("#wizard-list", Static).display is False
 
-        modal.query_one("#informar-nome-rotina", Button).press()
+        modal.query_one("#name-the-routine", Button).press()
         await pilot.pause()
         assert app.focused is modal.query_one("#wizard-routine-name", Input)
 
@@ -4483,9 +4501,9 @@ async def test_f_keys_switch_between_tabs(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("f1")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-coleta"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-collect"
         await pilot.press("f5")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
 
 
 @pytest.mark.asyncio
@@ -4794,12 +4812,12 @@ async def test_template_manage_screen_empty(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_template_manage_empty_state_action_opens_new_template(tmp_config_dir):
-    """The EmptyState's "Criar template" button must not be a dead end."""
+    """The EmptyState's "Create template" button must not be a dead end."""
     from textual.widgets import Button
     app = TemplateManageTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(TemplateManageScreen)
-        screen.query_one("#criar-template", Button).press()
+        screen.query_one("#create-template", Button).press()
         await pilot.pause()
         assert len(app.screen_stack) > 1  # TemplateEditModal opened
 
@@ -4960,7 +4978,7 @@ async def test_oracle_clients_screen_renders_platform_and_tables(tmp_config_dir)
 async def test_oracle_clients_empty_state_action_focuses_available_table(
     tmp_config_dir, monkeypatch
 ):
-    """The EmptyState's "Escolher client" button must not be a dead end.
+    """The EmptyState's "Choose a client" button must not be a dead end.
 
     With zero installed clients, it should send focus to the "Disponiveis
     para download" table — installing requires picking a package there
@@ -4989,7 +5007,7 @@ async def test_oracle_clients_empty_state_action_focuses_available_table(
         installed = screen.query_one("#oc-installed-table", DataTable)
         assert installed.display is False
 
-        screen.query_one("#escolher-client", Button).press()
+        screen.query_one("#choose-client", Button).press()
         await pilot.pause()
         assert app.focused is screen.query_one("#oc-available-table", DataTable)
 
@@ -5007,7 +5025,7 @@ async def test_esc_at_top_level_is_harmless(tmp_config_dir):
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
 
 
 # ======================================================================
@@ -5042,7 +5060,7 @@ async def test_escape_from_query_list_at_selection_is_noop(tmp_config_dir):
         await pilot.press("escape")
         await pilot.pause()
 
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-consultas"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-queries"
         assert app.query_one(QueryExecScreen) is not None
 
 
@@ -5135,7 +5153,7 @@ async def test_exec_routine_refuses_on_read_only_connection(tmp_config_dir):
         assert screen._db.cursor.call_count == 0
         messages = [str(n.message) for n in app._notifications]
         assert any(
-            "ro" in m and "somente leitura" in m.lower() for m in messages
+            "ro" in m and "read-only" in m.lower() for m in messages
         )
 
 
@@ -5153,7 +5171,7 @@ async def test_action_go_back_at_top_level_is_noop(tmp_config_dir):
         app.action_go_back()
         await pilot.pause()
 
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
         assert app.query_one(HistoryScreen) is not None
 
 
@@ -5174,7 +5192,7 @@ async def _choose_tool(pilot, screen, key):
     """Opens a tool through the real path: highlight in the list + Enter."""
     from textual.widgets import OptionList
 
-    lista = screen.query_one("#ferr-menu-list", OptionList)
+    lista = screen.query_one("#tools-menu-list", OptionList)
     lista.focus()
     await pilot.pause()
     lista.highlighted = next(
@@ -5203,14 +5221,14 @@ async def test_tools_is_a_list_and_not_full_width_buttons(tmp_config_dir):
     app = ToolsTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
         screen = app.query_one(ToolsScreen)
-        menu = screen.query_one("#ferr-menu")
+        menu = screen.query_one("#tools-menu")
         lista = menu.query_one(OptionList)
         assert rendered_names(lista) == [
-            "\U0001F465  Gerenciar Grupos",
-            "\U0001F4C4  Gerenciar Templates",
+            "\U0001F465  Manage Groups",
+            "\U0001F4C4  Manage Templates",
             "\U0001F4E6  Package Editor",
-            "\u25b6  Executar Rotina",
-            "\u25b6  Executar Grupo",
+            "\u25b6  Run Routine",
+            "\u25b6  Run Group",
         ]
         assert not menu.query(Button), "botao e acao, nunca navegacao"
 
@@ -5222,7 +5240,7 @@ async def test_tools_screen_starts_on_the_menu(tmp_config_dir):
     app = ToolsTestApp()
     async with app.run_test() as pilot:
         screen = app.query_one(ToolsScreen)
-        assert screen.query_one(ContentSwitcher).current == "ferr-menu"
+        assert screen.query_one(ContentSwitcher).current == "tools-menu"
 
 
 @pytest.mark.asyncio
@@ -5242,8 +5260,8 @@ async def test_tools_screen_does_not_load_tools_on_mount(tmp_config_dir):
         screen = app.query_one(ToolsScreen)
         # Empty: the "Voltar" that used to live here was navigation done
         # with a button.
-        assert not list(screen.query_one("#ferr-packages").children)
-        assert not list(screen.query_one("#ferr-executar").children)
+        assert not list(screen.query_one("#tool-packages").children)
+        assert not list(screen.query_one("#tool-run-group").children)
 
 
 @pytest.mark.asyncio
@@ -5259,14 +5277,14 @@ async def test_tools_screen_open_and_back(tmp_config_dir):
         switcher = screen.query_one(ContentSwitcher)
 
         await _choose_tool(pilot, screen, "packages")
-        assert switcher.current == "ferr-packages"
+        assert switcher.current == "tool-packages"
 
-        packages_container = screen.query_one("#ferr-packages")
+        packages_container = screen.query_one("#tool-packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
 
         screen.back_to_menu()
         await pilot.pause()
-        assert switcher.current == "ferr-menu"
+        assert switcher.current == "tools-menu"
 
         await _choose_tool(pilot, screen, "packages")
         assert len(packages_container.query(PackageEditorScreen)) == 1
@@ -5274,7 +5292,7 @@ async def test_tools_screen_open_and_back(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_tools_screen_open_group_run(tmp_config_dir):
-    """Choosing 'Executar Grupo' mounts a GroupRunScreen in #ferr-executar."""
+    """Choosing 'Run Group' mounts a GroupRunScreen in #tool-run-group."""
     from textual.widgets import ContentSwitcher
     from dbqm.ui.screens.group_run import GroupRunScreen
 
@@ -5283,17 +5301,17 @@ async def test_tools_screen_open_group_run(tmp_config_dir):
         screen = app.query_one(ToolsScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        await _choose_tool(pilot, screen, "executar")
-        assert switcher.current == "ferr-executar"
+        await _choose_tool(pilot, screen, "run-group")
+        assert switcher.current == "tool-run-group"
 
-        executar_container = screen.query_one("#ferr-executar")
+        executar_container = screen.query_one("#tool-run-group")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
         screen.back_to_menu()
         await pilot.pause()
-        assert switcher.current == "ferr-menu"
+        assert switcher.current == "tools-menu"
 
-        await _choose_tool(pilot, screen, "executar")
+        await _choose_tool(pilot, screen, "run-group")
         assert len(executar_container.query(GroupRunScreen)) == 1
 
 
@@ -5302,8 +5320,8 @@ async def test_tools_group_run_empty_state_action_opens_group_management(
     tmp_config_dir,
 ):
     """With zero groups configured system-wide, GroupRunScreen's EmptyState
-    ("Gerenciar grupos") must not be a dead end: it switches the launcher
-    to the sibling "Gerenciar Grupos" tool, where groups are created."""
+    ("Manage groups") must not be a dead end: it switches the launcher
+    to the sibling "Manage Groups" tool, where groups are created."""
     from textual.widgets import Button, ContentSwitcher
     from dbqm.ui.widgets.empty_state import EmptyState
     from dbqm.ui.screens.group_manage import GroupManageScreen
@@ -5313,18 +5331,18 @@ async def test_tools_group_run_empty_state_action_opens_group_management(
         screen = app.query_one(ToolsScreen)
         switcher = screen.query_one(ContentSwitcher)
 
-        await _choose_tool(pilot, screen, "executar")
-        assert switcher.current == "ferr-executar"
+        await _choose_tool(pilot, screen, "run-group")
+        assert switcher.current == "tool-run-group"
 
         run_screen = screen.query_one(GroupRunScreen)
         empty = run_screen.query_one("#gr-empty-message", EmptyState)
         assert empty.display is True
 
-        run_screen.query_one("#gerenciar-grupos", Button).press()
+        run_screen.query_one("#manage-groups", Button).press()
         await pilot.pause()
 
-        assert switcher.current == "ferr-grupos"
-        assert len(screen.query_one("#ferr-grupos").query(GroupManageScreen)) == 1
+        assert switcher.current == "tool-groups"
+        assert len(screen.query_one("#tool-groups").query(GroupManageScreen)) == 1
 
 
 # ======================================================================
@@ -5526,10 +5544,10 @@ async def test_group_run_screen_with_folders(tmp_config_dir):
     async with app.run_test() as pilot:
         screen = app.query_one(GroupRunScreen)
         seletor = screen.query_one("#gr-folder-select", Select)
-        # "Todas" + "Folder A" + "Folder B" = 3
+        # the "all" option + "Folder A" + "Folder B" = 3
         assert len(seletor._options) == 3
         rotulos = [str(r) for r, _ in seletor._options]
-        assert any("Todas (2)" in r for r in rotulos)
+        assert any(t("common.all_count", count=2) in r for r in rotulos)
         assert any("Folder A (1)" in r for r in rotulos)
         assert any("Folder B (1)" in r for r in rotulos)
 
@@ -5571,7 +5589,7 @@ async def test_group_run_filtered_empty_state_action_resets_filter(tmp_config_di
         assert empty.display is True
         assert screen.query_one("#gr-group-list", OptionList).display is False
 
-        screen.query_one("#ver-todos-grupos", Button).press()
+        screen.query_one("#show-all-groups", Button).press()
         await pilot.pause()
 
         assert empty.display is False
@@ -5735,8 +5753,8 @@ async def test_group_run_paints_two_groups_with_the_same_name(tmp_config_dir):
         assert group_list.option_count == 2
         assert rendered_names(group_list) == ["dup", "dup"]
         pintado = [group_list.get_option_at_index(i).prompt.plain for i in range(2)]
-        assert "primeiro" in pintado[0] and "1 consulta" in pintado[0]
-        assert "segundo" in pintado[1] and "2 consultas" in pintado[1]
+        assert "primeiro" in pintado[0] and "1 query" in pintado[0]
+        assert "segundo" in pintado[1] and "2 queries" in pintado[1]
 
 
 @pytest.mark.asyncio
@@ -5848,7 +5866,7 @@ async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
 
         linhas = texto.split(chr(10))
         assert linhas[0] == "grupo_faturamento", "identidade sozinha na 1a linha"
-        assert linhas[1] == "  3 consultas", "desambiguacao recuada na 2a"
+        assert linhas[1] == "  3 queries", "desambiguacao recuada na 2a"
         assert len(linhas) > 2, "a descricao tem linha propria"
         assert all(linha.startswith("  ") for linha in linhas[2:]), (
             "toda linha de descricao paga o recuo, inclusive a continuacao: %r"
@@ -5865,7 +5883,7 @@ async def test_group_run_mounted_item_has_visible_hierarchy(tmp_config_dir):
         assert len({cor_forte, cor_apoio, cor_desabilitado}) == 3
 
         assert cor_no_offset(conteudo, texto.index("grupo_faturamento")) == cor_forte
-        assert cor_no_offset(conteudo, texto.index("3 consultas")) == cor_apoio
+        assert cor_no_offset(conteudo, texto.index("3 queries")) == cor_apoio
         assert cor_no_offset(conteudo, texto.index("Compara")) == cor_desabilitado
 
 
@@ -5961,7 +5979,7 @@ async def test_settings_screen_reports_unusable_configured_client(tmp_config_dir
     async with app.run_test():
         screen = app.query_one(SettingsScreen)
         rendered = screen.query_one("#settings-oracle-client-current", Static).render().plain
-        assert "nao existe" in rendered.lower()
+        assert "does not exist" in rendered.lower()
 
 
 @pytest.mark.asyncio
@@ -5986,7 +6004,7 @@ async def test_oracle_clients_screen_has_use_button(tmp_config_dir):
 
 @pytest.mark.asyncio
 async def test_oracle_clients_use_button_persists_selected_client(tmp_config_dir, monkeypatch):
-    """"Usar este client" writes the selected install into dbqm settings."""
+    """"Use this client" writes the selected install into dbqm settings."""
     from textual.widgets import Button, DataTable
     from dbqm.models.settings import load_settings
 
@@ -6028,7 +6046,7 @@ async def test_history_table_is_usable_at_the_default_terminal_size(tmp_config_d
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
-        app.action_switch_tab("tab-historico")
+        app.action_switch_tab("tab-history")
         await pilot.pause()
         await pilot.pause()
 

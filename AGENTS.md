@@ -94,6 +94,84 @@ The one rule worth repeating here because it constrains every change:
 the CLI call into `core/`; `design/` imports nothing from `dbqm`.
 
 
+## Screen text
+
+**Nothing a user reads is written in a widget.** Every label, message,
+placeholder, panel title and `--help` string comes from `dbqm/i18n/` through
+`t("key")`. English is the source language and the default; `pt.py` is a
+translation, still without accents, because the labels always omitted them.
+
+```python
+from dbqm.i18n import t
+
+yield Button(t("common.save"), id="save")
+self.notify(t("query_manage.created", name=query.name))
+```
+
+The rules, each with the failure that earned it:
+
+- **Add the key to `en.py` and `pt.py` together.** A key present in one and
+  missing in the other is caught by `tests/design/test_i18n_policy.py`, with
+  the placeholders compared too: a translation that drops a `{name}` renders
+  a sentence with a hole in it. A third guard checks every call site against
+  its key's fields, because `str.format` only raises for a missing one when
+  that message renders -- which on an error path can be in production.
+- **Markup stays at the call site.** Write
+  `f'[dim]{t("some.key")}[/dim]'`, never `[dim]` inside the catalogue value.
+  A translator editing prose has no way to know the brackets are structural,
+  and the guards in `tests/ui/test_widgets.py` that count `[bold]` and
+  `$ds-op-failure` read the source — markup moved into a catalogue value
+  makes them go quiet rather than fail.
+- **Never call `t()` at import time.** A module-level constant or a class
+  body runs before the app resolves the language, so its text freezes in the
+  default one for the life of the process, silently. Wrap it in a function
+  or a method; the constants behind `oracle_mode_options()`,
+  `ConfigPortScreen.modes()`, `ToolsScreen.tools()` and
+  `SettingsScreen.fernet_prefix()` all had to become callables for this
+  reason.
+- **Short text is sometimes a layout requirement.** The "more settings"
+  entries fit 30 columns; the ad-hoc connection prompt fits its panel. A
+  longer translation silently wraps and breaks the alignment, so the two
+  tests that measure those run once per language. If you translate something
+  that sits in a narrow column, check the width.
+- **Classify by a field, never by reading a message.** `error_kind`,
+  `result.not_found`. Code that recognised its own English text was correct
+  in one language and silently wrong in every other; three such bugs were
+  found during the migration.
+- **Identifiers are not screen text.** Widget ids, CSS selectors and route
+  keys are English like the rest of the code, and the guard tells them from
+  labels by role rather than by wording -- so renaming one is never a
+  translation.
+
+Two guards enforce this, and the split matters:
+`test_no_screen_takes_a_literal_instead_of_a_key` asks where a string goes
+(a literal handed to a widget is screen text in any language), and the older
+word-list ratchet, kept at zero, looks everywhere rather than only at known
+sinks. The first is the one that generalises; the second catches a helper
+that builds a sentence for someone else to render.
+
+What counts as a sink is the whole of that guard, and every entry was
+earned by a string that reached a screen without one:
+
+- the widget constructors and the `placeholder=`/`title=` keywords;
+- `console.print`, which is how the CLI paints;
+- `add_row`, where *every* positional is a cell someone reads;
+- `ProgressIndicator.start` and `Static.update`, where the widget already
+  exists and its text arrives by method rather than by constructor;
+- `call_from_thread` and friends, which forward to a sink named by their
+  first argument -- reading such a call by its own name says nothing;
+- the *fields* of a `t()` call, because a hard-coded word passed as
+  `version=` renders inside a sentence that looks translated.
+
+It also follows a name one step back to what its scope assigns it:
+`kind = "grupo"` handed to `add_row(kind)` is the same defect as the literal
+written inline. Scope is the point -- two functions can each have a `mode`,
+one a default and one the user's own input echoed back.
+
+The user picks the language with `dbqm config set language en|pt`, or per
+run with `DBQM_LANG`.
+
+
 ## Development Workflow (MANDATORY)
 
 The cycle is defined once, in **[`docs/agents/TASK-COMPLETION.md`](docs/agents/TASK-COMPLETION.md)**:

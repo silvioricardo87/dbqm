@@ -1,6 +1,7 @@
 """Oracle package editor — core logic for creating, editing, and compiling packages."""
 from __future__ import annotations
 
+from dbqm.i18n import t
 from dbqm.core.read_only import ReadOnlyViolation
 
 
@@ -54,11 +55,7 @@ def compile_package(db, sql: str, conn=None) -> tuple[bool, str]:
     and read-only it refuses outright.
     """
     if conn is not None and conn.read_only:
-        raise ReadOnlyViolation(
-            f"Conexao '{conn.name}' e somente leitura e a compilacao de "
-            "pacote e sempre DDL. "
-            "Desmarque 'Somente leitura' na conexao para compilar."
-        )
+        raise ReadOnlyViolation(t("read_only.package_compile_refused", name=conn.name))
     cursor = db.cursor()
     try:
         cursor.execute(sql)

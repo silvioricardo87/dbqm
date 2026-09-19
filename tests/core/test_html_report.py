@@ -20,8 +20,8 @@ class TestHelpers:
 
     def test_status_label(self):
         assert _status_label("OK") == "OK"
-        assert _status_label("DIFF") == "DIFERE"
-        assert _status_label("ABSENT") == "AUSENTE"
+        assert _status_label("DIFF") == "DIFFERS"
+        assert _status_label("ABSENT") == "ABSENT"
 
 
 class TestBuildHtml:
@@ -29,7 +29,7 @@ class TestBuildHtml:
         html = _build_html(sample_group_result, ["q1", "q2"], {"param": "val"})
         assert "<!DOCTYPE html>" in html
         assert "test_group" in html
-        assert "DIVERGENTE" in html
+        assert "DIVERGENT" in html
         assert "param" in html
         assert "val" in html
 

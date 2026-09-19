@@ -25,6 +25,7 @@ from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
+from dbqm.i18n import t
 from dbqm.design.tokens import THEMES
 from dbqm.models.settings import Settings
 
@@ -59,7 +60,7 @@ def _require_known_key(args: argparse.Namespace, command: str, key: str) -> None
     if key not in _KEYS:
         _fail_or_print(
             args, command, "not_found",
-            f'Chave "{key}" nao existe. Chaves validas: {", ".join(_KEYS)}.',
+            t("config.key_unknown", key=key, valid=", ".join(_KEYS)),
         )
 
 
@@ -71,7 +72,7 @@ def _parse_bool(args: argparse.Namespace, command: str, key: str, raw: str) -> b
         return False
     _fail_or_print(
         args, command, "validation",
-        f'Valor invalido para "{key}": "{raw}". Use true/false, 1/0 ou sim/nao.',
+        t("config.bool_invalid", key=key, value=raw),
     )
 
 
@@ -80,7 +81,22 @@ def _parse_theme(args: argparse.Namespace, command: str, raw: str) -> str:
         temas = ", ".join(sorted(THEMES.keys()))
         _fail_or_print(
             args, command, "validation",
-            f'Tema "{raw}" nao existe. Temas validos: {temas}.',
+            t("config.theme_invalid", theme=raw, valid=temas),
+        )
+    return raw
+
+
+def _parse_language(args: argparse.Namespace, command: str, raw: str) -> str:
+    """Valid languages come from the catalogue at runtime, the same way valid
+    themes come from the design tokens: a language added later needs no edit
+    here, and one that does not exist cannot be stored."""
+    from dbqm.i18n import available_languages
+
+    idiomas = available_languages()
+    if raw not in idiomas:
+        _fail_or_print(
+            args, command, "validation",
+            t("config.language_invalid", language=raw, valid=", ".join(idiomas)),
         )
     return raw
 
@@ -93,7 +109,7 @@ def _parse_dir(args: argparse.Namespace, command: str, key: str, raw: str) -> st
     if not Path(raw).is_dir():
         _fail_or_print(
             args, command, "validation",
-            f'Diretorio nao encontrado para "{key}": "{raw}".',
+            t("config.dir_not_found", key=key, path=raw),
         )
     return raw
 
@@ -103,6 +119,8 @@ def _convert(args: argparse.Namespace, command: str, key: str, raw: str) -> Any:
         return _parse_bool(args, command, key, raw)
     if key == "theme":
         return _parse_theme(args, command, raw)
+    if key == "language":
+        return _parse_language(args, command, raw)
     if key in _DIR_KEYS:
         return _parse_dir(args, command, key, raw)
     # Unreachable for the six known `Settings` fields: `_require_known_key`
@@ -116,9 +134,9 @@ def _cmd_config_list(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("config.list", data)
         return
-    table = Table(title="Configuracoes")
-    table.add_column("Chave")
-    table.add_column("Valor")
+    table = Table(title=t("config.list_title"))
+    table.add_column(t("common.key"))
+    table.add_column(t("common.value"))
     for key, value in data.items():
         table.add_row(key, escape(str(value)))
     console.print(table)
@@ -145,7 +163,8 @@ def _cmd_config_set(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("config.set", {"key": args.key, "value": value})
         return
-    console.print(f'Configuracao "{escape(args.key)}" definida como {escape(str(value))}.')
+    console.print(t("config.set_ok", key=escape(args.key),
+                    value=escape(str(value))))
 
 
 _CONFIG_SUBCOMMANDS = {
@@ -166,7 +185,7 @@ def cmd_config(args: argparse.Namespace) -> None:
             _config_parser.print_help()
         else:
             console.print(
-                "[ds.op.failure]Use: dbqm config list|get|set[/ds.op.failure]"
+                f"[ds.op.failure]{t('config.usage')}[/ds.op.failure]"
             )
         sys.exit(int(exit_for("validation")))
     handler(args)

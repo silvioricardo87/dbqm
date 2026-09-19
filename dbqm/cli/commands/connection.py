@@ -8,6 +8,7 @@ from typing import NoReturn
 from rich.markup import escape
 from rich.table import Table
 
+from dbqm.i18n import t
 from dbqm.cli import deps
 from dbqm.cli.commands.inspect import cmd_list
 from dbqm.cli.envelope import fail, ok
@@ -22,10 +23,12 @@ from dbqm.cli.render import console
 _connection_parser: argparse.ArgumentParser | None = None
 
 
-_CONNECTION_OUTCOME_TEXT = {
-    "created": "criada",
-    "updated": "atualizada",
-    "removed": "removida",
+#: The whole sentence per outcome, not the participle: a language that does
+#: not inflect the verb the way Portuguese does cannot build one from parts.
+_CONNECTION_OUTCOME_KEY = {
+    "created": "connection.created",
+    "updated": "connection.updated",
+    "removed": "connection.removed",
 }
 
 # `outcome` (past participle, used in the Rich sentence) to the verb the
@@ -43,7 +46,7 @@ def _print_connection_outcome(output_format: str, name: str, outcome: str) -> No
         verbo = _CONNECTION_OUTCOME_VERB[outcome]
         ok(f"connection.{verbo}", {"name": name, outcome: True})
         return
-    console.print(f'Conexao "{escape(name)}" {_CONNECTION_OUTCOME_TEXT[outcome]}.')
+    console.print(escape(t(_CONNECTION_OUTCOME_KEY[outcome], name=name)))
 
 
 def _fail_or_print(
@@ -110,7 +113,7 @@ def _connection_add(args: argparse.Namespace) -> None:
         # `validation`, like query/group/template: a name collision is not a
         # malformed invocation. Was `usage` until 2.9.0.
         _fail_or_print(args, "connection.add", "validation",
-                        f'Conexao "{args.name}" ja existe.')
+                        t("connection.already_exists", name=args.name))
 
     # Validate everything but the password first: a terminal user should
     # learn about a bad --type before being asked to type a secret that
@@ -124,7 +127,7 @@ def _connection_add(args: argparse.Namespace) -> None:
         password = ""
     else:
         password = resolve_password(
-            args, "DBQM_PASSWORD", "Senha da conexao: ", required=True,
+            args, "DBQM_PASSWORD", t("connection.password_prompt"), required=True,
             command="connection.add",
         )
     values["password"] = password
@@ -135,7 +138,7 @@ def _connection_add(args: argparse.Namespace) -> None:
         succeeded, msg = deps.test_connection(conn)
         if not succeeded:
             _fail_or_print(args, "connection.add", "connection_failed", msg,
-                            extra="[dim]Conexao nao gravada.[/dim]")
+                            extra=f"[dim]{t('connection.not_saved')}[/dim]")
 
     connections = deps.load_connections()
     connections.append(conn)
@@ -150,7 +153,7 @@ def _connection_update(args: argparse.Namespace) -> None:
     existing = deps.find_connection(args.name)
     if existing is None:
         _fail_or_print(args, "connection.update", "not_found",
-                        f'Conexao "{args.name}" nao encontrada.')
+                        t("connection.not_found_named", name=args.name))
 
     if args.no_password:
         password = ""  # an explicit empty value clears the stored password
@@ -160,7 +163,7 @@ def _connection_update(args: argparse.Namespace) -> None:
         # did not pass does not change. --password-stdin or --no-password
         # are the only ways to change the stored password here.
         password = resolve_password(
-            args, "DBQM_PASSWORD", "Senha da conexao: ", required=False,
+            args, "DBQM_PASSWORD", t("connection.password_prompt"), required=False,
             use_env=False, command="connection.update",
         )
 
@@ -183,7 +186,7 @@ def _connection_update(args: argparse.Namespace) -> None:
         succeeded, msg = deps.test_connection(conn)
         if not succeeded:
             _fail_or_print(args, "connection.update", "connection_failed", msg,
-                            extra="[dim]Conexao nao alterada.[/dim]")
+                            extra=f"[dim]{t('connection.not_changed')}[/dim]")
 
     connections = deps.load_connections()
     index = next(i for i, c in enumerate(connections) if c.name == conn.name)
@@ -196,7 +199,7 @@ def _connection_show(args: argparse.Namespace) -> None:
     conn = deps.find_connection(args.name)
     if conn is None:
         _fail_or_print(args, "connection.show", "not_found",
-                        f'Conexao "{args.name}" nao encontrada.')
+                        t("connection.not_found_named", name=args.name))
 
     data = conn.to_dict()
     # Never the ciphertext: the Fernet key lives next to the config, so
@@ -207,9 +210,9 @@ def _connection_show(args: argparse.Namespace) -> None:
         ok("connection.show", data)
         return
 
-    table = Table(title=f"Conexao: {escape(conn.name)}")
-    table.add_column("Campo")
-    table.add_column("Valor")
+    table = Table(title=t("connection.show_title", name=escape(conn.name)))
+    table.add_column(t("common.field"))
+    table.add_column(t("common.value"))
     for key, value in data.items():
         table.add_row(key, escape(str(value)))
     console.print(table)
@@ -220,23 +223,24 @@ def _connection_rm(args: argparse.Namespace) -> None:
 
     if deps.find_connection(args.name) is None:
         _fail_or_print(args, "connection.rm", "not_found",
-                        f'Conexao "{args.name}" nao encontrada.')
+                        t("connection.not_found_named", name=args.name))
 
     if not args.yes:
         # Refuse rather than prompt when there is no terminal: a script that
         # hangs on an unanswerable question is worse than one that fails.
         if not sys.stdin.isatty():
             _fail_or_print(args, "connection.rm", "usage",
-                            "Use --yes para remover sem confirmacao.")
+                            t("common.remove_needs_yes"))
         # The prompt goes to stderr: `input(prompt)` writes it to stdout,
         # which would put prose on the stream the envelope owns.
-        print(f'Remover a conexao "{args.name}"? [s/N] ', end="", file=sys.stderr, flush=True)
+        print(t("connection.confirm_remove", name=args.name), end="",
+              file=sys.stderr, flush=True)
         resposta = input().strip().lower()
-        if resposta not in ("s", "sim"):
+        if resposta not in t("common.yes_answers").split(","):
             if args.format == "json":
                 ok("connection.rm", {"name": args.name, "removed": False})
             else:
-                console.print("Cancelado.")
+                console.print(t("common.cancelled"))
             return
 
     delete_connection(args.name)
@@ -280,8 +284,7 @@ def cmd_connection(args: argparse.Namespace) -> None:
             _connection_parser.print_help()
         else:
             console.print(
-                "[ds.op.failure]Use: dbqm connection add|update|rm|show|list"
-                "[/ds.op.failure]"
+                f"[ds.op.failure]{t('connection.usage')}[/ds.op.failure]"
             )
         sys.exit(int(exit_for("validation")))
     handler(args)

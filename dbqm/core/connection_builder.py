@@ -14,6 +14,7 @@ business.
 from __future__ import annotations
 
 from dbqm.core.crypto import encrypt
+from dbqm.i18n import t
 from dbqm.models.connection import Connection, load_connections, save_connections
 
 DB_TYPES: tuple[str, ...] = ("oracle", "sqlserver", "postgresql", "mysql", "sqlite")
@@ -49,34 +50,31 @@ def validate(values: dict) -> list[str]:
     errors: list[str] = []
 
     if not _text(values, "name"):
-        errors.append("Nome obrigatorio.")
+        errors.append(t("connection.name_required"))
 
     db_type = _text(values, "db_type")
     if not db_type:
-        errors.append("Selecione o tipo de banco.")
+        errors.append(t("connection.type_required"))
     elif db_type not in DB_TYPES:
-        errors.append(
-            f"Tipo de banco invalido: {db_type}. "
-            f"Use um de: {', '.join(DB_TYPES)}."
-        )
+        errors.append(t("connection.type_invalid", type=db_type,
+                        valid=", ".join(DB_TYPES)))
 
     mode = _text(values, "mode")
     if db_type == "oracle" and mode and mode not in ORACLE_MODES:
-        errors.append(
-            f"Modo Oracle invalido: {mode}. Use um de: {', '.join(ORACLE_MODES)}."
-        )
+        errors.append(t("connection.oracle_mode_invalid", mode=mode,
+                        valid=", ".join(ORACLE_MODES)))
 
     if db_type == "sqlite":
         # The whole configuration is one file. A host, port, user or mode
         # typed for it means the user has misunderstood what they are
         # connecting to, and saying so beats silently ignoring the field.
         if not _text(values, "database"):
-            errors.append("Informe o arquivo do banco SQLite (ou :memory:).")
+            errors.append(t("connection.sqlite_database_required"))
         for campo in ("host", "port", "user", "mode"):
             if _text(values, campo):
-                errors.append(f"SQLite nao usa {campo}; deixe em branco.")
+                errors.append(t("connection.sqlite_field_unused", field=campo))
         if values.get("password"):
-            errors.append("SQLite nao usa senha; deixe em branco.")
+            errors.append(t("connection.sqlite_password_unused"))
 
     return errors
 

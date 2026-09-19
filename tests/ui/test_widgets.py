@@ -118,7 +118,7 @@ def test_match_verdict_uses_the_token_of_its_own_axis():
 def test_verdict_rejects_an_unknown_status():
     from dbqm.ui.widgets.verdict import mark_verdict
 
-    with pytest.raises(ValueError, match="status"):
+    with pytest.raises(ValueError, match="unknown status"):
         mark_verdict("talvez")
 
 
@@ -151,17 +151,22 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
             # The label is picked by dialect now — a T-SQL batch is not PL/SQL
             # — so what is pinned is the markup, which is what this guard is
             # about, not the wording.
-            (
-                'return f"[bold]{block_label(result.db_type)} executado[/]'
-                ' ({result.elapsed:.2f}s)"'
-            ),
-            'f"[bold]DDL executado com sucesso[/] ({result.elapsed:.2f}s)"',
+            'return f"[bold]{rotulo}[/] ({result.elapsed:.2f}s)"',
+            # The words come from the catalogue; the markup stays here,
+            # which is what this guard is about.
+            'f"[bold]{t(\'adhoc.ddl_ok\')}[/] ({result.elapsed:.2f}s)"',
         ],
         "exec_routine.py": [
-            'lines = [f"[bold]Executado com sucesso[/] ({result.elapsed:.2f}s)"]',
+            (
+                'lines = [f\'[bold]{t("exec_routine.ran_ok")}[/] '
+                '({result.elapsed:.2f}s)\']'
+            ),
         ],
         "package_editor.py": [
-            'f"[bold]  {target.capitalize()} compilado com sucesso![/]"',
+            (
+                'f\'[bold]  {t("package_editor.compiled", '
+                'target=target.capitalize())}[/]\''
+            ),
         ],
     }
     for nome_arquivo, trechos in sites.items():
@@ -175,7 +180,7 @@ def test_successful_operation_keeps_weight_in_manual_call_sites():
 def test_operation_rejects_an_unknown_state():
     from dbqm.ui.widgets.verdict import mark_operation
 
-    with pytest.raises(ValueError, match="estado"):
+    with pytest.raises(ValueError, match="unknown state"):
         mark_operation("talvez")
 
 
@@ -403,11 +408,11 @@ async def test_result_table_pagination():
     async with app.run_test() as pilot:
         table = app.query_one(ResultTable)
         table.load_result(result)
-        assert table.page_info == "Pagina 1/3 (250 registros)"
+        assert table.page_info == "Page 1/3 (250 rows)"
         table.next_page()
-        assert "Pagina 2/3" in table.page_info
+        assert "Page 2/3" in table.page_info
         table.prev_page()
-        assert "Pagina 1/3" in table.page_info
+        assert "Page 1/3" in table.page_info
 
 
 @pytest.mark.asyncio
@@ -478,8 +483,8 @@ async def test_result_table_page_info_and_result_info():
     async with app.run_test() as pilot:
         table = app.query_one(ResultTable)
         table.load_result(result)
-        assert table.result_info == "250 registros | 0.34s | ORACLE-PRD"
-        assert table.page_info == "Pagina 1/3 (250 registros)"
+        assert table.result_info == "250 rows | 0.34s | ORACLE-PRD"
+        assert table.page_info == "Page 1/3 (250 rows)"
 
 
 @pytest.mark.asyncio
@@ -499,11 +504,11 @@ async def test_result_table_pagination_boundary():
         table = app.query_one(ResultTable)
         table.load_result(result)
         table.prev_page()  # already at page 0
-        assert "Pagina 1/3" in table.page_info
+        assert "Page 1/3" in table.page_info
         table.next_page()
         table.next_page()
         table.next_page()  # should stop at page 3
-        assert "Pagina 3/3" in table.page_info
+        assert "Page 3/3" in table.page_info
 
 
 def _result(columns, rows):
@@ -758,7 +763,7 @@ async def test_query_list_filtered_empty_state_clears_search_and_notifies_host()
         assert ql.query_one("#ql-filter-empty", EmptyState).display is True
         assert ql.query_one("#ql-listview", OptionList).display is False
 
-        ql.query_one("#limpar-filtros-consultas", Button).press()
+        ql.query_one("#clear-query-filters", Button).press()
         await pilot.pause()
 
         assert ql._search_text == ""
@@ -1149,7 +1154,7 @@ async def test_group_result_filter_status_clear(sample_group_result):
 
 @pytest.mark.asyncio
 async def test_group_result_key_stays_rendered_while_scrolling():
-    """The "Chave" column of the comparison table does not go out of sight
+    """The "Key" column of the comparison table does not go out of sight
     when scrolling.
 
     The same rule as `ResultTable` (section 6 of the grammar) applied where
@@ -1213,7 +1218,7 @@ async def test_group_result_key_stays_rendered_while_scrolling():
 
         # The scenario only proves something if it really does not fit.
         antes = app.export_screenshot()
-        assert "Chave" in antes
+        assert "Key" in antes
         assert "FIM_DA_TABELA" not in antes
 
         for _ in range(60):
@@ -1222,7 +1227,7 @@ async def test_group_result_key_stays_rendered_while_scrolling():
         assert tabela.scroll_x > 0
 
         depois = app.export_screenshot()
-        assert "Chave" in depois
+        assert "Key" in depois
         assert "REG-0001" in depois
         # The last column's name is short on purpose: scrolling all the way
         # to the end, a column with a long header would show up clipped
@@ -1242,7 +1247,7 @@ async def test_group_result_summary_shows(sample_group_result):
         from textual.widgets import Static
         summary = w.query_one("#gr-summary", Static)
         rendered = str(summary._Static__content)
-        assert "DIVERGENTE" in rendered
+        assert "DIVERGENT" in rendered
         assert "status" in rendered
 
 
@@ -1391,9 +1396,9 @@ from dbqm.ui.widgets.dialog import Dialog
 
 def test_dialog_rejects_an_unknown_variant():
     """Closed variants: no back door for arbitrary styling."""
-    with pytest.raises(ValueError, match="tom"):
+    with pytest.raises(ValueError, match="unknown tone"):
         Dialog("Titulo", tone="roxo")
-    with pytest.raises(ValueError, match="largura"):
+    with pytest.raises(ValueError, match="unknown width"):
         Dialog("Titulo", width="xxl")
 
 
@@ -1513,7 +1518,7 @@ async def test_templates_sidebar_shows_hint_when_empty():
 
 @pytest.mark.asyncio
 async def test_templates_sidebar_empty_state_action_switches_to_tools():
-    """The EmptyState's "Abrir Ferramentas" button must not be a dead end."""
+    """The EmptyState's "Open Tools" button must not be a dead end."""
     from textual.widgets import Button
 
     switched = []
@@ -1530,9 +1535,9 @@ async def test_templates_sidebar_empty_state_action_switches_to_tools():
         sb = app.query_one("#tpl", TemplatesSidebar)
         sb._reload()  # no templates in the test config
         await pilot.pause()
-        sb.query_one("#abrir-ferramentas", Button).press()
+        sb.query_one("#open-tools", Button).press()
         await pilot.pause()
-        assert switched == ["tab-ferramentas"]
+        assert switched == ["tab-tools"]
 
 
 @pytest.mark.asyncio
@@ -1586,12 +1591,12 @@ async def test_empty_state_offers_the_first_action():
                 what="Consultas",
                 why="Voce ainda nao salvou nenhuma consulta",
                 action_label="Criar consulta",
-                action_id="criar-consulta",
+                action_id="create-query",
             )
 
     app = _EmptyStateApp()
     async with app.run_test():
-        botao = app.query_one("#criar-consulta", Button)
+        botao = app.query_one("#create-query", Button)
         assert botao.label.plain == "Criar consulta"
 
 

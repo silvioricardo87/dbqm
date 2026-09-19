@@ -7,6 +7,7 @@ from textual.content import Content
 from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
+from dbqm.i18n import t
 from dbqm.core.group_engine import GroupResult, ComparisonResult
 from dbqm.ui.utils import sanitize_id
 from dbqm.ui.widgets.verdict import mark_verdict
@@ -36,7 +37,7 @@ def _status_cell(status: str) -> Content:
     silently.
     """
     if status not in _STATUS_TO_VERDICT:
-        raise ValueError(f"status de comparacao desconhecido: {status!r}")
+        raise ValueError(f"unknown comparison status: {status!r}")
     return Content.from_markup(mark_verdict(_STATUS_TO_VERDICT[status]))
 
 
@@ -154,15 +155,16 @@ class GroupResultWidget(Vertical, can_focus=False):
         for comp in gr.comparisons:
             # Section title
             container.mount(
-                Static(f"Coluna: {str(comp.column)}", classes="gr-section-title")
+                Static(t("group_result.column_header", column=str(comp.column)),
+                       classes="gr-section-title")
             )
 
             table = DataTable()
-            table.add_column("Chave", key="key")
+            table.add_column(t("report.column_key"), key="key")
             for qn in query_names:
                 table.add_column(str(qn), key=sanitize_id(str(qn)))
             if not self._hide_status:
-                table.add_column("Status", key="status")
+                table.add_column(t("report.column_status"), key="status")
 
             # Fixed key column (section 6 of the grammar): the "Chave" column
             # is the identity of the compared record, and the columns that
@@ -225,15 +227,16 @@ class GroupResultWidget(Vertical, can_focus=False):
 
         for key in all_keys:
             container.mount(
-                Static(f"Chave: {str(key)}", classes="gr-section-title")
+                Static(t("group_result.key_header", key=str(key)),
+                       classes="gr-section-title")
             )
 
             table = DataTable()
-            table.add_column("Consulta", key="__consulta__")
+            table.add_column(t("export.label_query"), key="__consulta__")
             for col in compare_columns:
                 table.add_column(str(col), key=f"__col_{col}__")
             if not self._hide_status:
-                table.add_column("Status", key="__status__")
+                table.add_column(t("report.column_status"), key="__status__")
 
             # Fixed key column, same reason as in flat mode: here the row's
             # identity is the query name, in the "Consulta" column.
@@ -252,7 +255,7 @@ class GroupResultWidget(Vertical, can_focus=False):
 
             # Result row at the bottom (only when showing status)
             if not self._hide_status:
-                result_cells = ["Resultado"]
+                result_cells = [t("export.label_result")]
                 worst_statuses = []
                 for col in compare_columns:
                     cr = lookup.get((key, col))
@@ -275,22 +278,33 @@ class GroupResultWidget(Vertical, can_focus=False):
         summary = self.query_one("#gr-summary", Static)
 
         if self._hide_status:
-            summary.update("[dim]Exibindo valores originais (sem mapeamento)[/]")
+            summary.update(f'[dim]{t("group_result.showing_original")}[/]')
             return
 
         lines = []
-        overall = "CONSISTENTE" if gr.all_match else "DIVERGENTE"
+        overall = (t("verdict.consistent") if gr.all_match
+                   else t("verdict.divergent"))
         overall_status = "match" if gr.all_match else "diff"
         lines.append(f"[bold]{mark_verdict(overall_status, label=overall)}[/]")
         lines.append("")
 
+        # The counts line up, and the spaces that lined them up were typed
+        # out to the length of the Portuguese words.
+        rotulos = [t("comparison.equal"), t("comparison.normalized"),
+                   t("comparison.different"), t("comparison.absent")]
+        largura = max(len(r) for r in rotulos)
         for comp in gr.comparisons:
             col_name = str(comp.column) if comp.column is not None else ""
             lines.append(f"[bold]{col_name}[/]:")
-            lines.append(f"  {mark_verdict('match', label='Iguais:')}      {comp.equal_count}/{comp.total_keys}")
-            if comp.normalized_count > 0:
-                lines.append(f"  {mark_verdict('match-normalized', label='Normalizados:')} {comp.normalized_count}/{comp.total_keys}")
-            lines.append(f"  {mark_verdict('diff', label='Diferentes:')}  {comp.diff_count}/{comp.total_keys}")
-            lines.append(f"  {mark_verdict('absent', label='Ausentes:')}    {comp.absent_count}/{comp.total_keys}")
+            for estado, rotulo, quantidade in (
+                ("match", rotulos[0], comp.equal_count),
+                ("match-normalized", rotulos[1], comp.normalized_count),
+                ("diff", rotulos[2], comp.diff_count),
+                ("absent", rotulos[3], comp.absent_count),
+            ):
+                if estado == "match-normalized" and comp.normalized_count == 0:
+                    continue
+                marca = mark_verdict(estado, label=rotulo.ljust(largura))
+                lines.append(f"  {marca} {quantidade}/{comp.total_keys}")
 
         summary.update("\n".join(lines))

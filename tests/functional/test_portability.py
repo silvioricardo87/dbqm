@@ -106,7 +106,7 @@ def test_a_wrong_password_imports_nothing(bundle, capsys):
     code, body = envelope(["import-config", str(bundle), "--password", "errada", "-f", "json"], capsys)
     assert code == 2
     assert body["error"]["code"] == "validation"
-    assert body["error"]["message"].startswith("Erro ao importar:")
+    assert body["error"]["message"].startswith("Could not import:")
     assert _names("connection", capsys) == []
 
 
@@ -118,7 +118,7 @@ def test_a_missing_bundle_is_not_found(tmp_config_dir, tmp_path, capsys):
     assert out == ""
     erro = json.loads(err)["error"]
     assert erro["code"] == "not_found"
-    assert erro["message"] == f"Arquivo '{caminho}' nao encontrado."
+    assert erro["message"] == f'File "{caminho}" not found.'
 
 
 # QA-PORT-007
@@ -145,7 +145,7 @@ def test_excluding_everything_is_refused(curated, capsys):
     assert code == 2
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == (
-        "Nada a exportar: --no-connections, --no-queries e --no-groups "
-        "excluem tudo que o bundle carrega."
+        "Nothing to export: --no-connections, --no-queries and --no-groups "
+        "leave out everything the bundle carries."
     )
     assert not list(Path(paths.EXPORTS_DIR).rglob("*.dbqm"))

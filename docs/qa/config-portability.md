@@ -1,7 +1,7 @@
 # QA — config portability (`PORT`)
 
-`dbqm export-config --password <senha>|--password-stdin [--no-connections] [--no-queries] [--no-groups]`
-then `dbqm import-config <arquivo.dbqm> --password <senha>|--password-stdin`.
+`dbqm export-config --password <password>|--password-stdin [--no-connections] [--no-queries] [--no-groups]`
+then `dbqm import-config <file.dbqm> --password <password>|--password-stdin`.
 
 The bundle is a JSON file under `exports/configs/`; connection passwords
 inside it are encrypted with the bundle password, everything else is
@@ -11,13 +11,13 @@ counting each. Envelope and exit codes: [output-contract.md](output-contract.md)
 The tests pass `--password` on the command line because there is no shell
 history to leak into; a person should use `--password-stdin`.
 
-| ID | Cenario | Camada | Engine | Teste |
+| ID | Scenario | Layer | Engine | Test |
 |---|---|---|---|---|
-| QA-PORT-001 | Dado `local`, uma consulta, um grupo e um template / Quando `dbqm export-config --password s3gredo -f json` / Entao exit 0 e `data.path` e um `.dbqm` existente sob a pasta de exports | functional | all | tests/functional/test_portability.py::test_export_writes_a_bundle |
-| QA-PORT-002 | Dado o bundle e um config **vazio** (arquivos de conexoes, consultas, grupos e templates removidos) / Quando `dbqm import-config <bundle> --password s3gredo -f json` / Entao `data == {"connections":1,"queries":2,"groups":1,"templates":1,"skipped":0}` e `connection show local`, `query show qa`, `query show qb`, `group show g1`, `template show t1` respondem, cada um pelo nome | functional | all | tests/functional/test_portability.py::test_import_into_an_empty_config_round_trips_every_kind_by_name |
-| QA-PORT-003 | Dado a conexao importada / Quando `dbqm test local -f json` / Entao responde — o caminho do arquivo sobreviveu a viagem | functional | all | tests/functional/test_portability.py::test_an_imported_connection_still_answers |
-| QA-PORT-004 | Dado tudo ja presente / Quando `import-config <bundle>` de novo / Entao exit 0 e `skipped == 5`, nada duplicado nas listas | functional | all | tests/functional/test_portability.py::test_import_over_an_existing_config_skips_by_name |
-| QA-PORT-005 | Dado a senha errada e um config vazio / Quando `import-config <bundle> --password errada -f json` / Entao exit 2, `validation`, mensagem comecando por `Erro ao importar:` e nenhuma conexao foi criada | functional | all | tests/functional/test_portability.py::test_a_wrong_password_imports_nothing |
-| QA-PORT-006 | Dado um caminho que nao existe / Quando `import-config nao.dbqm --password x -f json` / Entao exit 2, `not_found`, `Arquivo 'nao.dbqm' nao encontrado.` | functional | all | tests/functional/test_portability.py::test_a_missing_bundle_is_not_found |
-| QA-PORT-008 | Dado `--no-connections --no-queries --no-groups` / Quando `dbqm export-config ... -f json` / Entao exit 2, `usage`, `Nada a exportar: ...` e nenhum `.dbqm` escrito — antes gravava um bundle so com o proprio salt e chamava de exportacao bem-sucedida | functional | all | tests/functional/test_portability.py::test_excluding_everything_is_refused |
-| QA-PORT-007 | Dado `--no-connections` / Quando `export-config --no-connections --password s3gredo` e importado num config vazio / Entao `connections == 0` e o resto importa | functional | all | tests/functional/test_portability.py::test_no_connections_leaves_them_out |
+| QA-PORT-001 | Given `local`, a query, a group and a template / When `dbqm export-config --password s3gredo -f json` / Then exit 0 and `data.path` is an existing `.dbqm` under the export folder | functional | all | tests/functional/test_portability.py::test_export_writes_a_bundle |
+| QA-PORT-002 | Given the bundle and an **empty** config (the connection, query, group and template files removed) / When `dbqm import-config <bundle> --password s3gredo -f json` / Then `data == {"connections":1,"queries":2,"groups":1,"templates":1,"skipped":0}` and `connection show local`, `query show qa`, `query show qb`, `group show g1`, `template show t1` all answer, each by its name | functional | all | tests/functional/test_portability.py::test_import_into_an_empty_config_round_trips_every_kind_by_name |
+| QA-PORT-003 | Given the imported connection / When `dbqm test local -f json` / Then it answers — the file path survived the trip | functional | all | tests/functional/test_portability.py::test_an_imported_connection_still_answers |
+| QA-PORT-004 | Given everything already present / When `import-config <bundle>` runs again / Then exit 0 and `skipped == 5`, with nothing duplicated in the listings | functional | all | tests/functional/test_portability.py::test_import_over_an_existing_config_skips_by_name |
+| QA-PORT-005 | Given the wrong password and an empty config / When `import-config <bundle> --password errada -f json` / Then exit 2, `validation`, a message starting with `Could not import:` and no connection created | functional | all | tests/functional/test_portability.py::test_a_wrong_password_imports_nothing |
+| QA-PORT-006 | Given a path that does not exist / When `import-config nao.dbqm --password x -f json` / Then exit 2, `not_found`, `File "nao.dbqm" not found.` | functional | all | tests/functional/test_portability.py::test_a_missing_bundle_is_not_found |
+| QA-PORT-008 | Given `--no-connections --no-queries --no-groups` / When `dbqm export-config ... -f json` / Then exit 2, `usage`, `Nothing to export: ...` and no `.dbqm` written — it used to write a bundle carrying nothing but its own salt and call that a successful export | functional | all | tests/functional/test_portability.py::test_excluding_everything_is_refused |
+| QA-PORT-007 | Given `--no-connections` / When `export-config --no-connections --password s3gredo` is imported into an empty config / Then `connections == 0` and the rest imports | functional | all | tests/functional/test_portability.py::test_no_connections_leaves_them_out |

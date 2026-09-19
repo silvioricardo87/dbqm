@@ -7,6 +7,7 @@ from pathlib import Path
 
 from rich.markup import escape
 
+from dbqm.i18n import t
 from dbqm.cli import deps
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
@@ -21,17 +22,14 @@ def cmd_export_config(args: argparse.Namespace) -> None:
     # Refused before the password is asked for -- there is nothing to
     # encrypt.
     if args.no_connections and args.no_queries and args.no_groups:
-        message = (
-            "Nada a exportar: --no-connections, --no-queries e --no-groups "
-            "excluem tudo que o bundle carrega."
-        )
+        message = t("bundle.nothing_to_export")
         if args.format == "json":
             fail("export-config", "usage", message)
         console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
         sys.exit(int(exit_for("usage")))
 
     password = resolve_password(
-        args, "DBQM_BUNDLE_PASSWORD", "Senha para o bundle: ", required=True,
+        args, "DBQM_BUNDLE_PASSWORD", t("password.bundle_export_prompt"), required=True,
         command="export-config",
     )
     path = deps.export_configs(
@@ -43,7 +41,7 @@ def cmd_export_config(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("export-config", {"path": str(path)})
         return
-    console.print(f"Configuracoes exportadas: {path}")
+    console.print(t("bundle.exported", path=path))
 
 
 def cmd_import_config(args: argparse.Namespace) -> None:
@@ -52,19 +50,19 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     # `not_found` in the CLI's own words, not the OS's localised error text
     # surfacing through the generic `validation` arm below.
     if not Path(args.file).is_file():
-        message = f"Arquivo '{args.file}' nao encontrado."
+        message = t("file.not_found_named", name=args.file)
         if args.format == "json":
             fail("import-config", "not_found", message)
         console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
         sys.exit(int(exit_for("not_found")))
     password = resolve_password(
-        args, "DBQM_BUNDLE_PASSWORD", "Senha do bundle: ", required=True,
+        args, "DBQM_BUNDLE_PASSWORD", t("password.bundle_import_prompt"), required=True,
         command="import-config",
     )
     try:
         summary = deps.import_configs(args.file, password)
     except Exception as e:
-        message = f"Erro ao importar: {e}"
+        message = t("bundle.import_failed", error=e)
         if args.format == "json":
             fail("import-config", "validation", message)
         console.print(f"[ds.op.failure]{escape(message)}[/ds.op.failure]")
@@ -73,6 +71,6 @@ def cmd_import_config(args: argparse.Namespace) -> None:
     if args.format == "json":
         ok("import-config", summary)
         return
-    console.print(f"Importado: {summary['connections']} conexoes, "
-                  f"{summary['queries']} consultas, {summary['groups']} grupos "
-                  f"({summary['skipped']} duplicados ignorados)")
+    console.print(t("bundle.imported", connections=summary["connections"],
+                    queries=summary["queries"], groups=summary["groups"],
+                    skipped=summary["skipped"]))

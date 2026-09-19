@@ -7,6 +7,7 @@ from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual.widgets import Button, DataTable, Input, Static, TextArea
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
 from dbqm.ui.widgets.empty_state import EmptyState
@@ -70,24 +71,24 @@ class TemplateEditModal(ModalScreen[dict | None]):
         with Dialog(self._title_text, width="screen", id="dialog"):
             yield Input(
                 value=self._name_value,
-                placeholder="Nome do template",
+                placeholder=t("template_manage.name_placeholder"),
                 id="name-input",
                 disabled=self._name_readonly,
             )
             yield Input(
                 value=self._description_value,
-                placeholder="Descricao (opcional)",
+                placeholder=t("common.description_optional"),
                 id="desc-input",
             )
             yield Static(
-                "[dim]Use {{campo}} para placeholders. Ex: {{titulo}}, {{analise}}, {{etapa_1}}[/dim]",
+                f'[dim]{t("template_manage.placeholder_hint")}[/dim]',
                 id="hint",
                 markup=True,
             )
             yield TextArea(self._content_value, id="content-area", language="markdown")
             with Horizontal(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         if not self._name_readonly:
@@ -146,12 +147,12 @@ class TemplateManageScreen(Vertical):
     """
 
     def compose(self) -> ComposeResult:
-        with Panel("📄  TEMPLATES", id="tm-panel"):
+        with Panel(t("panel.templates"), id="tm-panel"):
             yield EmptyState(
-                what="Templates",
-                why="Templates guardam consultas com parametros para reusar depois",
-                action_label="Criar template",
-                action_id="criar-template",
+                what=t("template.list_title"),
+                why=t("template_manage.empty_why"),
+                action_label=t("template_manage.create"),
+                action_id="create-template",
                 id="tm-empty",
             )
             yield DataTable(id="tm-table")
@@ -163,7 +164,7 @@ class TemplateManageScreen(Vertical):
         self.call_after_refresh(self._set_initial_focus)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "criar-template":
+        if event.button.id == "create-template":
             self._handle_new()
 
     def _set_initial_focus(self) -> None:
@@ -218,10 +219,10 @@ class TemplateManageScreen(Vertical):
         except Exception:
             return
         actions = [
-            Action("Novo", "N", "tm_new"),
-            Action("Editar", "E", "tm_edit"),
-            Action("Renomear", "R", "tm_rename"),
-            Action("Remover", "D", "tm_remove"),
+            Action(t("action.new_template"), "N", "tm_new"),
+            Action(t("action.edit"), "E", "tm_edit"),
+            Action(t("action.rename"), "R", "tm_rename"),
+            Action(t("action.remove"), "D", "tm_remove"),
         ]
         action_bar.set_actions(actions)
 
@@ -254,7 +255,7 @@ class TemplateManageScreen(Vertical):
     # -- New --
 
     def _handle_new(self) -> None:
-        modal = TemplateEditModal(title="Novo Template")
+        modal = TemplateEditModal(title=t("template_manage.new_title"))
         self.app.push_screen(modal, callback=self._on_new_result)
 
     def _on_new_result(self, result: dict | None) -> None:
@@ -267,33 +268,33 @@ class TemplateManageScreen(Vertical):
         templates = load_templates()
 
         if any(t.name == result["name"] for t in templates):
-            self.notify(f'Template "{result["name"]}" ja existe.', severity="error")
+            self.notify(t("template.already_exists", name=result["name"]), severity="error")
             return
 
         template = build(result)
         templates.append(template)
         save_templates(templates)
         self._load_templates()
-        self.notify(f'Template "{template.name}" criado!')
+        self.notify(t("template_manage.created", name=template.name))
 
     # -- Edit --
 
     def _handle_edit(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione um template.", severity="warning")
+            self.notify(t("template_manage.select_one"), severity="warning")
             return
 
         from dbqm.models.template import find_template
 
         template = find_template(name)
         if template is None:
-            self.notify(f'Template "{name}" nao encontrado.', severity="error")
+            self.notify(t("template.not_found_named", name=name), severity="error")
             return
 
         self._edit_template_name = name
         modal = TemplateEditModal(
-            title=f"Editar: {name}",
+            title=t("template_manage.edit_title", name=name),
             name_value=template.name,
             description_value=template.description,
             content_value=template.content,
@@ -315,22 +316,22 @@ class TemplateManageScreen(Vertical):
                 break
         save_templates(templates)
         self._load_templates()
-        self.notify(f'Template "{self._edit_template_name}" atualizado!')
+        self.notify(t("template_manage.updated", name=self._edit_template_name))
 
     # -- Rename --
 
     def _handle_rename(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione um template.", severity="warning")
+            self.notify(t("template_manage.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.text_input import TextInputModal
 
         self._rename_old_name = name
         modal = TextInputModal(
-            title="Renomear Template",
-            message=f'Novo nome para "{name}":',
+            title=t("template_manage.rename_title"),
+            message=t("common.new_name_for", name=name),
             default=name,
         )
         self.app.push_screen(modal, callback=self._on_rename_result)
@@ -350,7 +351,7 @@ class TemplateManageScreen(Vertical):
         templates = load_templates()
 
         if any(t.name == new_name for t in templates):
-            self.notify(f'Template "{new_name}" ja existe.', severity="error")
+            self.notify(t("template.already_exists", name=new_name), severity="error")
             return
 
         for t in templates:
@@ -359,20 +360,20 @@ class TemplateManageScreen(Vertical):
                 break
         save_templates(templates)
         self._load_templates()
-        self.notify(f'Template renomeado: "{old_name}" -> "{new_name}"')
+        self.notify(t("template_manage.renamed", old=old_name, new=new_name))
 
     # -- Remove --
 
     def _handle_remove(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione um template.", severity="warning")
+            self.notify(t("template_manage.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=f'Remover template "{name}"?')
+        modal = ConfirmModal(message=t("template_manage.confirm_remove", name=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -384,6 +385,6 @@ class TemplateManageScreen(Vertical):
         name = self._remove_name
         if delete_template(name):
             self._load_templates()
-            self.notify(f'Template "{name}" removido!')
+            self.notify(t("template_manage.removed", name=name))
         else:
-            self.notify(f'Template "{name}" nao encontrado.', severity="error")
+            self.notify(t("template.not_found_named", name=name), severity="error")

@@ -12,17 +12,18 @@ def main() -> None:
     # CLI mode
     if len(sys.argv) > 1:
         from dbqm.cli import run_cli
+        from dbqm.i18n import t
         try:
             handled = run_cli()
             if handled:
                 return
         except KeyboardInterrupt:
-            print("\nInterrompido.", file=sys.stderr)
+            print("\n" + t("common.interrupted"), file=sys.stderr)
             sys.exit(130)
         except SystemExit:
             raise
         except Exception as e:
-            print(f"Erro inesperado: {e}", file=sys.stderr)
+            print(t("common.unexpected_error", error=e), file=sys.stderr)
             sys.exit(1)
 
     # Ensure data directories exist before launching TUI

@@ -19,26 +19,26 @@ On first launch, the app creates its data directory (`~/.dbqm`), prompts you to 
 
 ## The screens
 
-**Coleta** (`F1`) — ad-hoc SQL against one connection, `Ctrl+Enter` to run.
-Parameters are detected in the text; `Saida DBMS` opts the run into
+**Collect** (`F1`) — ad-hoc SQL against one connection, `Ctrl+Enter` to run.
+Parameters are detected in the text; `DBMS output` opts the run into
 DBMS_OUTPUT capture.
 
 ![The ad-hoc SQL screen, with a query and its result](img/adhoc.svg)
 
-**Consultas** (`F7`) — saved queries, filtered by folder, by connection or by
+**Queries** (`F7`) — saved queries, filtered by folder, by connection or by
 free text, and their results.
 
-![A saved query and its result table](img/consultas.svg)
+![A saved query and its result table](img/queries.svg)
 
 **Multi-Exec** (`F4`) — one statement across the connections you tick, compared
 row by row. The verdict and the per-column counts sit under the table.
 
-![A comparison across two databases reported as DIVERGENTE](img/comparacao.svg)
+![A comparison across two databases reported as DIVERGENT](img/comparison.svg)
 
-**Conexoes** (`F2`) — the connections, their engine, their target and their
+**Connections** (`F2`) — the connections, their engine, their target and their
 description.
 
-![The connections screen, listing two SQLite connections](img/conexoes.svg)
+![The connections screen, listing two SQLite connections](img/connections.svg)
 
 ## Keyboard Navigation
 
@@ -76,18 +76,21 @@ The app is a single tabbed dashboard. Switch tabs with `F1`–`F8`:
 
 | Key | Tab | Content |
 |-----|-----|---------|
-| `F1` | 🔍  Coleta | Ad-hoc SQL |
-| `F2` | 🔌  Conexoes | Manage database connections |
-| `F3` | 📂  Objetos | Object browser |
+| `F1` | 🔍  Collect | Ad-hoc SQL |
+| `F2` | 🔌  Connections | Manage database connections |
+| `F3` | 📂  Objects | Object browser |
 | `F4` | 📊  Multi-Exec | Run one ad-hoc SQL across selected connections & compare (load/save as a group) |
-| `F5` | 📜  Historico | Execution history |
-| `F6` | ⚙️  Configuracoes | Settings (inclui Exportar/Importar) |
-| `F7` | 📝  Consultas | Run saved queries |
-| `F8` | 🧰  Ferramentas | Gerenciar Grupos/Templates, Package editor, Executar Rotina |
+| `F5` | 📜  History | Execution history |
+| `F6` | ⚙️  Settings | Settings (includes Export / Import) |
+| `F7` | 📝  Queries | Run saved queries |
+| `F8` | 🧰  Tools | Manage Groups/Templates, Package editor, Run Routine |
 
 A collapsible **Templates** sidebar (`Ctrl+B`) lists saved SQL templates; choosing one injects its SQL into the active tab's editor.
 
-Above the status bar, a contextual **action bar** shows the actions available on the current screen with their shortcut keys (`N Nova`, `T Testar`, …); the entries are clickable too. Screens that open a deeper screen inside their own tab — Configuracoes › Oracle Instant Clients and Configuracoes › Exportar / Importar — announce `Esc Voltar` there, which is how you go back.
+Above the status bar, a contextual **action bar** shows the actions available on the current screen with their shortcut keys (`N New`, `T Test`, …); the entries are clickable too. Screens that open a deeper screen inside their own tab — Settings › Oracle Instant Clients and Settings › Export / Import — announce `Esc Back` there, which is how you go back.
+
+The screens are in English by default and translated into Portuguese; see
+[Configuration → Language](CONFIGURATION.md#language).
 
 ## Query Groups & Comparison
 

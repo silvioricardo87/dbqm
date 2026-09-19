@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.11.0] — 2026-09-18
+
+A MINOR release: dbqm speaks English, and Portuguese became a translation.
+
+Every string a user reads — the TUI, the CLI's messages, its `--help`, the
+headers of exported files and HTML reports — now comes from a catalogue in
+`dbqm/i18n/` instead of being written into a widget. English is the source
+language and the default; `pt.py` is the Portuguese translation, still
+without accents.
+
+```bash
+dbqm config set language pt     # or: en
+DBQM_LANG=en dbqm run sales -f json
+```
+
+### Added
+
+- **`language` setting**, resolved as `DBQM_LANG` > stored setting >
+  English. An unknown value falls back to English rather than refusing to
+  start: a typo in a config file should not stop the program.
+- **`dbqm/i18n/`** — a catalogue of ~640 keys per language, `t("key")` to
+  read one. A key with no translation falls back to English, so a new
+  language is usable before it is finished.
+- **Six design guards**: screen text must come from the catalogue (by
+  where a string goes, not by what it says); `t()` must not run at import
+  time; catalogue values carry no Rich markup; every language carries every
+  key English defines, with the same placeholders and no accents in
+  Portuguese; every `t()` call passes exactly the fields its key declares;
+  and the old word-list ratchet stays at zero.
+
+  What counts as a place a string *goes* was widened by what it kept
+  missing: `console.print`, every positional of `add_row`,
+  `ProgressIndicator.start` and `Static.update`, the calls that forward to
+  a sink named by their first argument (`call_from_thread`), the fields of
+  a `t()` call, and a name followed one step back to the literal its own
+  scope assigns it.
+
+### Fixed
+
+- **`dbqm ddl` classified a missing object differently per engine.**
+  `ddl_pg` and `ddl_mysql` reported the object as not found but never set
+  `result.not_found`, so the same condition exited `not_found` (2) on
+  Oracle and SQLite and `sql_error` (4) on PostgreSQL and MySQL. Both tests
+  covering the path asserted the message and never the flag, which is how
+  four engines disagreed in silence.
+- **Three places classified an outcome by reading their own message.**
+  Matching English or Portuguese text to decide an exit code is correct in
+  one language and silently wrong in every other; they read `error_kind`
+  and `result.not_found` now.
+- **Five confirmation prompts accepted only the Portuguese "s".**
+  `connection`, `query`, `group`, `template` and `oracle-client` each
+  hard-coded the affirmative, so in English the prompt would have said
+  `[y/N]` and refused `y`. They read `common.yes_answers`.
+- **Six alignments were computed from the length of a Portuguese word** —
+  the CLI's comparison summary, the flat export's status column, the
+  evidence header's colons, the TUI's comparison summary, the shortcut
+  sheet's key column and the ad-hoc connection prompt. Each measures the
+  widest label in the language in use, and the two that a test can catch
+  now run once per language.
+- **Both HTML reports declared `<html lang="pt-BR">`** whatever they
+  contained, which misleads a screen reader and makes a browser offer to
+  translate what is already translated.
+- **Thirty-odd sentences never reached the catalogue at all**, because
+  none of them was written at the call that paints. The history table said
+  `grupo` while the detail panel beside it and `dbqm history -f table`
+  printed the stored `group` — one field, two languages, one screen. Six
+  progress messages arrived through `ProgressIndicator.start`. Thirteen
+  errors were forwarded through `call_from_thread`, whose own name says
+  nothing about where the text lands. `dbqm connection test` handed
+  `"desconhecida"` to a translated sentence as a field. Each shape is now
+  a rule in the guard, proven to fail before it was trusted.
+
+### Changed
+
+- The TUI's connection outcomes reuse the CLI's sentences, losing an
+  exclamation mark: two catalogue entries for one sentence is not worth a
+  translator's confusion.
+- `consultas/` and `grupos/` stay Portuguese in every language. They are
+  directories on disk; translating them would write the next export beside
+  everything already there.
+
 ## [2.10.0] — 2026-09-17
 
 A MINOR release: seven recorded gaps closed, and the comparison engine

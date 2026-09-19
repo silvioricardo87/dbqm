@@ -10,7 +10,7 @@ place, with one set of saved connections. Built with
 Every operation is available without a TTY, so the same tool serves a person at
 a terminal and a script, a CI job or an AI agent.
 
-![A saved query running against a connection, with its result table](docs/img/consultas.svg)
+![A saved query running against a connection, with its result table](docs/img/queries.svg)
 
 ## Install
 
@@ -80,7 +80,7 @@ has to remember to update.
 - **Execute routines** — Oracle packages, procedures and functions, with
   parameters in and OUT values and the return value back as data
 
-![The same statement run against two databases, reported as DIVERGENTE with per-column counts](docs/img/comparacao.svg)
+![The same statement run against two databases, reported as DIVERGENT with per-column counts](docs/img/comparison.svg)
 
 **Look around**
 
@@ -110,8 +110,10 @@ has to remember to update.
 - **Exports** — CSV, JSON, TXT, HTML and SQL, plus IDE-style execution evidence
   (the SQL, the connection, the timestamp, the outcome) for an audit trail
 - **Audit logging** — opt-in, append-only JSON
+- **English and Portuguese** — every screen, message and `--help` string comes
+  from a catalogue; `dbqm config set language pt`, or `DBQM_LANG` for one run
 
-Where dbqm keeps its files and where exports land:
+Where dbqm keeps its files, where exports land and which language it speaks:
 **[docs/CONFIGURATION.md](./docs/CONFIGURATION.md)**.
 
 ## Security
@@ -134,7 +136,7 @@ Read-only connections are a rail against mistakes, not a security boundary —
 | [docs/INSTALL.md](./docs/INSTALL.md) | From source, `win-arm64`, dependencies |
 | [docs/CLI.md](./docs/CLI.md) | Every command, the JSON envelope, exit codes |
 | [docs/TUI.md](./docs/TUI.md) | Tabs, keyboard map, comparison screens |
-| [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | Data directory, export destination |
+| [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | Data directory, export destination, language |
 | [CHANGELOG.md](./CHANGELOG.md) | Release history |
 | [docs/ROADMAP.md](./docs/ROADMAP.md) | Known bugs first, then what is planned |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Layout, layering, patterns, recorded debt |

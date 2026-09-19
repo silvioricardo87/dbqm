@@ -75,6 +75,7 @@ class TestExtractMysqlDdl:
         extract_mysql_ddl(db, "missing", result)
         assert len(result.objects) == 0
         assert len(result.errors) == 1
+        assert result.not_found is True
 
     def test_progress_callback(self):
         progress_calls = []

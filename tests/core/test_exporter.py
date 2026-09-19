@@ -39,9 +39,9 @@ class TestHelpers:
         assert _status_label("DIFF") == "! DIFF"
 
     def test_flat_status_label(self):
-        assert _flat_status_label("OK") == "Igual"
-        assert _flat_status_label("DIFF") == "Diferente"
-        assert _flat_status_label("ABSENT") == "Ausente"
+        assert _flat_status_label("OK") == "Equal"
+        assert _flat_status_label("DIFF") == "Different"
+        assert _flat_status_label("ABSENT") == "Absent"
 
     def test_build_query_txt_lines(self, sample_query_result):
         lines = _build_query_txt_lines(sample_query_result)
@@ -107,8 +107,8 @@ class TestQueryExports:
         assert "2026-06-17 10:00:00" in content
         assert "processando registro 1" in content
         assert "processando registro 2" in content
-        assert "EVIDENCIA DE EXECUCAO" in content
-        assert "Bloco PL/SQL executado" in content
+        assert "EXECUTION EVIDENCE" in content
+        assert "PL/SQL block ran successfully" in content
 
     def test_dbms_output_empty_lines(self, tmp_config_dir):
         from dbqm.core.exporter import export_dbms_output
@@ -117,7 +117,7 @@ class TestQueryExports:
         path = export_dbms_output(result, "BEGIN NULL; END;", "2026-06-17 10:00:00", label="vazio")
         assert Path(path).exists()
         content = Path(path).read_text(encoding="utf-8")
-        assert "(sem saida DBMS_OUTPUT)" in content
+        assert "(no DBMS_OUTPUT)" in content
 
     def test_format_dbms_evidence_dml(self):
         from dbqm.core.exporter import format_dbms_evidence
@@ -129,7 +129,7 @@ class TestQueryExports:
         text = format_dbms_evidence(result, "UPDATE t SET x=1", "2026-06-17 11:30:00")
         assert "UPDATE t SET x=1" in text
         assert "2026-06-17 11:30:00" in text
-        assert "6 registro(s) afetado(s) - COMMIT" in text
+        assert "6 row(s) affected - COMMIT" in text
         assert "UPDATE OK" in text
 
     def test_format_dbms_evidence_error(self):
@@ -140,7 +140,7 @@ class TestQueryExports:
             error="ORA-00001: unique constraint",
         )
         text = format_dbms_evidence(result, "BEGIN NULL; END;", "2026-06-17 12:00:00")
-        assert "ERRO: ORA-00001" in text
+        assert "ERROR: ORA-00001" in text
 
 
 class TestGroupExports:
@@ -160,7 +160,7 @@ class TestGroupExports:
     def test_group_txt(self, tmp_config_dir, sample_group_result):
         path = export_group_txt(sample_group_result)
         content = Path(path).read_text()
-        assert "DIVERGENTE" in content
+        assert "DIVERGENT" in content
 
     def test_group_flat_csv(self, tmp_config_dir, sample_group_result):
         path = export_group_flat_csv(sample_group_result)

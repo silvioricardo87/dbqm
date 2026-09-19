@@ -9,6 +9,7 @@ from textual.widgets import Button, Checkbox, Input, OptionList, Select, Static,
 from textual.widgets.option_list import Option
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.core.connection_builder import DEFAULT_HOSTS, DEFAULT_PORTS
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
@@ -31,10 +32,16 @@ DB_TYPE_OPTIONS = [
     ("SQLite", "sqlite"),
 ]
 
-ORACLE_MODE_OPTIONS = [
-    ("Conexao direta (host/port/service)", "direct"),
-    ("TNS (tnsnames.ora)", "tns"),
-]
+def oracle_mode_options() -> list[tuple[str, str]]:
+    """A function, not a constant: a constant is built as the module is
+    imported, which is before the app has resolved the language, and its
+    labels would then stay in the default one for the life of the process.
+    `DB_TYPE_OPTIONS` above is safe as a constant -- Oracle, PostgreSQL and
+    MySQL are named the same in every language."""
+    return [
+        (t("connections.direct_mode"), "direct"),
+        ("TNS (tnsnames.ora)", "tns"),
+    ]
 
 # Width of #conn-list-panel (CSS below). A module constant, the single
 # source both for the CSS and for the wrap-width derivation just ahead —
@@ -195,78 +202,80 @@ class ConnectionsScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="conn-body"):
-            with Panel("🔌  CONEXOES", id="conn-list-panel"):
+            with Panel(t("panel.connections"), id="conn-list-panel"):
                 yield EmptyState(
-                    what="Conexoes",
-                    why="O dbqm precisa de pelo menos uma conexao para executar consultas",
-                    action_label="Adicionar conexao",
-                    action_id="adicionar-conexao",
+                    what=t("connection.list_title"),
+                    why=t("connections.empty_why"),
+                    action_label=t("connections.add_connection"),
+                    action_id="add-connection",
                     id="conn-empty",
                 )
                 yield OptionList(id="conn-list")
-                yield Button("Nova", id="conn-btn-new")
+                yield Button(t("action.new_connection"), id="conn-btn-new")
 
-            with Panel("📝  EDICAO", accent=True, id="conn-form-panel"):
+            with Panel(t("panel.edit"), accent=True, id="conn-form-panel"):
                 with VerticalScroll(id="conn-form-scroll"):
-                    yield Static("Nome:", classes="field-label")
+                    yield Static(t("field.name"), classes="field-label")
                     yield Input(id="conn-form-name")
 
-                    yield Static("Tipo de banco:", classes="field-label")
+                    yield Static(t("field.db_type"), classes="field-label")
                     yield Select(
-                        DB_TYPE_OPTIONS, prompt="Selecione o tipo", id="conn-form-type"
+                        DB_TYPE_OPTIONS, prompt=t("connections.select_type"),
+                        id="conn-form-type"
                     )
 
-                    yield Static("Modo:", classes="field-label", id="conn-form-mode-label")
+                    yield Static(t("field.mode"), classes="field-label", id="conn-form-mode-label")
                     yield Select(
-                        ORACLE_MODE_OPTIONS, prompt="Selecione o modo", id="conn-form-mode"
+                        oracle_mode_options(), prompt=t("connections.select_mode"),
+                        id="conn-form-mode"
                     )
 
-                    yield Static("Host:", classes="field-label", id="conn-form-host-label")
+                    yield Static(t("field.host"), classes="field-label", id="conn-form-host-label")
                     yield Input(id="conn-form-host")
 
-                    yield Static("Porta:", classes="field-label", id="conn-form-port-label")
+                    yield Static(t("field.port"), classes="field-label", id="conn-form-port-label")
                     yield Input(id="conn-form-port")
 
                     yield Static(
-                        "Service Name:", classes="field-label", id="conn-form-service-label"
+                        t("field.service_name"), classes="field-label", id="conn-form-service-label"
                     )
                     yield Input(id="conn-form-service")
 
                     yield Static(
-                        "Caminho tnsnames.ora:",
+                        t("field.tns_path"),
                         classes="field-label",
                         id="conn-form-tns-path-label",
                     )
                     yield Input(id="conn-form-tns-path")
 
                     yield Static(
-                        "TNS Name:", classes="field-label", id="conn-form-tns-name-label"
+                        t("field.tns_name"), classes="field-label", id="conn-form-tns-name-label"
                     )
                     yield Input(id="conn-form-tns-name")
 
                     yield Static(
-                        "Database:", classes="field-label", id="conn-form-database-label"
+                        t("field.database"), classes="field-label", id="conn-form-database-label"
                     )
                     yield Input(id="conn-form-database")
 
-                    yield Static("Usuario:", classes="field-label", id="conn-form-user-label")
+                    yield Static(t("field.user"), classes="field-label", id="conn-form-user-label")
                     yield Input(id="conn-form-user")
 
-                    yield Static("Senha:", classes="field-label", id="conn-form-pass-label")
+                    yield Static(t("field.password"), classes="field-label", id="conn-form-pass-label")
                     yield Input(password=True, id="conn-form-pass")
 
-                    yield Static("Descricao (opcional):", classes="field-label")
+                    yield Static(t("field.description_optional"), classes="field-label")
                     yield TextArea(id="conn-form-desc")
 
                     # Applies to every engine, so it lives beside the
                     # description rather than inside any engine-specific
                     # field group.
-                    yield Checkbox("Somente leitura", id="conn-form-read-only")
+                    yield Checkbox(t("connections.read_only"), id="conn-form-read-only")
 
                 with Horizontal(id="conn-form-buttons"):
-                    yield Button("Testar", variant="warning", id="conn-btn-test")
-                    yield Button("Salvar", variant="primary", id="conn-btn-save")
-                    yield Button("Excluir", variant="error", id="conn-btn-delete")
+                    yield Button(t("action.test"), variant="warning", id="conn-btn-test")
+                    yield Button(t("common.save"), variant="primary", id="conn-btn-save")
+                    yield Button(t("action.delete"), variant="error", id="conn-btn-delete")
 
     def on_mount(self) -> None:
         self._load_connections()
@@ -354,7 +363,7 @@ class ConnectionsScreen(Vertical):
 
         conn = find_connection(name)
         if conn is None:
-            self.notify(f'Conexao "{name}" nao encontrada.', severity="error")
+            self.notify(t("connection.not_found_named", name=name), severity="error")
             return
         self._load_into_form(conn)
 
@@ -396,11 +405,11 @@ class ConnectionsScreen(Vertical):
         except Exception:
             return
         actions = [
-            Action("Nova", "N", "conn_new"),
-            Action("Testar", "T", "conn_test"),
-            Action("Salvar", "S", "conn_save"),
-            Action("Renomear", "R", "conn_rename"),
-            Action("Excluir", "X", "conn_remove"),
+            Action(t("action.new_connection"), "N", "conn_new"),
+            Action(t("action.test"), "T", "conn_test"),
+            Action(t("common.save"), "S", "conn_save"),
+            Action(t("action.rename"), "R", "conn_rename"),
+            Action(t("action.delete"), "X", "conn_remove"),
         ]
         action_bar.set_actions(actions)
 
@@ -419,7 +428,7 @@ class ConnectionsScreen(Vertical):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
-        if btn_id in ("conn-btn-new", "adicionar-conexao"):
+        if btn_id in ("conn-btn-new", "add-connection"):
             self._handle_new()
         elif btn_id == "conn-btn-test":
             self._handle_test()
@@ -452,7 +461,7 @@ class ConnectionsScreen(Vertical):
         mode = conn.mode or "direct"
         if conn.db_type == "oracle":
             mode_select = self.query_one("#conn-form-mode", Select)
-            valid_modes = [v for _, v in ORACLE_MODE_OPTIONS]
+            valid_modes = [v for _, v in oracle_mode_options()]
             mode_select.value = mode if mode in valid_modes else "direct"
 
         self._apply_field_visibility(conn.db_type, mode)
@@ -577,9 +586,9 @@ class ConnectionsScreen(Vertical):
     def _handle_test(self) -> None:
         name = self.query_one("#conn-form-name", Input).value.strip()
         if not name:
-            self.notify("Informe o nome da conexao.", severity="warning")
+            self.notify(t("connections.name_required"), severity="warning")
             return
-        self.notify(f"Testando {name}...")
+        self.notify(t("connections.testing", name=name))
         self._run_test(name)
 
     @work(thread=True)
@@ -591,7 +600,7 @@ class ConnectionsScreen(Vertical):
             conn = find_connection(name)
             if conn is None:
                 self.app.call_from_thread(
-                    self.notify, f'Conexao "{name}" nao encontrada.', severity="error"
+                    self.notify, t("connection.not_found_named", name=name), severity="error"
                 )
                 return
 
@@ -600,7 +609,7 @@ class ConnectionsScreen(Vertical):
             self.app.call_from_thread(self.notify, msg, severity=severity, timeout=6)
         except Exception as e:
             self.app.call_from_thread(
-                self.notify, f"Erro ao testar conexao: {e}", severity="error", timeout=8
+                self.notify, t("connections.test_failed", error=e), severity="error", timeout=8
             )
 
     # ------------------------------------------------------------------
@@ -678,8 +687,8 @@ class ConnectionsScreen(Vertical):
         self._load_connections()
         self._update_status_bar()
         self._select_in_list(conn.name)
-        acao = "criada" if created else "atualizada"
-        self.notify(f'Conexao "{conn.name}" {acao}!')
+        chave = "connection.created" if created else "connection.updated"
+        self.notify(t(chave, name=conn.name))
 
     # ------------------------------------------------------------------
     # Rename
@@ -688,12 +697,12 @@ class ConnectionsScreen(Vertical):
     def _handle_rename(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma conexao.", severity="warning")
+            self.notify(t("connections.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.text_input import TextInputModal
 
-        modal = TextInputModal(title="Renomear Conexao", message=f'Novo nome para "{name}":', default=name)
+        modal = TextInputModal(title=t("connections.rename_title"), message=t("common.new_name_for", name=name), default=name)
         self._rename_old_name = name
         self.app.push_screen(modal, callback=self._on_rename_result)
 
@@ -712,7 +721,7 @@ class ConnectionsScreen(Vertical):
         connections = load_connections()
 
         if any(c.name == new_name for c in connections):
-            self.notify(f'Conexao "{new_name}" ja existe.', severity="error")
+            self.notify(t("connection.already_exists", name=new_name), severity="error")
             return
 
         for conn in connections:
@@ -736,7 +745,7 @@ class ConnectionsScreen(Vertical):
         self._load_connections()
         if self._loaded_name == old_name:
             self._select_in_list(new_name)
-        self.notify(f'Conexao renomeada: "{old_name}" -> "{new_name}"')
+        self.notify(t("connections.renamed", old=old_name, new=new_name))
 
     # ------------------------------------------------------------------
     # Delete
@@ -745,13 +754,13 @@ class ConnectionsScreen(Vertical):
     def _handle_remove(self) -> None:
         name = self._get_selected_name()
         if name is None:
-            self.notify("Selecione uma conexao.", severity="warning")
+            self.notify(t("connections.select_one"), severity="warning")
             return
 
         from dbqm.ui.modals.confirm import ConfirmModal
 
         self._remove_name = name
-        modal = ConfirmModal(message=f'Remover conexao "{name}"?')
+        modal = ConfirmModal(message=t("connections.confirm_remove", name=name))
         self.app.push_screen(modal, callback=self._on_remove_result)
 
     def _on_remove_result(self, confirmed: bool) -> None:
@@ -766,9 +775,9 @@ class ConnectionsScreen(Vertical):
                 self._clear_form()
             self._load_connections()
             self._update_status_bar()
-            self.notify(f'Conexao "{name}" removida!')
+            self.notify(t("connection.removed", name=name))
         else:
-            self.notify(f'Conexao "{name}" nao encontrada.', severity="error")
+            self.notify(t("connection.not_found_named", name=name), severity="error")
 
     # ------------------------------------------------------------------
     # Helpers

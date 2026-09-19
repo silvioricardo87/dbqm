@@ -62,7 +62,7 @@ def _notifications(app) -> list[str]:
 @pytest.mark.asyncio
 async def test_query_exec_runs_a_saved_query_and_shows_the_row_count(local_db, capsys):
     """`query_exec`: pick the saved query, let the worker run it for real,
-    read `#result-info` -- "2 registros" comes from the database."""
+    read `#result-info` -- "2 rows" comes from the database."""
     code, _ = envelope(["query", "add", "ativos", "--connection", "local", "--sql", ATIVOS, "-f", "json"], capsys)
     assert code == 0
     query = find_query("ativos")
@@ -79,7 +79,7 @@ async def test_query_exec_runs_a_saved_query_and_shows_the_row_count(local_db, c
         assert screen.query_one("#results-phase").display is True
         info = str(screen.query_one("#result-info", Static).content)
         assert "ativos" in info and "local" in info
-        assert "2 registros" in info
+        assert "2 rows" in info
         table = screen.query_one("#result-table", ResultTable)
         assert table.row_count == 2
 
@@ -100,7 +100,7 @@ async def test_adhoc_executes_a_select_and_shows_the_rows(local_db):
 
         info = str(screen.query_one("#adhoc-result-info", Static).content)
         assert "local" in info
-        assert "3 registros" in info
+        assert "3 rows" in info
         table = screen.query_one("#res-table", ResultTable)
         assert table.row_count == 3
 
@@ -130,8 +130,8 @@ async def test_group_run_runs_a_group_and_shows_the_verdict(local2_db, capsys):
 
         assert screen.query_one("#gr-results-phase").display is True
         info = str(screen.query_one("#gr-result-info", Static).content)
-        assert "pedidos" in info and "2 consultas" in info
-        assert "DIVERGENTE" in info
+        assert "pedidos" in info and "2 queries" in info
+        assert "DIVERGENT" in info
         gr = screen.query_one("#gr-group-result", GroupResultWidget).group_result
         assert gr is not None and gr.all_match is False
         assert [c.column for c in gr.comparisons] == ["valor"]
@@ -153,7 +153,7 @@ async def test_browser_extracts_sqlite_ddl_through_the_core_dispatch(local_db):
         await pilot.pause()
 
         avisos = _notifications(app)
-        assert any(a.startswith("DDL salvo") for a in avisos), avisos
+        assert any(a.startswith("DDL saved") for a in avisos), avisos
     arquivos = list((Path(paths.EXPORTS_DIR) / "ddl").rglob("*.sql"))
     assert arquivos, "no .sql under exports/ddl"
     assert "CREATE TABLE clientes" in "".join(a.read_text(encoding="utf-8") for a in arquivos)
@@ -174,7 +174,7 @@ async def test_browser_tells_sql_server_it_has_no_extractor(tmp_config_dir):
         await pilot.pause()
         # the mount notice ("Nenhuma conexao configurada.") is also there:
         # the connection is handed to the worker, never registered
-        assert "Erro: Extracao de DDL nao suportada para sqlserver." in _notifications(app)
+        assert "Error: DDL extraction is not supported for sqlserver." in _notifications(app)
     assert not (Path(paths.EXPORTS_DIR) / "ddl").exists()
 
 
@@ -208,8 +208,8 @@ async def test_group_run_warns_that_a_repeated_key_left_rows_out(local2_db, caps
 
         avisos = [n.message for n in app._notifications]
         assert avisos == [
-            "Chave 'id' tem valores repetidos em 'pc_local': 2 linha(s) fora da comparacao.",
-            "Chave 'id' tem valores repetidos em 'pc_local2': 2 linha(s) fora da comparacao.",
+            "Key 'id' has repeated values in 'pc_local': 2 row(s) left out of the comparison.",
+            "Key 'id' has repeated values in 'pc_local2': 2 row(s) left out of the comparison.",
         ]
 
 

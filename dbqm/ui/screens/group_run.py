@@ -10,6 +10,7 @@ from textual.message import Message
 from textual.widgets import Button, OptionList, Select, Static
 from textual import work
 
+from dbqm.i18n import t
 from dbqm.ui.utils import sanitize_id, escape_markup, NavSelect, common_folder_prefix
 from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.dialog import Dialog
@@ -95,7 +96,8 @@ def _group_option(group: Any) -> NamedOption:
     """
     name = group.name
     n_queries = len(group.queries)
-    queries_label = f"{n_queries} consulta{'s' if n_queries != 1 else ''}"
+    chave = "group_run.queries_one" if n_queries == 1 else "group_run.queries_many"
+    queries_label = t(chave, count=n_queries)
 
     # WRAP, not truncate: no character is lost, the description only gains
     # a `\n` every `_TEXT_WIDTH` columns. Without this it reached
@@ -188,18 +190,18 @@ class GroupRunScreen(Vertical):
 
     def compose(self) -> ComposeResult:
         # Selection phase
-        with Panel("👥  GRUPOS", id="gr-selection-phase"):
+        with Panel(t("panel.groups"), id="gr-selection-phase"):
             yield EmptyState(
-                what="Grupos",
-                why="Grupos comparam a mesma consulta em varias conexoes de uma vez",
-                action_label="Gerenciar grupos",
-                action_id="gerenciar-grupos",
+                what=t("group.list_title"),
+                why=t("group_manage.empty_why"),
+                action_label=t("group_run.manage_groups"),
+                action_id="manage-groups",
                 id="gr-empty-message",
             )
         # Progress indicator (hidden by default)
         yield ProgressIndicator()
         # Results phase (hidden initially)
-        with Panel("📊  COMPARACAO", id="gr-results-phase"):
+        with Panel(t("panel.comparison"), id="gr-results-phase"):
             yield Static("", id="gr-result-info")
             yield GroupResultWidget(id="gr-group-result")
 
@@ -250,13 +252,13 @@ class GroupRunScreen(Vertical):
 
         if folders:
             prefixo = common_folder_prefix(folders)
-            options = [(f"Todas ({len(groups)})", "")]
+            options = [(t("common.all_count", count=len(groups)), "")]
             for folder in folders:
                 rotulo = folder[len(prefixo):] if prefixo and folder.startswith(prefixo) else folder
                 options.append((f"{rotulo} ({contagem_pastas[folder]})", folder))
             sem_pasta = sum(1 for g in groups if not g.folder)
             if sem_pasta:
-                options.append((f"Sem pasta ({sem_pasta})", None))
+                options.append((t("common.no_folder_count", count=sem_pasta), None))
             selection.mount(
                 NavSelect(options, allow_blank=False, id="gr-folder-select")
             )
@@ -264,10 +266,10 @@ class GroupRunScreen(Vertical):
 
         selection.mount(group_list)
         filtered_empty = EmptyState(
-            what="Grupos",
-            why="A pasta selecionada esconde os grupos que existem",
-            action_label="Ver todos os grupos",
-            action_id="ver-todos-grupos",
+            what=t("group.list_title"),
+            why=t("group_run.folder_hides_groups"),
+            action_label=t("group_run.show_all_groups"),
+            action_id="show-all-groups",
             id="gr-filter-empty",
         )
         filtered_empty.display = False
@@ -304,18 +306,18 @@ class GroupRunScreen(Vertical):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle the empty-state actions."""
         btn_id = event.button.id or ""
-        if btn_id == "gerenciar-grupos":
+        if btn_id == "manage-groups":
             # GroupRunScreen only ever lives nested inside ToolsScreen
             # (see tools.py::_build_tool) — guarded for the standalone
             # hosting tests also use.
             try:
                 from dbqm.ui.screens.tools import ToolsScreen
-                self.app.query_one(ToolsScreen).open_tool("grupos")
+                self.app.query_one(ToolsScreen).open_tool("groups")
             except Exception:
                 pass
             return
 
-        if btn_id == "ver-todos-grupos":
+        if btn_id == "show-all-groups":
             self._active_folder = ""
             if self._has_folders:
                 try:
@@ -365,7 +367,7 @@ class GroupRunScreen(Vertical):
 
         group = find_group(group_name)
         if group is None:
-            self.notify(f"Grupo '{group_name}' nao encontrado.", severity="error")
+            self.notify(t("group.not_found_named", name=group_name), severity="error")
             return
 
         self._current_group = group
@@ -418,7 +420,9 @@ class GroupRunScreen(Vertical):
         self._current_params = params
         self.query_one(ProgressIndicator).start(
             f"{mark_operation('running')} "
-            f"Executando grupo [bold]{escape_markup(group.name)}[/] ({len(group.queries)} consultas)..."
+            + t("group_run.running",
+                  name=f"[bold]{escape_markup(group.name)}[/]",
+                  queries=t("group_run.queries_many", count=len(group.queries)))
         )
         self._run_group(group, params)
 
@@ -442,7 +446,7 @@ class GroupRunScreen(Vertical):
                 if query is None:
                     self.app.call_from_thread(
                         self.notify,
-                        f"Consulta '{qname}' nao encontrada no grupo.",
+                        t("group_run.query_not_in_group", name=qname),
                         severity="warning",
                     )
                     continue
@@ -451,7 +455,7 @@ class GroupRunScreen(Vertical):
                 if conn is None:
                     self.app.call_from_thread(
                         self.notify,
-                        f"Conexao '{query.connection}' nao encontrada para '{qname}'.",
+                        t("group_run.connection_not_found_for", connection=query.connection, query=qname),
                         severity="warning",
                     )
                     continue
@@ -465,7 +469,9 @@ class GroupRunScreen(Vertical):
                 self.app.call_from_thread(
                     self._update_progress,
                     f"{mark_operation('running')} "
-                    f"Executando [bold]{escape_markup(qname)}[/] em [bold]{escape_markup(conn.name)}[/]...",
+                    + t("group_run.running_query",
+                        query=f"[bold]{escape_markup(qname)}[/]",
+                        connection=f"[bold]{escape_markup(conn.name)}[/]"),
                 )
 
                 try:
@@ -473,7 +479,7 @@ class GroupRunScreen(Vertical):
                 except Exception as e:
                     self.app.call_from_thread(
                         self.notify,
-                        f"Erro em '{qname}': {e}",
+                        t("group_run.error_in_query", name=qname, error=e),
                         severity="error",
                         timeout=8,
                     )
@@ -493,7 +499,7 @@ class GroupRunScreen(Vertical):
             elapsed = time.time() - start_time
 
             if not query_results:
-                self.app.call_from_thread(self._on_error, "Nenhuma consulta executada com sucesso.")
+                self.app.call_from_thread(self._on_error, t("group_run.none_succeeded"))
                 return
 
             # Check for failed queries
@@ -502,7 +508,7 @@ class GroupRunScreen(Vertical):
                 for qn, res in failures.items():
                     self.app.call_from_thread(
                         self.notify,
-                        f"Erro em '{qn}': {res.error}",
+                        t("group_run.error_in_query", name=qn, error=res.error),
                         severity="error",
                         timeout=8,
                     )
@@ -513,7 +519,7 @@ class GroupRunScreen(Vertical):
             if len(success_results) < 2:
                 self.app.call_from_thread(
                     self._on_error,
-                    "Necessario pelo menos 2 consultas com sucesso para comparar.",
+                    t("group_run.two_successes_needed"),
                 )
                 return
 
@@ -534,7 +540,7 @@ class GroupRunScreen(Vertical):
                 raw_rows_map if has_any_maps else None,
             )
         except Exception as e:
-            self.app.call_from_thread(self._on_error, f"Erro inesperado: {e}")
+            self.app.call_from_thread(self._on_error, t("common.unexpected_error", error=e))
 
     def _update_progress(self, msg: str) -> None:
         """Update progress message (safe to call from main thread via call_from_thread)."""
@@ -560,14 +566,16 @@ class GroupRunScreen(Vertical):
         results_phase.display = True
 
         # Update info bar
-        overall = "CONSISTENTE" if group_result.all_match else "DIVERGENTE"
+        overall = (t("verdict.consistent") if group_result.all_match
+                   else t("verdict.divergent"))
         overall_status = "match" if group_result.all_match else "diff"
         group_name = str(group_result.group_name) if group_result.group_name else ""
         info = self.query_one("#gr-result-info", Static)
         info.update(
-            f"[bold]{escape_markup(group_name)}[/] | "
-            f"{len(group_result.query_results)} consultas | "
-            f"[bold]{mark_verdict(overall_status, label=overall)}[/]"
+            t("group_run.info_bar", name=f"[bold]{escape_markup(group_name)}[/]",
+              queries=t("group_run.queries_many",
+                          count=len(group_result.query_results)),
+              verdict=f"[bold]{mark_verdict(overall_status, label=overall)}[/]")
         )
 
         # Load result into GroupResultWidget
@@ -624,19 +632,19 @@ class GroupRunScreen(Vertical):
             return
 
         actions = [
-            Action("Flat/Pivot", "F", "toggle_mode"),
-            Action("Filtrar", "S", "filter_status"),
+            Action(t("action.flat_pivot"), "F", "toggle_mode"),
+            Action(t("action.filter"), "S", "filter_status"),
         ]
         if self._raw_query_rows is not None:
             label = "Original" if self._showing_mapped else "De-Para"
             actions.append(Action(label, "M", "toggle_mapping"))
         if self._current_group and self._current_group.template:
-            actions.append(Action("Template", "T", "render_template"))
+            actions.append(Action(t("common.template"), "T", "render_template"))
         actions.extend([
-            Action("Exportar", "E", "export"),
-            Action("HTML", "H", "export_html"),
-            Action("Individual", "I", "view_individual"),
-            Action("Reexecutar", "R", "reexecute"),
+            Action(t("action.export"), "E", "export"),
+            Action(t("action.html"), "H", "export_html"),
+            Action(t("action.individual"), "I", "view_individual"),
+            Action(t("action.rerun"), "R", "reexecute"),
         ])
         action_bar.set_actions(actions)
 
@@ -708,24 +716,29 @@ class GroupRunScreen(Vertical):
         info = self.query_one("#gr-result-info", Static)
         group_name = str(new_gr.group_name) if new_gr.group_name else ""
         if self._showing_mapped:
-            overall = "CONSISTENTE" if new_gr.all_match else "DIVERGENTE"
+            overall = (t("verdict.consistent") if new_gr.all_match
+                       else t("verdict.divergent"))
             overall_status = "match" if new_gr.all_match else "diff"
             info.update(
-                f"[bold]{escape_markup(group_name)}[/] | "
-                f"{len(new_gr.query_results)} consultas | "
-                f"[bold]{mark_verdict(overall_status, label=overall)}[/]"
+                t("group_run.info_bar", name=f"[bold]{escape_markup(group_name)}[/]",
+                  queries=t("group_run.queries_many",
+                              count=len(new_gr.query_results)),
+                  verdict=f"[bold]{mark_verdict(overall_status, label=overall)}[/]")
             )
         else:
             info.update(
-                f"[bold]{escape_markup(group_name)}[/] | "
-                f"{len(new_gr.query_results)} consultas | "
-                f"[dim]valores originais[/]"
+                t("group_run.info_bar_original",
+                  name=f"[bold]{escape_markup(group_name)}[/]",
+                  queries=t("group_run.queries_many",
+                              count=len(new_gr.query_results)),
+                  label=f'[dim]{t("group_run.original_values")}[/]')
             )
 
         self._set_result_actions()
 
-        label = "mapeados (de-para)" if self._showing_mapped else "originais"
-        self.notify(f"Exibindo valores {label}", timeout=2)
+        label = (t("group_run.mapped_values") if self._showing_mapped
+                 else t("group_run.plain_values"))
+        self.notify(t("group_run.showing_values", label=label), timeout=2)
 
     def _handle_render_template(self) -> None:
         """Render the group's template with query results."""
@@ -733,7 +746,7 @@ class GroupRunScreen(Vertical):
             return
 
         if not self._current_group.template:
-            self.notify("Grupo nao possui template configurado.", severity="warning")
+            self.notify(t("group_run.no_template"), severity="warning")
             return
 
         from dbqm.models.template import find_template
@@ -745,7 +758,7 @@ class GroupRunScreen(Vertical):
         template = find_template(self._current_group.template)
         if template is None:
             self.notify(
-                f'Template "{self._current_group.template}" nao encontrado.',
+                t("template.not_found_named", name=self._current_group.template),
                 severity="error",
             )
             return
@@ -794,16 +807,16 @@ class GroupRunScreen(Vertical):
 
         if grw._status_filter is None:
             grw.filter_status({"DIFF", "ABSENT"})
-            self.notify("Filtro: DIFF + ABSENT", timeout=3)
+            self.notify(t("group_run.filter_diff_absent"), timeout=3)
         elif grw._status_filter == {"DIFF", "ABSENT"}:
             grw.filter_status({"DIFF"})
-            self.notify("Filtro: apenas DIFF", timeout=3)
+            self.notify(t("group_run.filter_diff"), timeout=3)
         elif grw._status_filter == {"DIFF"}:
             grw.filter_status({"ABSENT"})
-            self.notify("Filtro: apenas ABSENT", timeout=3)
+            self.notify(t("group_run.filter_absent"), timeout=3)
         else:
             grw.filter_status(set())
-            self.notify("Filtro removido — mostrando todos", timeout=3)
+            self.notify(t("group_run.filter_cleared"), timeout=3)
 
     def _handle_export(self) -> None:
         from dbqm.ui.modals.export_picker import request_export
@@ -833,12 +846,12 @@ class GroupRunScreen(Vertical):
             elif fmt == "txt":
                 path = export_group_flat_txt(gr, params) if is_flat else export_group_txt(gr, params)
             else:
-                self.notify(f"Formato '{fmt}' nao suportado.", severity="warning")
+                self.notify(t("group_run.format_unsupported", format=fmt), severity="warning")
                 return
 
-            self.notify(f"Exportado: {path}", timeout=5)
+            self.notify(t("export.done", path=path), timeout=5)
         except Exception as e:
-            self.notify(f"Erro ao exportar: {e}", severity="error")
+            self.notify(t("group_run.export_failed", error=e), severity="error")
 
     def _handle_export_html(self) -> None:
         if self._current_group_result is None:
@@ -848,9 +861,9 @@ class GroupRunScreen(Vertical):
 
         try:
             path = export_group_html(self._current_group_result, self._current_params)
-            self.notify(f"Relatorio HTML exportado: {path}", timeout=5)
+            self.notify(t("group_run.html_exported", path=path), timeout=5)
         except Exception as e:
-            self.notify(f"Erro ao exportar HTML: {e}", severity="error")
+            self.notify(t("group_run.html_export_failed", error=e), severity="error")
 
     def _handle_view_individual(self) -> None:
         """Show individual query result — cycle through queries or push a selector."""
@@ -946,12 +959,12 @@ class _QueryPickerModal(ModalScreen[str | None]):
         self._qname_map: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
-        with Dialog("Selecionar consulta", width="sm", id="qp-dialog"):
+        with Dialog(t("group_run.select_query_title"), width="sm", id="qp-dialog"):
             for qn in self._query_names:
                 safe_id = sanitize_id(qn)
                 self._qname_map[safe_id] = qn
                 yield Button(qn, variant="primary", id=f"qp-{safe_id}")
-            yield Button("Cancelar", variant="default", id="qp--cancel--")
+            yield Button(t("common.cancel"), variant="default", id="qp--cancel--")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
@@ -997,13 +1010,14 @@ class _IndividualResultModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Dialog(self._query_name, width="screen", id="ir-dialog"):
             yield Static(
-                f"{self._result.row_count} registros | "
-                f"{self._result.elapsed:.2f}s | "
-                f"{self._result.connection_name}",
+                t("group_run.result_info",
+                  rows=t("result_table.rows_count", rows=self._result.row_count),
+                  seconds=f"{self._result.elapsed:.2f}",
+                  connection=self._result.connection_name),
                 id="ir-info",
             )
             yield ResultTable(id="ir-result-table")
-            yield Button("Fechar", variant="default", id="ir-close")
+            yield Button(t("common.close"), variant="default", id="ir-close")
 
     def on_mount(self) -> None:
         rt = self.query_one("#ir-result-table", ResultTable)
@@ -1062,7 +1076,7 @@ class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import Input as TInput
 
-        with Dialog("Preencher campos do template", width="lg", id="ti-dialog"):
+        with Dialog(t("group_run.fill_template_title"), width="lg", id="ti-dialog"):
             for field_name in self._fields:
                 with Horizontal(classes="ti-field-row"):
                     yield Static(
@@ -1076,8 +1090,8 @@ class _TemplateInputModal(ModalScreen[dict[str, str] | None]):
                         classes="ti-field-input",
                     )
             with Horizontal(id="ti-buttons"):
-                yield Button("Gerar", variant="primary", id="ti-submit")
-                yield Button("Cancelar", variant="default", id="ti-cancel")
+                yield Button(t("group_run.generate"), variant="primary", id="ti-submit")
+                yield Button(t("common.cancel"), variant="default", id="ti-cancel")
 
     def on_mount(self) -> None:
         if self._fields:
@@ -1140,12 +1154,12 @@ class _RenderedTemplateModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         from textual.widgets import TextArea
 
-        with Dialog("Template Gerado", width="screen", id="rt-dialog"):
+        with Dialog(t("group_run.generated_template_title"), width="screen", id="rt-dialog"):
             yield TextArea(self._rendered_text, id="rt-content", read_only=True)
             with Horizontal(id="rt-buttons"):
-                yield Button("Copiar", variant="primary", id="rt-copy")
-                yield Button("Exportar TXT", variant="default", id="rt-export")
-                yield Button("Fechar", variant="default", id="rt-close")
+                yield Button(t("group_run.copy"), variant="primary", id="rt-copy")
+                yield Button(t("group_run.export_txt"), variant="default", id="rt-export")
+                yield Button(t("common.close"), variant="default", id="rt-close")
 
     def on_mount(self) -> None:
         from textual.widgets import TextArea
@@ -1168,9 +1182,9 @@ class _RenderedTemplateModal(ModalScreen[None]):
                 shell=True,
             )
             process.communicate(self._rendered_text.encode("utf-8"))
-            self.notify("Copiado para a area de transferencia!", timeout=3)
+            self.notify(t("group_run.copied"), timeout=3)
         except Exception:
-            self.notify("Erro ao copiar. Selecione e copie manualmente.", severity="warning")
+            self.notify(t("group_run.copy_failed"), severity="warning")
 
     def _export_txt(self) -> None:
         from datetime import datetime
@@ -1181,7 +1195,7 @@ class _RenderedTemplateModal(ModalScreen[None]):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         filepath = exports_dir / f"template_{ts}.txt"
         filepath.write_text(self._rendered_text, encoding="utf-8")
-        self.notify(f"Exportado: {filepath}", timeout=5)
+        self.notify(t("export.done", path=filepath), timeout=5)
 
     def action_close(self) -> None:
         self.dismiss(None)

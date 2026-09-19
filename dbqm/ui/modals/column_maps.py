@@ -7,6 +7,7 @@ from textual.containers import VerticalScroll, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Input, Select
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.dialog import Dialog
 
 
@@ -75,18 +76,18 @@ class ColumnMapsModal(ModalScreen[dict[str, dict[str, str]] | None]):
 
     def compose(self) -> ComposeResult:
         options = [(col, col) for col in self._columns]
-        with Dialog("DE-PARA (Mapeamento de Valores)", width="lg", id="dialog"):
+        with Dialog(t("column_maps.title"), width="lg", id="dialog"):
             with VerticalScroll(id="maps-scroll"):
-                yield Select(options, prompt="Selecione uma coluna", id="col-select")
+                yield Select(options, prompt=t("column_maps.select_column"), id="col-select")
                 yield DataTable(id="maps-table")
                 with Horizontal(id="add-row"):
-                    yield Input(placeholder="Valor original", id="raw-input", classes="map-input")
-                    yield Input(placeholder="Exibir como", id="display-input", classes="map-input")
+                    yield Input(placeholder=t("column_maps.original_value"), id="raw-input", classes="map-input")
+                    yield Input(placeholder=t("column_maps.display_as"), id="display-input", classes="map-input")
                     yield Button("+", variant="success", id="add-map")
-                yield Button("Remover selecionado", variant="error", id="remove-map")
+                yield Button(t("common.remove_selected"), variant="error", id="remove-map")
             with Horizontal(id="buttons"):
-                yield Button("Salvar", variant="primary", id="save")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.save"), variant="primary", id="save")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         table = self.query_one("#maps-table", DataTable)
@@ -119,14 +120,14 @@ class ColumnMapsModal(ModalScreen[dict[str, dict[str, str]] | None]):
 
     def _add_mapping(self) -> None:
         if not self._selected_col:
-            self.notify("Selecione uma coluna primeiro.", severity="warning")
+            self.notify(t("column_maps.select_first"), severity="warning")
             return
         raw_input = self.query_one("#raw-input", Input)
         display_input = self.query_one("#display-input", Input)
         raw = raw_input.value.strip()
         display = display_input.value.strip()
         if not raw or not display:
-            self.notify("Preencha ambos os campos.", severity="warning")
+            self.notify(t("column_maps.fill_both"), severity="warning")
             return
         if self._selected_col not in self._maps:
             self._maps[self._selected_col] = {}

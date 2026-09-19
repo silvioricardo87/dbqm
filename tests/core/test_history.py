@@ -1,9 +1,53 @@
 """Tests for execution history."""
+import pytest
+
 from dbqm.core.history import (
     HistoryEntry, load_history, save_history, add_history_entry,
     clear_history, record_query_execution, record_group_execution,
-    MAX_HISTORY,
+    kind_label, MAX_HISTORY,
 )
+from dbqm.i18n import available_languages, get_language, set_language
+
+
+@pytest.fixture
+def em_cada_idioma():
+    """Run the body once per language, restoring the one in force."""
+    anterior = get_language()
+    yield available_languages()
+    set_language(anterior)
+
+
+class TestKindLabel:
+    def test_the_word_changes_with_the_language(self, em_cada_idioma):
+        """The three surfaces that show this field now share one spelling.
+
+        Before, the TUI table said "grupo", the detail panel beside it
+        printed the stored "group", and so did `dbqm history -f table` --
+        one field, two languages, in the same screen.
+        """
+        vistos = set()
+        for idioma in em_cada_idioma:
+            set_language(idioma)
+            vistos.add((kind_label("group"), kind_label("query")))
+        assert len(vistos) == len(em_cada_idioma), (
+            f"a language reuses another's words for this field: {vistos}")
+
+    def test_the_stored_value_is_not_the_shown_one(self, em_cada_idioma):
+        """`-f json` and the file on disk keep English, whatever is on screen.
+
+        A caller parsing `entry_type` must not have to know which language
+        the machine that wrote the file was running in.
+        """
+        for idioma in em_cada_idioma:
+            set_language(idioma)
+            e = HistoryEntry(id="1", timestamp="t", entry_type="group",
+                             name="g", connection="c")
+            assert e.to_dict()["entry_type"] == "group"
+
+    def test_anything_that_is_not_a_group_reads_as_a_query(self):
+        """The field has two values on disk; an older file may have neither."""
+        set_language("en")
+        assert kind_label("") == kind_label("query")
 
 
 class TestHistoryEntry:

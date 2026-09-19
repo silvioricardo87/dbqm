@@ -38,11 +38,11 @@ async def test_f_keys_switch_tabs(tmp_config_dir):
         await pilot.press("f6")
         assert app.query_one("#main-tabs", TabbedContent).active == "tab-config"
         await pilot.press("f2")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-conexoes"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-connections"
         await pilot.press("f3")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-objetos"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-objects"
         await pilot.press("f8")
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-ferramentas"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-tools"
 
 
 @pytest.mark.asyncio
@@ -64,7 +64,7 @@ async def test_first_run_switches_to_connections_tab(tmp_config_dir):
     app = DBQMApp()
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-conexoes"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-connections"
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,7 @@ async def test_all_panes_enabled_after_mount(tmp_config_dir):
         for tab_id in DBQMApp.TAB_TO_SCREEN:
             pane = app.query_one(f"#{tab_id}", TabPane)
             assert not pane.disabled, f"{tab_id} is unexpectedly disabled"
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-conexoes"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-connections"
 
 
 @pytest.mark.asyncio
@@ -129,10 +129,10 @@ async def test_activating_tab_via_tabbedcontent_active_works(tmp_config_dir):
     async with app.run_test() as pilot:
         await pilot.pause()
         tabs = app.query_one("#main-tabs", TabbedContent)
-        tabs.active = "tab-historico"
+        tabs.active = "tab-history"
         await pilot.pause()
-        assert tabs.active == "tab-historico"
-        pane = app.query_one("#tab-historico", TabPane)
+        assert tabs.active == "tab-history"
+        pane = app.query_one("#tab-history", TabPane)
         assert not pane.disabled
 
 
@@ -160,7 +160,7 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
     async with app.run_test() as pilot:
         await pilot.pause()
         tabs = app.query_one("#main-tabs", TabbedContent)
-        tabs.active = "tab-historico"
+        tabs.active = "tab-history"
         await pilot.pause()
 
         intruso = next(
@@ -169,9 +169,9 @@ async def test_focus_in_an_inactive_pane_does_not_switch_tabs(tmp_config_dir):
         intruso.focus()
         await pilot.pause()
 
-        assert tabs.active == "tab-historico"
+        assert tabs.active == "tab-history"
         pintado = rendered_text(app)
-        assert "HISTORICO" in pintado
+        assert "HISTORY" in pintado
         assert "CONEXOES" not in pintado
 
 
@@ -180,7 +180,7 @@ async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir)
     """An `F5` pressed BEFORE the mount settles must not be swallowed.
 
     Measured in the product before the fix: `f5` with zero pauses ended up
-    at `active='tab-conexoes'` with seven panes still disabled — the key
+    at `active='tab-connections'` with seven panes still disabled — the key
     looked as if it had never existed. Here the key is pressed at the
     earliest possible instant, with no settling pause before it.
     """
@@ -197,7 +197,7 @@ async def test_function_key_at_startup_reaches_the_requested_tab(tmp_config_dir)
         intruso.focus()
         for _ in range(4):
             await pilot.pause()
-        assert app.query_one("#main-tabs", TabbedContent).active == "tab-historico"
+        assert app.query_one("#main-tabs", TabbedContent).active == "tab-history"
 
 
 def test_dbqm_app_registers_and_activates_theme_on_construction(tmp_config_dir):
@@ -247,7 +247,7 @@ async def _open_config_tool(pilot, app, key):
 
     await pilot.press("f6")
     await pilot.pause()
-    lista = app.query_one("#settings-ferramentas-list", OptionList)
+    lista = app.query_one("#settings-tools-list", OptionList)
     lista.focus()
     await pilot.pause()
     alvo = next(
@@ -283,7 +283,7 @@ async def test_settings_opens_the_oracle_clients_manager(tmp_config_dir):
             "a tela de Oracle Instant Clients nao foi montada pela rota real"
         )
         pintado = rendered_text(app)
-        assert "PLATAFORMA DETECTADA" in pintado, (
+        assert "DETECTED PLATFORM" in pintado, (
             "a tela montou mas nao e desenhada: %r" % pintado[:400]
         )
         assert "No nodes match" not in pintado
@@ -297,12 +297,12 @@ async def test_settings_opens_export_import(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
 
         assert app.query(ConfigPortScreen), (
             "a tela de Exportar/Importar nao foi montada pela rota real"
         )
-        assert "EXPORTAR" in rendered_text(app).upper()
+        assert "EXPORT" in rendered_text(app).upper()
 
 
 @pytest.mark.asyncio
@@ -327,7 +327,7 @@ async def test_escape_returns_from_the_tool_to_settings(tmp_config_dir):
         await pilot.pause()
 
         pintado = rendered_text(app)
-        assert "PLATAFORMA DETECTADA" not in pintado, "Esc nao voltou"
+        assert "DETECTED PLATFORM" not in pintado, "Esc nao voltou"
         assert "ORACLE INSTANT CLIENT" in pintado.upper(), (
             "voltou para lugar nenhum: %r" % pintado[:400]
         )
@@ -351,7 +351,7 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
         tela = app.query_one(ConfigPortScreen)
 
         # Enter a DEEP phase: that is where going back has to work from.
@@ -366,8 +366,8 @@ async def test_back_from_config_port_returns_to_settings(tmp_config_dir):
         # The screen stays mounted (an export worker may still be alive);
         # what has to change is what the tab PAINTS.
         pintado = rendered_text(app).upper()
-        assert "EXPORTAR OU IMPORTAR" not in pintado, "o Voltar nao voltou"
-        assert "MAIS CONFIGURACOES" in pintado
+        assert "EXPORT OR IMPORT" not in pintado, "o Voltar nao voltou"
+        assert "MORE SETTINGS" in pintado
 
 
 @pytest.mark.asyncio
@@ -389,8 +389,8 @@ async def test_no_settings_route_fails_silently(tmp_config_dir):
     from tests.ui._helpers import rendered_text
 
     esperado = {
-        "portabilidade": "EXPORTAR OU IMPORTAR",
-        "oracle-clients": "PLATAFORMA DETECTADA",
+        "portability": "EXPORT OR IMPORT",
+        "oracle-clients": "DETECTED PLATFORM",
     }
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
@@ -430,7 +430,7 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
 
     def anuncia_voltar(app):
         return any(
-            "Esc" in linha and "Voltar" in linha
+            "Esc" in linha and "Back" in linha
             for linha in rendered_lines(app)
         )
 
@@ -470,13 +470,13 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
         linhas = rendered_lines(app)
         y = next(
             i for i, linha in enumerate(linhas)
-            if "Esc" in linha and "Voltar" in linha
+            if "Esc" in linha and "Back" in linha
         )
-        await pilot.click(offset=(linhas[y].index("Voltar"), y))
+        await pilot.click(offset=(linhas[y].index("Back"), y))
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
-        assert "PLATAFORMA DETECTADA" not in rendered_text(app).upper()
+        assert "DETECTED PLATFORM" not in rendered_text(app).upper()
         assert not anuncia_voltar(app), "voltou, e o anuncio ficou"
 
 
@@ -490,25 +490,25 @@ async def test_reopening_export_import_returns_to_the_mode_choice(tmp_config_dir
     tree. `ConfigPortScreen` has nothing of the sort, and staying mounted
     there meant reopening at the phase where it had stopped: whoever
     exported once ran into the export form again, even though the entry
-    they had just chosen is called "Exportar / Importar".
+    they had just chosen is called "Export / Import".
     """
     from dbqm.ui.screens.config_port import ConfigPortScreen
     from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
         tela = app.query_one(ConfigPortScreen)
         tela._show_export_phase()
         await pilot.pause()
-        assert "EXPORTAR CONFIGURACOES" in rendered_text(app).upper()
+        assert "EXPORT CONFIGURATION" in rendered_text(app).upper()
 
         await pilot.press("escape")
         await pilot.pause()
-        await _open_config_tool(pilot, app, "portabilidade")
+        await _open_config_tool(pilot, app, "portability")
 
         pintado = rendered_text(app).upper()
-        assert "EXPORTAR OU IMPORTAR" in pintado, (
+        assert "EXPORT OR IMPORT" in pintado, (
             "reabriu numa fase que a entrada da lista nao prometeu: %r"
             % pintado[-600:]
         )
@@ -569,7 +569,7 @@ async def test_clients_manager_opens_in_a_titled_panel(
         # has to be a panel title saying where the person has landed.
         topo = [linha for linha in rendered_lines(app)[3:] if linha.strip()][:3]
         assert any(
-            "PLATAFORMA DETECTADA" in linha or "CLIENTS INSTALADOS" in linha
+            "DETECTED PLATFORM" in linha or "INSTALLED CLIENTS" in linha
             for linha in topo
         ), ("a tela abriu no meio de um painel, sem titulo a vista: %r" % topo)
 
@@ -578,11 +578,11 @@ async def test_clients_manager_opens_in_a_titled_panel(
 async def test_choosing_a_client_updates_the_status_on_return(
     dois_clients_instalados, tmp_config_dir
 ):
-    """The `Client em uso` label must not contradict what was just saved.
+    """The `Client in use` label must not contradict what was just saved.
 
     This is the worst possible moment for the label to go stale: the route
     to the manager was designed around it — whoever needs the manager is
-    looking at `Client em uso`, and the list entry sits right next to that
+    looking at `Client in use`, and the list entry sits right next to that
     status on purpose. If after choosing a client the label keeps showing
     the previous one, the screen contradicts the configuration it has just
     written itself.
@@ -625,10 +625,10 @@ async def test_choosing_a_client_updates_the_status_on_return(
 
         depois = rendered_text(app)
         assert "instantclient_19_x64" in depois, (
-            "o `Client em uso` nao acompanhou a escolha: %r" % depois[:600]
+            "o `Client in use` nao acompanhou a escolha: %r" % depois[:600]
         )
         assert "instantclient_23_x64" not in depois, (
-            "o `Client em uso` ainda mostra o client anterior: %r" % depois[:600]
+            "o `Client in use` ainda mostra o client anterior: %r" % depois[:600]
         )
 
 
@@ -643,7 +643,7 @@ async def _open_tool(pilot, app, key):
 
     await pilot.press("f8")
     await pilot.pause()
-    lista = app.query_one("#ferr-menu-list", OptionList)
+    lista = app.query_one("#tools-menu-list", OptionList)
     lista.focus()
     await pilot.pause()
     alvo = next(
@@ -665,7 +665,7 @@ async def test_tools_shows_all_five_at_80x24(tmp_config_dir):
 
     Measured on the real DBQMApp at 80x24: five full-width buttons cost 4
     lines each (3 of button + 1 of margin) = 20 lines in a body of 14, and
-    `Executar Rotina` and `Executar Grupo` only showed up after scrolling.
+    `Run Routine` and `Run Group` only showed up after scrolling.
     A menu whose last entries do not show up is not a menu.
 
     Against the DBQMApp and not against a single-screen harness: mounted
@@ -680,11 +680,11 @@ async def test_tools_shows_all_five_at_80x24(tmp_config_dir):
         await pilot.pause()
         pintado = rendered_text(app)
         for nome in (
-            "Gerenciar Grupos",
-            "Gerenciar Templates",
+            "Manage Groups",
+            "Manage Templates",
             "Package Editor",
-            "Executar Rotina",
-            "Executar Grupo",
+            "Run Routine",
+            "Run Group",
         ):
             assert nome in pintado, (
                 "%r nao aparece a 80x24: %r" % (nome, pintado[:800])
@@ -709,7 +709,7 @@ async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
         assert app.query(TemplateManageScreen), "a ferramenta nao foi montada"
 
         pintado = rendered_text(app)
-        assert "Voltar" in pintado, (
+        assert "Back" in pintado, (
             "a unica saida da ferramenta nao esta escrita em lugar nenhum: %r"
             % pintado[-400:]
         )
@@ -720,7 +720,7 @@ async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
         await pilot.pause()
 
         pintado = rendered_text(app)
-        assert "FERRAMENTAS" in pintado.upper(), (
+        assert "TOOLS" in pintado.upper(), (
             "o Esc nao voltou para o menu: %r" % pintado[:600]
         )
         assert "Package Editor" in pintado
@@ -742,7 +742,7 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
         await _open_tool(pilot, app, "templates")
-        assert "Voltar" in rendered_text(app), (
+        assert "Back" in rendered_text(app), (
             "o teste nao partiu do estado que descreve"
         )
 
@@ -754,11 +754,11 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
         barra = app.query_one(ActionBar)
         assert barra._pinned_action is None
         pintado = rendered_text(app)
-        assert "Voltar" not in pintado, (
+        assert "Back" not in pintado, (
             "o Esc Voltar das Ferramentas sobrou em Conexoes: %r"
             % pintado[-300:]
         )
-        assert "Nova" in pintado, (
+        assert "New" in pintado, (
             "a aba nova nem pintou suas proprias acoes: %r" % pintado[-300:]
         )
 
@@ -769,13 +769,13 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
         pintado = rendered_text(app)
-        assert "Voltar" in pintado, (
+        assert "Back" in pintado, (
             "a saida sumiu ao reentrar na aba: %r" % pintado[-300:]
         )
-        assert "Renomear" in pintado, (
+        assert "Rename" in pintado, (
             "as acoes da ferramenta nao voltaram: %r" % pintado[-300:]
         )
-        assert "Nova" not in pintado, (
+        assert "Test" not in pintado, (
             "sobrou acao da aba Conexoes: %r" % pintado[-300:]
         )
 
@@ -992,7 +992,7 @@ async def test_group_list_wrap_width_fits_while_scrolling(tmp_config_dir):
 
     app = DBQMApp()
     async with app.run_test(size=(80, 24)) as pilot:
-        await _open_tool(pilot, app, "executar")
+        await _open_tool(pilot, app, "run-group")
         lista = app.query_one("#gr-group-list", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o teste so prova o pior caso se a lista estiver realmente "
@@ -1029,7 +1029,7 @@ async def test_group_description_never_falls_into_the_identity_column(
 
     app = DBQMApp()
     async with app.run_test(size=tamanho) as pilot:
-        await _open_tool(pilot, app, "executar")
+        await _open_tool(pilot, app, "run-group")
         lista = app.query_one("#gr-group-list", OptionList)
         assert lista.show_vertical_scrollbar, (
             "o defeito so aparece com a lista rolando (a barra rouba 2 "

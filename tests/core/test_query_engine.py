@@ -308,7 +308,7 @@ class TestExecuteWithSqlite:
         conn = self._make_conn(":memory:")
         result = execute_adhoc("MERGE INTO t USING s ON (t.id=s.id)", conn, {})
         assert not result.success
-        assert "nao suportado" in result.error
+        assert "Unsupported SQL type" in result.error
 
 
 class TestDdlTrailingSemicolonPreservation:
@@ -892,9 +892,9 @@ class TestSqlServerAdhoc:
     def test_block_label_follows_the_dialect(self):
         from dbqm.core.query_engine import block_label
 
-        assert block_label("sqlserver") == "Bloco T-SQL"
-        assert block_label("oracle") == "Bloco PL/SQL"
-        assert block_label("postgresql") == "Bloco PL/SQL"
+        assert block_label("sqlserver") == "T-SQL block"
+        assert block_label("oracle") == "PL/SQL block"
+        assert block_label("postgresql") == "PL/SQL block"
 
 
 class _FakeCursor:
@@ -941,7 +941,7 @@ class TestCollectResultSets:
         assert columns == ["erro", "mensagem"]
         assert rows == [[547, "conflito de FK"]]
         assert notas, "the dropped set must be reported, not silently lost"
-        assert "2 conjuntos" in notas[0]
+        assert "2 result sets" in notas[0]
         assert "id, nome" in notas[1]
 
     def test_a_batch_with_no_result_set_stays_empty(self):

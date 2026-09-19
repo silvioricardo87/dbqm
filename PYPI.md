@@ -110,6 +110,8 @@ dbqm history -n 20
   trail you can hand to someone else.
 - **Portable configuration** — export and import your connections and queries as
   an encrypted `.dbqm` bundle.
+- **English and Portuguese** — every screen, message and `--help` string is
+  translated; `dbqm config set language pt`, or `DBQM_LANG=pt` for one run.
 
 ## Security
 

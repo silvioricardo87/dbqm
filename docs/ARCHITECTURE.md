@@ -57,7 +57,7 @@ dbqm/
 │   ├── query.py  group.py  settings.py  template.py
 └── ui/                # Textual TUI (imports core; core never imports ui)
     ├── app.py         # Main App: single tabbed shell (TabbedContent), routing,
-    │                  #   keybindings; `AbasPrincipais` keeps focus from switching tabs
+    │                  #   keybindings; `MainTabs` keeps focus from switching tabs
     ├── theme.py  utils.py
     ├── screens/       # One Vertical-widget screen per feature (adhoc, query_exec,
     │                  #   group_exec, group_run, browser, connections, history,
@@ -221,13 +221,13 @@ consumers, none of them importing each other.
   `3` `--test` failed. The project-wide code table is still unbuilt (backlog `X1`).
 
 ### UI conventions
-- Interactive UI labels **intentionally omit accents** (e.g. `Historico`,
+- **No screen text is written in a widget.** Labels, messages, placeholders
+  and panel titles come from `dbqm/i18n/` through `t("key")`. See the
+  language section below and "Screen text" in `AGENTS.md`.
+- Portuguese labels **intentionally omit accents** (e.g. `Historico`,
   `conexao`, `Nao`). This is deliberate — **do not "fix" them**.
 
-### Language: English in code, Portuguese only on screen
-
-This is not a style preference — it is the line between *what the program is
-made of* and *what the user reads*.
+### Language: English everywhere, Portuguese as a translation
 
 **English** — everything that is code, and everything written *about* it:
 - identifiers: modules, classes, functions, constants, fixtures, test names
@@ -238,10 +238,31 @@ made of* and *what the user reads*.
   issue titles and bodies, code-review comments, and release notes
 - `README.md`, `CHANGELOG.md`, `AGENTS.md` and anything else under `docs/`
 
-**Portuguese, without accents** — everything the user sees:
-- widget labels, panel titles, button text, tab names
-- notifications, error and confirmation messages
-- CLI output text
+**English, and in the catalogue** — everything the user reads: widget labels,
+panel titles, button text, tab names, notifications, error and confirmation
+messages, CLI output and `--help`. None of it is written in a widget: it
+lives in `dbqm/i18n/en.py` and is reached through `t("key")`.
+
+**Portuguese is a translation**, in `dbqm/i18n/pt.py`, still without accents.
+It is chosen with `dbqm config set language pt` or `DBQM_LANG=pt`.
+
+Until 2.11.0 the rule was "English in code, Portuguese on screen", and the
+screens were the exception. Making Portuguese a translation rather than the
+source removed the exception: there is now one language in the repository and
+a file of alternatives beside it.
+
+Three things that only became visible once a second language existed, each
+now a guard in `tests/design/test_i18n_policy.py`:
+
+- **Code that classified an outcome by reading its own message** was correct
+  in one language and silently wrong in every other. `error_kind` and
+  `result.not_found` are fields for that reason.
+- **A `t()` call at import time** freezes the text in whatever language was
+  default when the module loaded. Six class attributes had to become
+  methods.
+- **Short text is sometimes a layout requirement.** Two guards that measure a
+  width now run once per language, because a longer translation wraps and
+  nothing in a catalogue file says a label has 26 columns of budget.
 
 The test's *assertion messages* follow the code, not the UI: they are read by
 whoever the test failed on, never by a user of the program.
@@ -284,7 +305,7 @@ fixed items → tabs; a variable number → `Select` with counts; choosable thin
 is out of the vocabulary — it did the same job as `OptionList`.
 A list item is **never a concatenated string**: identity (bold, alone),
 disambiguation (indented, `$texto-apoio`), context (indented,
-`$texto-desabilitado`, optional). Build it with `item_hierarquico`
+`$texto-desabilitado`, optional). Build it with `hierarchical_item`
 (`dbqm/ui/widgets/lista_hierarquica.py`).
 
 **3. How dense is a row?** A **result** table never truncates to fit: key column
@@ -302,20 +323,21 @@ cluster only makes sense when the cluster **is** the screen — a dialog. And a
 
 | Guard | Rejects | Enforcement |
 |---|---|---|
-| `sem_borda_crua` | `border:`/`outline:` outside `Panel`/`Dialog` | mechanical, 1 written exemption |
-| `sem_listview` | any mention of `ListView` in `dbqm/ui` | mechanical, no exemptions |
-| `sem_cluster_centralizado` | layout centring outside a dialog | mechanical, 5 written exemptions |
-| `rotulo_nao_achatado` | list item built as one flat string | mechanical, 1 written exemption |
-| `tabela_com_chave_fixa` | result table (columns built from data) without `fixed_columns` | mechanical, no exemptions |
-| `botao_nao_navega` | button handler that switches tab or opens a tool | mechanical, **4 written exemptions** |
+| `test_no_raw_border_outside_a_frame_component` | `border:`/`outline:` outside `Panel`/`Dialog` | mechanical, 1 written exemption |
+| `test_listview_left_the_vocabulary` | any mention of `ListView` in `dbqm/ui` | mechanical, no exemptions |
+| `test_no_centered_button_cluster_outside_a_dialog` | layout centring outside a dialog | mechanical, 5 written exemptions |
+| `test_list_label_is_not_a_flattened_string` | list item built as one flat string | mechanical, 1 written exemption |
+| `test_result_table_fixes_the_key_column` | result table (columns built from data) without `fixed_columns` | mechanical, no exemptions |
+| `test_button_does_not_navigate` | button handler that switches tab or opens a tool | mechanical, **4 written exemptions** |
 
-`botao_nao_navega` deserves a note, because it is the one whose exemption list is
-the interesting part. `EmptyState` requires `acao_rotulo`/`acao_id` — the four
-parameters are mandatory so that no empty list is ever a dead end. When the
+`test_button_does_not_navigate` deserves a note, because it is the one whose
+exemption list is the interesting part. `EmptyState` requires
+`action_label`/`action_id` — the four parameters are mandatory so that no empty
+list is ever a dead end. When the
 honest way out of an empty screen lives in another tab, honouring that contract
 means navigating. **Four** call-to-actions do it today (`history`, `query_exec`,
 `group_run`, `templates_sidebar`); they are listed by button id in
-`NAVEGACAO_ISENTA` with the reason. Making the action optional would touch 14
+`NAVIGATION_EXEMPT` with the reason. Making the action optional would touch 14
 call sites and is a flow change, out of scope for the layout phase. The guard's
 job until then is the **ceiling**: the fifth navigating button fails the suite,
 and a stale exemption (a CTA that stops navigating) also fails it.
@@ -334,7 +356,7 @@ to each guard before concluding "the guard is green, so the rule holds".
   screen while the ActionBar painted on none (the StatusBar covered it). Tests
   that read attributes stayed green through both. Drive the app, read the
   rendered strips or the exported screenshot (`tests/ui/_helpers.py`:
-  `texto_renderizado`, `linhas_renderizadas`, `recorte`).
+  `rendered_text`, `rendered_lines`, `crop`).
 - **Measure in the state where the defect happens.** A list description was
   sized against `content_region.width` measured on a list too short to scroll;
   the real list has a scrollbar and the fix was two columns off. A screen test
@@ -392,24 +414,24 @@ to each guard before concluding "the guard is green, so the rule holds".
   deleted.
 - The connection checklist in `group_exec` is the one flat list label left.
   `SelectionList` paints **only the first line** of a prompt (measured), so
-  applying `item_hierarquico` there would delete the target instead of
+  applying `hierarchical_item` there would delete the target instead of
   clarifying it; the real fix is a different widget.
 - ~~`test_f_keys_switch_tabs` / `test_clients_manager_opens_in_a_titled_panel`
   are timing-sensitive under load.~~ **Fixed at the root** — it was not a flaky
   test, it was stock `TabbedContent` treating FOCUS as NAVIGATION
   (`_on_tab_pane_focused` -> `self.active = pane.id`). Since every screen schedules
   its own initial focus, the previous screen's late focus undid the tab switch.
-  `AbasPrincipais` (`ui/app.py`) kills the message with `prevent_default()` —
+  `MainTabs` (`ui/app.py`) kills the message with `prevent_default()` —
   `stop()` alone is not enough, because Textual dispatches the same message to the
   handler of EVERY class in the MRO (measured: `stop()` changed nothing). Covered
   by `test_focus_in_an_inactive_pane_does_not_switch_tabs` and
   `test_function_key_at_startup_reaches_the_requested_tab`, both of which fail
   deterministically without the fix with the flake's own message
-  (`assert 'tab-conexoes' == 'tab-historico'`).
+  (`assert 'tab-connections' == 'tab-history'`).
 - Fixed-schema tables (`history`, `query_manage`, `template_manage`, …) are out
-  of `tabela_com_chave_fixa` by design. The spec's line about giving `history`
+  of `test_result_table_fixes_the_key_column` by design. The spec's line about giving `history`
   a pinned key and zebra was never implemented; zebra there would blend the
-  `marcar_veredito` cells at runtime, invisible to the contrast guard.
+  `mark_verdict` cells at runtime, invisible to the contrast guard.
 - ~~**`history` starves vertically.**~~ **Fixed.** The list panel now takes `2fr`
   against the detail's `1fr` (min 4, max 9). Measured inside the real DBQMApp:
   the table viewport went from **3 rows to 5** at 80x24, and from a 9-row detail
@@ -427,7 +449,7 @@ to each guard before concluding "the guard is green, so the rule holds".
   test of any `If` whose `orelse` it climbed out of — that test governs the branch
   above, not this one — which closes the chain without losing genuinely nested
   handlers. Break-tested both ways: the `elif "zzz-fuga"` beside the exempt
-  `"executar-consulta"` in `history.py` escaped before and fails now.
+  `"run-query"` in `history.py` escaped before and fails now.
 - **Guard 6 accepts the string literal `"action_switch_tab"` as proof of
   navigation.** That is the form the four real CTAs use
   (`getattr(self.app, "action_switch_tab", None)`), but it means gutting the call

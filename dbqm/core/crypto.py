@@ -9,6 +9,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 
+from dbqm.i18n import t
 from dbqm.core.paths import KEY_FILE
 
 
@@ -49,9 +50,7 @@ def decrypt(token: str) -> str:
         return f.decrypt(token.encode()).decode()
     except InvalidToken as e:
         raise ValueError(
-            "Senha guardada nao pode ser lida: a chave em .dbqm_key nao "
-            "corresponde a esta senha. Regrave-a com "
-            "'dbqm connection update <nome> --password-stdin'."
+            t("crypto.password_unreadable")
         ) from e
 
 

@@ -7,6 +7,7 @@ from textual.containers import VerticalScroll, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static
 
+from dbqm.i18n import t
 from dbqm.ui.utils import sanitize_id
 from dbqm.ui.widgets.dialog import Dialog
 
@@ -100,8 +101,8 @@ class ParamModal(ModalScreen[dict[str, str] | None]):
                     )
 
             with Horizontal(id="buttons"):
-                yield Button("Executar", variant="primary", id="submit")
-                yield Button("Cancelar", variant="default", id="cancel")
+                yield Button(t("common.run"), variant="primary", id="submit")
+                yield Button(t("common.cancel"), variant="default", id="cancel")
 
     def on_mount(self) -> None:
         """Focus the first empty input, or the first input if all are filled."""

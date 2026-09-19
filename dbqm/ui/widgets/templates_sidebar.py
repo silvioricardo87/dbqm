@@ -8,6 +8,7 @@ from textual.message import Message
 from textual.widgets import Button, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from dbqm.i18n import t
 from dbqm.ui.widgets.empty_state import EmptyState
 
 
@@ -44,13 +45,13 @@ class TemplatesSidebar(Vertical):
             super().__init__()
 
     def compose(self) -> ComposeResult:
-        yield Label("📄  TEMPLATES", id="tpl-title")
+        yield Label(t("templates_sidebar.title"), id="tpl-title")
         yield OptionList(id="tpl-list")
         yield EmptyState(
-            what="Templates",
-            why="Crie templates na aba Ferramentas para reaproveitar consultas com parametros",
-            action_label="Abrir Ferramentas",
-            action_id="abrir-ferramentas",
+            what=t("template.list_title"),
+            why=t("templates_sidebar.empty_why"),
+            action_label=t("templates_sidebar.open_tools"),
+            action_id="open-tools",
             id="tpl-empty",
         )
 
@@ -87,10 +88,10 @@ class TemplatesSidebar(Vertical):
             self.post_message(self.TemplateChosen(sql))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "abrir-ferramentas":
+        if event.button.id == "open-tools":
             # Guarded: TemplatesSidebar is also mounted standalone in tests,
             # where self.app has no action_switch_tab (that lives on
             # DBQMApp only).
             switch = getattr(self.app, "action_switch_tab", None)
             if callable(switch):
-                switch("tab-ferramentas")
+                switch("tab-tools")

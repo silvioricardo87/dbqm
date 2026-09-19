@@ -21,13 +21,13 @@ class TestValidate:
         assert validate(values) == []
 
     def test_missing_name_is_reported(self):
-        assert "Nome obrigatorio." in validate({"db_type": "mysql"})
+        assert "Name is required." in validate({"db_type": "mysql"})
 
     def test_whitespace_only_name_is_reported(self):
-        assert "Nome obrigatorio." in validate({"name": "   ", "db_type": "mysql"})
+        assert "Name is required." in validate({"name": "   ", "db_type": "mysql"})
 
     def test_missing_db_type_is_reported(self):
-        assert "Selecione o tipo de banco." in validate({"name": "prod"})
+        assert "Choose a database type." in validate({"name": "prod"})
 
     def test_unknown_db_type_lists_the_valid_ones(self):
         # "sqlite" was this test's example of an invalid type until 2.9.0
@@ -35,14 +35,14 @@ class TestValidate:
         errors = validate({"name": "prod", "db_type": "h2"})
         assert errors == [
             (
-                "Tipo de banco invalido: h2. "
-                "Use um de: oracle, sqlserver, postgresql, mysql, sqlite."
+                "Invalid database type: h2. "
+                "Use one of: oracle, sqlserver, postgresql, mysql, sqlite."
             )
         ]
 
     def test_unknown_oracle_mode_lists_the_valid_ones(self):
         errors = validate({"name": "prod", "db_type": "oracle", "mode": "sid"})
-        assert errors == ["Modo Oracle invalido: sid. Use um de: direct, tns."]
+        assert errors == ["Invalid Oracle mode: sid. Use one of: direct, tns."]
 
     def test_mode_is_ignored_for_non_oracle(self):
         assert validate({"name": "prod", "db_type": "mysql", "mode": "sid"}) == []
@@ -55,8 +55,8 @@ class TestValidate:
 
     def test_several_problems_are_all_reported(self):
         errors = validate({})
-        assert "Nome obrigatorio." in errors
-        assert "Selecione o tipo de banco." in errors
+        assert "Name is required." in errors
+        assert "Choose a database type." in errors
 
 
 class TestConstants:
@@ -274,7 +274,7 @@ class TestSqlite:
 
     def test_sqlite_without_a_database_is_refused(self, tmp_config_dir):
         erros = validate({"name": "l", "db_type": "sqlite"})
-        assert any("arquivo" in e.lower() for e in erros)
+        assert any("database file" in e.lower() for e in erros)
 
     def test_sqlite_refuses_a_host_it_cannot_use(self, tmp_config_dir):
         """A user who typed a host for a SQLite file has misunderstood
