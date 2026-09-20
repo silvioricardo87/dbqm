@@ -56,7 +56,7 @@ def with_open_connection(conn: Connection, action: Callable[[Any], T]) -> T:
         # itself should reach the outer handler.
         raise
     except Exception as e:
-        raise OperationError("connection_failed", str(e)) from e
+        raise OperationError("connection_failed", deps.error_text(e, conn)) from e
 
 
 def list_objects(conn: Connection, obj_type: str) -> list[str]:
@@ -157,7 +157,7 @@ def extract_ddl(conn: Connection, obj: str, *, on_progress: ProgressFn | None = 
     try:
         result = deps.extract_ddl(conn, obj, on_progress=on_progress)
     except Exception as e:
-        raise OperationError("connection_failed", str(e)) from e
+        raise OperationError("connection_failed", deps.error_text(e, conn)) from e
     if result.errors and not result.objects:
         code = "not_found" if result.not_found else "sql_error"
         raise OperationError(code, "; ".join(result.errors))

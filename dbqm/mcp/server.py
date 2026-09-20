@@ -27,7 +27,7 @@ from dbqm.cli.errors import ERROR_CODES, ExitCode
 from dbqm.i18n import t
 from dbqm.mcp import policy
 from dbqm.mcp.options import ServerOptions
-from dbqm.ops import catalogue, compare, queries
+from dbqm.ops import catalogue, compare, deps, queries
 from dbqm.ops import schema as ops_schema
 from dbqm.ops import sql as ops_sql
 from dbqm.ops.errors import OperationError
@@ -77,7 +77,8 @@ def _guarded(command: str, action: Callable[[], CallToolResult]) -> CallToolResu
     except OperationError as e:
         return _fail(command, e.code, e.message)
     except Exception as e:  # the whole point: nothing escapes to the protocol
-        return _fail(command, "unexpected", t("common.unexpected_error", error=e))
+        return _fail(command, "unexpected",
+                     t("common.unexpected_error", error=deps.error_text(e)))
 
 
 def build_server(options: ServerOptions) -> MCPServer:

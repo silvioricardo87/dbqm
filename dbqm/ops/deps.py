@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dbqm.core.audit import log_execution
 from dbqm.core.config_portability import export_configs, import_configs
-from dbqm.core.db_manager import open_connection, test_connection
+from dbqm.core.db_manager import error_text, open_connection, test_connection
 from dbqm.core.ddl_extractor import extract_ddl, save_extraction
 from dbqm.core.exporter import (
     export_group_csv,
@@ -103,6 +103,7 @@ __all__ = [
     "clear_history",
     "derive_comparison_columns",
     "detect_host_platform",
+    "error_text",
     "execute_across",
     "execute_adhoc",
     "execute_explain",
