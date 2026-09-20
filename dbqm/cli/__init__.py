@@ -15,6 +15,7 @@ from dbqm.cli.commands.config_cmd import cmd_config
 from dbqm.cli.commands.connection import cmd_connection
 from dbqm.cli.commands.describe_cli import cmd_describe_cli
 from dbqm.cli.commands.inspect import cmd_ddl, cmd_history, cmd_list, cmd_test
+from dbqm.cli.commands.mcp_cmd import cmd_mcp
 from dbqm.cli.commands.oracle_client import cmd_oracle_client
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
 from dbqm.cli.commands.saved import cmd_group, cmd_query, cmd_template
@@ -394,6 +395,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_oc_rm.add_argument("-f", "--format", choices=["table", "json"], default="table",
                          help=t("help.describe_cli.format"))
 
+    # --- mcp ---
+    p_mcp = subparsers.add_parser("mcp", help=t("help.cmd.mcp"))
+    p_mcp.add_argument("--allow-write", action="store_true", help=t("help.mcp.allow_write"))
+    p_mcp.add_argument("--connection", action="append", metavar="NAME",
+                       help=t("help.mcp.connection"))
+
     # --- describe-cli ---
     p_describe_cli = subparsers.add_parser(
         "describe-cli",
@@ -426,6 +433,7 @@ COMMAND_MAP = {
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,
+    "mcp": cmd_mcp,
     "describe-cli": cmd_describe_cli,
 }
 

@@ -324,6 +324,9 @@ TEXTS: Final[dict[str, str]] = {
     "help.oc_rm.name": "Nome do diretorio do client (ver 'oracle-client list')",
     "help.oc_rm.yes": 'Remover sem confirmacao (obrigatorio fora do terminal)',
     "help.oc_rm.format": 'Formato de saida',
+    "help.cmd.mcp": "Servir as operacoes do dbqm para um cliente de IA via MCP (stdio); precisa do extra mcp",
+    "help.mcp.allow_write": "Deixar a flag read-only de cada conexao decidir; sem isso toda conexao fica somente leitura",
+    "help.mcp.connection": "Expor somente esta conexao (repita para varias); padrao: todas as configuradas",
     "help.cmd.describe_cli": 'Descrever os comandos do CLI (nome, ajuda e argumentos de cada um)',
     "help.describe_cli.format": 'Formato de saida',
     "export.format_invalid": 'Formato de export invalido: {format}',
@@ -1067,6 +1070,7 @@ TEXTS: Final[dict[str, str]] = {
     "common.no_initial": 'N',
     # --- mcp ---
     "mcp.connection_not_exposed": 'Conexao "{name}" nao esta exposta por este servidor (iniciado com --connection).',
+    "mcp.not_installed": 'O servidor MCP precisa do extra mcp. Instale com `pip install "dbqm[mcp]"` (ou `uv tool install "dbqm[mcp]"`).',
     # The braces below are literal text, not `str.format` fields: this key
     # is never called with keyword arguments, and `t()` skips `.format()`
     # entirely when none are given.

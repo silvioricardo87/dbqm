@@ -161,6 +161,7 @@ TEXTS: Final[dict[str, str]] = {
     "help.cmd.history": 'View the execution history',
     "help.cmd.import_config": 'Import the configuration from a .dbqm bundle',
     "help.cmd.list": 'List connections, queries or groups',
+    "help.cmd.mcp": "Serve dbqm's operations to an AI client over MCP (stdio); needs the mcp extra",
     "help.cmd.multi": 'Run one ad-hoc SQL across several connections and compare',
     "help.cmd.objects": 'List database objects',
     "help.cmd.oc.available": 'List the packages available for download on this platform',
@@ -259,6 +260,8 @@ TEXTS: Final[dict[str, str]] = {
     "help.imp.password_stdin": 'Read the password from one line on standard input',
     "help.list.format": 'Output format',
     "help.list.resource": 'What to list',
+    "help.mcp.allow_write": "Let each connection's own read-only flag decide; without this every connection is read-only",
+    "help.mcp.connection": "Expose only this connection (repeat for several); default: every configured one",
     "help.multi.connection": 'Connection (repeat for each; at least 2)',
     "help.multi.export": "Export the result to a file. 'html' cannot be used with --flat.",
     "help.multi.flat": 'Use the flat layout (one block per column)',
@@ -1066,6 +1069,7 @@ TEXTS: Final[dict[str, str]] = {
     "common.no_initial": 'N',
     # --- mcp ---
     "mcp.connection_not_exposed": 'Connection "{name}" is not exposed by this server (started with --connection).',
+    "mcp.not_installed": 'The MCP server needs the mcp extra. Install it with `pip install "dbqm[mcp]"` (or `uv tool install "dbqm[mcp]"`).',
     # The braces below are literal text, not `str.format` fields: this key
     # is never called with keyword arguments, and `t()` skips `.format()`
     # entirely when none are given.
