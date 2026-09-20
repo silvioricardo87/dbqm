@@ -115,6 +115,20 @@ tool call that names a connection the server was not started with fails with
 `not_found` — the server does not distinguish "does not exist" from "exists
 but is not exposed."
 
+**The allowlist scopes the rest of the catalogue too** (`policy.py`,
+`visible_queries`/`visible_groups`). `list queries` hides a saved query
+whose own connection is not exposed. `list groups` hides a group when any
+connection it touches is not exposed — every ad-hoc connection it names
+directly, and every saved query it runs, through that query's own
+connection. A query or group hidden this way is not just unlisted: calling
+`run` or `run_group` on it still fails, because the underlying connection
+resolves through the same allowlist and raises `not_found` — there is no
+back door through a name the agent already knows. **`history` is not
+filtered.** It is the machine's own execution history — CLI runs included,
+not only MCP ones — so an entry can name a connection the running server
+does not currently expose; `history` reports it as recorded rather than
+hiding it.
+
 ## The tools
 
 | Tool | Parameters | Mirrors |
@@ -195,14 +209,14 @@ functions the CLI does, so a query run through a tool call is the same kind
 of history entry as one run from a terminal — `history` (the tool and the
 CLI command) does not distinguish where a run came from.
 
-**Concurrent tool calls are safe for the history file.** The SDK runs tool
-functions in worker threads, so two calls can execute at once; history and
-audit writes are serialised and go through a temp file plus an atomic
-replace (`core/history.py`, `core/audit.py`), so concurrent MCP calls never
-corrupt either file the way an unguarded concurrent write could. That
-guarantee is about dbqm's own files — a database driver that is not
-thread-safe under concurrent calls is the driver's own limitation, not
-something the server works around.
+**Concurrent tool calls are safe for the history and audit files.** The SDK
+runs tool functions in worker threads, so two calls can execute at once;
+history writes go through a temp file and an atomic replace, audit writes
+are lock-serialised appends (`core/history.py`, `core/audit.py`) — different
+mechanisms, both safe under concurrent calls. That guarantee is about
+dbqm's own files — a database driver that is not thread-safe under
+concurrent calls is the driver's own limitation, not something the server
+works around.
 
 **Testing by hand.** For an automated test, build the server in-process and
 talk to it with the SDK's client over a pair of pipes — `Client(build_server(

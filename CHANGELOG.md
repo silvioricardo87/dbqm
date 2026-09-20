@@ -25,9 +25,9 @@ Releases before 1.18.0 predate this file; their history is in the git log.
 
 ### Fixed
 
-- History and audit writes are serialised and atomic (a temp file and an
-  atomic replace); the MCP server runs tools in worker threads and the CLI
-  never raced this.
+- History writes go through a temp file and an atomic replace, audit writes
+  are lock-serialised appends; the MCP server runs tools in worker threads
+  and the CLI never raced either file.
 
 ## [2.12.1] — 2026-09-20
 
