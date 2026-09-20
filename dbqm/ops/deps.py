@@ -1,18 +1,19 @@
-"""What the CLI consumes from the rest of dbqm.
+"""What the operations layer and the CLI consume from `core/` and `models/`.
 
 One module names every symbol the command layer reaches for, instead of thirty
 imports spread across the top of a file. Two things follow from that.
 
-It states the coupling. Anything the CLI needs from `core/` or `models/` is
-listed here, so the direction of dependency is readable in one place.
+It states the coupling. Anything `ops/` or the CLI needs from `core/` or
+`models/` is listed here, so the direction of dependency is readable in one
+place.
 
 And it gives the tests a single patch path — but **only if callers use
 qualified access**: `deps.find_connection(...)`, never
-`from dbqm.cli.deps import find_connection`.
+`from dbqm.ops.deps import find_connection`.
 
 That is not a style preference, it is the whole mechanism. A bare-name import
 copies the function object into the importing module's namespace at import
-time. Patching `dbqm.cli.deps.find_connection` then rebinds the attribute on
+time. Patching `dbqm.ops.deps.find_connection` then rebinds the attribute on
 *this* module and the caller never sees it: it resolves the copy it already
 holds, runs the real function, and the test passes while testing nothing.
 Attribute access through the module resolves at call time, which is what the

@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from dbqm.cli.commands.inspect import _ddl_error_code
-from dbqm.cli.commands.query import _sql_error_code
-from dbqm.core.ddl_extractor import ExtractionResult
 from dbqm.i18n import set_language, t
+from dbqm.ops.sql import sql_error_code as _sql_error_code
 
 
 @pytest.fixture(autouse=True)
@@ -51,26 +49,6 @@ class TestSqlFailures:
         assert _sql_error_code(t("sql.select_only"), "usage") == "usage"
         assert _sql_error_code(t("sql.unsupported_type"), "usage") == "usage"
         assert _sql_error_code(t("sql.explain_unsupported", type="mysql"), "usage") == "usage"
-
-
-class TestDdlFailures:
-    @staticmethod
-    def _result(**kwargs) -> ExtractionResult:
-        base = {"object_name": "T", "object_type": "TABLE", "owner": "", "connection_name": "c"}
-        return ExtractionResult(**{**base, **kwargs})
-
-    def test_an_object_that_is_not_there_is_not_found(self):
-        assert _ddl_error_code(self._result(not_found=True)) == "not_found"
-
-    def test_an_extraction_that_failed_is_sql_error(self):
-        assert _ddl_error_code(self._result(errors=["ORA-01031"])) == "sql_error"
-
-    @pytest.mark.parametrize("language", ["en", "pt"])
-    def test_it_does_not_depend_on_the_language_either(self, language):
-        set_language(language)
-        result = self._result(errors=[t("ddl.object_not_found", name="T")],
-                                    not_found=True)
-        assert _ddl_error_code(result) == "not_found"
 
 
 def test_core_no_longer_needs_the_cli_to_recognise_its_sentences():

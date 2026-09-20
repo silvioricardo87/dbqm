@@ -173,7 +173,7 @@ def execute_across(
     """Run the same SQL on each resolved connection, in order.
 
     `conns` is a list of `(name, connection)` pairs, already resolved by the
-    caller -- core does not look connections up itself. `dbqm/cli/deps.py`
+    caller -- core does not look connections up itself. `dbqm/ops/deps.py`
     exists precisely so the CLI's connection lookup can be rebound in tests;
     a lookup done here would route around that seam. A pair whose connection
     is `None` fires `on_missing(name)`, in sequence with the pairs around it,

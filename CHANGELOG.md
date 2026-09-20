@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.12.1] — 2026-09-20
+
+### Fixed
+
+- `dbqm ddl` for an object that does not exist exits 2 (`not_found`) in
+  table format too; it exited 4 there while `-f json` already said 2 --
+  one exit code regardless of format, as `describe` and `rows` do. Under
+  `-f table` the errors print as one line.
+- `dbqm run --export` embeds the parameters the query actually ran with,
+  its declared defaults included, in the file name and the file body.
+
+### Changed
+
+- The logic of eleven CLI commands (`test`, `list`, `history`, `objects`,
+  `describe`, `rows`, `ddl`, `sql`, `run`, `multi`, `run-group`) lives in a
+  new operations layer, `dbqm/ops/`, as functions that return values and
+  raise `OperationError` with the same `error.code` tokens. The CLI's
+  output, exit codes and refusal order are unchanged: `tests/functional/`
+  passes as before. This is the ground the MCP server (next minor) stands
+  on.
+- `dbqm/cli/deps.py` is `dbqm/ops/deps.py`. Tests patch the new path.
+- `dbqm run-group --export` builds its file from `Comparison.params`, the
+  parameters the comparison actually ran with (a group's `shared_params`
+  defaults included); no behaviour change versus 2.12.0.
+- A failed DDL under `dbqm sql -f table` no longer prints the
+  elapsed-seconds line next to its compile errors; the message and exit
+  code are unchanged.
+- The unused catalogue key `sql.ddl_compile_errors` is removed.
+
 ## [2.12.0] — 2026-09-19
 
 A MINOR release: the roadmap's two open decisions, decided and shipped, and

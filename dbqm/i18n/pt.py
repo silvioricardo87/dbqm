@@ -363,7 +363,6 @@ TEXTS: Final[dict[str, str]] = {
     "sql.rows_affected_committed": '{count} registros afetados (committed)',
     "sql.rows_affected": '{count} registros afetados',
     "sql.ddl_failed": 'Erro ao executar DDL.',
-    "sql.ddl_compile_errors": 'DDL executado com erros de compilacao ({seconds}s)',
     "sql.ddl_ok": 'DDL executado com sucesso ({seconds}s)',
     "sql.block_failed": 'Erro ao executar bloco.',
     "sql.block_ran_header": '{label} executado',

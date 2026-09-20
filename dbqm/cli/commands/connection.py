@@ -9,7 +9,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from dbqm.i18n import t
-from dbqm.cli import deps
+from dbqm.ops import deps
 from dbqm.cli.commands.inspect import cmd_list
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
