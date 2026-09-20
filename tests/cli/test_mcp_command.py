@@ -1,5 +1,5 @@
 """`dbqm mcp` is a CLI command: parsed, described, and refused cleanly
-without the extra. Runs without the `mcp` package installed."""
+without the extra. Works whether or not the `mcp` package is installed."""
 from __future__ import annotations
 
 import json

@@ -136,6 +136,14 @@ dbqm oracle-client rm instantclient_23_x64 --yes
 # and their arguments -- read live from the parser, nothing hand-typed
 dbqm describe-cli -f json
 
+# Serve the same operations to an AI client over MCP (stdio). Needs the
+# `mcp` extra (`pip install "dbqm[mcp]"`); without it this exits 2 with the
+# install line. --allow-write lets each connection's own read-only flag
+# decide (default: every connection is forced read-only); --connection NAME
+# (repeatable) exposes only the named connections. See docs/MCP.md.
+dbqm mcp
+dbqm mcp --allow-write --connection prod --connection staging
+
 # Create a connection (password read from stdin, never from argv).
 # --port is optional: 1433 for SQL Server, 3306 for MySQL, 5432 for
 # PostgreSQL, 1521 for Oracle. --database is the database name on every

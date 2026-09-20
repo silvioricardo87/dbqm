@@ -36,6 +36,11 @@ dbqm/
 │   ├── sql.py          # classify_and_guard / run_sql / explain
 │   ├── queries.py      # run_query
 │   └── compare.py      # multi / run_group / compare_across; Comparison carries the effective params
+├── mcp/               # The MCP server (`dbqm mcp`, opt-in `mcp` extra): tools over ops/
+│   ├── __init__.py     # Layer docstring: only server.py imports the SDK
+│   ├── options.py      # ServerOptions -- allow_write, connections (the allowlist); plain Python
+│   ├── policy.py       # The resolver (forced read-only), and what --connection hides from list/test
+│   └── server.py       # build_server(): eleven tools, the CLI's envelope, stdio transport
 ├── _version.py        # __version__ (SemVer; read by pyproject.toml)
 ├── design/            # Design tokens (colors, contrast floors); imports nothing from dbqm
 │   └── tokens.py       # TOKENS_CLARO / TOKENS_ESCURO / TEMAS, one source for TUI + CLI + HTML report
@@ -87,14 +92,26 @@ the TUI (`ui/theme.py`), the CLI (`cli/render.py`), and the HTML report
 (`core/html_report.py`) — one source of color/contrast truth for all three
 consumers, none of them importing each other.
 
-`ops/` sits between `core/` and the CLI: `core/ <- ops/ <- cli/`. An operation
-takes typed arguments, returns the `core/` result object and raises
-`OperationError` with a token from `cli/errors.py`; it never prints, exits or
-reads `argparse`. Eleven CLI commands (`test`, `list`, `history`, `objects`,
-`describe`, `rows`, `ddl`, `sql`, `run`, `multi`, `run-group`) are thin over
-it; the rest still call `core/` through `ops/deps.py`. `tests/design/test_ops_policy.py`
-enforces the three rules. The TUI is unchanged and still calls `core/`
-directly.
+`ops/` sits between `core/` and the CLI: `core/ <- ops/ <- cli/` and `<-
+mcp/`. An operation takes typed arguments, returns the `core/` result object
+and raises `OperationError` with a token from `cli/errors.py`; it never
+prints, exits or reads `argparse`. Eleven CLI commands (`test`, `list`,
+`history`, `objects`, `describe`, `rows`, `ddl`, `sql`, `run`, `multi`,
+`run-group`) are thin over it; the rest still call `core/` through
+`ops/deps.py`. `tests/design/test_ops_policy.py` enforces the three rules.
+The TUI is unchanged and still calls `core/` directly.
+
+**`mcp/`** is a second front end over the same `ops/` functions, one tool
+per CLI command of the same name. Only `server.py` imports the MCP SDK
+(`options.py` and `policy.py` are plain Python, so `dbqm mcp` can be parsed
+and refused with a clear message when the `mcp` extra is missing). Under
+stdio, stdout is the protocol channel for the life of the process, so
+nothing in the tool path writes to it — logging goes to stderr, and a tool
+result is built and returned, never raised past the SDK. Every tool calls
+the same `ops/` function its CLI counterpart calls and returns the CLI's own
+envelope as structured content; `tests/design/test_mcp_parity.py` reads both
+sides' source and fails if a tool and its command stop calling the same
+function, so the two front ends cannot drift apart silently.
 
 ---
 

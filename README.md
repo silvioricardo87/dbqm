@@ -93,6 +93,22 @@ dbqm usable from a script, from CI, or from an agent.
 Every command, every flag, the envelope and the exit codes:
 **[docs/CLI.md](./docs/CLI.md)**.
 
+## Use it from an AI agent
+
+`dbqm mcp` serves the same operations over the Model Context Protocol, on
+stdio, so an agent calls tools instead of shelling out to the CLI. It is a
+second front end over the same code the CLI calls, not a separate
+implementation, and it answers with the CLI's own JSON envelope. Every
+connection is forced read-only unless the server is started with
+`--allow-write`.
+
+```bash
+claude mcp add dbqm -- dbqm mcp
+```
+
+Configuring it for Claude Code, Claude Desktop, Cursor and VS Code, the
+eleven tools and what each one takes: **[docs/MCP.md](./docs/MCP.md)**.
+
 ## The terminal application
 
 ```bash
@@ -173,6 +189,8 @@ or from the CLI with `dbqm oracle-client install`.
 Installing from source, the `win-arm64` caveats and what each dependency is
 for: **[docs/INSTALL.md](./docs/INSTALL.md)**.
 
+`pip install "dbqm[mcp]"` additionally installs the MCP server (`dbqm mcp`).
+
 ## Security
 
 - Database passwords encrypted at rest using Fernet (`.dbqm_key` master key)
@@ -191,6 +209,7 @@ Read-only connections are a rail against mistakes, not a security boundary —
 | | |
 |---|---|
 | [docs/CLI.md](./docs/CLI.md) | Every command, the JSON envelope, exit codes |
+| [docs/MCP.md](./docs/MCP.md) | The MCP server: install, client configuration, tools |
 | [docs/TUI.md](./docs/TUI.md) | Tabs, keyboard map, comparison screens |
 | [docs/INSTALL.md](./docs/INSTALL.md) | From source, `win-arm64`, dependencies |
 | [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | Data directory, export destination, language |

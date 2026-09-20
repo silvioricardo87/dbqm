@@ -164,16 +164,20 @@ Building the pair would have added a second way to do what one command
 already does, and two ways are how they start to disagree -- the failure this
 tier spent five sub-projects removing. The id is retired and not reused.
 
+### MCP server, shipped
+
+**MCP server** — shipped in 2.13.0 (`dbqm mcp`, extra `dbqm[mcp]`, eleven
+tools over `ops/`, read-only by default). See `docs/MCP.md`.
+
+It had been "Deliberately not scheduled" below: the condition the maintainer
+set was that it wrap a settled CLI contract rather than race it, and that
+condition was met once the contract (2.0.0), discovery (2.1.0), the
+read-only guard (2.2.0), execution (2.6.0) and curation plus the rest of
+Tier 3 (2.7.0/2.8.0) had all landed.
+
 ### Deliberately not scheduled
 
-- **An MCP server** (`dbqm mcp`, operations as MCP tools). It is the native shape
-  for agent consumption and would remove the shell round-trip entirely — but it
-  should wrap a settled CLI contract, not race it. The contract settled in
-  2.0.0, discovery landed in 2.1.0, the read-only guard landed in 2.2.0, and
-  execution (`C4`) landed in 2.6.0, and curation (`C5`/`C6`, 2.7.0) plus the
-  last of Tier 3 (`C9`/`C10`/`C12`/`X4`, 2.8.0) have landed since. The
-  condition the maintainer set is met: everything else is done. Whether to
-  start it is the maintainer's call.
+**Empty.**
 
 ---
 
