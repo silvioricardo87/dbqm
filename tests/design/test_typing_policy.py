@@ -11,7 +11,11 @@ Lives under `tests/design/` alongside the other repo-wide static guards
 """
 from __future__ import annotations
 
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10: tomllib arrived in 3.11
+    import tomli as tomllib
+
 from pathlib import Path
 
 #: Measured when the ratchet landed. This number goes DOWN as modules are

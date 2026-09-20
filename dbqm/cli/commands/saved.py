@@ -346,6 +346,10 @@ def _group_values(args: argparse.Namespace) -> dict[str, object]:
         "join_key": args.join_key,
         "queries": args.query,
         "compare_columns": args.compare_column,
+        # The ad-hoc shape. `getattr`: both flags live on `add`/`update`
+        # only, and `_group_values` is also what `show`/`rm` never call.
+        "adhoc_sql": getattr(args, "adhoc_sql", None),
+        "connections": getattr(args, "connection", None),
     }
     return {key: value for key, value in values.items() if value is not None}
 

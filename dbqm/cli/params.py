@@ -110,16 +110,21 @@ def _add_group_fields(parser: argparse.ArgumentParser) -> None:
     by `group_builder.validate`, the same way `_add_query_fields` defers to
     `query_builder.validate`. `--query` and `--compare-column` repeat (a
     group needs at least two queries to compare); `--join-key` takes a
-    single value -- there is only one join column. Ad-hoc (Multi-Exec)
-    groups are out of scope here: `adhoc_sql`/`connections` have no flag,
-    but `group_builder.build` still preserves them on an `update` of a
-    group that already has them.
+    single value -- there is only one join column. An ad-hoc (Multi-Exec)
+    group is the other shape: `--adhoc-sql` and two or more `--connection`,
+    no queries and no join key (it is derived at run time, the way `multi`
+    derives it). `group_builder.validate` tells the two shapes apart and
+    refuses a mix.
     """
     parser.add_argument("--query", dest="query", action="append", metavar=t("metavar.name"),
                         help=t("help.group.query"))
     parser.add_argument("--compare-column", dest="compare_column", action="append",
                         metavar=t("metavar.column"), help=t("help.group.compare_column"))
     parser.add_argument("--join-key", dest="join_key", help=t("help.group.join_key"))
+    parser.add_argument("--adhoc-sql", dest="adhoc_sql", metavar="SQL",
+                        help=t("help.group.adhoc_sql"))
+    parser.add_argument("--connection", dest="connection", action="append",
+                        metavar=t("metavar.name"), help=t("help.group.connection"))
     parser.add_argument("--description", help=t("help.group.description"))
     parser.add_argument("--folder", help=t("help.group.folder"))
     parser.add_argument("-f", "--format", choices=["table", "json"], default="table",

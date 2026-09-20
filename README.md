@@ -34,6 +34,7 @@ pretended away.
 | Execution plans | `DBMS_XPLAN` | — | `EXPLAIN` | `EXPLAIN` | `EXPLAIN QUERY PLAN` |
 | Stored routines (`dbqm call`) | ✅ | — | — | — | — |
 | Packages and the package editor | ✅ | — | — | — | — |
+| Read-only enforced by the server | per transaction | — (dbqm only) | ✅ | ✅ | ✅ |
 | Driver needed | Instant Client | bundled | bundled | bundled | none |
 
 The comparison is the reason the list matters: `dbqm multi` runs **one**

@@ -697,7 +697,13 @@ class TestCmdRunGroup:
         from dbqm.cli.commands import query as q
         import inspect
 
-        source = inspect.getsource(q.cmd_run_group)
+        # `cmd_run_group` reports through `_report_group_result` -- both of
+        # its shapes do, saved queries and ad-hoc -- and THAT is where the
+        # export lives. Two hops, still one path.
+        tail = inspect.getsource(q.cmd_run_group)
+        assert "_report_group_result(" in tail
+        assert "export_group_flat_csv" not in tail
+        source = inspect.getsource(q._report_group_result)
         assert "_export_group(" in source
         assert "export_group_flat_csv" not in source
 
@@ -3756,6 +3762,11 @@ class TestCmdGroup:
         groups[0].created_at = "2020-01-01T00:00:00"
         groups[0].adhoc_sql = "SELECT 1"
         groups[0].connections = ["c1", "c2"]
+        # Since 2.12.0 `validate` checks an ad-hoc group's connections
+        # exist, the way it has always checked a saved query exists, so
+        # the two names the file carries have to be real ones.
+        self._add_connection(monkeypatch, "c1")
+        self._add_connection(monkeypatch, "c2")
         groups[0].shared_params = {"param1": {"description": "d", "default": "x"}}
         save_groups(groups)
 
@@ -3773,9 +3784,9 @@ class TestCmdGroup:
         assert g.validation_rule == "custom_rule", "validation_rule must survive"
         assert g.created_at == "2020-01-01T00:00:00", "created_at must survive"
         assert g.adhoc_sql == "SELECT 1", \
-            "adhoc_sql must survive an update -- no CLI flag can even set it"
+            "adhoc_sql must survive an update it was not mentioned in"
         assert g.connections == ["c1", "c2"], \
-            "connections must survive an update -- no CLI flag can even set it"
+            "connections must survive an update it was not mentioned in"
         assert g.shared_params == {"param1": {"description": "d", "default": "x"}}, \
             "shared_params must survive"
         assert g.queries == ["q1", "q2"], "queries must survive"

@@ -28,19 +28,10 @@ found; it does not stay empty by policy, only by absence of evidence.
 
 ### Decision pending, not a defect
 
-`to_dict()` on the `core/` dataclasses publishes `error` and `output_lines`.
-Driver error text can echo a DSN or a host, and `output_lines` carries whatever
-DBMS_OUTPUT produced. Nothing is redacted, deliberately — redaction here is a
-policy call for the maintainer, not an implementation detail. Worth settling
-before anything persists that output to a log.
-
-A **server-side read-only session** (`SET TRANSACTION READ ONLY` on
-Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL) is still deferred, as it was
-when the client-side guard (`X3`) shipped in 2.2.0, and `dbqm call` (2.6.0)
-did not settle it either. It is a decision, not a task: it would change what
-"read-only" means product-wide — a database-side guarantee on Oracle, still
-only a dbqm-side promise on SQL Server, which has no server-side equivalent
-to reach for.
+**Empty.** The two it held were decided in 2.12.0: a read-only connection is
+pinned read-only on the server where the engine allows it (SQL Server has no
+such statement and stays a dbqm-side guard), and driver error text has the
+connection's password masked before it is published. See `CHANGELOG.md`.
 
 ---
 
@@ -188,45 +179,25 @@ tier spent five sub-projects removing. The id is retired and not reused.
 
 ## Known gaps
 
-- **SQLite refuses routines, packages and `call` by design.** It has none;
-  the refusal is the same `UnsupportedEngine` PostgreSQL gets. What it also
-  does not have is an owner concept, so `_detect_owner` returns `""` and a
-  DDL extraction names no schema.
-- **`run_comparison` still keeps the last row under a repeated key.** As of
-  2.10.0 it says so -- `comparisons[*].duplicate_rows` counts the rows each
-  side lost and every caller warns -- but the comparison it reports is still
-  over one row per key. Comparing the rows as multisets is the real answer
-  and a redesign of `group_engine`, not a warning.
-- **OUT values travel back as text.** 2.10.0 gave them their own field
-  (`out_values`) under a per-execution marker, so they are no longer mixed
-  into what the routine printed and a routine printing `RETURN=` no longer
-  shadows the real return value. They are still strings: DBMS_OUTPUT is
-  text. Typed values need real output binds (`cursor.var`), which means
-  mapping every declared Oracle type -- a slice with an Oracle to test
-  against, not one to write blind.
-- **The CLI deliberately exposes no flag for `column_maps`, `normalize`,
-  `column_mapping`, `template`, `template_fields`, `validation_rule`,
-  `is_favorite` or an `order_by` override.** They are TUI-authored, several
-  are nested maps with no sane flag shape, and none of them is needed to
-  create a query or group an agent will run — but `dbqm query update` and
-  `dbqm group update` **preserve** them rather than dropping them, which is
-  the property `query_builder.build`/`group_builder.build` exist to
-  guarantee.
-- **An ad-hoc (Multi-Exec) group cannot be created from the CLI.**
-  `Group.adhoc_sql` and `Group.connections` describe a connection
-  selection, not a comparison of saved queries; `dbqm multi` runs that flow
-  directly and never saves it. `dbqm group update` preserves both fields on
-  a group that already has them.
+Two things are the way they are on purpose, decided rather than pending:
+OUT values of Oracle routines travel back as text (typing them needs real
+output binds and an Oracle to test against), and the fields only the TUI
+authors (`column_maps`, `normalize`, `column_mapping`, `template_fields`,
+`order_by`) have no CLI flag -- `dbqm query update` and `dbqm group update`
+preserve them, which is the property that matters.
+
 
 ## Suite hygiene
 
-- **CI proves one Python version; the package claims five.**
-  `requires-python = ">=3.10"` and the classifiers added in 2.10.0 say 3.10
-  through 3.14, while `checks.yml` runs whatever `.python-version` pins
-  (3.14.7 today) and `publish.yml` builds on 3.12. Nothing has ever run the
-  suite on 3.10 or 3.11, so the floor is a claim rather than a measurement.
-  A matrix over the declared range is the fix; dropping the floor to what is
-  tested is the other honest answer. Effort: S.
+- **The 3.10 floor is measured, but only by hand.** The suite was run on
+  3.10.21 on 2026-09-19: 1769 passed, same as 3.14. So `requires-python =
+  ">=3.10"` is a fact rather than a claim, and the floor stays. What is NOT
+  in place is anything keeping it true -- `checks.yml` still runs one
+  version (whatever `.python-version` pins) and a CI matrix was declined as
+  not worth five runners. The next person to use 3.11-or-later syntax will
+  find out from a user, not from CI. Repeating the manual run before a
+  release is the cheap mitigation; the matrix is the real one, if the cost
+  ever stops mattering.
 
 - **`rendered_text` after a thread worker can come back frame-only.** The
   adhoc pilot in `tests/ui/test_functional_screens.py` read the screenshot
@@ -237,7 +208,17 @@ tier spent five sub-projects removing. The id is retired and not reused.
   had the same cold-start shape and took a second `pause()` in 2.9.0;
   one `pause()` is not always a frame.
 
-Not a tier — the four above are the product's bugs, toolchain and features.
+  **A second instance of the same shape, found and fixed on 3.10.** A widget
+  mounted dynamically can receive its own `Mount` before the children its
+  `compose` yielded are queryable. `GroupManageScreen.on_mount` queried
+  `#gm-table` there and died with `NoMatches` on roughly one run in three on
+  3.10, while 3.14 hid it entirely (0 failures in 5). Both it and
+  `TemplateManageScreen`, which had the identical shape and had simply not
+  lost the coin flip, now do child work in `call_after_refresh`. Worth
+  knowing when writing the next tools-hosted screen: `on_mount` is safe for
+  the ActionBar, not for your own children.
+
+Not a tier — the sections above are the product's bugs, toolchain and features.
 This is the test suite's own upkeep, recorded here because there is nowhere
 else a reader would think to look for it.
 

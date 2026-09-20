@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from dbqm.i18n import t
+from dbqm.core.db_manager import error_text
 from dbqm.core.read_only import ReadOnlyViolation
 
 
@@ -1301,7 +1302,7 @@ def execute_routine(
             output_lines=[],
             return_value=None,
             elapsed=elapsed,
-            error=str(e),
+            error=error_text(e, conn),
         )
     finally:
         cursor.close()

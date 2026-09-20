@@ -18,6 +18,7 @@ from typing import Any
 
 from dbqm.i18n import t
 from dbqm.models.group import Group, load_groups, save_groups
+from dbqm.models.connection import find_connection
 from dbqm.models.query import find_query
 
 
@@ -38,6 +39,34 @@ def validate(values: dict[str, Any]) -> list[str]:
 
     if not _text(values, "name"):
         errors.append(t("group.name_required"))
+
+    if _text(values, "adhoc_sql"):
+        # The other shape of a group: one statement over a set of
+        # connections, as Multi-Exec saves it. It has no saved queries and
+        # no join key -- the key is derived at run time the way `multi`
+        # derives it -- and it is validated on its own terms: two or more
+        # DISTINCT connections that exist. Distinct for the same reason
+        # `multi` refuses a repeated `-c`: `execute_across` keys its
+        # results by connection name, and a repeat collapses to one side.
+        #
+        # `adhoc_sql` WINS over any saved-query fields beside it, rather
+        # than the mix being refused: a group file can carry both -- the
+        # preservation guarantee of `update` is tested with exactly that
+        # shape -- and `run-group` already branches on `adhoc_sql` first.
+        seen: dict[str, int] = {}
+        for cname in values.get("connections") or []:
+            if cname:
+                seen[cname] = seen.get(cname, 0) + 1
+        if len(seen) < 2:
+            repeated = [c for c, n in seen.items() if n > 1]
+            if repeated:
+                errors.append(t("group.adhoc_connection_repeated", name=repeated[0]))
+            errors.append(t("group.adhoc_two_connections_required"))
+        else:
+            for cname in seen:
+                if find_connection(cname) is None:
+                    errors.append(t("group.adhoc_connection_not_found", name=cname))
+        return errors
 
     queries = values.get("queries") or []
     if len(queries) < 2:

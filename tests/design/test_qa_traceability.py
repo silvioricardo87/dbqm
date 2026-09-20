@@ -125,7 +125,7 @@ def test_manual_rows_carry_no_test_and_a_script():
     for doc, ident, layer, _, test_name in _lines():
         if layer == "manual":
             assert test_name in ("—", "-"), f'{doc.name} {ident}: manual, yet carries the test {test_name!r}'
-            assert "```" in doc.read_text(encoding="utf-8"), f"{doc.name}: sem roteiro"
+            assert "```" in doc.read_text(encoding="utf-8"), f'{doc.name}: no manual script'
 
 
 @pytest.mark.parametrize("ref, expected", [

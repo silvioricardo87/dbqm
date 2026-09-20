@@ -73,7 +73,7 @@ async def test_auto_height_panel_measures_the_content():
         painted = rendered_text(app)
         for i in range(3):
             assert f"SECAO {i}" in painted, (
-                "a secao %d nasceu abaixo da dobra num terminal de 24 linhas" % i
+                'section %d was born below the fold on a 24-line terminal' % i
             )
 
 
@@ -162,7 +162,7 @@ async def test_exec_routine_indicator_visible_during_the_search(tmp_config_dir, 
         app.query_one(ProgressIndicator).start("Listando procedures...")
         await pilot.pause()
         assert "Listando procedures..." in rendered_text(app), (
-            "sem sinal de progresso em %r enquanto a busca remota roda" % (size,)
+            'no progress signal at %r while the remote search runs' % (size,)
         )
 
 
@@ -258,19 +258,35 @@ async def test_config_port_only_the_export_passes_the_fold(tmp_config_dir, mode,
 
     app = _App()
     async with app.run_test(size=(80, 24)) as pilot:
+        from tests.ui._helpers import wait_until
+
         await pilot.pause()
         screen = app.query_one(ConfigPortScreen)
+        # `max_scroll_y` is 0 until layout has run once, whichever mode is
+        # mounted -- reading it after a single pause was a bet on the clock
+        # that 3.10 lost. Wait for the layout, then judge the fold.
+        await wait_until(pilot, lambda: screen.virtual_size.height > 0,
+                         what="the config-port screen laid out")
         assert (screen.max_scroll_y > 0) is scrolls, (
             'mode %r: virtual_size=%r on a 24-line screen' % (mode, screen.virtual_size)
         )
 
         if scrolls:
-            # The button that closes the flow has to be reachable.
-            app.query_one("#cp-do-export").focus()
-            await pilot.pause()
-            await pilot.wait_for_scheduled_animations()
-            await pilot.pause()
-            assert "Export" in rendered_text(app)
+            # The button that closes the flow has to be reachable -- which
+            # means the screen SCROLLS rather than truncates. Scroll to it
+            # explicitly, without animation, and read the compositor's
+            # strips rather than the screenshot: `focus()` relied on an
+            # implicit animated scroll that never landed within 40 frames
+            # on 3.10 (five runs in six), and `export_screenshot()` is the
+            # reader the roadmap already records as lagging a frame behind.
+            from tests.ui._helpers import rendered_lines
+
+            app.query_one("#cp-do-export").scroll_visible(animate=False)
+            await wait_until(
+                pilot,
+                lambda: any("Export" in line for line in rendered_lines(app)),
+                what="the Export button scrolled into view",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -308,34 +324,39 @@ async def test_package_editor_compilation_errors_fit_and_scroll(tmp_config_dir):
             False,
             "",
             [
-                {"line": 10 + i, "col": 3, "message": f"PLS-0000{i}: erro {i}"}
+                {"line": 10 + i, "col": 3, "message": f"PLS-0000{i}: error {i}"}
                 for i in range(1, 8)
             ],
         )
-        await pilot.pause()
+        # Three reads below used to follow a single `pause()` each. On 3.10
+        # the panel was not always laid out by then; each one now waits for
+        # the fact it is about to assert.
+        from tests.ui._helpers import wait_until
+
+        await wait_until(pilot, lambda: "error 3" in rendered_text(app),
+                         what="the error panel painted its first rows")
 
         panel = app.query_one("#pe-error-panel", Panel)
         body = panel.body
         assert panel.region.contains_region(body.region), (
-            "o corpo transborda a moldura: as ultimas linhas ficam recortadas"
+            "the body overflows the frame: the last rows are clipped"
         )
 
         painted = rendered_text(app)
         assert "compilation error(s)" in painted
-        assert "erro 3" in painted, "so o cabecalho e um erro cabem no painel"
+        assert "error 3" in painted, "only the header and one error fit in the panel"
 
         assert body.max_scroll_y > 0
         body.scroll_end(animate=False)
-        await pilot.pause()
-        assert "erro 7" in rendered_text(app), (
-            'the last error cannot be reached even by scrolling to the end'
-        )
+        await wait_until(pilot, lambda: "error 7" in rendered_text(app),
+                         what="the last error scrolled into view")
 
         # And the cap is a CAP, not a fixed height: a successful compilation
         # has one line and the panel has to shrink, giving the lines back to
         # the editor. With the body stuck at `1fr` it would always be 8.
         screen._on_compile_result("body", True, "", [])
-        await pilot.pause()
+        await wait_until(pilot, lambda: panel.region.height < 8,
+                         what="the error panel shrank after a clean compile")
         assert panel.region.height < 8, (
             'the error panel does not shrink: `height: auto` is not in force'
         )

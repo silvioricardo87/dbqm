@@ -9,7 +9,7 @@ from typing import Any
 import sqlparse
 
 from dbqm.i18n import t
-from dbqm.core.db_manager import get_connection
+from dbqm.core.db_manager import error_text, get_connection
 from dbqm.core.read_only import check_read_only
 from dbqm.models.connection import Connection
 from dbqm.models.query import Query, QueryParam
@@ -213,7 +213,7 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
                 row_count=0,
                 elapsed=0,
                 success=False,
-                error=str(e).split('\n')[0][:500],
+                error=error_text(e, conn),
                 error_kind="connection",
             )
         cursor = db.cursor()
@@ -252,7 +252,7 @@ def execute_query(query: Query, conn: Connection, param_values: dict) -> QueryRe
             row_count=0,
             elapsed=0,
             success=False,
-            error=str(e).split('\n')[0][:500],
+            error=error_text(e, conn),
             error_kind="statement",
         )
     finally:
@@ -445,7 +445,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
                 sql=original_sql,
                 db_type=conn.db_type,
                 success=False,
-                error=str(e).split('\n')[0][:500],
+                error=error_text(e, conn),
                 error_kind="connection",
             )
         cursor = db.cursor()
@@ -594,7 +594,7 @@ def execute_adhoc(sql: str, conn: Connection, param_values: dict, auto_commit: b
             sql=original_sql,
             db_type=conn.db_type,
             success=False,
-            error=str(e).split('\n')[0][:500],
+            error=error_text(e, conn),
             error_kind="statement",
         )
     finally:
@@ -652,7 +652,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
                     sql=sql,
                     db_type=conn.db_type,
                     success=False,
-                    error=str(e).split("\n")[0][:500],
+                    error=error_text(e, conn),
                     error_kind="connection",
                 )
             cursor = db.cursor()
@@ -681,7 +681,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
                 sql=sql,
                 db_type=conn.db_type,
                 success=False,
-                error=str(e).split("\n")[0][:500],
+                error=error_text(e, conn),
                 error_kind="statement",
             )
         finally:
@@ -707,7 +707,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
                 return AdhocResult(
                     sql_type="EXPLAIN", connection_name=conn.name, sql=sql,
                     db_type=conn.db_type, success=False,
-                    error=str(e).split("\n")[0][:500], error_kind="connection",
+                    error=error_text(e, conn), error_kind="connection",
                 )
             cursor = db.cursor()
             cursor.execute(f"EXPLAIN QUERY PLAN {sql}", param_values or {})
@@ -722,7 +722,7 @@ def execute_explain(sql: str, conn: Connection, param_values: dict) -> AdhocResu
             return AdhocResult(
                 sql_type="EXPLAIN", connection_name=conn.name, sql=sql,
                 db_type=conn.db_type, success=False,
-                error=str(e).split("\n")[0][:500], error_kind="statement",
+                error=error_text(e, conn), error_kind="statement",
             )
         finally:
             if db is not None:
