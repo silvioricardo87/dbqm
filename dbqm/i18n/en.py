@@ -1066,4 +1066,16 @@ TEXTS: Final[dict[str, str]] = {
     "common.no_initial": 'N',
     # --- mcp ---
     "mcp.connection_not_exposed": 'Connection "{name}" is not exposed by this server (started with --connection).',
+    "mcp.server_description": "dbqm: query, compare and inspect the databases configured in dbqm (Oracle, SQL Server, PostgreSQL, MySQL, SQLite). Results are the CLI's envelope: {ok, command, data} or {ok: false, error: {code, message, exit}}.",
+    "mcp.tool.list": "List what dbqm has configured: connections (name, engine, target, read_only), saved queries or comparison groups.",
+    "mcp.tool.test_connection": "Try to connect. One connection by name, or every exposed one when no name is given. A connection that is down is an item with ok=false, not an error.",
+    "mcp.tool.objects": "List a database's objects of one type: TABLE, VIEW, PACKAGE or ROUTINE.",
+    "mcp.tool.describe": "One table or view: columns (type, nullable, key), indexes, and a view's definition.",
+    "mcp.tool.rows": "A table's rows, paged (limit, offset); total_count says how many exist.",
+    "mcp.tool.ddl": "A database object's DDL, inline. Nothing is written to disk.",
+    "mcp.tool.history": "The most recent executions dbqm recorded, CLI and MCP alike.",
+    "mcp.tool.run": "Run a saved query by name with its parameters; connection overrides the query's own.",
+    "mcp.tool.run_group": "Run a saved comparison group and report per-column counts; all_match=false is a completed run that diverged.",
+    "mcp.tool.multi": "Run one SELECT across two or more connections and compare the results by a common key.",
+    "mcp.tool.sql": "Run one SQL statement on one connection. Read-only unless the server was started with --allow-write; DML needs commit=true; explain=true returns the plan.",
 }

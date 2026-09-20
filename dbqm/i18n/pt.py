@@ -1067,4 +1067,16 @@ TEXTS: Final[dict[str, str]] = {
     "common.no_initial": 'N',
     # --- mcp ---
     "mcp.connection_not_exposed": 'Conexao "{name}" nao esta exposta por este servidor (iniciado com --connection).',
+    "mcp.server_description": "dbqm: consulta, compara e inspeciona os bancos de dados configurados no dbqm (Oracle, SQL Server, PostgreSQL, MySQL, SQLite). Os resultados seguem o envelope da CLI: {ok, command, data} ou {ok: false, error: {code, message, exit}}.",
+    "mcp.tool.list": "Lista o que o dbqm tem configurado: conexoes (name, engine, target, read_only), queries salvas ou grupos de comparacao.",
+    "mcp.tool.test_connection": "Tenta conectar. Uma conexao pelo nome, ou todas as expostas quando nenhum nome e informado. Uma conexao fora do ar e um item com ok=false, nao um erro.",
+    "mcp.tool.objects": "Lista os objetos de um tipo de um banco: TABLE, VIEW, PACKAGE ou ROUTINE.",
+    "mcp.tool.describe": "Uma tabela ou view: colunas (type, nullable, key), indices e a definicao de uma view.",
+    "mcp.tool.rows": "As linhas de uma tabela, paginadas (limit, offset); total_count diz quantas existem.",
+    "mcp.tool.ddl": "O DDL de um objeto do banco, inline. Nada e escrito em disco.",
+    "mcp.tool.history": "As execucoes mais recentes que o dbqm registrou, CLI e MCP igualmente.",
+    "mcp.tool.run": "Executa uma query salva pelo nome com seus parametros; connection substitui a da query.",
+    "mcp.tool.run_group": "Executa um grupo de comparacao salvo e reporta contagens por coluna; all_match=false e uma execucao completa que divergiu.",
+    "mcp.tool.multi": "Executa um SELECT em duas ou mais conexoes e compara os resultados por uma chave comum.",
+    "mcp.tool.sql": "Executa uma instrucao SQL em uma conexao. Somente leitura a menos que o servidor tenha sido iniciado com --allow-write; DML precisa de commit=true; explain=true retorna o plano.",
 }
