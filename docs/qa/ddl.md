@@ -20,6 +20,7 @@ Oracle it is `DBMS_METADATA` (manual row). Envelope and exit codes:
 | QA-DDL-006 | Given a name that does not exist / When `dbqm ddl nao_existe local -f json` / Then exit 2, `not_found`, `Object 'nao_existe' not found.` | functional | all | tests/functional/test_ddl.py::test_an_unknown_object_is_not_found |
 | QA-DDL-007 | Given a connection that is not registered / When `dbqm ddl customers nope -f json` / Then exit 2, `not_found`, `Connection "nope" not found.` | functional | all | tests/functional/test_ddl.py::test_an_unknown_connection_is_not_found |
 | QA-DDL-008 | Given an Oracle table / When `dbqm ddl <table> <oracle> --stdout -f json` / Then the DDL comes from `DBMS_METADATA.GET_DDL` and includes indexes and constraints | manual | oracle | — |
+| QA-DDL-009 | Given a name that does not exist / When `dbqm ddl no_such_object local` (table format, no `-f json`) / Then exit 2, same as `-f json`, not 4 | functional | all | tests/functional/test_ddl.py::test_table_format_agrees_with_json_on_a_missing_object |
 
 ## Manual (Oracle)
 

@@ -9,7 +9,7 @@ place.
 
 And it gives the tests a single patch path — but **only if callers use
 qualified access**: `deps.find_connection(...)`, never
-`from dbqm.cli.deps import find_connection`.
+`from dbqm.ops.deps import find_connection`.
 
 That is not a style preference, it is the whole mechanism. A bare-name import
 copies the function object into the importing module's namespace at import

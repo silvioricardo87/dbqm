@@ -83,7 +83,7 @@ def test_an_unknown_connection_is_not_found(local_db, capsys):
     assert body["error"]["message"] == 'Connection "nope" not found.'
 
 
-# QA-DDL-008
+# QA-DDL-009
 def test_table_format_agrees_with_json_on_a_missing_object(local_db, capsys):
     """Locks format-independence: table format used to exit 4 (`sql_error`)
     for a missing object regardless of `not_found`, while json already said

@@ -22,12 +22,19 @@ dbqm/
 ├── __main__.py        # `python -m dbqm` — routes to CLI or TUI
 ├── cli/               # Non-interactive CLI (sql, run, run-group, connection, list, ...)
 │   ├── __init__.py     # run_cli, build_parser, COMMAND_MAP — the public API
-│   ├── deps.py         # What the CLI consumes from core/ and models/, in one place
 │   ├── envelope.py     # ok()/fail() — the single JSON shape
 │   ├── errors.py       # ExitCode (IntEnum) and the token -> exit-code table
 │   ├── render.py       # table / csv / raw output
 │   ├── params.py       # _parse_params, resolve_password
 │   └── commands/       # One module per group: query, connection, inspect, config_bundle
+├── ops/               # The operations layer: what dbqm does, as functions that return values
+│   ├── deps.py         # What ops/ and the CLI consume from core/ and models/, in one place (the tests' patch path)
+│   ├── errors.py       # OperationError(code, message) — the token cli/errors.py publishes
+│   ├── catalogue.py    # connections / queries / groups / test / history
+│   ├── schema.py       # objects / describe / rows / ddl
+│   ├── sql.py          # classify_and_guard / run_sql / explain
+│   ├── queries.py      # run_query
+│   └── compare.py      # multi / run_group / compare_across; Comparison carries the effective params
 ├── _version.py        # __version__ (SemVer; read by pyproject.toml)
 ├── design/            # Design tokens (colors, contrast floors); imports nothing from dbqm
 │   └── tokens.py       # TOKENS_CLARO / TOKENS_ESCURO / TEMAS, one source for TUI + CLI + HTML report
@@ -78,6 +85,15 @@ Both the TUI (`ui/app.py`) and the CLI (`cli/`) call into `core/`.
 the TUI (`ui/theme.py`), the CLI (`cli/render.py`), and the HTML report
 (`core/html_report.py`) — one source of color/contrast truth for all three
 consumers, none of them importing each other.
+
+`ops/` sits between `core/` and the CLI: `core/ <- ops/ <- cli/`. An operation
+takes typed arguments, returns the `core/` result object and raises
+`OperationError` with a token from `cli/errors.py`; it never prints, exits or
+reads `argparse`. Eleven CLI commands (`test`, `list`, `history`, `objects`,
+`describe`, `rows`, `ddl`, `sql`, `run`, `multi`, `run-group`) are thin over
+it; the rest still call `core/` through `ops/deps.py`. `tests/design/test_ops_policy.py`
+enforces the three rules. The TUI is unchanged and still calls `core/`
+directly.
 
 ---
 
@@ -174,7 +190,8 @@ consumers, none of them importing each other.
 ### CLI (`cli/`)
 - Non-interactive commands: `sql`, `run`, `run-group`, `test`, `list`, `ddl`,
   `history`, `export-config`, `import-config`, `objects`, `describe`, `rows`,
-  and the `connection` group.
+  and the `connection` group. Eleven of them are rendering over `ops/` (see
+  the layering rule).
 - `-f/--format`: `table | json | csv | raw` (`raw` prints values without
   decoration — for extracting CLOB/LONG sources cleanly). `rows` offers all
   four; `test`, `ddl`, `export-config`, `import-config`, `objects` and

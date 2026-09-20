@@ -228,12 +228,12 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
   `tests/test_cli_markup.py`, `tests/test_cli_tema.py`, and shared fixtures in
   `tests/conftest.py`
 - `tests/functional/` runs `run_cli` against a real, seeded SQLite file and
-  **patches nothing** — a test that needs `patch("dbqm.cli.deps...")` is a
+  **patches nothing** — a test that needs `patch("dbqm.ops.deps...")` is a
   unit test and belongs elsewhere; `test_harness.py` enforces the rule by
   reading the folder. Every scenario in `docs/qa/*.md` names its test, and
   `tests/design/test_qa_traceability.py` fails when the reference is wrong.
-- Run: `python -m pytest tests/ -x -q` (currently **1725** tests, of which
-  207 in `tests/functional/` and 48 in `tests/design/` — the color, layout,
+- Run: `python -m pytest tests/ -x -q` (currently **1857** tests, of which
+  223 in `tests/functional/` and 63 in `tests/design/` — the color, layout,
   typing-policy and QA-traceability guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory
