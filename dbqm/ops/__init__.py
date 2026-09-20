@@ -14,3 +14,4 @@ and never `cli/`, `ui/` or `mcp/`.
 Modules are imported qualified (`from dbqm.ops import compare`), never
 star-imported: the name says which layer a call reaches.
 """
+from __future__ import annotations

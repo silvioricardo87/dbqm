@@ -10,7 +10,8 @@ from rich.table import Table
 
 from dbqm.core.history import kind_label
 from dbqm.i18n import t
-from dbqm.ops import deps
+from dbqm.ops import catalogue, deps
+from dbqm.ops.errors import OperationError
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
@@ -25,42 +26,30 @@ def cmd_test(args: argparse.Namespace) -> None:
     process itself fail because one of them is down. Only a name that does
     not exist is a `test` failure.
     """
-    if args.connection == "__all__":
-        connections = deps.load_connections()
-        if args.format == "json":
-            data = []
-            for conn in connections:
-                succeeded, msg = deps.test_connection(conn)
-                data.append({"name": conn.name, "ok": succeeded, "message": msg})
-            ok("test", data)
-            return
-        if not connections:
+    names = None if args.connection == "__all__" else [args.connection]
+    try:
+        data = catalogue.test_connections(names)
+    except OperationError as e:
+        _fail_or_print(args, "test", e.code, e.message)
+    if args.format == "json":
+        ok("test", data)
+        return
+    if names is None:
+        if not data:
             console.print(f'[ds.text.muted]{t("connection.none_configured")}[/ds.text.muted]')
             return
-        for conn in connections:
-            succeeded, msg = deps.test_connection(conn)
-            icon = "OK" if succeeded else "[ds.op.failure]FAIL[/ds.op.failure]"
-            console.print(f"  {icon}  [ds.identity]{escape(conn.name)}[/]: {escape(msg.splitlines()[0])}")
+        for item in data:
+            icon = "OK" if item["ok"] else "[ds.op.failure]FAIL[/ds.op.failure]"
+            console.print(f"  {icon}  [ds.identity]{escape(item['name'])}[/]: "
+                          f"{escape(item['message'].splitlines()[0])}")
         return
-
-    conn = deps.find_connection(args.connection)
-    if not conn:
-        if args.format == "json":
-            fail("test", "not_found", t("connection.not_found_named", name=args.connection))
-        not_found = escape(t("connection.not_found_named", name=args.connection))
-        console.print(f"[ds.op.failure]{not_found}[/ds.op.failure]")
-        sys.exit(int(exit_for("not_found")))
-
-    succeeded, msg = deps.test_connection(conn)
-    if args.format == "json":
-        ok("test", [{"name": conn.name, "ok": succeeded, "message": msg}])
-        return
-    if succeeded:
-        console.print(escape(msg))
+    item = data[0]
+    if item["ok"]:
+        console.print(escape(item["message"]))
     else:
         # json never fails on this — see the docstring — but table's exit
         # code still names the condition: a connection that did not answer.
-        console.print(f"[ds.op.failure]{escape(msg)}[/ds.op.failure]")
+        console.print(f"[ds.op.failure]{escape(item['message'])}[/ds.op.failure]")
         sys.exit(int(exit_for("connection_failed")))
 
 
@@ -69,10 +58,9 @@ def cmd_list(args: argparse.Namespace) -> None:
     resource = args.resource
 
     if resource == "connections":
-        items = deps.load_connections()
+        items = catalogue.connections()
         if args.format == "json":
-            data = [{"name": c.name, "db_type": c.db_type, "target": c.display_target(),
-                      "read_only": c.read_only} for c in items]
+            data = [catalogue.connection_summary(c) for c in items]
             ok("list.connections", data)
             return
         if not items:
@@ -87,11 +75,9 @@ def cmd_list(args: argparse.Namespace) -> None:
         console.print(table)
 
     elif resource == "queries":
-        items = deps.load_queries()
+        items = catalogue.queries()
         if args.format == "json":
-            data = [{"name": q.name, "connection": q.connection, "folder": q.folder,
-                      "description": q.description,
-                      "params": [p.name for p in q.params]} for q in items]
+            data = [catalogue.query_summary(q) for q in items]
             ok("list.queries", data)
             return
         if not items:
@@ -112,10 +98,9 @@ def cmd_list(args: argparse.Namespace) -> None:
         console.print(table)
 
     elif resource == "groups":
-        items = deps.load_groups()
+        items = catalogue.groups()
         if args.format == "json":
-            data = [{"name": g.name, "description": g.description, "queries": g.queries,
-                      "join_key": g.join_key, "compare_columns": g.compare_columns} for g in items]
+            data = [catalogue.group_summary(g) for g in items]
             ok("list.groups", data)
             return
         if not items:
@@ -238,12 +223,15 @@ def cmd_ddl(args: argparse.Namespace) -> None:
 
 def cmd_history(args: argparse.Namespace) -> None:
     """View or clear execution history."""
-    # Before the history is even read: `-n 0` fell through `args.limit or 20`
-    # and silently meant the default, and `-n -5` reached `entries[:-5]` and
-    # silently meant "all but the last five". `rows` validates `--limit` and
-    # `--offset` the same way and for the same reason.
-    if args.limit is not None and args.limit < 1:
-        _fail_or_print(args, "history", "usage", t("history.limit_positive"))
+    # Read (and so validate `--limit`) before `--clear` acts: `-n 0` used to
+    # fall through `args.limit or 20` and silently mean the default, and
+    # `-n -5` reached `entries[:-5]` and silently meant "all but the last
+    # five". `rows` validates `--limit`/`--offset` the same way, for the
+    # same reason. Reading the history before clearing it is harmless.
+    try:
+        entries = catalogue.history(args.limit)
+    except OperationError as e:
+        _fail_or_print(args, "history", e.code, e.message)
 
     if args.clear:
         deps.clear_history()
@@ -253,16 +241,12 @@ def cmd_history(args: argparse.Namespace) -> None:
         console.print(t("history.cleared"))
         return
 
-    entries = deps.load_history()
     if not entries:
         if args.format == "json":
             ok("history", [])
             return
         console.print(f'[ds.text.muted]{t("history.empty")}[/ds.text.muted]')
         return
-
-    limit = args.limit or 20
-    entries = entries[:limit]
 
     if args.format == "json":
         data = [e.to_dict() for e in entries]
