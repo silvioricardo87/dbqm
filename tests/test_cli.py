@@ -691,21 +691,29 @@ class TestCmdRunGroup:
         This test is deliberately structural: it does not exercise any
         behaviour (the export tests above already do that). It asserts that
         `cmd_run_group` delegates to `_export_group` instead of naming the
-        exporters itself, so a second caller (`multi`, task 3) shares the
-        same code path rather than growing a fifth copy of the branch.
+        exporters itself, and that `cmd_multi` shares the same helper rather
+        than growing a second copy of the branch.
         """
         from dbqm.cli.commands import query as q
         import inspect
 
-        # `cmd_run_group` reports through `_report_group_result` -- both of
-        # its shapes do, saved queries and ad-hoc -- and THAT is where the
-        # export lives. Two hops, still one path.
+        # `cmd_run_group` runs both shapes -- saved queries and ad-hoc --
+        # through `dbqm.ops.compare.run_group`, and reports the single
+        # `Comparison` it gets back through `_report_group_result`, which is
+        # where the export lives. Two hops, still one path.
         tail = inspect.getsource(q.cmd_run_group)
         assert "_report_group_result(" in tail
         assert "export_group_flat_csv" not in tail
         source = inspect.getsource(q._report_group_result)
         assert "_export_group(" in source
         assert "export_group_flat_csv" not in source
+
+        # `cmd_multi` reports its own `Comparison` from
+        # `dbqm.ops.compare.multi` through the same `_export_group` helper,
+        # not a copy of the branch.
+        multi_source = inspect.getsource(q.cmd_multi)
+        assert "_export_group(" in multi_source
+        assert "export_group_flat_csv" not in multi_source
 
 
 # ---------------------------------------------------------------------------
@@ -1103,8 +1111,8 @@ class TestCmdMulti:
         where the connection failure is first and the statement failure is
         last -- a `codes[-1]`-shaped bug would report `sql_error`/4 there.
         Both orders must report `connection_failed`/3 and name both
-        connections, which is the claim `_multi_failure_code`'s docstring
-        actually makes.
+        connections, which is the claim `compare.multi_failure_code`'s
+        docstring actually makes.
         """
         c1, c2, c3 = _make_connection("c1"), _make_connection("c2"), _make_connection("c3")
 
