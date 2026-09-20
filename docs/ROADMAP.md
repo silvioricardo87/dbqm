@@ -190,6 +190,11 @@ authors (`column_maps`, `normalize`, `column_mapping`, `template_fields`,
 `order_by`) have no CLI flag -- `dbqm query update` and `dbqm group update`
 preserve them, which is the property that matters.
 
+`sql(explain=true)` on Oracle is expected to be refused by the server under
+the read-only session the MCP server forces (`EXPLAIN PLAN` writes
+`PLAN_TABLE`); unverified against a real Oracle; `--allow-write` on a
+connection with `read_only=false` lifts it.
+
 
 ## Suite hygiene
 

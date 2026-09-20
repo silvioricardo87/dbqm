@@ -158,6 +158,12 @@ and a connection whose own `read_only` is `false`, `commit=true` runs DML;
 (no plan exists for SQL Server, and the tool says so rather than returning
 nothing).
 
+**`sql(explain=true)` on Oracle is expected to be refused** by the server
+under the read-only session it forces: `EXPLAIN PLAN ... FOR` writes
+`PLAN_TABLE`, and Oracle refuses DML inside `SET TRANSACTION READ ONLY`
+(ORA-01456). Unverified against a real Oracle here; `--allow-write` on a
+connection with `read_only=false` lifts it.
+
 **The envelope** is the CLI's own, unchanged, returned as the tool's
 structured content:
 
