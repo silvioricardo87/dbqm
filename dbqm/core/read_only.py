@@ -137,7 +137,7 @@ def check_read_only(sql: str, conn: "Connection") -> None:
         raise ReadOnlyViolation(refusal)
 
     if kind == "SELECT" and _has_top_level_into(sql):
-        raise ReadOnlyViolation(t("read_only.select_into", name=conn.name))
+        raise ReadOnlyViolation(t("read_only.select_into"))
 
     if kind == "EXPLAIN" and not _explains_a_query(sql):
         raise ReadOnlyViolation(t("read_only.explain_executes", name=conn.name))
