@@ -13,10 +13,8 @@ Releases before 1.18.0 predate this file; their history is in the git log.
 
 - `dbqm ddl` for an object that does not exist exits 2 (`not_found`) in
   table format too; it exited 4 there while `-f json` already said 2 --
-  one exit code regardless of format, as `describe` and `rows` do.
-- `dbqm run-group --export` embeds the parameters the comparison actually
-  ran with, a group's `shared_params` defaults included, in the file name
-  and the file body.
+  one exit code regardless of format, as `describe` and `rows` do. Under
+  `-f table` the errors print as one line.
 - `dbqm run --export` embeds the parameters the query actually ran with,
   its declared defaults included, in the file name and the file body.
 
@@ -30,6 +28,9 @@ Releases before 1.18.0 predate this file; their history is in the git log.
   passes as before. This is the ground the MCP server (next minor) stands
   on.
 - `dbqm/cli/deps.py` is `dbqm/ops/deps.py`. Tests patch the new path.
+- `dbqm run-group --export` builds its file from `Comparison.params`, the
+  parameters the comparison actually ran with (a group's `shared_params`
+  defaults included); no behaviour change versus 2.12.0.
 - A failed DDL under `dbqm sql -f table` no longer prints the
   elapsed-seconds line next to its compile errors; the message and exit
   code are unchanged.

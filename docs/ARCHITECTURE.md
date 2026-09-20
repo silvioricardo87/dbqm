@@ -28,6 +28,7 @@ dbqm/
 │   ├── params.py       # _parse_params, resolve_password
 │   └── commands/       # One module per group: query, connection, inspect, config_bundle
 ├── ops/               # The operations layer: what dbqm does, as functions that return values
+│   ├── __init__.py     # Layer docstring; imports nothing -- modules are reached qualified (`from dbqm.ops import compare`)
 │   ├── deps.py         # What ops/ and the CLI consume from core/ and models/, in one place (the tests' patch path)
 │   ├── errors.py       # OperationError(code, message) — the token cli/errors.py publishes
 │   ├── catalogue.py    # connections / queries / groups / test / history
