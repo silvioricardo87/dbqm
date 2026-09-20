@@ -16,7 +16,7 @@ from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
-from dbqm.ops import catalogue, deps
+from dbqm.ops import catalogue, deps, queries
 from dbqm.ops import sql as ops_sql
 from dbqm.ops.errors import OperationError
 from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
@@ -136,68 +136,25 @@ def _export_result(
 
 def cmd_run(args: argparse.Namespace) -> None:
     """Execute a saved query."""
-    query = deps.find_query(args.query)
-    if not query:
-        _fail_or_print(args, "run", "not_found", t("query.not_found_named", name=args.query))
-
-    conn_name = args.connection or query.connection
-    conn = deps.find_connection(conn_name)
-    if not conn:
-        _fail_or_print(args, "run", "not_found", t("connection.not_found_named", name=conn_name))
-
     param_values = _parse_params(args.param, args, "run")
 
-    # A name the query does not declare is a typo, and accepting it means
-    # running unfiltered and calling it a result. `dbqm call` has always
-    # refused an undeclared parameter; `run` ignored it. `run-group` is
-    # deliberately left alone: its `shared_params` cross several queries and
-    # a parameter some of them do not use is the point.
-    declared = {p.name for p in query.params}
-    unknown = sorted(set(param_values) - declared)
-    if unknown:
-        _fail_or_print(
-            args, "run", "validation",
-            t("run.param_not_declared", query=query.name, parameter=unknown[0]),
-        )
-
-    # Fill missing params with defaults
-    for p in query.params:
-        if p.name not in param_values and p.default:
-            param_values[p.name] = p.default
-
-    # Validate required params
-    missing = [p.name for p in query.params if p.name not in param_values]
-    if missing:
-        _fail_or_print(
-            args, "run", "validation",
-            t("run.params_missing", names=", ".join(missing)),
-            extra=f"[dim]{t('run.params_hint')}[/dim]",
-        )
-
-    result = deps.execute_query(query, conn, param_values)
-
-    # Apply column maps
-    if result.success and query.column_maps:
-        query.apply_column_maps(result.rows, result.columns)
-
-    # Record history & audit
-    deps.record_query_execution(
-        query.name, conn.name, param_values,
-        result.row_count, result.elapsed, result.success, result.error,
-    )
-    deps.log_execution("query", query.name, conn.name, param_values,
-                  row_count=result.row_count, success=result.success, error=result.error)
-
-    # A failed query is a failure regardless of `--export`/`-f`: check it
-    # once here, before either branch, so `table`/`csv`/`raw` exit with the
-    # same mapped code as `json` instead of rendering an empty result.
-    if not result.success:
-        _fail_or_print(args, "run", ops_sql.sql_error_code(result.error, result.error_kind),
-                        result.error or t("run.execute_failed"))
+    try:
+        result = queries.run_query(args.query, param_values, connection=args.connection)
+    except OperationError as e:
+        # Both `run` validation failures -- an undeclared parameter and a
+        # missing one -- are about parameters, and the CLI cannot tell
+        # which raised from just `e.code`; the hint fits either, so it is
+        # printed for every `validation` failure of `run`.
+        extra = f"[dim]{t('run.params_hint')}[/dim]" if e.code == "validation" else None
+        _fail_or_print(args, "run", e.code, e.message, extra=extra)
 
     # Export if requested
     if args.export:
         fmt = args.export
+        # `run_query` no longer hands back the `Query` object; it exists
+        # (ops just ran it), so look it up again for its export table name.
+        query = deps.find_query(args.query)
+        assert query is not None
         table_name = query.table or query.name
         if fmt == "csv":
             path = deps.export_query_csv(result, table_name, param_values)
