@@ -85,6 +85,32 @@ def _explains_a_query(sql: str) -> bool:
     return classify_sql(rest) == "SELECT"
 
 
+def _has_top_level_into(sql: str) -> bool:
+    """Whether `sql`'s own `SELECT` carries a top-level `INTO`.
+
+    `SELECT * INTO new_tbl FROM t` creates a table on SQL Server and
+    PostgreSQL; `SELECT ... INTO OUTFILE` writes a file on MySQL.
+    `classify_sql` reports all three as a plain `SELECT`, which is what let
+    them through before this existed.
+
+    Depth 0 only: an `INTO` inside a subquery or a CTE body sits behind a
+    `Parenthesis` group, which this walk skips rather than descends into --
+    `SELECT a FROM t WHERE b IN (SELECT c INTO x FROM y)` does not refuse,
+    because that `INTO` writes nothing at the top level; PL/SQL's
+    `SELECT ... INTO v` never reaches here at all, since `classify_sql`
+    reports a PL/SQL block as `PLSQL`, not `SELECT`.
+    """
+    parsed = sqlparse.parse(sql)
+    if not parsed:
+        return False
+    for tok in parsed[0].tokens:
+        if isinstance(tok, sqlparse.sql.Parenthesis):
+            continue
+        if tok.ttype is sqlparse.tokens.Keyword and tok.normalized == "INTO":
+            return True
+    return False
+
+
 def check_read_only(sql: str, conn: "Connection") -> None:
     """Raise `ReadOnlyViolation` if `conn` is read-only and `sql` could write.
 
@@ -109,6 +135,9 @@ def check_read_only(sql: str, conn: "Connection") -> None:
     kind = classify_sql(sql)
     if kind not in ALLOWED:
         raise ReadOnlyViolation(refusal)
+
+    if kind == "SELECT" and _has_top_level_into(sql):
+        raise ReadOnlyViolation(t("read_only.select_into"))
 
     if kind == "EXPLAIN" and not _explains_a_query(sql):
         raise ReadOnlyViolation(t("read_only.explain_executes", name=conn.name))

@@ -1,10 +1,12 @@
 """Tests for execution history."""
+import threading
+
 import pytest
 
 from dbqm.core.history import (
     HistoryEntry, load_history, save_history, add_history_entry,
     clear_history, record_query_execution, record_group_execution,
-    kind_label, MAX_HISTORY,
+    kind_label, MAX_HISTORY, _history_file,
 )
 from dbqm.i18n import available_languages, get_language, set_language
 
@@ -107,3 +109,77 @@ class TestHistoryPersistence:
         loaded = load_history()
         assert loaded[0].entry_type == "group"
         assert loaded[0].all_match is True
+
+    def test_save_is_atomic_no_tmp_left_behind(self, tmp_config_dir):
+        """`save_history` writes to a sibling `.tmp` then replaces it -- no
+        temp file survives, and what is left parses."""
+        save_history([HistoryEntry(id="1", timestamp="t", entry_type="query",
+                                   name="q", connection="c")])
+        f = _history_file()
+        assert f.with_suffix(".tmp").exists() is False
+        assert load_history()[0].id == "1"
+
+    def test_concurrent_add_entry_loses_nothing(self, tmp_config_dir):
+        """The MCP server runs tools in worker threads: twenty concurrent
+        `add_history_entry` calls must not interleave into a lost update."""
+        threads = [
+            threading.Thread(target=add_history_entry, args=(
+                HistoryEntry(id=str(i), timestamp="t", entry_type="query",
+                            name=f"q{i}", connection="c"),
+            ))
+            for i in range(20)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        loaded = load_history()
+        assert len(loaded) == 20
+        assert {e.id for e in loaded} == {str(i) for i in range(20)}
+
+    def test_no_tmp_leftovers_after_pid_named_temp_files(self, tmp_config_dir):
+        """The temp file is named with the writer's pid; after the replace
+        nothing matching that pattern should still be sitting next to the
+        real file."""
+        save_history([HistoryEntry(id="1", timestamp="t", entry_type="query",
+                                   name="q", connection="c")])
+        f = _history_file()
+        assert list(f.parent.glob("history.*.tmp")) == []
+
+    def test_a_reader_thread_sees_no_exception_while_writers_race(self, tmp_config_dir):
+        """`load_history` now shares `_LOCK` with the writers: a reader
+        looping while twenty writers add entries must not see a
+        `PermissionError` from a replace racing an open read handle on
+        Windows, and must end up with all twenty entries recorded."""
+        stop = threading.Event()
+        errors: list[Exception] = []
+
+        def reader() -> None:
+            while not stop.is_set():
+                try:
+                    load_history()
+                except Exception as e:  # pragma: no cover - failure path
+                    errors.append(e)
+
+        reader_thread = threading.Thread(target=reader)
+        reader_thread.start()
+
+        writers = [
+            threading.Thread(target=add_history_entry, args=(
+                HistoryEntry(id=str(i), timestamp="t", entry_type="query",
+                            name=f"q{i}", connection="c"),
+            ))
+            for i in range(20)
+        ]
+        for w in writers:
+            w.start()
+        for w in writers:
+            w.join()
+        stop.set()
+        reader_thread.join()
+
+        assert errors == []
+        loaded = load_history()
+        assert len(loaded) == 20
+        assert {e.id for e in loaded} == {str(i) for i in range(20)}
+        assert list(_history_file().parent.glob("history.*.tmp")) == []

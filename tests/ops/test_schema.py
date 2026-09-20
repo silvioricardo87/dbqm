@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import pytest
 
+from dbqm.core.crypto import encrypt
+from dbqm.models.connection import Connection
 from dbqm.ops import catalogue, schema
 from dbqm.ops.errors import OperationError
 from tests.ops.conftest import envelope
@@ -85,3 +87,36 @@ def test_extract_ddl_on_a_dead_database_is_connection_failed(broken_db):
     with pytest.raises(OperationError) as e:
         schema.extract_ddl(catalogue.connection("broken"), "customers")
     assert e.value.code == "connection_failed"
+
+
+class TestConnectionFailureIsMasked:
+    """`with_open_connection`'s outer arm and `extract_ddl` both used to
+    build `OperationError("connection_failed", str(e))` directly -- a
+    driver is free to echo the DSN it was given, password included.
+    `core/db_manager.error_text` is what `query_engine` already routes
+    through; this pins `ops/schema` doing the same, via `deps.open_connection`
+    patched here (a unit test, which `tests/ops/` allows)."""
+
+    def _conn(self) -> Connection:
+        return Connection(name="c", db_type="postgresql", host="db.example.com",
+                          user="app", password=encrypt("s3cretpw"))
+
+    def test_list_objects_connection_failure_is_masked(self, monkeypatch, tmp_config_dir):
+        def boom(_conn):
+            raise RuntimeError("login failed for s3cretpw@host")
+        monkeypatch.setattr(schema.deps, "open_connection", boom)
+        with pytest.raises(OperationError) as e:
+            schema.list_objects(self._conn(), "TABLE")
+        assert e.value.code == "connection_failed"
+        assert "s3cretpw" not in e.value.message
+        assert "***" in e.value.message
+
+    def test_extract_ddl_connection_failure_is_masked(self, monkeypatch, tmp_config_dir):
+        def boom(_conn, obj, on_progress=None):
+            raise RuntimeError("login failed for s3cretpw@host")
+        monkeypatch.setattr(schema.deps, "extract_ddl", boom)
+        with pytest.raises(OperationError) as e:
+            schema.extract_ddl(self._conn(), "customers")
+        assert e.value.code == "connection_failed"
+        assert "s3cretpw" not in e.value.message
+        assert "***" in e.value.message

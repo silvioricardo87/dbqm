@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
+import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +13,11 @@ from dbqm.core.paths import HISTORY_DIR
 from dbqm.i18n import t
 
 MAX_HISTORY = 100
+
+#: Guards every read-modify-write against the file. The CLI never raced
+#: this -- one process per invocation -- but the MCP server runs tools in
+#: worker threads, so two `run`/`run_group` calls can interleave.
+_LOCK = threading.Lock()
 
 
 def kind_label(entry_type: str) -> str:
@@ -68,7 +76,9 @@ def _history_file() -> Path:
 MAX_HISTORY_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
-def load_history() -> list[HistoryEntry]:
+def _read() -> list[HistoryEntry]:
+    """The unlocked read. Only for a caller that already holds `_LOCK` --
+    `load_history` below is the locked entry point everyone else uses."""
     f = _history_file()
     if not f.exists():
         return []
@@ -80,24 +90,65 @@ def load_history() -> list[HistoryEntry]:
     return [HistoryEntry.from_dict(d) for d in data]
 
 
+def load_history() -> list[HistoryEntry]:
+    """Locked like every other access to the file: a concurrent
+    `add_history_entry` writing the temp file's replacement must not be
+    read mid-swap."""
+    with _LOCK:
+        return _read()
+
+
+#: `save_history`'s replace, on Windows, can meet a `PermissionError` while
+#: another handle has the destination open -- a `load_history` in another
+#: thread mid-read, the TUI, a concurrent CLI invocation. Both are bounded
+#: below by how many times to retry and how long to wait between tries.
+_REPLACE_ATTEMPTS = 5
+_REPLACE_RETRY_SECONDS = 0.02
+
+
 def save_history(entries: list[HistoryEntry]) -> None:
+    """Atomic: write to a sibling temp file, then replace -- a concurrent
+    reader never sees a half-written file.
+
+    The temp file's name carries this process's pid so two processes
+    racing to save never share one write handle. The final `replace` is
+    retried a bounded number of times on `PermissionError` alone -- the
+    Windows case above -- and re-raised if it still fails after that."""
     f = _history_file()
-    f.write_text(
+    tmp = f.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(
         json.dumps([e.to_dict() for e in entries], indent=2, ensure_ascii=False, default=str),
         encoding="utf-8",
     )
+    for attempt in range(1, _REPLACE_ATTEMPTS + 1):
+        try:
+            tmp.replace(f)
+            return
+        except PermissionError:
+            if attempt == _REPLACE_ATTEMPTS:
+                raise
+            time.sleep(_REPLACE_RETRY_SECONDS)
 
 
 def add_history_entry(entry: HistoryEntry) -> None:
-    entries = load_history()
-    entries.insert(0, entry)
-    if len(entries) > MAX_HISTORY:
-        entries = entries[:MAX_HISTORY]
-    save_history(entries)
+    """Locked across load, insert and save so two concurrent callers cannot
+    each load the same list and overwrite the other's entry.
+
+    Calls `_read()`, not `load_history()`: the lock is not reentrant, and
+    `load_history()` would deadlock against the lock this function already
+    holds."""
+    with _LOCK:
+        entries = _read()
+        entries.insert(0, entry)
+        if len(entries) > MAX_HISTORY:
+            entries = entries[:MAX_HISTORY]
+        save_history(entries)
 
 
 def clear_history() -> None:
-    save_history([])
+    """Locked for the same reason `add_history_entry` is."""
+    with _LOCK:
+        save_history([])
 
 
 def _generate_id() -> str:

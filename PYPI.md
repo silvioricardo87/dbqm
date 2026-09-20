@@ -33,6 +33,9 @@ in the standard library, so `dbqm connection add local --type sqlite --database
 Oracle connections additionally need the Oracle Instant Client. dbqm can
 download and install it for you from **Settings › Oracle Instant Client**.
 
+`pip install "dbqm[mcp]"` additionally installs the MCP server for AI agents
+(`dbqm mcp`) — see [docs/MCP.md](https://github.com/silvioricardo87/dbqm/blob/main/docs/MCP.md).
+
 ## Use it interactively
 
 ```bash

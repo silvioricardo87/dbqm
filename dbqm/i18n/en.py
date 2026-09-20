@@ -39,6 +39,10 @@ TEXTS: Final[dict[str, str]] = {
         "Connection '{name}' is read-only and this EXPLAIN runs the command it "
         "explains. Use --force-write to send it anyway."
     ),
+    "read_only.select_into": (
+        "SELECT ... INTO writes a table or a file and is refused on a "
+        "read-only connection."
+    ),
     "query.sql_required": 'Give the SQL.',
     "query.name_required": 'Give the query a name.',
     "query.connection_required": 'Choose a connection.',
@@ -161,6 +165,7 @@ TEXTS: Final[dict[str, str]] = {
     "help.cmd.history": 'View the execution history',
     "help.cmd.import_config": 'Import the configuration from a .dbqm bundle',
     "help.cmd.list": 'List connections, queries or groups',
+    "help.cmd.mcp": "Serve dbqm's operations to an AI client over MCP (stdio); needs the mcp extra",
     "help.cmd.multi": 'Run one ad-hoc SQL across several connections and compare',
     "help.cmd.objects": 'List database objects',
     "help.cmd.oc.available": 'List the packages available for download on this platform',
@@ -259,6 +264,8 @@ TEXTS: Final[dict[str, str]] = {
     "help.imp.password_stdin": 'Read the password from one line on standard input',
     "help.list.format": 'Output format',
     "help.list.resource": 'What to list',
+    "help.mcp.allow_write": "Let each connection's own read-only flag decide; without this every connection is read-only",
+    "help.mcp.connection": "Expose only this connection (repeat for several); default: every configured one",
     "help.multi.connection": 'Connection (repeat for each; at least 2)',
     "help.multi.export": "Export the result to a file. 'html' cannot be used with --flat.",
     "help.multi.flat": 'Use the flat layout (one block per column)',
@@ -1064,4 +1071,22 @@ TEXTS: Final[dict[str, str]] = {
     "ddl.extract_failed_dependency": 'Could not extract {type} {owner}.{name}: {error}',
     "common.yes_initial": 'Y',
     "common.no_initial": 'N',
+    # --- mcp ---
+    "mcp.connection_not_exposed": 'Connection "{name}" is not exposed by this server (started with --connection).',
+    "mcp.not_installed": 'The MCP server needs the mcp extra. Install it with `pip install "dbqm[mcp]"` (or `uv tool install "dbqm[mcp]"`).',
+    # The braces below are literal text, not `str.format` fields: this key
+    # is never called with keyword arguments, and `t()` skips `.format()`
+    # entirely when none are given.
+    "mcp.server_description": "dbqm: query, compare and inspect the databases configured in dbqm (Oracle, SQL Server, PostgreSQL, MySQL, SQLite). Results are the CLI's envelope: {ok, command, data} or {ok: false, error: {code, message, exit}}.",
+    "mcp.tool.list": "List what dbqm has configured: connections (name, engine, target, read_only), saved queries or comparison groups.",
+    "mcp.tool.test_connection": "Try to connect. One connection by name, or every exposed one when no name is given. A connection that is down is an item with ok=false, not an error.",
+    "mcp.tool.objects": "List a database's objects of one type: TABLE, VIEW, PACKAGE or ROUTINE.",
+    "mcp.tool.describe": "One table or view: columns (type, nullable, key), indexes, and a view's definition.",
+    "mcp.tool.rows": "A table's rows, paged (limit, offset); total_count says how many exist. limit is capped at MAX_ROWS (10,000) regardless of what is asked.",
+    "mcp.tool.ddl": "A database object's DDL, inline. Nothing is written to disk.",
+    "mcp.tool.history": "The machine's whole execution history, CLI runs included and not scoped to this server -- an entry can name a connection this server does not expose.",
+    "mcp.tool.run": "Run a saved query by name with its parameters; connection overrides the query's own.",
+    "mcp.tool.run_group": "Run a saved comparison group and report per-column counts; all_match=false is a completed run that diverged.",
+    "mcp.tool.multi": "Run one SELECT across two or more connections and compare the results by a common key.",
+    "mcp.tool.sql": "Run one SQL statement on one connection. Read-only unless the server was started with --allow-write; DML needs commit=true; explain=true returns the plan.",
 }

@@ -24,6 +24,7 @@ exit codes: [output-contract.md](output-contract.md).
 | QA-RO-009 | Given `local` (writable) / When `--force-write` is passed on an UPDATE with `--commit` / Then it is a no-op: exit 0, the same as without the flag | functional | all | tests/functional/test_read_only.py::test_force_write_on_a_writable_connection_changes_nothing |
 | QA-RO-010 | Given `ro` and a saved query whose SQL is an UPDATE / When `dbqm run atualiza -c ro -f json` / Then exit 2, `error.code == "usage"`, the message `Only SELECT statements are allowed.` and the row still reads `A` — `run` has no write path on any connection, which is why it has no `--force-write` | functional | all | tests/functional/test_read_only.py::test_run_of_a_writing_query_is_refused |
 | QA-RO-011 | Given a read-only Oracle connection / When `dbqm sql "EXPLAIN PLAN FOR DELETE FROM t" <ro-oracle> -f json` / Then `read_only`, with the message `this EXPLAIN runs the command it explains` | manual | oracle | — |
+| QA-RO-012 | Given `ro` / When `dbqm sql "SELECT * INTO intruso FROM customers" ro -f json` / Then exit 2, `error.code == "read_only"`, the message `SELECT ... INTO writes a table or a file and is refused on a read-only connection.` and no `intruso` table exists | functional | all | tests/functional/test_read_only.py::test_a_select_into_is_refused |
 
 ## Manual (Oracle)
 

@@ -5,6 +5,7 @@ import os
 import platform
 import re
 import sys
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -299,6 +300,13 @@ def _find_oracle_client_dir() -> str | None:
 
 _thick_mode_error: str | None = None
 
+#: Guards `_init_thick_mode`'s body. It runs at import time and again, on
+#: demand, from `get_oracle_connection` -- reachable from any worker thread
+#: the MCP server or the TUI starts. `oracledb.init_oracle_client` may only
+#: be called once per process; two threads racing the uninitialized case
+#: without this would both attempt it.
+_thick_mode_lock = threading.Lock()
+
 
 def _ensure_utf8_nls_lang() -> None:
     """Force NLS_LANG to UTF-8 so the Oracle client returns messages in UTF-8.
@@ -325,26 +333,31 @@ def _init_thick_mode(config_dir: str | None = None) -> bool:
     global _thick_mode_initialized, _thick_mode_error
     if _thick_mode_initialized:
         return True
-    _ensure_utf8_nls_lang()
-    try:
-        import oracledb
-    except ImportError as e:
-        _thick_mode_error = str(e)
-        return False
-    try:
-        kwargs = {}
-        if config_dir:
-            kwargs["config_dir"] = config_dir
-        lib_dir = _find_oracle_client_dir()
-        if lib_dir:
-            kwargs["lib_dir"] = lib_dir
-        oracledb.init_oracle_client(**kwargs)
-        _thick_mode_initialized = True
-        _thick_mode_error = None
-        return True
-    except Exception as e:
-        _thick_mode_error = str(e)
-        return False
+    with _thick_mode_lock:
+        # Re-check inside the lock: another thread may have finished the
+        # init between the check above and this one getting it.
+        if _thick_mode_initialized:
+            return True
+        _ensure_utf8_nls_lang()
+        try:
+            import oracledb
+        except ImportError as e:
+            _thick_mode_error = str(e)
+            return False
+        try:
+            kwargs = {}
+            if config_dir:
+                kwargs["config_dir"] = config_dir
+            lib_dir = _find_oracle_client_dir()
+            if lib_dir:
+                kwargs["lib_dir"] = lib_dir
+            oracledb.init_oracle_client(**kwargs)
+            _thick_mode_initialized = True
+            _thick_mode_error = None
+            return True
+        except Exception as e:
+            _thick_mode_error = str(e)
+            return False
 
 
 def _needs_thick_mode(error: Exception) -> bool:

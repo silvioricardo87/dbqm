@@ -55,6 +55,28 @@ def comparison_data(comparison: Comparison) -> list[dict[str, Any]]:
     ]
 
 
+def multi_data(comparison: Comparison) -> dict[str, Any]:
+    """The `data` of `multi -f json`."""
+    return {
+        "join_key": comparison.join_key,
+        "all_match": comparison.group_result.all_match,
+        "comparisons": comparison_data(comparison),
+    }
+
+
+def run_group_data(comparison: Comparison) -> dict[str, Any]:
+    """The `data` of `run-group -f json`: `join_key` only for the ad-hoc
+    shape, which derives it at run time; a saved group has the key it was
+    given and does not report one.
+    """
+    data: dict[str, Any] = {"group": comparison.group_result.group_name}
+    if comparison.join_key is not None:
+        data["join_key"] = comparison.join_key
+    data["all_match"] = comparison.group_result.all_match
+    data["comparisons"] = comparison_data(comparison)
+    return data
+
+
 def multi_failure_code(codes: list[str]) -> str:
     """The one exit token for a set of failing connections.
 

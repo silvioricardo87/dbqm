@@ -13,7 +13,7 @@ instructions OVERRIDE default behavior.
 - Follow the mandatory workflow after every change: **build → tests → version
   bump → README → commit → push → PyPI**. Never skip a step; never commit with
   failing tests.
-- **Conventional Commits**; scopes `ui|core|models|config|web`. **Never** include
+- **Conventional Commits**; scopes `ui|core|models|config|web|mcp`. **Never** include
   AI `Co-Authored-By` / AI-attribution lines.
 - **Never commit** AI plans/PRDs/planning docs. `docs/plans/` (incl. `BACKLOG.md`),
   `PRD.md`, `.claude/` are gitignored; `AGENTS.md`/`CLAUDE.md`/agent configs are allowed.

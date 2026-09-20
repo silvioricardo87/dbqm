@@ -212,31 +212,31 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     except OperationError as e:
         _fail_or_print(args, "run-group", e.code, e.message)
 
-    extra = {"join_key": comparison.join_key} if comparison.join_key is not None else None
-    _report_group_result(args, comparison, extra=extra)
+    _report_group_result(args, comparison)
 
 
 def _report_group_result(
     args: argparse.Namespace,
     comparison: compare.Comparison,
-    *,
-    extra: dict[str, Any] | None = None,
 ) -> None:
     """The tail of `run-group`: export, envelope or table, and exit 5.
 
     Shared by the two shapes of group -- saved queries and ad-hoc -- so
     that a divergence exits the same way and the JSON carries the same
-    counts whichever was run. *extra* is what one shape knows and the other
-    does not: an ad-hoc group derives its join key at run time and reports
-    it, a saved group has the key it was given.
+    counts whichever was run.
     """
     group_result = comparison.group_result
     warnings = comparison.warnings
     if args.export:
         fmt = args.export
         path = _export_group(args, "run-group", group_result, comparison.params)
+        # `join_key` only for the ad-hoc shape, which derives it at run
+        # time; a saved group has the key it was given and does not
+        # report one -- same rule `run_group_data` applies to the
+        # non-export branch below.
+        extra = {"join_key": comparison.join_key} if comparison.join_key is not None else {}
         if args.format == "json":
-            ok("run-group", {"exported": str(path), "format": fmt, **(extra or {})},
+            ok("run-group", {"exported": str(path), "format": fmt, **extra},
                warnings=warnings or None)
         else:
             console.print(t("export.done", path=path))
@@ -247,12 +247,7 @@ def _report_group_result(
         return
 
     if args.format == "json":
-        data = {
-            "group": group_result.group_name,
-            **(extra or {}),
-            "all_match": group_result.all_match,
-            "comparisons": compare.comparison_data(comparison),
-        }
+        data = compare.run_group_data(comparison)
         ok("run-group", data, warnings=warnings or None)
         if not group_result.all_match:
             sys.exit(int(exit_for("divergent")))
@@ -302,11 +297,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
         return
 
     if args.format == "json":
-        data = {
-            "join_key": comparison.join_key,
-            "all_match": comparison.group_result.all_match,
-            "comparisons": compare.comparison_data(comparison),
-        }
+        data = compare.multi_data(comparison)
         ok("multi", data, warnings=comparison.warnings or None)
         if not comparison.group_result.all_match:
             sys.exit(int(exit_for("divergent")))

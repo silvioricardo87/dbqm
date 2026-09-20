@@ -40,6 +40,10 @@ TEXTS: Final[dict[str, str]] = {
         "Conexao '{name}' e somente leitura e este EXPLAIN executa o comando "
         "que explica. Use --force-write para enviar assim mesmo."
     ),
+    "read_only.select_into": (
+        "SELECT ... INTO grava uma tabela ou um arquivo e e recusado em "
+        "uma conexao somente leitura."
+    ),
     "query.sql_required": 'Informe o SQL.',
     "query.name_required": 'Informe o nome da consulta.',
     "query.connection_required": 'Selecione uma conexao.',
@@ -324,6 +328,9 @@ TEXTS: Final[dict[str, str]] = {
     "help.oc_rm.name": "Nome do diretorio do client (ver 'oracle-client list')",
     "help.oc_rm.yes": 'Remover sem confirmacao (obrigatorio fora do terminal)',
     "help.oc_rm.format": 'Formato de saida',
+    "help.cmd.mcp": "Servir as operacoes do dbqm para um cliente de IA via MCP (stdio); precisa do extra mcp",
+    "help.mcp.allow_write": "Deixar a flag read-only de cada conexao decidir; sem isso toda conexao fica somente leitura",
+    "help.mcp.connection": "Expor somente esta conexao (repita para varias); padrao: todas as configuradas",
     "help.cmd.describe_cli": 'Descrever os comandos do CLI (nome, ajuda e argumentos de cada um)',
     "help.describe_cli.format": 'Formato de saida',
     "export.format_invalid": 'Formato de export invalido: {format}',
@@ -1065,4 +1072,22 @@ TEXTS: Final[dict[str, str]] = {
     "ddl.extract_failed_dependency": 'Erro ao extrair {type} {owner}.{name}: {error}',
     "common.yes_initial": 'S',
     "common.no_initial": 'N',
+    # --- mcp ---
+    "mcp.connection_not_exposed": 'Conexao "{name}" nao esta exposta por este servidor (iniciado com --connection).',
+    "mcp.not_installed": 'O servidor MCP precisa do extra mcp. Instale com `pip install "dbqm[mcp]"` (ou `uv tool install "dbqm[mcp]"`).',
+    # The braces below are literal text, not `str.format` fields: this key
+    # is never called with keyword arguments, and `t()` skips `.format()`
+    # entirely when none are given.
+    "mcp.server_description": "dbqm: consulta, compara e inspeciona os bancos de dados configurados no dbqm (Oracle, SQL Server, PostgreSQL, MySQL, SQLite). Os resultados seguem o envelope da CLI: {ok, command, data} ou {ok: false, error: {code, message, exit}}.",
+    "mcp.tool.list": "Lista o que o dbqm tem configurado: conexoes (name, engine, target, read_only), queries salvas ou grupos de comparacao.",
+    "mcp.tool.test_connection": "Tenta conectar. Uma conexao pelo nome, ou todas as expostas quando nenhum nome e informado. Uma conexao fora do ar e um item com ok=false, nao um erro.",
+    "mcp.tool.objects": "Lista os objetos de um tipo de um banco: TABLE, VIEW, PACKAGE ou ROUTINE.",
+    "mcp.tool.describe": "Uma tabela ou view: colunas (type, nullable, key), indices e a definicao de uma view.",
+    "mcp.tool.rows": "As linhas de uma tabela, paginadas (limit, offset); total_count diz quantas existem. limit e limitado a MAX_ROWS (10.000) independente do que for pedido.",
+    "mcp.tool.ddl": "O DDL de um objeto do banco, inline. Nada e escrito em disco.",
+    "mcp.tool.history": "O historico de execucao inteiro da maquina, incluindo execucoes da CLI e nao restrito a este servidor -- uma entrada pode citar uma conexao que este servidor nao expoe.",
+    "mcp.tool.run": "Executa uma query salva pelo nome com seus parametros; connection substitui a da query.",
+    "mcp.tool.run_group": "Executa um grupo de comparacao salvo e reporta contagens por coluna; all_match=false e uma execucao completa que divergiu.",
+    "mcp.tool.multi": "Executa um SELECT em duas ou mais conexoes e compara os resultados por uma chave comum.",
+    "mcp.tool.sql": "Executa uma instrucao SQL em uma conexao. Somente leitura a menos que o servidor tenha sido iniciado com --allow-write; DML precisa de commit=true; explain=true retorna o plano.",
 }

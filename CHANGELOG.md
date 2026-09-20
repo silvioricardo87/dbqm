@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.13.0] — 2026-09-20
+
+### Added
+
+- `dbqm mcp` — an MCP server over stdio (extra `dbqm[mcp]`), eleven tools
+  (`list`, `test_connection`, `objects`, `describe`, `rows`, `ddl`,
+  `history`, `run`, `run_group`, `multi`, `sql`) that call the same `ops/`
+  functions the CLI calls and answer with the CLI's envelope; read-only by
+  default, `--allow-write` and `--connection` at start. See `docs/MCP.md`.
+- `tests/design/test_mcp_parity.py` pairs every tool with its command.
+
+### Changed
+
+- The `multi` and `run-group` JSON shapes are built by `ops/compare`
+  (`multi_data`, `run_group_data`); output unchanged.
+- History writes go through a temp file and an atomic replace, audit writes
+  are lock-serialised appends; the MCP server runs tools in worker threads
+  and the CLI never raced either file. `add_history_entry` holds the same
+  lock across load, insert and save, and `load_history` now takes it too,
+  so a reader can no longer see the file mid-replace.
+- `ops/schema` reports a connection failure through the password masker,
+  like `sql` and `run` already did.
+
+### Fixed
+
+- A read-only connection refuses `SELECT ... INTO` (a table on SQL Server
+  and PostgreSQL, a file on MySQL); it was classified as a plain SELECT.
+
 ## [2.12.1] — 2026-09-20
 
 ### Fixed

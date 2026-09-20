@@ -133,3 +133,18 @@ def test_run_of_a_writing_query_is_refused(read_only_db, capsys):
     assert body["error"]["code"] == "usage"
     assert body["error"]["message"] == "Only SELECT statements are allowed."
     assert _status_of_1(capsys) == "A"
+
+
+# QA-RO-012
+def test_a_select_into_is_refused(read_only_db, capsys):
+    """`SELECT ... INTO` creates a table on SQL Server and PostgreSQL, and
+    writes a file on MySQL -- refused on every engine by the classifier
+    alone, before the (SQLite) driver is ever reached."""
+    code, body = envelope(["sql", "SELECT * INTO intruso FROM customers", "ro", "-f", "json"], capsys)
+    assert code == 2
+    assert body["error"]["code"] == "read_only"
+    assert body["error"]["message"] == (
+        "SELECT ... INTO writes a table or a file and is refused on a "
+        "read-only connection."
+    )
+    assert "intruso" not in _tables(capsys)
