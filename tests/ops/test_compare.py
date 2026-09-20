@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 
 from dbqm.cli import run_cli
+from dbqm.models.group import load_groups, save_groups
 from dbqm.ops import catalogue, compare
 from dbqm.ops.errors import OperationError
 from tests.ops.conftest import envelope
@@ -124,3 +125,29 @@ def test_run_group_saved_goes_through_the_resolver_for_each_query(saved_group):
 
     compare.run_group("g", {}, resolve=resolve)
     assert seen == ["local", "local2"]
+
+
+def test_run_group_reports_the_params_it_actually_ran_with(local2_db, capsys):
+    """`shared_params` defaults are model-only -- `group add` has no flag
+    for them, only the TUI's group-run screen sets them -- so this group is
+    built directly through the model rather than the CLI.
+
+    `Comparison.params` is what an export embeds and a history record
+    stores; it must carry the filled defaults, not the caller's bare `{}`,
+    and an explicit param must still win over the default.
+    """
+    filtered_sql = "SELECT id, value FROM orders WHERE id >= :minimum ORDER BY id"
+    run_cli(["query", "add", "f1", "--sql", filtered_sql, "--connection", "local", "-f", "json"])
+    run_cli(["query", "add", "f2", "--sql", filtered_sql, "--connection", "local2", "-f", "json"])
+    run_cli(["group", "add", "filtered", "--query", "f1", "--query", "f2",
+             "--join-key", "id", "-f", "json"])
+    capsys.readouterr()
+
+    groups = load_groups()
+    for g in groups:
+        if g.name == "filtered":
+            g.shared_params = {"minimum": "10"}
+    save_groups(groups)
+
+    assert compare.run_group("filtered", {}).params == {"minimum": "10"}
+    assert compare.run_group("filtered", {"minimum": "12"}).params == {"minimum": "12"}

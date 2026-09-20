@@ -207,13 +207,12 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         _fail_or_print(args, "run-group", e.code, e.message)
 
     extra = {"join_key": comparison.join_key} if comparison.join_key is not None else None
-    _report_group_result(args, comparison, param_values, extra=extra)
+    _report_group_result(args, comparison, extra=extra)
 
 
 def _report_group_result(
     args: argparse.Namespace,
     comparison: compare.Comparison,
-    param_values: dict[str, str],
     *,
     extra: dict[str, Any] | None = None,
 ) -> None:
@@ -229,7 +228,7 @@ def _report_group_result(
     warnings = comparison.warnings
     if args.export:
         fmt = args.export
-        path = _export_group(args, "run-group", group_result, param_values)
+        path = _export_group(args, "run-group", group_result, comparison.params)
         if args.format == "json":
             ok("run-group", {"exported": str(path), "format": fmt, **(extra or {})},
                warnings=warnings or None)
@@ -284,7 +283,7 @@ def cmd_multi(args: argparse.Namespace) -> None:
 
     if args.export:
         fmt = args.export
-        path = _export_group(args, "multi", comparison.group_result, param_values)
+        path = _export_group(args, "multi", comparison.group_result, comparison.params)
         if args.format == "json":
             ok("multi", {"exported": str(path), "format": fmt, "join_key": comparison.join_key},
                warnings=comparison.warnings or None)

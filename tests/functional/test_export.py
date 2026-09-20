@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from dbqm.core import paths
+from dbqm.models.group import load_groups, save_groups
 from tests.functional.conftest import envelope
 
 ACTIVE = "SELECT id, name FROM customers WHERE status = 'A' ORDER BY id"
@@ -140,3 +141,38 @@ def test_every_export_lands_under_the_export_dir(active, orders, capsys):
     for path in exported_paths:
         assert base in path.resolve().parents, path
         assert Path.cwd().resolve() not in path.resolve().parents
+
+
+# QA-EXPORT-010
+def test_run_group_export_carries_a_shared_params_default(local2_db, capsys):
+    """`shared_params` defaults have no `group add` flag -- only the TUI's
+    group-run screen sets them -- so this group is built directly through
+    the model, the way `tests/ops/test_compare.py` does for the same fix.
+
+    Before the `ops/compare` refactor, `cmd_run_group` filled the default
+    into its own `param_values` and threaded that filled copy through to
+    the export; the fix carries it on `Comparison.params` instead. Both the
+    exported file name and its JSON body embed parameters, so both are
+    checked here.
+    """
+    filtered = "SELECT id, value FROM orders WHERE id >= :minimum ORDER BY id"
+    for name, conn in (("ped_local_f", "local"), ("ped_local2_f", "local2")):
+        code, _ = envelope(["query", "add", name, "--connection", conn, "--sql", filtered, "-f", "json"], capsys)
+        assert code == 0
+    code, _ = envelope(
+        ["group", "add", "orders_default", "--query", "ped_local_f", "--query", "ped_local2_f",
+         "--join-key", "id", "--compare-column", "value", "-f", "json"],
+        capsys,
+    )
+    assert code == 0
+
+    groups = load_groups()
+    for g in groups:
+        if g.name == "orders_default":
+            g.shared_params = {"minimum": "10"}
+    save_groups(groups)
+
+    path, _ = _exported(["run-group", "orders_default", "-e", "json"], capsys, expected_code=5)
+    assert "minimum-10" in path.name
+    content = json.loads(_text(path))
+    assert content["params"] == {"minimum": "10"}

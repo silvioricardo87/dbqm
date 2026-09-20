@@ -33,6 +33,10 @@ class Comparison:
     #: Per-connection results, keyed by name in the order given; the table
     #: header of `multi` lists them. Empty for a saved group.
     results: dict[str, Any] = field(default_factory=dict)
+    #: The parameters the comparison actually ran with: the caller's, plus
+    #: a group's `shared_params` defaults. What an export embeds and a
+    #: history record stores.
+    params: dict[str, str] = field(default_factory=dict)
 
 
 def comparison_data(comparison: Comparison) -> list[dict[str, Any]]:
@@ -72,7 +76,7 @@ def multi_failure_code(codes: list[str]) -> str:
 
 def compare_across(
     sql: str,
-    resolved: list[tuple[str, Connection | None]],
+    resolved: list[tuple[str, Connection]],
     params: dict[str, str],
     *,
     key: str | None,
@@ -87,7 +91,13 @@ def compare_across(
     NOT do is print or exit; the two callers report the same result under
     different names and different envelopes, and that stays theirs.
     """
-    results = deps.execute_across(sql, resolved, params)
+    # `execute_across` (core/) still accepts a `None` connection -- other
+    # callers resolve their own way and may hand it a gap to skip. Every
+    # `resolved` this module builds comes from a `Resolver`, which raises
+    # rather than returning one, so the narrower type here is honest; this
+    # is the one seam where it widens back for the call.
+    conns: list[tuple[str, Connection | None]] = list(resolved)
+    results = deps.execute_across(sql, conns, params)
 
     failing = [(name, result) for name, result in results.items() if not result.success]
     if failing:
@@ -220,11 +230,13 @@ def multi(
         )
 
     resolver = resolver_or_default(resolve)
-    resolved: list[tuple[str, Connection | None]] = [(name, resolver(name)) for name in names]
+    resolved: list[tuple[str, Connection]] = [(name, resolver(name)) for name in names]
 
     refuse_undeclared_params(sql, params)
 
-    return compare_across(sql, resolved, params, key=key)
+    comparison = compare_across(sql, resolved, params, key=key)
+    comparison.params = dict(params)
+    return comparison
 
 
 def run_group(
@@ -259,11 +271,12 @@ def run_group(
         # was used, for the reason `multi` gives: a key chosen by a rule the
         # caller cannot see turns every number downstream into a guess.
         total_start = time.time()
-        resolved: list[tuple[str, Connection | None]] = [
+        resolved: list[tuple[str, Connection]] = [
             (cname, resolver(cname)) for cname in group.connections
         ]
         refuse_undeclared_params(group.adhoc_sql, param_values)
         comparison = compare_across(group.adhoc_sql, resolved, param_values, key=None)
+        comparison.params = param_values
         # `build_adhoc_group_result` names the result after its connections;
         # the history and the header are about the GROUP the user ran.
         comparison.group_result.group_name = group.name
@@ -338,4 +351,4 @@ def run_group(
             t("group.comparing_common", name=group.name, columns=", ".join(compare_columns))
         ))
 
-    return Comparison(group_result, warnings)
+    return Comparison(group_result, warnings, params=param_values)
