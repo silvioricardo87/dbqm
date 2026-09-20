@@ -26,12 +26,12 @@ def test_the_seed_is_what_the_documents_describe(local_db, capsys):
 
 def test_a_functional_test_cannot_patch_deps():
     """The rule, enforced by reading the folder. A functional test that
-    patches `dbqm.cli.deps` is a unit test in the wrong directory: it would
+    patches `dbqm.ops.deps` is a unit test in the wrong directory: it would
     prove the mock, not the program."""
     folder = Path(__file__).parent
     source = "".join(p.read_text(encoding="utf-8") for p in folder.glob("*.py"))
     # The needle is assembled, not written: this file is in the folder it
     # reads, and a literal here would be the first thing it found.
-    target = "dbqm.cli." + "deps"
+    target = "dbqm.ops." + "deps"
     for quotes in ('"', "'"):
         assert f"patch({quotes}{target}" not in source

@@ -1,7 +1,7 @@
 """The functional harness: a real SQLite file, a registered connection, and
 `run_cli` called for real.
 
-Nothing in this directory patches `dbqm.cli.deps`. A test that needs to is
+Nothing in this directory patches `dbqm.ops.deps`. A test that needs to is
 a unit test in the wrong folder, and `test_harness.py` refuses it by
 reading the folder's source. The config directory is `tmp_config_dir`'s and
 the database is a file under `tmp_path` -- never the developer's home.

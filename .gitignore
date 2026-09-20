@@ -39,7 +39,7 @@ exports/
 .worktrees/
 
 # Planos e documentos de IA (apenas configs/agents ficam)
-ops/
+/ops/
 docs/plans/
 docs/superpowers/
 .superpowers/

@@ -11,11 +11,12 @@ from typing import Any, NoReturn
 from rich.markup import escape
 
 from dbqm.i18n import t
-from dbqm.cli import deps, render
+from dbqm.cli import render
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
+from dbqm.ops import deps
 from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
 from dbqm.core.object_browser import RoutineInfo
 from dbqm.models.connection import Connection

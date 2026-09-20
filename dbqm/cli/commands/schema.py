@@ -9,10 +9,11 @@ from rich.markup import escape
 from rich.table import Table
 
 from dbqm.i18n import t
-from dbqm.cli import deps, render
+from dbqm.cli import render
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.render import console
+from dbqm.ops import deps
 
 OBJECT_TYPES = ["TABLE", "VIEW", "PACKAGE", "ROUTINE"]
 
