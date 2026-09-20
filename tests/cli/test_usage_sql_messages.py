@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from dbqm.cli.commands.query import _sql_error_code
 from dbqm.i18n import set_language, t
+from dbqm.ops.sql import sql_error_code as _sql_error_code
 
 
 @pytest.fixture(autouse=True)

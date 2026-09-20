@@ -5234,7 +5234,7 @@ class TestConnectionFailedIsReachable:
         translation now, and a classifier that reads one would be right in
         one language and wrong in the others.
         """
-        from dbqm.cli.commands.query import _sql_error_code
+        from dbqm.ops.sql import sql_error_code as _sql_error_code
 
         assert _sql_error_code("qualquer coisa", "usage") == "usage"
         assert _sql_error_code("ORA-00942: tabela inexistente",

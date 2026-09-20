@@ -16,35 +16,12 @@ from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
 from dbqm.cli.params import _parse_params
 from dbqm.cli.render import console
-from dbqm.ops import deps
+from dbqm.ops import catalogue, deps
+from dbqm.ops import sql as ops_sql
+from dbqm.ops.errors import OperationError
 from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
 from dbqm.core.object_browser import RoutineInfo
 from dbqm.models.connection import Connection
-
-def _sql_error_code(message: str | None, error_kind: str = "") -> str:
-    """The token for a failed result.
-
-    `connection` wins over everything: the database never answered, so
-    nothing about the statement is known. `read_only` is next -- the guard
-    refused to send the statement at all, which `cmd_sql` already reports as
-    `read_only`/exit 2, and `execute_across` (`group_engine.py`) tags the
-    same way so the two commands agree about what the same event is.
-    Otherwise `usage` when `core/` tagged the result that way -- bad input
-    that never reached a driver -- and `sql_error` for the rest, which the
-    driver rejected or failed on.
-
-    Read from `error_kind` rather than by recognising the message: the
-    message is a translation now, so matching its wording would classify
-    correctly in one language and silently wrongly in every other.
-    """
-    if error_kind == "connection":
-        return "connection_failed"
-    if error_kind == "read_only":
-        return "read_only"
-    if error_kind == "usage":
-        return "usage"
-    return "sql_error"
-
 
 def _fail_or_print(
     args: argparse.Namespace,
@@ -104,26 +81,6 @@ def _export_group(
         else:
             _fail_or_print(args, command, "usage", t("export.format_invalid", format=fmt))
     return path
-
-
-def _refuse_undeclared_params(
-    args: argparse.Namespace, command: str, sql: str, param_values: dict[str, str],
-) -> None:
-    """Refuse a `-p` whose name the SQL never binds.
-
-    The statement is right there, so the set of names it accepts is exactly
-    knowable -- and a name outside it is a typo that would otherwise run
-    unfiltered and be reported as a result.
-    """
-    if not param_values:
-        return
-    declared = set(deps.detect_params(sql))
-    unknown = sorted(set(param_values) - declared)
-    if unknown:
-        _fail_or_print(
-            args, command, "validation",
-            t("param.not_in_sql", name=unknown[0]),
-        )
 
 
 def _sql_or_file(sql: str) -> str:
@@ -235,7 +192,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     # once here, before either branch, so `table`/`csv`/`raw` exit with the
     # same mapped code as `json` instead of rendering an empty result.
     if not result.success:
-        _fail_or_print(args, "run", _sql_error_code(result.error, result.error_kind),
+        _fail_or_print(args, "run", ops_sql.sql_error_code(result.error, result.error_kind),
                         result.error or t("run.execute_failed"))
 
     # Export if requested
@@ -314,7 +271,10 @@ def cmd_run_group(args: argparse.Namespace) -> None:
                 _fail_or_print(args, "run-group", "not_found",
                                t("connection.not_found_named", name=cname))
             resolved.append((cname, conn))
-        _refuse_undeclared_params(args, "run-group", group.adhoc_sql, param_values)
+        try:
+            ops_sql.refuse_undeclared_params(group.adhoc_sql, param_values)
+        except OperationError as e:
+            _fail_or_print(args, "run-group", e.code, e.message)
         _, join_key, group_result, warnings = _compare_across(
             args, "run-group", group.adhoc_sql, resolved, param_values, key=None,
         )
@@ -344,7 +304,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
 
         result = deps.execute_query(query, conn, param_values)
         if not result.success:
-            _fail_or_print(args, "run-group", _sql_error_code(result.error, result.error_kind),
+            _fail_or_print(args, "run-group", ops_sql.sql_error_code(result.error, result.error_kind),
                             t("group.query_failed", query=qname, error=result.error))
 
         # Apply column maps
@@ -550,7 +510,10 @@ def cmd_multi(args: argparse.Namespace) -> None:
 
     param_values = _parse_params(args.param, args, "multi")
 
-    _refuse_undeclared_params(args, "multi", sql, param_values)
+    try:
+        ops_sql.refuse_undeclared_params(sql, param_values)
+    except OperationError as e:
+        _fail_or_print(args, "multi", e.code, e.message)
 
     results, join_key, group_result, warnings = _compare_across(
         args, "multi", sql, resolved, param_values, key=args.key,
@@ -637,14 +600,14 @@ def _compare_across(
         # read-only refusal is neither (the guard never sent the statement
         # at all -- `cmd_sql` reports the identical condition as `read_only`,
         # exit 2, and the two commands must not disagree about what the same
-        # event is), and `_sql_error_code` is what tells all of these apart
+        # event is), and `ops_sql.sql_error_code` is what tells all of these apart
         # (it also catches the messages `core/` returns for a statement
         # never sent to any driver, which a plain connection/sql_error
         # dichotomy mislabelled as `sql_error`). The aggregate exit code
         # does not depend on which failing connection happens to come first
         # -- see `_multi_failure_code` -- and every failing connection is
         # named, not just one.
-        codes = [_sql_error_code(result.error, result.error_kind) for _, result in failing]
+        codes = [ops_sql.sql_error_code(result.error, result.error_kind) for _, result in failing]
         parts = []
         for (name, result), code in zip(failing, codes, strict=True):
             if code == "connection_failed":
@@ -709,9 +672,10 @@ def _compare_across(
 
 def cmd_sql(args: argparse.Namespace) -> None:
     """Execute ad-hoc SQL."""
-    conn = deps.find_connection(args.connection)
-    if not conn:
-        _fail_or_print(args, "sql", "not_found", t("connection.not_found_named", name=args.connection))
+    try:
+        conn = catalogue.connection(args.connection)
+    except OperationError as e:
+        _fail_or_print(args, "sql", e.code, e.message)
 
     if getattr(args, "force_write", False) and conn.read_only:
         # Resolve the override here, at the CLI's own boundary, instead of
@@ -728,16 +692,11 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     param_values = _parse_params(args.param, args, "sql")
 
-    _refuse_undeclared_params(args, "sql", sql, param_values)
-
     if args.explain:
         try:
-            result = deps.execute_explain(sql, conn, param_values)
-        except deps.ReadOnlyViolation as e:
-            _fail_or_print(args, "sql", "read_only", str(e))
-        if not result.success:
-            _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                            result.error or t("sql.explain_failed"))
+            result = ops_sql.explain(conn, sql, param_values)
+        except OperationError as e:
+            _fail_or_print(args, "sql", e.code, e.message)
         # A plan is a result set -- one `plan` column, one row per line --
         # so `--export` writes it like any other. This branch returns before
         # the guard below ever runs, so without this the flag would be
@@ -758,16 +717,10 @@ def cmd_sql(args: argparse.Namespace) -> None:
         console.print(f"[dim]({result.elapsed:.2f}s)[/dim]")
         return
 
-    sql_type = deps.classify_sql(sql)
-
-    # Ask the read-only question first, before either flag question. The
-    # same reasoning the --commit refusal has always followed: a flag the
-    # caller can fix is not the real obstacle, and reporting it first costs
-    # them a round trip to learn the connection is protected.
     try:
-        deps.check_read_only(sql, conn)
-    except deps.ReadOnlyViolation as e:
-        _fail_or_print(args, "sql", "read_only", str(e))
+        sql_type = ops_sql.classify_and_guard(conn, sql, param_values)
+    except OperationError as e:
+        _fail_or_print(args, "sql", e.code, e.message)
 
     # `--export` writes a result set, and these statement types do not
     # return one. Until 2.10.0 the flag was accepted and silently ignored --
@@ -782,31 +735,13 @@ def cmd_sql(args: argparse.Namespace) -> None:
             t("sql.export_needs_rows", type=sql_type),
         )
 
-    # Require --commit for DML operations
-    if sql_type in ("INSERT", "UPDATE", "DELETE") and not args.commit:
-        _fail_or_print(args, "sql", "usage", t("sql.dml_needs_commit"))
-
     try:
-        outcome = deps.execute_adhoc(sql, conn, param_values, auto_commit=args.commit)
-    except deps.ReadOnlyViolation as e:
-        _fail_or_print(args, "sql", "read_only", str(e))
-
-    # `execute_adhoc` only returns the `(result, connection)` tuple for a DML
-    # statement left uncommitted (`auto_commit=False`); the --commit guard
-    # above already exits before this call whenever `sql_type` is DML and
-    # `--commit` was not given, and no other `sql_type` ever produces that
-    # tuple. So this call always yields a plain `AdhocResult`.
-    if isinstance(outcome, tuple):  # pragma: no cover - unreachable, see above
-        raise RuntimeError(
-            "execute_adhoc returned a manual-commit tuple despite auto_commit=True"
-        )
-    result = outcome
+        result = ops_sql.run_sql(conn, sql, param_values, commit=args.commit)
+    except OperationError as e:
+        _fail_or_print(args, "sql", e.code, e.message)
 
     # For non-SELECT results (always AdhocResult with auto_commit=True at this point)
     if result.sql_type in ("INSERT", "UPDATE", "DELETE"):
-        if not result.success:
-            _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                            result.error or t("sql.execute_failed"))
         if args.format == "json":
             ok("sql", result.to_dict(), warnings=result.output_lines or None)
             return
@@ -815,14 +750,6 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     # DDL results
     if result.sql_type == "DDL":
-        if not result.success:
-            code = _sql_error_code(result.error, result.error_kind)
-            if args.format == "json":
-                fail("sql", code, result.error or t("sql.ddl_failed"))
-            warning = t("sql.ddl_compile_errors", seconds=f"{result.elapsed:.2f}")
-            console.print(f"[ds.op.failure]{warning}[/ds.op.failure]")
-            console.print(f"[ds.op.failure]{result.error}[/ds.op.failure]")
-            sys.exit(int(exit_for(code)))
         if args.format == "json":
             ok("sql", result.to_dict())
             return
@@ -831,9 +758,6 @@ def cmd_sql(args: argparse.Namespace) -> None:
 
     # PL/SQL anonymous block results
     if result.sql_type == "PLSQL":
-        if not result.success:
-            _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                            result.error or t("sql.block_failed"))
         # A block is the one type whose result set is not knowable from its
         # text: it may open a cursor and return rows, and then `--export` is
         # exactly right. Only a block that returned nothing is refused, and
@@ -874,10 +798,6 @@ def cmd_sql(args: argparse.Namespace) -> None:
         for line in result.output_lines:
             console.print(line, markup=False, highlight=False)
         return
-
-    if not result.success:
-        _fail_or_print(args, "sql", _sql_error_code(result.error, result.error_kind),
-                        result.error or t("sql.execute_failed"))
 
     if result.sql_type == "SELECT":
         # Convert AdhocResult to QueryResult for display/export
