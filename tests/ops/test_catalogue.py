@@ -21,11 +21,23 @@ def test_connection_raises_not_found_for_an_unknown_name(local_db):
 
 
 def test_connection_summaries_are_what_list_emits(local_db, capsys):
+    """The expected side is the literal shape `-f json` promises, not
+    `connection_summary`'s own dict -- since e8b99e0, `cmd_list` calls
+    `connection_summary` itself, so comparing against it again would just
+    be the function compared with itself: a field rename in the summary
+    would pass this test unnoticed."""
     _, body = envelope(["list", "connections", "-f", "json"], capsys)
+    [conn] = catalogue.connections()
+    expected = [{"name": conn.name, "db_type": conn.db_type,
+                 "target": conn.display_target(), "read_only": conn.read_only}]
+    assert expected == body["data"]
     assert [catalogue.connection_summary(c) for c in catalogue.connections()] == body["data"]
 
 
 def test_query_and_group_summaries_are_what_list_emits(local_db, capsys):
+    """Twin of the connection test above: the literal five keys each
+    summary promises, checked before the CLI comparison so a rename in
+    `query_summary`/`group_summary` cannot pass silently."""
     from dbqm.cli import run_cli
     run_cli(["query", "add", "q1", "--sql", "SELECT 1", "--connection", "local", "-f", "json"])
     # A group needs at least two distinct saved queries (`group_builder.validate`).
@@ -34,6 +46,19 @@ def test_query_and_group_summaries_are_what_list_emits(local_db, capsys):
     capsys.readouterr()
     _, queries = envelope(["list", "queries", "-f", "json"], capsys)
     _, groups = envelope(["list", "groups", "-f", "json"], capsys)
+
+    expected_queries = [
+        {"name": q.name, "connection": q.connection, "folder": q.folder,
+         "description": q.description, "params": [p.name for p in q.params]}
+        for q in catalogue.queries()
+    ]
+    expected_groups = [
+        {"name": g.name, "description": g.description, "queries": g.queries,
+         "join_key": g.join_key, "compare_columns": g.compare_columns}
+        for g in catalogue.groups()
+    ]
+    assert expected_queries == queries["data"]
+    assert expected_groups == groups["data"]
     assert [catalogue.query_summary(q) for q in catalogue.queries()] == queries["data"]
     assert [catalogue.group_summary(g) for g in catalogue.groups()] == groups["data"]
 
