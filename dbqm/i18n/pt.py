@@ -1085,7 +1085,7 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.describe": "Uma tabela ou view: colunas (type, nullable, key), indices e a definicao de uma view.",
     "mcp.tool.rows": "As linhas de uma tabela, paginadas (limit, offset); total_count diz quantas existem.",
     "mcp.tool.ddl": "O DDL de um objeto do banco, inline. Nada e escrito em disco.",
-    "mcp.tool.history": "As execucoes mais recentes que o dbqm registrou, CLI e MCP igualmente.",
+    "mcp.tool.history": "O historico de execucao inteiro da maquina, incluindo execucoes da CLI e nao restrito a este servidor -- uma entrada pode citar uma conexao que este servidor nao expoe.",
     "mcp.tool.run": "Executa uma query salva pelo nome com seus parametros; connection substitui a da query.",
     "mcp.tool.run_group": "Executa um grupo de comparacao salvo e reporta contagens por coluna; all_match=false e uma execucao completa que divergiu.",
     "mcp.tool.multi": "Executa um SELECT em duas ou mais conexoes e compara os resultados por uma chave comum.",

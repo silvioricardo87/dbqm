@@ -126,11 +126,13 @@ directly, and every saved query it runs, through that query's own
 connection. A query or group hidden this way is not just unlisted: calling
 `run` or `run_group` on it still fails, because the underlying connection
 resolves through the same allowlist and raises `not_found` — there is no
-back door through a name the agent already knows. **`history` is not
-filtered.** It is the machine's own execution history — CLI runs included,
-not only MCP ones — so an entry can name a connection the running server
-does not currently expose; `history` reports it as recorded rather than
-hiding it.
+back door through a name the agent already knows — unless `run` is given a
+`connection` override that names an exposed connection, then the saved SQL
+runs there; no data crosses the allowlist. **`history` is not filtered.**
+It is the machine's own execution history — CLI runs included, not only
+MCP ones, and not scoped to this server — so an entry can name a connection
+the running server does not currently expose; `history` reports it as
+recorded rather than hiding it.
 
 ## The tools
 

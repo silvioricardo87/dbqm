@@ -1084,7 +1084,7 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.describe": "One table or view: columns (type, nullable, key), indexes, and a view's definition.",
     "mcp.tool.rows": "A table's rows, paged (limit, offset); total_count says how many exist.",
     "mcp.tool.ddl": "A database object's DDL, inline. Nothing is written to disk.",
-    "mcp.tool.history": "The most recent executions dbqm recorded, CLI and MCP alike.",
+    "mcp.tool.history": "The machine's whole execution history, CLI runs included and not scoped to this server -- an entry can name a connection this server does not expose.",
     "mcp.tool.run": "Run a saved query by name with its parameters; connection overrides the query's own.",
     "mcp.tool.run_group": "Run a saved comparison group and report per-column counts; all_match=false is a completed run that diverged.",
     "mcp.tool.multi": "Run one SELECT across two or more connections and compare the results by a common key.",

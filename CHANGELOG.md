@@ -22,12 +22,18 @@ Releases before 1.18.0 predate this file; their history is in the git log.
 
 - The `multi` and `run-group` JSON shapes are built by `ops/compare`
   (`multi_data`, `run_group_data`); output unchanged.
+- History writes go through a temp file and an atomic replace, audit writes
+  are lock-serialised appends; the MCP server runs tools in worker threads
+  and the CLI never raced either file. `add_history_entry` holds the same
+  lock across load, insert and save, and `load_history` now takes it too,
+  so a reader can no longer see the file mid-replace.
+- `ops/schema` reports a connection failure through the password masker,
+  like `sql` and `run` already did.
 
 ### Fixed
 
-- History writes go through a temp file and an atomic replace, audit writes
-  are lock-serialised appends; the MCP server runs tools in worker threads
-  and the CLI never raced either file.
+- A read-only connection refuses `SELECT ... INTO` (a table on SQL Server
+  and PostgreSQL, a file on MySQL); it was classified as a plain SELECT.
 
 ## [2.12.1] — 2026-09-20
 
