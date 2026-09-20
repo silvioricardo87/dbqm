@@ -3,10 +3,28 @@ from __future__ import annotations
 
 from dbqm.core.query_engine import QueryResult
 from dbqm.i18n import t
+from dbqm.models.query import Query
 from dbqm.ops import deps
 from dbqm.ops.catalogue import Resolver, resolver_or_default
 from dbqm.ops.errors import OperationError
 from dbqm.ops.sql import sql_error_code
+
+
+def effective_params(query: Query, params: dict[str, str]) -> dict[str, str]:
+    """The parameters *query* actually runs with: the caller's *params*,
+    plus the query's own declared defaults for whatever the caller did not
+    pass.
+
+    Exported rather than kept private to `run_query` because two other
+    callers need the same filled dict, not the caller's bare one: the CLI's
+    `--export` arm embeds it in the file name and the file body, and the
+    MCP server reports it as what a run actually used.
+    """
+    filled = dict(params)
+    for p in query.params:
+        if p.name not in filled and p.default:
+            filled[p.name] = p.default
+    return filled
 
 
 def run_query(
@@ -37,9 +55,7 @@ def run_query(
         )
 
     # Fill missing params with defaults, then validate required params.
-    for p in query.params:
-        if p.name not in param_values and p.default:
-            param_values[p.name] = p.default
+    param_values = effective_params(query, param_values)
     missing = [p.name for p in query.params if p.name not in param_values]
     if missing:
         raise OperationError("validation", t("run.params_missing", names=", ".join(missing)))

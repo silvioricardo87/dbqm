@@ -153,8 +153,14 @@ def cmd_run(args: argparse.Namespace) -> None:
         # `run_query` no longer hands back the `Query` object; it exists
         # (ops just ran it), so look it up again for its export table name.
         query = deps.find_query(args.query)
-        assert query is not None
+        if query is None:
+            _fail_or_print(args, "run", "not_found", t("query.not_found_named", name=args.query))
         table_name = query.table or query.name
+        # `run_query` fills a saved query's declared defaults into its own
+        # copy of `param_values` before running -- this local dict never
+        # saw them. Without this, an export whose file name and body embed
+        # `param_values` misses any parameter that only a default supplied.
+        param_values = queries.effective_params(query, param_values)
         if fmt == "csv":
             path = deps.export_query_csv(result, table_name, param_values)
         elif fmt == "json":

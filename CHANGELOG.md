@@ -17,6 +17,8 @@ Releases before 1.18.0 predate this file; their history is in the git log.
 - `dbqm run-group --export` embeds the parameters the comparison actually
   ran with, a group's `shared_params` defaults included, in the file name
   and the file body.
+- `dbqm run --export` embeds the parameters the query actually ran with,
+  its declared defaults included, in the file name and the file body.
 
 ### Changed
 
