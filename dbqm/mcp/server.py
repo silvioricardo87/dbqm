@@ -123,8 +123,12 @@ def build_server(options: ServerOptions) -> MCPServer:
 
     @server.tool(name="rows", description=t("mcp.tool.rows"), annotations=_READ_ONLY)
     def rows(connection: str, table: str, limit: int = 100, offset: int = 0) -> CallToolResult:
+        # Ceiling, not a floor: a non-positive limit is still passed through
+        # unchanged (min() leaves it below MAX_ROWS) so ops/schema.rows can
+        # raise its own `usage` error for it, same as the CLI.
+        clamped = min(limit, deps.MAX_ROWS)
         return _guarded("rows", lambda: _ok(
-            "rows", ops_schema.rows(resolve(connection), table, limit=limit, offset=offset).to_dict()))
+            "rows", ops_schema.rows(resolve(connection), table, limit=clamped, offset=offset).to_dict()))
 
     @server.tool(name="ddl", description=t("mcp.tool.ddl"), annotations=_READ_ONLY)
     def ddl(connection: str, object: str) -> CallToolResult:

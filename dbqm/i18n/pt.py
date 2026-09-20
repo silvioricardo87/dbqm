@@ -1083,7 +1083,7 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.test_connection": "Tenta conectar. Uma conexao pelo nome, ou todas as expostas quando nenhum nome e informado. Uma conexao fora do ar e um item com ok=false, nao um erro.",
     "mcp.tool.objects": "Lista os objetos de um tipo de um banco: TABLE, VIEW, PACKAGE ou ROUTINE.",
     "mcp.tool.describe": "Uma tabela ou view: colunas (type, nullable, key), indices e a definicao de uma view.",
-    "mcp.tool.rows": "As linhas de uma tabela, paginadas (limit, offset); total_count diz quantas existem.",
+    "mcp.tool.rows": "As linhas de uma tabela, paginadas (limit, offset); total_count diz quantas existem. limit e limitado a MAX_ROWS (10.000) independente do que for pedido.",
     "mcp.tool.ddl": "O DDL de um objeto do banco, inline. Nada e escrito em disco.",
     "mcp.tool.history": "O historico de execucao inteiro da maquina, incluindo execucoes da CLI e nao restrito a este servidor -- uma entrada pode citar uma conexao que este servidor nao expoe.",
     "mcp.tool.run": "Executa uma query salva pelo nome com seus parametros; connection substitui a da query.",

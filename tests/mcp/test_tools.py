@@ -109,6 +109,22 @@ async def test_objects_describe_rows_match_the_cli(local_db, capsys):
 
 
 @pytest.mark.asyncio
+async def test_rows_limit_is_clamped_to_max_rows(local_db):
+    """The MCP tool clamps `limit` to `MAX_ROWS`; a caller asking for far
+    more than exists (`orders` has 4 rows) still succeeds, and the clamp
+    itself is visible in `data.limit` (`BrowseResult.to_dict()` carries it)
+    rather than only in the row count, which four rows can't distinguish."""
+    from dbqm.core.query_engine import MAX_ROWS
+
+    async with Client(build_server(ServerOptions())) as client:
+        err, env = await call(client, "rows", connection="local", table="orders",
+                              limit=10_000_000)
+    assert err is False
+    assert env["data"]["limit"] == MAX_ROWS
+    assert len(env["data"]["rows"]) == 4
+
+
+@pytest.mark.asyncio
 async def test_ddl_matches_the_cli_and_writes_nothing(local_db, capsys):
     from dbqm.core import ddl_extractor
 

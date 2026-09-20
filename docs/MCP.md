@@ -154,6 +154,11 @@ Every `params` is a JSON object of string values — the same shape as the
 CLI's repeated `-p KEY=VALUE`, just a single object instead of a flag
 repeated per pair.
 
+`rows`' `limit` is capped at `MAX_ROWS` (10,000, `core/query_engine.py`)
+regardless of what is asked — a ceiling only the MCP tool applies; the CLI's
+own `dbqm rows --limit` is unclamped. A non-positive `limit` still reaches
+`ops/schema.rows` unchanged and fails with `usage`, same as the CLI.
+
 `sql` is the one write-capable tool: with the server started `--allow-write`
 and a connection whose own `read_only` is `false`, `commit=true` runs DML;
 `explain=true` returns the execution plan instead of running the statement

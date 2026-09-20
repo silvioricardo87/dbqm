@@ -1082,7 +1082,7 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.test_connection": "Try to connect. One connection by name, or every exposed one when no name is given. A connection that is down is an item with ok=false, not an error.",
     "mcp.tool.objects": "List a database's objects of one type: TABLE, VIEW, PACKAGE or ROUTINE.",
     "mcp.tool.describe": "One table or view: columns (type, nullable, key), indexes, and a view's definition.",
-    "mcp.tool.rows": "A table's rows, paged (limit, offset); total_count says how many exist.",
+    "mcp.tool.rows": "A table's rows, paged (limit, offset); total_count says how many exist. limit is capped at MAX_ROWS (10,000) regardless of what is asked.",
     "mcp.tool.ddl": "A database object's DDL, inline. Nothing is written to disk.",
     "mcp.tool.history": "The machine's whole execution history, CLI runs included and not scoped to this server -- an entry can name a connection this server does not expose.",
     "mcp.tool.run": "Run a saved query by name with its parameters; connection overrides the query's own.",

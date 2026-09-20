@@ -72,6 +72,7 @@ from dbqm.core.oracle_client_installer import (
     remove_client,
 )
 from dbqm.core.query_engine import (
+    MAX_ROWS,
     QueryResult,
     classify_sql,
     detect_params,
@@ -88,6 +89,7 @@ from dbqm.models.settings import load_settings, save_settings
 from dbqm.models.template import find_template, load_templates
 
 __all__ = [
+    "MAX_ROWS",
     "NoComparableColumns",
     "ObjectNotFound",
     "QueryResult",
