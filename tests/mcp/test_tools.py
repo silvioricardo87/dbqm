@@ -207,6 +207,20 @@ async def test_test_connection_matches_the_cli(local_db, capsys):
 
 
 @pytest.mark.asyncio
+async def test_test_connection_with_a_bogus_allowlist_entry_tests_the_rest(local2_db):
+    """A `--connection` naming something that is not actually stored used
+    to fail the whole call: `test_connections` resolves every name in the
+    list and one `not_found` raised before any of the rest were tried. The
+    allowlist is now intersected with what is actually stored first."""
+    async with Client(build_server(ServerOptions(
+        connections=frozenset({"local", "local2", "does-not-exist"})
+    ))) as client:
+        err, env = await call(client, "test_connection")
+    assert err is False
+    assert sorted(d["name"] for d in env["data"]) == ["local", "local2"]
+
+
+@pytest.mark.asyncio
 async def test_warnings_travel_in_the_envelope(local2_db, capsys):
     """`multi` over rows with a repeated key warns on the CLI; the same
     warning reaches the MCP envelope under the same key."""
@@ -215,3 +229,6 @@ async def test_warnings_travel_in_the_envelope(local2_db, capsys):
     async with Client(build_server(ServerOptions())) as client:
         _, env = await call(client, "multi", sql=sql, connections=["local", "local2"])
     assert env.get("warnings") == body.get("warnings")
+    # `assert env["warnings"]` alone: without a real warning present, a
+    # `None == None` comparison above would pass on nothing.
+    assert env["warnings"]

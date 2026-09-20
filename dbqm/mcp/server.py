@@ -105,7 +105,19 @@ def build_server(options: ServerOptions) -> MCPServer:
     @server.tool(name="test_connection", description=t("mcp.tool.test_connection"), annotations=_READ_ONLY)
     def test_connection(connection: str | None = None) -> CallToolResult:
         def action() -> CallToolResult:
-            names = [connection] if connection else policy.exposed_names(options)
+            names: list[str] | None
+            if connection is not None:
+                names = [connection]
+            else:
+                names = policy.exposed_names(options)
+                if names is not None:
+                    # A name on the allowlist that no longer matches a
+                    # stored connection would otherwise fail the whole
+                    # call: test_connections resolves every name in the
+                    # list, and one not_found raises before any of the
+                    # rest are tried.
+                    stored = {c.name for c in catalogue.connections()}
+                    names = sorted(set(names) & stored)
             return _ok("test", catalogue.test_connections(names, resolve=resolve))
         return _guarded("test", action)
 
