@@ -39,6 +39,10 @@ TEXTS: Final[dict[str, str]] = {
         "Connection '{name}' is read-only and this EXPLAIN runs the command it "
         "explains. Use --force-write to send it anyway."
     ),
+    "read_only.select_into": (
+        "SELECT ... INTO writes a table or a file and is refused on a "
+        "read-only connection."
+    ),
     "query.sql_required": 'Give the SQL.',
     "query.name_required": 'Give the query a name.',
     "query.connection_required": 'Choose a connection.',

@@ -40,6 +40,10 @@ TEXTS: Final[dict[str, str]] = {
         "Conexao '{name}' e somente leitura e este EXPLAIN executa o comando "
         "que explica. Use --force-write para enviar assim mesmo."
     ),
+    "read_only.select_into": (
+        "SELECT ... INTO grava uma tabela ou um arquivo e e recusado em "
+        "uma conexao somente leitura."
+    ),
     "query.sql_required": 'Informe o SQL.',
     "query.name_required": 'Informe o nome da consulta.',
     "query.connection_required": 'Selecione uma conexao.',

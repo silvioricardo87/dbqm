@@ -70,6 +70,27 @@ class TestWhatIsRefused:
             check_read_only("DELETE FROM t", _conn())
 
 
+class TestSelectInto:
+    """`SELECT ... INTO` creates a table on SQL Server and PostgreSQL, and
+    writes a file (`INTO OUTFILE`) on MySQL -- `classify_sql` reports all
+    three as a plain SELECT, so without this the guard waved them through."""
+
+    def test_a_select_into_is_refused(self):
+        with pytest.raises(ReadOnlyViolation, match="SELECT ... INTO"):
+            check_read_only("SELECT * INTO new_tbl FROM t", _conn())
+
+    def test_into_only_inside_parentheses_is_allowed(self):
+        """The subquery's own INTO sits behind a Parenthesis group at depth 0
+        and writes nothing at the top level."""
+        check_read_only("SELECT a FROM t WHERE b IN (SELECT c INTO x FROM y)", _conn())
+
+    def test_a_plain_select_is_unaffected(self):
+        check_read_only("SELECT a FROM t", _conn())
+
+    def test_a_writable_connection_is_unaffected(self):
+        check_read_only("SELECT * INTO new_tbl FROM t", _conn(read_only=False))
+
+
 class TestMultipleStatements:
     """`classify_sql` reads only the FIRST statement while the whole string
     reaches the driver. Measured: classify_sql("SELECT 1; DROP TABLE alvo")

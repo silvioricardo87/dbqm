@@ -85,9 +85,12 @@ default.
 ## Read-only by default
 
 Every connection the server resolves is forced read-only, regardless of how
-it is stored — a tool call cannot write, even to a connection whose own
-`read_only` flag is `false`. Start the server with `--allow-write` to let
-each connection's own flag decide, exactly as the CLI does.
+it is stored. On PostgreSQL, MySQL, Oracle and SQLite the server itself
+refuses a write; on SQL Server enforcement is dbqm's classifier alone (see
+the table below), which also refuses `SELECT ... INTO` — a table on SQL
+Server and PostgreSQL, a file on MySQL. Start the server with
+`--allow-write` to let each connection's own flag decide, exactly as the
+CLI does.
 
 How "read-only" is enforced depends on the engine, and the difference is
 worth knowing before you assume a driver-level guarantee:
