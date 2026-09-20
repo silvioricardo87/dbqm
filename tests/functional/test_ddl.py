@@ -81,3 +81,15 @@ def test_an_unknown_connection_is_not_found(local_db, capsys):
     assert code == 2
     assert body["error"]["code"] == "not_found"
     assert body["error"]["message"] == 'Connection "nope" not found.'
+
+
+# QA-DDL-008
+def test_table_format_agrees_with_json_on_a_missing_object(local_db, capsys):
+    """Locks format-independence: table format used to exit 4 (`sql_error`)
+    for a missing object regardless of `not_found`, while json already said
+    2. Both formats now derive the code from the same `ops_schema.extract_ddl`
+    call, so table matches json here too."""
+    code, out, err = invoke(["ddl", "no_such_object", "local"], capsys)
+    assert code == 2
+    assert "no_such_object" in out
+    assert err == ""

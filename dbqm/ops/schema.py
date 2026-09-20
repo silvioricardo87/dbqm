@@ -21,10 +21,10 @@ T = TypeVar("T")
 
 
 def with_open_connection(conn: Connection, action: Callable[[Any], T]) -> T:
-    """Open a handle, run `acao(db)` on it, and map each failure to its token.
+    """Open a handle, run `action(db)` on it, and map each failure to its token.
 
     The two failures are kept apart deliberately. `open_connection` failing
-    means the database did not answer -> `connection_failed` (3). `acao`
+    means the database did not answer -> `connection_failed` (3). `action`
     failing means the database answered and rejected what we asked -> a
     statement error (4), or `usage` (2) when `core/` says the capability does
     not exist on this engine at all. Collapsing both into `connection_failed`
