@@ -158,10 +158,20 @@ class TemplateManageScreen(Vertical):
             yield DataTable(id="tm-table")
 
     def on_mount(self) -> None:
+        # Same shape, same reason as `GroupManageScreen.on_mount`: this
+        # screen is mounted by the Tools launcher too, so a child query
+        # here is a race. It has not lost it yet; that is luck, not a
+        # difference.
+        self._set_actions()
+        if len(self.query("#tm-table")):
+            self._fill_the_table()
+        else:
+            self.call_after_refresh(self._fill_the_table)
+
+    def _fill_the_table(self) -> None:
         self._setup_table()
         self._load_templates()
-        self._set_actions()
-        self.call_after_refresh(self._set_initial_focus)
+        self._set_initial_focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create-template":

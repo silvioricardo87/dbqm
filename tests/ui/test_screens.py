@@ -2221,7 +2221,7 @@ async def test_mounted_browser_object_list_is_identity_only(tmp_config_dir, monk
         content = option_list.get_option_at_index(0).prompt
         text = content.plain
 
-        assert text == "CLIENTE", "sem tipo repetido: so a identidade"
+        assert text == "CLIENTE", 'no repeated type: the identity alone'
         assert chr(10) not in text
 
         strong_color = Style.parse("$ds-text-strong").foreground
@@ -2723,8 +2723,18 @@ async def test_opening_the_app_neither_warns_nor_writes_anything(tmp_config_dir,
     warnings, writes = await _open_app_counting_writes(tmp_config_dir, monkeypatch)
 
     assert writes == 0, f"{writes} settings write(s) with no user action"
-    for forbidden in ("Log de auditoria", "Subdiretorios por tipo", "Tema alterado"):
-        assert not any(forbidden in a for a in warnings), f"aviso indevido: {warnings}"
+    # The notices are named by KEY, not by the words they used to print.
+    # Spelled out in Portuguese, this loop asserted the absence of text no
+    # screen paints any more -- true for free, which is how a negative
+    # assertion dies quietly. Each key's text is stripped of its
+    # placeholder so the prefix is what gets matched.
+    for key in ("settings.audit_toggled", "settings.subdirs_toggled",
+                "settings.theme_changed"):
+        prefix = t(key).split("{")[0].rstrip(": ")
+        assert prefix, key
+        assert not any(prefix in a for a in warnings), (
+            f"an uncalled-for notice ({key}): {warnings}"
+        )
 
 
 @pytest.mark.asyncio
@@ -2743,7 +2753,7 @@ async def test_theme_migration_does_not_become_a_switch_notice(tmp_config_dir, m
 
     warnings, writes = await _open_app_counting_writes(tmp_config_dir, monkeypatch)
 
-    assert not any("Tema alterado" in a for a in warnings), f"aviso indevido: {warnings}"
+    assert not any("Tema alterado" in a for a in warnings), f'an uncalled-for notice: {warnings}'
     assert writes == 0
     # And the migration still holds where it matters: the theme in use.
     assert json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))["theme"] == "github-dark"
@@ -2885,7 +2895,7 @@ async def test_each_settings_subject_has_its_own_panel(tmp_config_dir):
     async with app.run_test(size=(120, 40)):
         titles = " ".join(_panel_titles(app.query_one(SettingsScreen))).lower()
         for subject in ("theme", "audit", "export", "oracle"):
-            assert subject in titles, "%s sem painel proprio: %r" % (subject, titles)
+            assert subject in titles, '%s has no panel of its own: %r' % (subject, titles)
 
 
 @pytest.mark.asyncio
@@ -3019,7 +3029,7 @@ async def test_settings_widgets_live_inside_a_panel(tmp_config_dir):
         for widget in targets:
             panel = next(a for a in widget.ancestors if isinstance(a, Panel))
             body = panel.query_one("#panel-body")
-            assert body in widget.ancestors, "%s fora do corpo do painel" % widget.id
+            assert body in widget.ancestors, '%s outside the panel body' % widget.id
 
 
 @pytest.mark.asyncio
@@ -3095,22 +3105,29 @@ async def test_resizing_re_elides_and_does_not_scan_the_disk(tmp_config_dir, mon
 
     monkeypatch.setattr(dbm, "resolve_oracle_client_dir", counting)
 
-    deep_path = tmp_config_dir / "um" / "diretorio" / "bem" / "ds-background" / "na" / "arvore"
+    deep_path = tmp_config_dir / "a" / "directory" / "buried" / "rather" / "deep" / "in" / "the" / "tree"
     deep_path.mkdir(parents=True)
     save_settings(Settings(default_export_dir=str(deep_path)))
 
     app = SettingsTestApp()
     async with app.run_test(size=(80, 24)) as pilot:
+        from tests.ui._helpers import wait_until
+
         await pilot.pause()
         label = app.query_one(SettingsScreen).query_one(
             "#settings-export-dir-current", Static
         )
+        # The elision happens in `_paint_paths`, which runs after the
+        # refresh that follows the first resize -- one pause reached it on
+        # 3.14 and missed it on 3.10 four runs in eight. Wait for the fact.
+        await wait_until(pilot, lambda: chr(8230) in label.render().plain,
+                         what="the path elided at 80 columns")
         narrow = label.render().plain
         detected = len(calls)
 
         await pilot.resize_terminal(160, 40)
-        await pilot.pause()
-        await pilot.pause()
+        await wait_until(pilot, lambda: len(label.render().plain) > len(narrow),
+                         what="the path repainted wider after the resize")
         wide = label.render().plain
 
         assert chr(8230) in narrow, 'at 80 columns the path has to be elided'
@@ -3118,8 +3135,7 @@ async def test_resizing_re_elides_and_does_not_scan_the_disk(tmp_config_dir, mon
             'widening the window did not give the path back: %r -> %r' % (narrow, wide)
         )
         assert len(calls) == detected, (
-            "redimensionar refez a deteccao do Instant Client %d vez(es)"
-            % (len(calls) - detected)
+            'resizing redid the Instant Client detection %d time(s)' % (len(calls) - detected)
         )
 
 
@@ -3209,7 +3225,7 @@ async def test_export_path_fits_in_the_column(tmp_config_dir):
     from dbqm.models.settings import Settings, save_settings
     from tests.ui._helpers import crop
 
-    deep_path = tmp_config_dir / "um" / "diretorio" / "bem" / "ds-background" / "na" / "arvore"
+    deep_path = tmp_config_dir / "a" / "directory" / "buried" / "rather" / "deep" / "in" / "the" / "tree"
     deep_path.mkdir(parents=True)
     save_settings(Settings(default_export_dir=str(deep_path)))
 
@@ -3227,7 +3243,7 @@ async def test_export_path_fits_in_the_column(tmp_config_dir):
         await pilot.pause()
         label = screen.query_one("#settings-export-dir-current", Static)
         lines = [line.rstrip() for line in crop(app, label)]
-        assert any("arvore" in line for line in lines), (
+        assert any("tree" in line for line in lines), (
             'the end of the path \u2014 what identifies the directory \u2014 is not painted: %r' % lines
         )
         assert any(chr(8230) in line for line in lines), (

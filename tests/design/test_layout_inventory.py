@@ -131,9 +131,7 @@ def test_the_border_scan_finds_files():
 def test_no_raw_border_outside_a_frame_component():
     """A third frame vocabulary was how the product got to three."""
     outside = raw_borders()
-    assert not outside, "caixa desenhada fora de Panel/Dialog:\n" + "\n".join(
-        f"  {rel}:{n}  [{sel}]  {decl}" for rel, n, sel, decl in outside
-    )
+    assert not outside, 'a box drawn outside Panel/Dialog:\n' + '\n'.join((f'  {rel}:{n}  [{sel}]  {decl}' for rel, n, sel, decl in outside))
 
 
 def test_the_guard_sees_outline_as_a_box():
@@ -318,14 +316,7 @@ def test_the_centering_scan_sees_the_dialogs():
     # losing half is not a canary, it is decoration.
     outside_a_dialog = centered_clusters(apply_exemptions=False)
     assert len(outside_a_dialog) <= 8, (
-        "a deteccao de dialogo parou de isentar os modais: %d centralizacoes "
-        "fora de dialogo (eram 5)\n%s"
-        % (
-            len(outside_a_dialog),
-            "\n".join(
-                "  %s:%d  [%s]" % (r, n, s_) for r, n, s_, _d in outside_a_dialog
-            ),
-        )
+        'the dialog detection stopped exempting the modals: %d centerings outside a dialog (there were 5)\n%s' % (len(outside_a_dialog), '\n'.join(('  %s:%d  [%s]' % (r, n, s_) for r, n, s_, _d in outside_a_dialog)))
     )
     # The shape of the `class` line the scan needs to read: name and bases
     # with a generic in brackets, as every modal in this repository
@@ -548,8 +539,7 @@ def test_the_label_scan_sees_the_item_builders():
         if isinstance(no, ast.Call)
     }
     assert ITEM_BUILDERS <= seen, (
-        "construtor de item de lista sumiu do produto: %s"
-        % (ITEM_BUILDERS - seen)
+        'a list-item builder vanished from the product: %s' % (ITEM_BUILDERS - seen)
     )
     # The shape the guard needs to recognize, verified here and not merely
     # trusted: two fields in a string are flattening, one field is not.
@@ -716,9 +706,7 @@ def test_the_table_scan_finds_the_columns():
 def test_result_table_fixes_the_key_column():
     """Scrolling without fixing the key destroys the comparison (section 6)."""
     outside = result_tables_without_fixed_key()
-    assert not outside, "tabela de resultado sem chave fixa:\n" + "\n".join(
-        f"  {rel}:{n}  add_column({arg})" for rel, n, arg in outside
-    )
+    assert not outside, 'a result table without a fixed key:\n' + '\n'.join((f'  {rel}:{n}  add_column({arg})' for rel, n, arg in outside))
 
 
 # ======================================================================

@@ -91,8 +91,7 @@ async def test_status_bar_dot_contrasts_with_the_bar_background():
 
         contrast = ratio(dot_color.hex, bar_background_color.hex)
         assert contrast >= 3.0, (
-            f"bolinha ({dot_color.hex}) sobre o fundo real da barra "
-            f"({bar_background_color.hex}) = {contrast:.2f}:1, abaixo do piso de interface"
+            f'the dot ({dot_color.hex}) over the bar\'s real background ({bar_background_color.hex}) = {contrast:.2f}:1, below the interface floor'
         )
 
 
@@ -133,7 +132,7 @@ def test_successful_operation_gets_no_ink():
 
     ok = mark_operation("ok")
     assert "$" not in ok, f'a successful operation must carry no colour token: {ok!r}'
-    assert "[bold]" in ok, f"operacao bem sucedida perde peso sem cor: {ok!r}"
+    assert "[bold]" in ok, f'a successful operation loses weight without colour: {ok!r}'
     assert "$ds-op-failure" in mark_operation("failure")
 
 
@@ -314,8 +313,7 @@ def test_no_hand_rolled_verdict_markup_outside_the_component():
             offenders.append(f"{rel}: {n} ocorrencia(s), esperado {allowed}")
 
     assert not offenders, (
-        "markup de veredito/operacao montado a mao fora de verdict.py, "
-        f"alem da prosa de erro documentada em PROSA_DE_ERRO_FORA_DO_ESCOPO: {offenders}"
+        f'verdict/operation markup hand-rolled outside verdict.py, beyond the error prose documented in ERROR_PROSE_OUT_OF_SCOPE: {offenders}'
     )
 
 

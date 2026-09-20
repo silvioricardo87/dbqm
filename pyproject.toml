@@ -45,7 +45,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "mypy>=1.11"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.11",
+    # `tests/design/test_typing_policy.py` reads pyproject.toml. tomllib
+    # is stdlib from 3.11; below that it comes from here rather than by
+    # accident through another tool's dependency tree.
+    'tomli>=2.0; python_version < "3.11"',
+]
 oracle = ["oracledb>=2.0"]
 postgres = ["psycopg[binary]>=3.1"]
 sqlserver = ["pymssql>=2.2"]

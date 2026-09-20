@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from dbqm.i18n import t
+from dbqm.core.db_manager import error_text
 from dbqm.core.query_engine import AdhocResult, QueryResult
 from dbqm.core.read_only import ReadOnlyViolation
 from dbqm.models.connection import Connection
@@ -233,7 +234,7 @@ def execute_across(
                 sql=sql,
                 db_type=conn.db_type,
                 success=False,
-                error=str(e),
+                error=error_text(e, conn),
                 error_kind="connection",
             )
         else:

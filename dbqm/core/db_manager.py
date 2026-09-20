@@ -164,6 +164,37 @@ def validate_oracle_client_dir(path: str) -> str | None:
     )
 
 
+def error_text(exc: BaseException, conn: Connection | None = None, *,
+               limit: int = 500) -> str:
+    """The first line of a driver error, with the connection's password out.
+
+    Every `error` field the CLI publishes is built from `str(e)` of whatever
+    the driver raised, and a driver is free to echo the DSN it was given --
+    credentials included. `connection show` prints the host and never the
+    password, and that is the line drawn here too: the host may travel, the
+    password may not. DBMS_OUTPUT (`output_lines`) is left alone on purpose:
+    it is what the user's own routine printed, and dbqm is not the owner of
+    that text.
+
+    One line, capped: a driver's traceback is for the driver's author; the
+    first line is the one that names the failure. *limit* exists because the
+    TUI toast and the CLI envelope have different room.
+
+    A password shorter than four characters is not redacted: replacing every
+    "1" in "ORA-01017" would destroy the message that is supposed to help.
+    """
+    text = str(exc).split("\n")[0][:limit]
+    if conn is None or not conn.password:
+        return text
+    try:
+        plain = decrypt(conn.password)
+    except Exception:
+        return text  # a key mismatch is its own error, reported elsewhere
+    if len(plain) >= 4 and plain in text:
+        text = text.replace(plain, "***")
+    return text
+
+
 def _platform_tags() -> tuple[str, ...]:
     """Directory-name tags that identify a client built for this platform."""
     machine = platform.machine().lower()
@@ -452,8 +483,26 @@ def get_sqlite_connection(conn: Connection) -> Any:
     return sqlite3.connect(conn.database or ":memory:")
 
 
-def get_connection(conn: Connection) -> Any:
-    """Get a database connection based on connection type."""
+#: What each engine can be told at connect time so that the SERVER refuses a
+#: write, on top of dbqm's own classification. A statement here turns
+#: "read-only" from a promise dbqm keeps into one the database keeps: a
+#: routine that writes internally, a DDL that commits itself, another
+#: client on the same handle -- all refused by the server, not by a regex.
+#:
+#: SQL Server is absent because it has no such statement; there, read-only
+#: stays a dbqm-side guard, and the docs say so. Oracle's is per
+#: transaction rather than per session -- it holds for the statement dbqm
+#: is about to run, which opens a handle per operation, and ends at the
+#: first COMMIT or ROLLBACK inside a routine.
+READ_ONLY_SESSION: dict[str, str] = {
+    "postgresql": "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY",
+    "mysql": "SET SESSION TRANSACTION READ ONLY",
+    "oracle": "SET TRANSACTION READ ONLY",
+    "sqlite": "PRAGMA query_only = ON",
+}
+
+
+def _open(conn: Connection) -> Any:
     if conn.db_type == "oracle":
         return get_oracle_connection(conn)
     if conn.db_type == "sqlserver":
@@ -465,6 +514,33 @@ def get_connection(conn: Connection) -> Any:
     if conn.db_type == "sqlite":
         return get_sqlite_connection(conn)
     raise ValueError(t("connection.unknown_db_type", type=conn.db_type))
+
+
+def get_connection(conn: Connection) -> Any:
+    """Get a database connection based on connection type.
+
+    A read-only connection is pinned read-only on the server too, where the
+    engine allows it (`READ_ONLY_SESSION`). Keyed on `conn.read_only` alone:
+    `--force-write` hands `core/` a transient copy with the flag cleared, so
+    the override needs no plumbing here -- a copy that may write is simply
+    not pinned. If the server rejects the pin, the error propagates: a
+    read-only connection the server cannot make read-only is something the
+    user has to know, not something to fall back from in silence.
+    """
+    db = _open(conn)
+    statement = READ_ONLY_SESSION.get(conn.db_type) if conn.read_only else None
+    if statement is None:
+        return db
+    try:
+        cursor = db.cursor()
+        try:
+            cursor.execute(statement)
+        finally:
+            cursor.close()
+    except Exception:
+        db.close()
+        raise
+    return db
 
 
 def fetch_table_columns(conn: Connection, table: str) -> list[str]:
@@ -573,7 +649,7 @@ def test_connection(conn: Connection) -> tuple[bool, str]:
             # Our own guidance is multi-line by design; truncating to the
             # first line would hide exactly what the user has to act on.
             return False, t("connection.connect_failed", error=err_msg)
-        sanitized = err_msg.split('\n')[0][:200]
+        sanitized = error_text(e, conn, limit=200)
         return False, t("connection.connect_failed", error=sanitized)
     finally:
         if db is not None:

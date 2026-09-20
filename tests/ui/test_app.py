@@ -476,7 +476,7 @@ async def test_hosted_screen_says_which_key_goes_back(tmp_config_dir):
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
         assert "DETECTED PLATFORM" not in rendered_text(app).upper()
-        assert not announces_back(app), "voltou, e o anuncio ficou"
+        assert not announces_back(app), 'it went back, and the announcement stayed'
 
 
 @pytest.mark.asyncio

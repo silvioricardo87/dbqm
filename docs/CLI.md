@@ -72,6 +72,13 @@ dbqm group show prod-vs-staging -f json
 dbqm group list -f json
 dbqm group rm prod-vs-staging --yes
 
+# The other shape of a group: one statement over a set of connections,
+# exactly what Multi-Exec saves. No --query and no --join-key -- the key is
+# derived when it runs, the way `multi` derives it, and reported back.
+dbqm group add nightly-check --adhoc-sql "SELECT id, total FROM orders ORDER BY id" \
+    --connection oracle-prod --connection postgres-replica
+dbqm run-group nightly-check -f json    # exits 5 when the two disagree
+
 # Curate a report template (content from --content or --content-file, stored
 # verbatim -- whitespace-only content is refused, not silently stripped)
 dbqm template add monthly-summary --content "Total: {{total}}" --description "Monthly summary"
@@ -197,6 +204,21 @@ dbqm sql "DELETE FROM t" prod --force-write --commit
 
 `--force-write` alone still stops on the ordinary `--commit` check that
 every DML statement is subject to, protected connection or not.
+
+**Where the refusal comes from depends on the engine.** dbqm classifies the
+statement and refuses to send anything but a query -- on every engine, and
+that is the check `--force-write` lifts. On **Oracle, PostgreSQL, MySQL and
+SQLite** the connection is *also* pinned read-only on the server the moment
+it opens (`SET TRANSACTION READ ONLY`, `SET SESSION CHARACTERISTICS AS
+TRANSACTION READ ONLY`, `SET SESSION TRANSACTION READ ONLY`, `PRAGMA
+query_only`), so a routine that writes internally, a DDL that commits
+itself, or anything else that gets past a regex is refused by the database.
+**SQL Server has no such statement**, so there read-only is dbqm's promise
+alone: it stops the wrong connection name and the careless paste, and
+nothing a server would stop. Oracle's pin is per transaction rather than per
+session -- it holds for the statement dbqm is about to run, and ends at the
+first COMMIT or ROLLBACK inside a routine. `--force-write` opens the
+connection unpinned, which is why it can write at all.
 
 
 ## Output format and exit codes

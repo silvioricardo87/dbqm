@@ -473,10 +473,28 @@ class GroupManageScreen(Vertical):
             yield DataTable(id="gm-table")
 
     def on_mount(self) -> None:
+        # A widget mounted dynamically -- this screen is mounted by the
+        # Tools launcher -- can get its own `Mount` before the children its
+        # `compose` yielded are queryable. Measured on Python 3.10, where
+        # `#gm-table` was missing on roughly one run in three and the screen
+        # died with `NoMatches`; 3.14 is fast enough to hide it, which is
+        # what kept it latent.
+        #
+        # The table is filled IN THIS FRAME when the child is already there,
+        # and only deferred when it is not. Deferring unconditionally was
+        # the first attempt and it broke seven tests that read the table
+        # after a single `pause()` -- one pause is not always a frame, which
+        # is the same lesson recorded above this one in the roadmap.
+        self._set_actions()
+        if len(self.query("#gm-table")):
+            self._fill_the_table()
+        else:
+            self.call_after_refresh(self._fill_the_table)
+
+    def _fill_the_table(self) -> None:
         self._setup_table()
         self._load_groups()
-        self._set_actions()
-        self.call_after_refresh(self._set_initial_focus)
+        self._set_initial_focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create-group":

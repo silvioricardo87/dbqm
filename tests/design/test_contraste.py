@@ -34,7 +34,7 @@ def test_contrast_matches_the_declared_debt_exactly():
     failures = _failures()
     new_ones = failures - KNOWN_DEBT
     settled = KNOWN_DEBT - failures
-    assert not new_ones, f"contraste novo abaixo do piso: {sorted(new_ones)}"
+    assert not new_ones, f'new contrast below the floor: {sorted(new_ones)}'
     assert not settled, (
         f"divida quitada — remova de KNOWN_DEBT: {sorted(settled)}"
     )

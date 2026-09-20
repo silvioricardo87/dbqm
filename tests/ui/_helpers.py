@@ -110,3 +110,26 @@ def crop(app, widget) -> list[str]:
     lines = rendered_lines(app)
     r = widget.region
     return [line[r.x : r.x + r.width] for line in lines[r.y : r.y + r.height]]
+
+
+async def wait_until(pilot, condition, *, what: str, frames: int = 40) -> None:
+    """Pause frame by frame until *condition()* holds; fail loudly if it never does.
+
+    A test that reads layout after a fixed number of `pause()` calls is
+    betting on how fast the interpreter is. The bet is won on 3.14 and lost
+    on 3.10: `test_resizing_re_elides_and_does_not_scan_the_disk` read the
+    export-dir label after one pause and found the path not yet elided on
+    four runs in eight, and the config-port fold test read `max_scroll_y`
+    before layout had settled. Same suite, same code, different clock.
+
+    This waits for the FACT the test is about, not for a frame count, and
+    it is not a sleep: the first frame where the condition holds is the one
+    that returns. *frames* is a ceiling, and hitting it is a failure with
+    *what* in the message -- a condition that never becomes true must fail
+    the test, never quietly make it slower.
+    """
+    for _ in range(frames):
+        if condition():
+            return
+        await pilot.pause()
+    raise AssertionError(f"still not true after {frames} frames: {what}")

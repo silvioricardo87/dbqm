@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.12.0] — 2026-09-19
+
+A MINOR release: the roadmap's two open decisions, decided and shipped, and
+the test suite made honest about the Python floor it promises.
+
+### Added
+
+- **A read-only connection is read-only on the server.** Until now the
+  guard was dbqm's own classification: it refused to send anything but a
+  query, and nothing else stood in the way -- a routine that writes
+  internally, a DDL that commits itself, another client on the same handle.
+  The connection is now also pinned read-only the moment it opens, where
+  the engine allows it: `SET SESSION CHARACTERISTICS AS TRANSACTION READ
+  ONLY` on PostgreSQL, `SET SESSION TRANSACTION READ ONLY` on MySQL, `SET
+  TRANSACTION READ ONLY` on Oracle (per transaction: it holds for the
+  statement dbqm is about to run and ends at a COMMIT inside a routine),
+  `PRAGMA query_only` on SQLite. **SQL Server has no such statement** and
+  stays a dbqm-side guard; `--help` and the docs say so rather than
+  pretend. `--force-write` opens the connection unpinned, which is why it
+  can write at all. Proven end to end on SQLite: an INSERT sent straight to
+  the handle, past every dbqm check, is refused by the engine.
+- **`dbqm group add --adhoc-sql "..." --connection a --connection b`** creates
+  the other shape of a group -- one statement over a set of connections,
+  exactly what Multi-Exec saves -- and **`dbqm run-group` runs it**, which
+  it could not before even for a group the TUI had saved. It runs through
+  the same path as `dbqm multi` (same refusals, same derived join key,
+  reported back as `join_key`), exits 5 on divergence like every other
+  comparison, and is recorded in history under the group's name. An
+  ad-hoc group needs two or more distinct connections that exist; a group
+  file carrying both shapes is not refused -- `adhoc_sql` decides, here
+  and in `run-group`.
+
+### Fixed
+
+- **The connection's password never travels in an error message.** Every
+  `error` the CLI publishes is built from `str(e)` of whatever the driver
+  raised, and a driver is free to echo the DSN it was given. `error_text`
+  now builds all of them, masking the password when it appears; the host
+  is not a secret (`connection show` prints it) and `output_lines` is the
+  routine's own text, so neither is touched. This closes the roadmap's
+  `to_dict()` decision: redact the one thing that is a secret, say what is
+  deliberately not.
+- **The 3.10 floor is measured, not claimed.** The suite had never run on
+  3.10 -- and could not: a test imported `tomllib`, which arrived in 3.11,
+  so collection failed before a single test ran. With `tomli` declared for
+  older Pythons the suite ran, and passed everything but a handful of UI
+  tests that read layout after a fixed number of `pause()` calls: a bet on
+  the interpreter's speed, won on 3.14 and lost on 3.10. Those read the
+  fact they assert now (`wait_until`, in `tests/ui/_helpers.py`). Three
+  latent races in the product's own screens came out of it too -- a
+  `Mount` that arrives before the children it composed are queryable --
+  in `GroupManageScreen` and `TemplateManageScreen`. 1789 passed on both
+  versions. A CI matrix was declined as not worth five runners; the run
+  is manual, and the roadmap says so.
+- **Two tests that passed for free.** The no-notice-on-startup test
+  compared against Portuguese notice texts no screen paints, and the
+  `describe`/`rows` fixture path carried `ds-background` in the middle of
+  it -- left by an old blanket rename that replaced the word `fundo` inside
+  a string. Both fixed; the first now resolves its notices by catalogue
+  key and was proven able to fail.
+- **Sixteen more assertion messages and two docstrings** were still
+  Portuguese, behind words the earlier sweep's list did not have (`sem`,
+  `fora`, `abaixo`).
+
+### Changed
+
+- The roadmap's "Decision pending" section and three of its known gaps
+  are closed: typed OUT values are accepted as text (an Oracle to test
+  against would be the price of doing better), and the fields only the
+  TUI authors keep having no CLI flag, `update` preserving them being the
+  property that matters. `--favorite`, which the roadmap said had no
+  flag, has had one since 2.7.0.
+
 ## [2.11.1] — 2026-09-19
 
 A PATCH release: documentation that had fallen behind 2.11.0, one `--help`

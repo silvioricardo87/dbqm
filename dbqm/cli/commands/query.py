@@ -296,6 +296,38 @@ def cmd_run_group(args: argparse.Namespace) -> None:
         if pname not in param_values and pdef:
             param_values[pname] = pdef
 
+    if group.adhoc_sql:
+        # The other shape of a group: one statement over a set of
+        # connections, saved by Multi-Exec or by `group add --adhoc-sql`.
+        # It runs exactly the way `dbqm multi` runs -- same refusals, same
+        # derived key -- through the half of `multi` that was extracted for
+        # this purpose; only the name on the envelope and the history record
+        # differ. The join key is derived, so the caller is told which one
+        # was used, for the reason `multi` gives: a key chosen by a rule the
+        # caller cannot see turns every number downstream into a guess.
+        total_start = time.time()
+        resolved: list[tuple[str, Connection | None]] = []
+        for cname in group.connections:
+            conn = deps.find_connection(cname)
+            if not conn:
+                _fail_or_print(args, "run-group", "not_found",
+                               t("connection.not_found_named", name=cname))
+            resolved.append((cname, conn))
+        _refuse_undeclared_params(args, "run-group", group.adhoc_sql, param_values)
+        _, join_key, group_result, warnings = _compare_across(
+            args, "run-group", group.adhoc_sql, resolved, param_values, key=None,
+        )
+        # `build_adhoc_group_result` names the result after its connections;
+        # the history and the header are about the GROUP the user ran.
+        group_result.group_name = group.name
+        total_elapsed = time.time() - total_start
+        summary = "\n".join(group_result.summary_lines)
+        deps.record_group_execution(group.name, param_values, group_result.all_match,
+                                    summary, total_elapsed)
+        _report_group_result(args, group_result, param_values, warnings,
+                             extra={"join_key": join_key})
+        return
+
     # Execute all queries in the group
     query_results = {}
     total_start = time.time()
@@ -363,11 +395,30 @@ def cmd_run_group(args: argparse.Namespace) -> None:
             t("group.comparing_common", name=group.name, columns=", ".join(compare_columns))
         ))
 
+    _report_group_result(args, group_result, param_values, warnings)
+
+
+def _report_group_result(
+    args: argparse.Namespace,
+    group_result: GroupResult,
+    param_values: dict[str, str],
+    warnings: list[str],
+    *,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """The tail of `run-group`: export, envelope or table, and exit 5.
+
+    Shared by the two shapes of group -- saved queries and ad-hoc -- so
+    that a divergence exits the same way and the JSON carries the same
+    counts whichever was run. *extra* is what one shape knows and the other
+    does not: an ad-hoc group derives its join key at run time and reports
+    it, a saved group has the key it was given.
+    """
     if args.export:
         fmt = args.export
         path = _export_group(args, "run-group", group_result, param_values)
         if args.format == "json":
-            ok("run-group", {"exported": str(path), "format": fmt},
+            ok("run-group", {"exported": str(path), "format": fmt, **(extra or {})},
                warnings=warnings or None)
         else:
             console.print(t("export.done", path=path))
@@ -380,6 +431,7 @@ def cmd_run_group(args: argparse.Namespace) -> None:
     if args.format == "json":
         data = {
             "group": group_result.group_name,
+            **(extra or {}),
             "all_match": group_result.all_match,
             "comparisons": [
                 {
@@ -499,82 +551,9 @@ def cmd_multi(args: argparse.Namespace) -> None:
 
     _refuse_undeclared_params(args, "multi", sql, param_values)
 
-    results = deps.execute_across(sql, resolved, param_values)
-
-    failing = [(name, result) for name, result in results.items() if not result.success]
-    if failing:
-        # Named per connection with what actually happened -- a statement
-        # error is the database answering, not the connection failing, a
-        # read-only refusal is neither (the guard never sent the statement
-        # at all -- `cmd_sql` reports the identical condition as `read_only`,
-        # exit 2, and the two commands must not disagree about what the same
-        # event is), and `_sql_error_code` is what tells all of these apart
-        # (it also catches the messages `core/` returns for a statement
-        # never sent to any driver, which a plain connection/sql_error
-        # dichotomy mislabelled as `sql_error`). The aggregate exit code
-        # does not depend on which failing connection happens to come first
-        # -- see `_multi_failure_code` -- and every failing connection is
-        # named, not just one.
-        codes = [_sql_error_code(result.error, result.error_kind) for _, result in failing]
-        parts = []
-        for (name, result), code in zip(failing, codes, strict=True):
-            if code == "connection_failed":
-                parts.append(t("multi.connection_failed", name=name, error=result.error))
-            elif code == "read_only":
-                parts.append(t("multi.read_only", name=name, error=result.error))
-            elif code == "usage":
-                parts.append(t("multi.usage_error", name=name, error=result.error))
-            else:
-                parts.append(t("multi.query_error", name=name, error=result.error))
-        _fail_or_print(args, "multi", _multi_failure_code(codes), "; ".join(parts))
-
-    try:
-        join_key, compare_columns = deps.derive_comparison_columns(results)
-    except deps.NoComparableColumns as e:
-        _fail_or_print(args, "multi", "validation", str(e))
-
-    common = [join_key, *compare_columns]
-
-    if args.key:
-        # A key that is not common to every result is the same trap as
-        # passing no `compare_columns` at all: `run_comparison` would index
-        # it to `None` in every result, every key set would come back empty,
-        # and `all([])` is `True` over rows it never actually looked at.
-        # Refused here rather than left to that indexing, naming the column.
-        if args.key not in common:
-            _fail_or_print(
-                args, "multi", "validation",
-                t("multi.key_not_common", column=args.key),
-            )
-        # Re-deriving instead of trusting `build_adhoc_group_result`'s own
-        # `join_key`-given branch to leave `compare_columns` alone: that
-        # branch defaults `compare_columns` to `[]` when none is passed,
-        # which silently compares nothing -- `--key` would report
-        # CONSISTENTE over data it never looked at. Removing the requested
-        # key from the derived common-column list keeps every other common
-        # column in the comparison instead.
-        compare_columns = [c for c in common if c != args.key]
-        join_key = args.key
-
-    if not compare_columns:
-        # Reachable with or without `--key`: when the only column common to
-        # every result is the join key itself, `derive_comparison_columns`
-        # deliberately returns `(key, [])` -- core decides nothing about
-        # whether that is enough, on purpose (see
-        # `test_one_common_column_compares_nothing_but_still_has_a_key`).
-        # `cmd_multi` decides for itself: a comparison of zero columns would
-        # report CONSISTENTE regardless of what the rows actually say, so it
-        # refuses instead of running one.
-        _fail_or_print(
-            args, "multi", "validation",
-            t("multi.only_common_column", column=join_key),
-        )
-
-    group_result = deps.build_adhoc_group_result(
-        results, join_key=join_key, compare_columns=compare_columns,
+    results, join_key, group_result, warnings = _compare_across(
+        args, "multi", sql, resolved, param_values, key=args.key,
     )
-
-    warnings = duplicate_key_warnings(group_result)
 
     if args.export:
         fmt = args.export
@@ -622,6 +601,109 @@ def cmd_multi(args: argparse.Namespace) -> None:
         console.print(f"[ds.text.muted]{escape(warning)}[/ds.text.muted]")
     if not group_result.all_match:
         sys.exit(int(exit_for("divergent")))
+
+
+def _compare_across(
+    args: argparse.Namespace,
+    command: str,
+    sql: str,
+    resolved: list[tuple[str, Connection | None]],
+    param_values: dict[str, str],
+    *,
+    key: str | None,
+) -> tuple[dict[str, Any], str, Any, list[str]]:
+    """Run one statement on every resolved connection and compare the results.
+
+    The half of `cmd_multi` that `run-group` needs too, once a saved
+    ad-hoc group is a thing the CLI can run: everything from opening the
+    connections to a `GroupResult`, including the refusals on the way --
+    a connection that fails, a key that is not common to every side, a
+    comparison that would look at zero columns. What it deliberately does
+    NOT do is print or exit; the two callers report the same result under
+    different names and different envelopes, and that stays theirs.
+
+    Returns `(results, join_key, group_result, warnings)`: the raw results
+    keyed by connection name (the table header lists them), the key that
+    was actually used (derived unless *key* names one), the comparison, and
+    the duplicate-row warnings it carries.
+    """
+    results = deps.execute_across(sql, resolved, param_values)
+
+    failing = [(name, result) for name, result in results.items() if not result.success]
+    if failing:
+        # Named per connection with what actually happened -- a statement
+        # error is the database answering, not the connection failing, a
+        # read-only refusal is neither (the guard never sent the statement
+        # at all -- `cmd_sql` reports the identical condition as `read_only`,
+        # exit 2, and the two commands must not disagree about what the same
+        # event is), and `_sql_error_code` is what tells all of these apart
+        # (it also catches the messages `core/` returns for a statement
+        # never sent to any driver, which a plain connection/sql_error
+        # dichotomy mislabelled as `sql_error`). The aggregate exit code
+        # does not depend on which failing connection happens to come first
+        # -- see `_multi_failure_code` -- and every failing connection is
+        # named, not just one.
+        codes = [_sql_error_code(result.error, result.error_kind) for _, result in failing]
+        parts = []
+        for (name, result), code in zip(failing, codes, strict=True):
+            if code == "connection_failed":
+                parts.append(t("multi.connection_failed", name=name, error=result.error))
+            elif code == "read_only":
+                parts.append(t("multi.read_only", name=name, error=result.error))
+            elif code == "usage":
+                parts.append(t("multi.usage_error", name=name, error=result.error))
+            else:
+                parts.append(t("multi.query_error", name=name, error=result.error))
+        _fail_or_print(args, command, _multi_failure_code(codes), "; ".join(parts))
+
+    try:
+        join_key, compare_columns = deps.derive_comparison_columns(results)
+    except deps.NoComparableColumns as e:
+        _fail_or_print(args, command, "validation", str(e))
+
+    common = [join_key, *compare_columns]
+
+    if key:
+        # A key that is not common to every result is the same trap as
+        # passing no `compare_columns` at all: `run_comparison` would index
+        # it to `None` in every result, every key set would come back empty,
+        # and `all([])` is `True` over rows it never actually looked at.
+        # Refused here rather than left to that indexing, naming the column.
+        if key not in common:
+            _fail_or_print(
+                args, command, "validation",
+                t("multi.key_not_common", column=key),
+            )
+        # Re-deriving instead of trusting `build_adhoc_group_result`'s own
+        # `join_key`-given branch to leave `compare_columns` alone: that
+        # branch defaults `compare_columns` to `[]` when none is passed,
+        # which silently compares nothing -- `--key` would report
+        # CONSISTENTE over data it never looked at. Removing the requested
+        # key from the derived common-column list keeps every other common
+        # column in the comparison instead.
+        compare_columns = [c for c in common if c != key]
+        join_key = key
+
+    if not compare_columns:
+        # Reachable with or without `--key`: when the only column common to
+        # every result is the join key itself, `derive_comparison_columns`
+        # deliberately returns `(key, [])` -- core decides nothing about
+        # whether that is enough, on purpose (see
+        # `test_one_common_column_compares_nothing_but_still_has_a_key`).
+        # `cmd_multi` decides for itself: a comparison of zero columns would
+        # report CONSISTENTE regardless of what the rows actually say, so it
+        # refuses instead of running one.
+        _fail_or_print(
+            args, command, "validation",
+            t("multi.only_common_column", column=join_key),
+        )
+
+    group_result = deps.build_adhoc_group_result(
+        results, join_key=join_key, compare_columns=compare_columns,
+    )
+
+    warnings = duplicate_key_warnings(group_result)
+    return results, join_key, group_result, warnings
 
 
 def cmd_sql(args: argparse.Namespace) -> None:
