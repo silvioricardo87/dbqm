@@ -173,9 +173,10 @@ Commits that bypass Steps 1–5 are only allowed for the closed list of exceptio
 ## Deviations in this project
 
 - **Scopes are a closed set**, narrower than the "concrete, stable names" this
-  guide allows: `ui`, `core`, `models`, `config`, `web`. They map to the
-  directories in `docs/ARCHITECTURE.md`. A commit that does not fit one of them
-  is usually two commits.
+  guide allows: `ui`, `core`, `models`, `config`, `web`, `mcp` (for
+  `dbqm/mcp/**`, `tests/mcp/**`, `docs/MCP.md`). They map to the directories in
+  `docs/ARCHITECTURE.md`. A commit that does not fit one of them is usually two
+  commits.
 - **The language cascade resolves to English**, and dbqm states the rule
   explicitly rather than leaving it to inference: identifiers, comments,
   docstrings, test names, assertion messages, commit messages, PR titles and

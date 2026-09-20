@@ -74,7 +74,8 @@ Database drivers are **conditionally installed** — no prebuilt wheels exist fo
 there (marker `sys_platform != 'win32' or platform_machine != 'ARM64'`) to keep
 `pip install dbqm` working. On Windows ARM, use Python AMD64 under x64 emulation.
 
-Opt-in extras: `oracle`, `postgres`, `sqlserver`, and `dev` (pytest + pytest-asyncio).
+Opt-in extras: `oracle`, `postgres`, `sqlserver`, `mcp` (the MCP server, see
+`docs/MCP.md`), and `dev` (pytest + pytest-asyncio).
 `requirements.txt` is intentionally empty — dependencies live in `pyproject.toml`.
 
 ## Architecture
@@ -206,8 +207,9 @@ The concrete commands, in dbqm's terms:
 Format, types, description style and the language cascade are in
 **[`docs/agents/COMMITS.md`](docs/agents/COMMITS.md)**. Two project specifics:
 
-- **Scopes are a closed set**: `ui`, `core`, `models`, `config`, `web`. A commit
-  that fits none of them is usually two commits.
+- **Scopes are a closed set**: `ui`, `core`, `models`, `config`, `web`, `mcp`
+  (for `dbqm/mcp/**`, `tests/mcp/**`, `docs/MCP.md`). A commit that fits none
+  of them is usually two commits.
 - **NEVER include an AI `Co-Authored-By` line, or any AI attribution**, in a
   commit message, a PR title, or a PR body.
 

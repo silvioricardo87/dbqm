@@ -1064,4 +1064,6 @@ TEXTS: Final[dict[str, str]] = {
     "ddl.extract_failed_dependency": 'Could not extract {type} {owner}.{name}: {error}',
     "common.yes_initial": 'Y',
     "common.no_initial": 'N',
+    # --- mcp ---
+    "mcp.connection_not_exposed": 'Connection "{name}" is not exposed by this server (started with --connection).',
 }

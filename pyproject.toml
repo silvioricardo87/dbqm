@@ -58,6 +58,10 @@ oracle = ["oracledb>=2.0"]
 postgres = ["psycopg[binary]>=3.1"]
 sqlserver = ["pymssql>=2.2"]
 mysql = ["pymysql>=1.1"]
+# The MCP server (`dbqm mcp`). Opt-in: the SDK pulls pydantic, starlette,
+# uvicorn and, on Windows, pywin32 -- about 27 MiB nobody running the TUI
+# or the CLI needs. `dbqm mcp` without it fails with the install command.
+mcp = ["mcp>=2.2,<3"]
 
 [project.urls]
 Homepage = "https://github.com/silvioricardo87/dbqm"
@@ -124,14 +128,14 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 # 34 modules not yet clean under `--strict`, measured 2026-09-13 (361 findings
 # total), two retired since (group_engine in 2.10.0, 11; schema in 2.12.1, 4).
-# `dbqm.cli.commands.inspect` (17) was tried alongside schema in 2.12.1 and
+# `dbqm.cli.commands.inspect` (20) was tried alongside schema in 2.12.1 and
 # still fails strict -- kept here. Generated from a real run, not transcribed:
 #   uv run mypy --strict dbqm/ 2>&1 | sed 's/:.*//' | sort -u
 # Each entry carries its finding count as a debt register, not just a list of
 # names. This list only shrinks -- see tests/design/test_typing_policy.py.
 module = [
     "dbqm.cli.commands.connection",    # 3
-    "dbqm.cli.commands.inspect",       # 17
+    "dbqm.cli.commands.inspect",       # 20
     "dbqm.core.config_portability",    # 11
     "dbqm.core.connection_builder",    # 5
     "dbqm.core.db_manager",            # 2
