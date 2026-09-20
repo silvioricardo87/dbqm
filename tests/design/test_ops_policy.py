@@ -18,7 +18,7 @@ FRONT_ENDS = ("dbqm.cli", "dbqm.ui", "dbqm.mcp")
 
 
 def _modules() -> list[Path]:
-    return sorted(OPS.glob("*.py"))
+    return sorted(OPS.rglob("*.py"))
 
 
 def test_every_token_raised_is_one_the_exit_table_knows():
@@ -43,7 +43,11 @@ def test_ops_imports_no_front_end():
             if isinstance(node, ast.Import):
                 names = [a.name for a in node.names]
             elif isinstance(node, ast.ImportFrom) and node.module:
-                names = [node.module]
+                # Both the module itself (`from dbqm.cli import errors`) and
+                # each alias qualified onto it (`from dbqm import cli` ->
+                # `dbqm.cli`) -- the second form has no `node.module` that
+                # alone names the front end, only the alias does.
+                names = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
             for name in names:
                 if any(name == fe or name.startswith(fe + ".") for fe in FRONT_ENDS):
                     offenders.append((path.name, node.lineno, name))

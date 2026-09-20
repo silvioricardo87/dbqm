@@ -141,7 +141,13 @@ def rows(conn: Connection, table: str, *, limit: int, offset: int) -> BrowseResu
     return with_open_connection(conn, action)
 
 
-def extract_ddl(conn: Connection, obj: str, *, on_progress: Any = None) -> ExtractionResult:
+#: `on_progress`'s real arity, per `core/ddl_extractor.py::extract_ddl` and
+#: `cmd_ddl`'s own callback: current step, total steps, the object type
+#: (`"TABLE"`, `"INDEX"`, ...) and the object's name.
+ProgressFn = Callable[[int, int, str, str], None]
+
+
+def extract_ddl(conn: Connection, obj: str, *, on_progress: ProgressFn | None = None) -> ExtractionResult:
     """`extract_ddl` opens its own handle and records every statement failure
     into `result.errors`, so anything that escapes it is a failure to open --
     the same call-site reasoning `query_engine` uses for `error_kind`.
