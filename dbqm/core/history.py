@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +11,11 @@ from dbqm.core.paths import HISTORY_DIR
 from dbqm.i18n import t
 
 MAX_HISTORY = 100
+
+#: Guards every read-modify-write against the file. The CLI never raced
+#: this -- one process per invocation -- but the MCP server runs tools in
+#: worker threads, so two `run`/`run_group` calls can interleave.
+_LOCK = threading.Lock()
 
 
 def kind_label(entry_type: str) -> str:
@@ -81,23 +87,32 @@ def load_history() -> list[HistoryEntry]:
 
 
 def save_history(entries: list[HistoryEntry]) -> None:
+    """Atomic: write to a sibling temp file, then replace -- a concurrent
+    reader never sees a half-written file."""
     f = _history_file()
-    f.write_text(
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(
         json.dumps([e.to_dict() for e in entries], indent=2, ensure_ascii=False, default=str),
         encoding="utf-8",
     )
+    tmp.replace(f)
 
 
 def add_history_entry(entry: HistoryEntry) -> None:
-    entries = load_history()
-    entries.insert(0, entry)
-    if len(entries) > MAX_HISTORY:
-        entries = entries[:MAX_HISTORY]
-    save_history(entries)
+    """Locked across load, insert and save so two concurrent callers cannot
+    each load the same list and overwrite the other's entry."""
+    with _LOCK:
+        entries = load_history()
+        entries.insert(0, entry)
+        if len(entries) > MAX_HISTORY:
+            entries = entries[:MAX_HISTORY]
+        save_history(entries)
 
 
 def clear_history() -> None:
-    save_history([])
+    """Locked for the same reason `add_history_entry` is."""
+    with _LOCK:
+        save_history([])
 
 
 def _generate_id() -> str:
