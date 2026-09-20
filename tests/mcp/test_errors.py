@@ -31,6 +31,7 @@ async def test_a_rejected_statement_is_sql_error(local_db):
 async def test_a_dead_database_is_connection_failed(broken_db):
     async with Client(build_server(ServerOptions())) as client:
         err, env = await call(client, "objects", connection="broken", type="TABLE")
+    assert err is True
     assert env["error"]["code"] == "connection_failed" and env["error"]["exit"] == 3
 
 
@@ -38,6 +39,7 @@ async def test_a_dead_database_is_connection_failed(broken_db):
 async def test_bad_paging_is_usage(local_db):
     async with Client(build_server(ServerOptions())) as client:
         err, env = await call(client, "rows", connection="local", table="orders", limit=0)
+    assert err is True
     assert env["error"]["code"] == "usage" and env["error"]["exit"] == 2
 
 
@@ -45,7 +47,8 @@ async def test_bad_paging_is_usage(local_db):
 async def test_an_undeclared_parameter_is_validation(local_db):
     async with Client(build_server(ServerOptions())) as client:
         err, env = await call(client, "sql", connection="local", sql="SELECT 1", params={"x": "1"})
-    assert env["error"]["code"] == "validation"
+    assert err is True
+    assert env["error"]["code"] == "validation" and env["error"]["exit"] == 2
 
 
 @pytest.mark.asyncio

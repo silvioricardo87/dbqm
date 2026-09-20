@@ -5,6 +5,8 @@ import pytest
 
 from dbqm.mcp import policy
 from dbqm.mcp.options import ServerOptions
+from dbqm.models.group import Group
+from dbqm.models.query import Query
 from dbqm.ops import catalogue
 from dbqm.ops.errors import OperationError
 
@@ -49,3 +51,41 @@ def test_visible_filters_and_reports_the_effective_flag(local2_db):
 def test_exposed_names(local_db):
     assert policy.exposed_names(ServerOptions()) is None
     assert policy.exposed_names(ServerOptions(connections=frozenset({"b", "a"}))) == ["a", "b"]
+
+
+def _query(name: str, connection: str) -> Query:
+    return Query(name=name, connection=connection, sql="SELECT 1")
+
+
+def _group(name: str, *, queries: tuple[str, ...] = (), connections: tuple[str, ...] = ()) -> Group:
+    return Group(name=name, description="", queries=list(queries), join_key="id",
+                connections=list(connections))
+
+
+def test_visible_queries_no_allowlist_is_everything():
+    queries = [_query("q1", "local"), _query("q2", "local2")]
+    assert policy.visible_queries(ServerOptions(), queries) == queries
+
+
+def test_visible_queries_scoped_to_the_allowlist():
+    queries = [_query("q1", "local"), _query("q2", "local2")]
+    shown = policy.visible_queries(ServerOptions(connections=frozenset({"local"})), queries)
+    assert [q.name for q in shown] == ["q1"]
+
+
+def test_visible_groups_no_allowlist_is_everything():
+    groups = [_group("g1", connections=["local", "local2"]), _group("g2", queries=["q1"])]
+    assert policy.visible_groups(ServerOptions(), groups, []) == groups
+
+
+def test_visible_groups_ad_hoc_hidden_when_a_connection_is_not_exposed():
+    groups = [_group("g1", connections=["local", "local2"])]
+    shown = policy.visible_groups(ServerOptions(connections=frozenset({"local"})), groups, [])
+    assert shown == []
+
+
+def test_visible_groups_saved_hidden_when_a_query_is_not_visible():
+    queries = [_query("q1", "local"), _query("q2", "local2")]
+    groups = [_group("g1", queries=["q1", "q2"]), _group("g2", queries=["q1"])]
+    shown = policy.visible_groups(ServerOptions(connections=frozenset({"local"})), groups, queries)
+    assert [g.name for g in shown] == ["g2"]

@@ -1066,6 +1066,9 @@ TEXTS: Final[dict[str, str]] = {
     "common.no_initial": 'N',
     # --- mcp ---
     "mcp.connection_not_exposed": 'Connection "{name}" is not exposed by this server (started with --connection).',
+    # The braces below are literal text, not `str.format` fields: this key
+    # is never called with keyword arguments, and `t()` skips `.format()`
+    # entirely when none are given.
     "mcp.server_description": "dbqm: query, compare and inspect the databases configured in dbqm (Oracle, SQL Server, PostgreSQL, MySQL, SQLite). Results are the CLI's envelope: {ok, command, data} or {ok: false, error: {code, message, exit}}.",
     "mcp.tool.list": "List what dbqm has configured: connections (name, engine, target, read_only), saved queries or comparison groups.",
     "mcp.tool.test_connection": "Try to connect. One connection by name, or every exposed one when no name is given. A connection that is down is an item with ok=false, not an error.",

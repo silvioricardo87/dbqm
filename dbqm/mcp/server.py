@@ -17,13 +17,13 @@ stdio, stdout belongs to the protocol.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Final, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 
 from dbqm._version import __version__
-from dbqm.cli.errors import exit_for
+from dbqm.cli.errors import ERROR_CODES, ExitCode
 from dbqm.i18n import t
 from dbqm.mcp import policy
 from dbqm.mcp.options import ServerOptions
@@ -33,8 +33,9 @@ from dbqm.ops import sql as ops_sql
 from dbqm.ops.errors import OperationError
 
 #: Registration order; `list_tools` reports them in it.
-TOOL_NAMES = ("list", "test_connection", "objects", "describe", "rows", "ddl",
-              "history", "run", "run_group", "multi", "sql")
+TOOL_NAMES: Final[tuple[str, ...]] = ("list", "test_connection", "objects", "describe",
+                                      "rows", "ddl", "history", "run", "run_group",
+                                      "multi", "sql")
 
 _READ_ONLY = ToolAnnotations(read_only_hint=True)
 
@@ -51,7 +52,7 @@ def _result(payload: dict[str, Any], *, is_error: bool) -> CallToolResult:
                           structured_content=payload, is_error=is_error)
 
 
-def _ok(command: str, data: Any, warnings: list[str] | None = None) -> CallToolResult:
+def _ok(command: str, data: Any, *, warnings: list[str] | None = None) -> CallToolResult:
     payload: dict[str, Any] = {"ok": True, "command": command, "data": _json_safe(data)}
     if warnings:
         payload["warnings"] = list(warnings)
@@ -59,8 +60,12 @@ def _ok(command: str, data: Any, warnings: list[str] | None = None) -> CallToolR
 
 
 def _fail(command: str, code: str, message: str) -> CallToolResult:
+    # `.get` with a fallback rather than `exit_for`: an unknown token here
+    # would raise from inside `_guarded`'s own `except OperationError`
+    # handler, past the catch-all meant to stop exactly that.
+    exit_code = int(ERROR_CODES.get(code, ExitCode.UNEXPECTED))
     payload = {"ok": False, "command": command,
-               "error": {"code": code, "message": message, "exit": int(exit_for(code))}}
+               "error": {"code": code, "message": message, "exit": exit_code}}
     return _result(payload, is_error=True)
 
 
@@ -71,7 +76,7 @@ def _guarded(command: str, action: Callable[[], CallToolResult]) -> CallToolResu
         return action()
     except OperationError as e:
         return _fail(command, e.code, e.message)
-    except Exception as e:  # noqa: BLE001 - the whole point: nothing escapes to the protocol
+    except Exception as e:  # the whole point: nothing escapes to the protocol
         return _fail(command, "unexpected", t("common.unexpected_error", error=e))
 
 
@@ -90,14 +95,18 @@ def build_server(options: ServerOptions) -> MCPServer:
                 items = [catalogue.connection_summary(c) for c in catalogue.connections()]
                 return _ok("list.connections", policy.visible(options, items))
             if kind == "queries":
-                return _ok("list.queries", [catalogue.query_summary(q) for q in catalogue.queries()])
-            return _ok("list.groups", [catalogue.group_summary(g) for g in catalogue.groups()])
+                shown_queries = policy.visible_queries(options, catalogue.queries())
+                return _ok("list.queries", [catalogue.query_summary(q) for q in shown_queries])
+            shown_groups = policy.visible_groups(options, catalogue.groups(), catalogue.queries())
+            return _ok("list.groups", [catalogue.group_summary(g) for g in shown_groups])
         return _guarded(f"list.{kind}", action)
 
     @server.tool(name="test_connection", description=t("mcp.tool.test_connection"), annotations=_READ_ONLY)
     def test_connection(connection: str | None = None) -> CallToolResult:
-        names = [connection] if connection else policy.exposed_names(options)
-        return _guarded("test", lambda: _ok("test", catalogue.test_connections(names, resolve=resolve)))
+        def action() -> CallToolResult:
+            names = [connection] if connection else policy.exposed_names(options)
+            return _ok("test", catalogue.test_connections(names, resolve=resolve))
+        return _guarded("test", action)
 
     @server.tool(name="objects", description=t("mcp.tool.objects"), annotations=_READ_ONLY)
     def objects(connection: str, type: Literal["TABLE", "VIEW", "PACKAGE", "ROUTINE"]) -> CallToolResult:

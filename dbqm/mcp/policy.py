@@ -17,6 +17,8 @@ from typing import Any
 from dbqm.i18n import t
 from dbqm.mcp.options import ServerOptions
 from dbqm.models.connection import Connection
+from dbqm.models.group import Group
+from dbqm.models.query import Query
 from dbqm.ops import catalogue
 from dbqm.ops.catalogue import Resolver
 from dbqm.ops.errors import OperationError
@@ -48,4 +50,30 @@ def visible(options: ServerOptions, items: list[dict[str, Any]]) -> list[dict[st
     if not options.allow_write:
         for item in shown:
             item["read_only"] = True
+    return shown
+
+
+def visible_queries(options: ServerOptions, queries: list[Query]) -> list[Query]:
+    """The allowlist scopes the catalogue too: a query against a connection
+    this server does not expose is not something an agent should learn
+    exists."""
+    if options.connections is None:
+        return list(queries)
+    return [q for q in queries if q.connection in options.connections]
+
+
+def visible_groups(options: ServerOptions, groups: list[Group], queries: list[Query]) -> list[Group]:
+    """A group is visible only when every connection it touches is: every
+    ad-hoc connection it names directly, and every saved query it runs
+    (through that query's own connection)."""
+    if options.connections is None:
+        return list(groups)
+    visible_query_names = {q.name for q in visible_queries(options, queries)}
+    shown = []
+    for g in groups:
+        if any(c not in options.connections for c in g.connections):
+            continue
+        if any(name not in visible_query_names for name in g.queries):
+            continue
+        shown.append(g)
     return shown

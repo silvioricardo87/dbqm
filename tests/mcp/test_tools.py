@@ -54,12 +54,44 @@ async def test_descriptions_come_from_the_catalogue(local_db):
 
 @pytest.mark.asyncio
 async def test_list_matches_the_cli(local2_db, capsys):
-    _, body = envelope(["list", "connections", "-f", "json"], capsys)
+    run_cli(["query", "add", "q-local", "--sql", "SELECT 1", "--connection", "local", "-f", "json"])
+    capsys.readouterr()
+    run_cli(["group", "add", "g-adhoc", "--adhoc-sql", "SELECT id FROM orders",
+             "--connection", "local", "--connection", "local2", "-f", "json"])
+    capsys.readouterr()
+
+    _, connections = envelope(["list", "connections", "-f", "json"], capsys)
+    _, queries = envelope(["list", "queries", "-f", "json"], capsys)
+    _, groups = envelope(["list", "groups", "-f", "json"], capsys)
     async with Client(build_server(ServerOptions(allow_write=True))) as client:
         err, env = await call(client, "list", kind="connections")
+        _, q_env = await call(client, "list", kind="queries")
+        _, g_env = await call(client, "list", kind="groups")
     assert err is False
     assert env["command"] == "list.connections"
-    assert env["data"] == body["data"]
+    assert env["data"] == connections["data"]
+    assert q_env["data"] == queries["data"]
+    assert g_env["data"] == groups["data"]
+
+
+@pytest.mark.asyncio
+async def test_list_scopes_to_the_allowlist(local2_db, capsys):
+    """The allowlist scopes the catalogue too: a query on `local2` and an
+    ad-hoc group over `local`+`local2` are not something an agent restricted
+    to `local` should learn exist."""
+    run_cli(["query", "add", "q-local", "--sql", "SELECT 1", "--connection", "local", "-f", "json"])
+    capsys.readouterr()
+    run_cli(["query", "add", "q-local2", "--sql", "SELECT 1", "--connection", "local2", "-f", "json"])
+    capsys.readouterr()
+    run_cli(["group", "add", "g-adhoc", "--adhoc-sql", "SELECT id FROM orders",
+             "--connection", "local", "--connection", "local2", "-f", "json"])
+    capsys.readouterr()
+
+    async with Client(build_server(ServerOptions(connections=frozenset({"local"})))) as client:
+        _, q_env = await call(client, "list", kind="queries")
+        _, g_env = await call(client, "list", kind="groups")
+    assert [q["name"] for q in q_env["data"]] == ["q-local"]
+    assert g_env["data"] == []
 
 
 @pytest.mark.asyncio
@@ -77,12 +109,22 @@ async def test_objects_describe_rows_match_the_cli(local_db, capsys):
 
 
 @pytest.mark.asyncio
-async def test_ddl_matches_the_cli_and_writes_nothing(local_db, capsys, tmp_path):
+async def test_ddl_matches_the_cli_and_writes_nothing(local_db, capsys):
+    from dbqm.core import ddl_extractor
+
+    ddl_dir = ddl_extractor.EXPORTS_DIR / "ddl"
+    before = set(ddl_dir.iterdir()) if ddl_dir.exists() else None
+
     _, body = envelope(["ddl", "customers", "local", "--stdout", "-f", "json"], capsys)
     async with Client(build_server(ServerOptions())) as client:
         _, env = await call(client, "ddl", connection="local", object="customers")
     assert env["data"]["objects"] == body["data"]["objects"]
     assert env["data"]["path"] is None
+
+    if before is None:
+        assert not ddl_dir.exists()
+    else:
+        assert set(ddl_dir.iterdir()) == before
 
 
 @pytest.mark.asyncio
@@ -101,6 +143,8 @@ async def test_sql_explain_matches_the_cli(local_db, capsys):
     async with Client(build_server(ServerOptions())) as client:
         _, env = await call(client, "sql", connection="local", sql="SELECT * FROM customers", explain=True)
     assert env["data"]["plan"] == body["data"]["plan"]
+    assert env["data"]["connection_name"] == body["data"]["connection_name"]
+    assert "elapsed" in env["data"]
 
 
 @pytest.mark.asyncio
