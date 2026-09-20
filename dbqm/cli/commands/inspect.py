@@ -11,6 +11,7 @@ from rich.table import Table
 from dbqm.core.history import kind_label
 from dbqm.i18n import t
 from dbqm.ops import catalogue, deps
+from dbqm.ops import schema as ops_schema
 from dbqm.ops.errors import OperationError
 from dbqm.cli.envelope import fail, ok
 from dbqm.cli.errors import exit_for
@@ -126,20 +127,6 @@ def cmd_list(args: argparse.Namespace) -> None:
         sys.exit(int(exit_for("usage")))
 
 
-def _ddl_error_code(result: Any) -> str:
-    """`not_found` when the object is absent, `sql_error` otherwise.
-
-    `describe` and `rows` both answer `not_found` for a name that is not
-    there; `ddl` said `sql_error`, which is the same disagreement B2 fixed
-    one command over.
-
-    Reads `result.not_found`. It used to match the end of the error text,
-    which worked only while that text was one fixed sentence in one
-    language.
-    """
-    return "not_found" if result.not_found else "sql_error"
-
-
 def _fail_or_print(
     args: argparse.Namespace, command: str, code: str, message: str,
 ) -> NoReturn:
@@ -166,33 +153,19 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     learns the answer from the value. Every object's DDL travels inline in
     `objects` regardless, which is what makes skipping the file harmless.
     """
-    conn = deps.find_connection(args.connection)
-    if not conn:
-        if args.format == "json":
-            fail("ddl", "not_found", t("connection.not_found_named", name=args.connection))
-        not_found = escape(t("connection.not_found_named", name=args.connection))
-        console.print(f"[ds.op.failure]{not_found}[/ds.op.failure]")
-        sys.exit(int(exit_for("not_found")))
-
     def on_progress(current, total, obj_type, obj_name):
         if args.format == "json":
             print(f"  [{current}/{total}] {obj_type}: {obj_name}", file=sys.stderr)
         else:
             console.print(f"  [{current}/{total}] {escape(obj_type)}: {escape(obj_name)}", style="dim")
 
-    # `extract_ddl` opens its own handle and records every statement failure
-    # into `result.errors`, so anything that escapes it is a failure to open --
-    # the same call-site reasoning `query_engine` uses for `error_kind`.
-    # Without this the exception reached `main.py` and became exit 1, "a bug in
-    # dbqm", for a database that was merely unreachable.
     try:
-        result = deps.extract_ddl(conn, args.object, on_progress=on_progress)
-    except Exception as e:
-        _fail_or_print(args, "ddl", "connection_failed", str(e))
+        conn = catalogue.connection(args.connection)
+        result = ops_schema.extract_ddl(conn, args.object, on_progress=on_progress)
+    except OperationError as e:
+        _fail_or_print(args, "ddl", e.code, e.message)
 
     if args.format == "json":
-        if result.errors and not result.objects:
-            fail("ddl", _ddl_error_code(result), "; ".join(result.errors))
         if args.stdout:
             path = None
         else:
@@ -208,8 +181,6 @@ def cmd_ddl(args: argparse.Namespace) -> None:
     if result.errors:
         for err in result.errors:
             console.print(f"[ds.op.failure]{escape(err)}[/ds.op.failure]")
-        if not result.objects:
-            sys.exit(int(exit_for("sql_error")))
 
     if args.stdout:
         for obj in result.objects:
