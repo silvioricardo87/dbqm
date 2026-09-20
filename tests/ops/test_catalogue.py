@@ -46,6 +46,18 @@ def test_test_connections_reports_each_and_never_raises_for_a_down_one(broken_db
     assert set(by_name["broken"]) == {"name", "ok", "message"}
 
 
+def test_test_connections_with_no_names_applies_a_given_resolver_to_every_stored_one(local_db, local2_db):
+    seen = []
+
+    def resolve(name):
+        seen.append(name)
+        return replace(catalogue.connection(name), read_only=True)
+
+    data = catalogue.test_connections(None, resolve=resolve)
+    assert sorted(seen) == ["local", "local2"]
+    assert all(d["ok"] for d in data)
+
+
 def test_test_connections_by_name_goes_through_the_resolver(local_db):
     seen = []
 

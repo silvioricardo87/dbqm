@@ -70,12 +70,19 @@ def test_connections(
 
     A connection that fails to connect is an item with `ok: false`, never
     an error: the job is to report each one, not to fail because one is
-    down. `names` of `None` means every stored connection, taken as
-    stored; a list goes through *resolve*, so a name that is not there is
-    `not_found` and a front end's policy applies.
+    down. `names` of `None` means every stored connection; a list goes
+    through *resolve*, so a name that is not there is `not_found`.
+
+    A front end with a policy always gets it applied: with a resolver,
+    every stored connection goes through it too. Without one, `names=None`
+    takes the stored connections as stored -- what the CLI's own unit
+    tests, which patch `deps.load_connections` alone, rely on.
     """
     if names is None:
-        targets = connections()
+        if resolve is not None:
+            targets = [resolve(c.name) for c in connections()]
+        else:
+            targets = connections()
     else:
         resolver = resolver_or_default(resolve)
         targets = [resolver(name) for name in names]
