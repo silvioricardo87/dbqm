@@ -51,7 +51,7 @@ through your first connection.
 
 ## Use it from a script
 
-All twenty-one commands are non-interactive — no prompts, no TTY required, and
+Every command but `dbqm tui` is non-interactive — no prompts, no TTY required, and
 `-f json` everywhere — which is what makes dbqm usable from a script, from CI
 or from an AI agent. `dbqm describe-cli -f json` reports the whole surface,
 read live from the parser.

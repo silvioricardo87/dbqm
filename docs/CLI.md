@@ -1,6 +1,6 @@
 # CLI reference
 
-Every dbqm operation is available non-interactively — no prompts, no TTY
+Every command but `dbqm tui` is available non-interactively — no prompts, no TTY
 required — which is what makes it usable from a script, from CI, or from an
 AI agent. This is the full surface; the README carries only the handful of
 commands worth seeing first.
@@ -24,7 +24,7 @@ capability table.
 
 ## Getting help
 
-`dbqm --help` groups the 23 commands under five titles instead of one long
+`dbqm --help` groups the commands under five titles instead of one long
 list, and carries a handful of examples and the exit-code table. Every
 command and subcommand answers `--help` on its own (`dbqm run --help`,
 `dbqm connection add --help`). `-V`/`--version` prints the version. A
@@ -254,7 +254,7 @@ connection unpinned, which is why it can write at all.
 
 ## Output format and exit codes
 
-Every command accepts `-f/--format`. `run`, `sql` and `rows` offer
+Every command but `tui` and `mcp` accepts `-f/--format`. `run`, `sql` and `rows` offer
 `table|json|csv|raw`; **every other command offers `table|json`** —
 rather than list them here, where the list has already gone stale twice, ask
 the program: `dbqm describe-cli -f json` reports every command, every
