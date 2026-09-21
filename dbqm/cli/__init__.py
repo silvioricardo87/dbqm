@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import sys
+from typing import NoReturn
 
 from dbqm.i18n import t
 from dbqm.cli.commands import config_cmd as _config_commands
@@ -20,6 +22,8 @@ from dbqm.cli.commands.oracle_client import cmd_oracle_client
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
 from dbqm.cli.commands.saved import cmd_group, cmd_query, cmd_template
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
+from dbqm.cli.commands.tui_cmd import cmd_tui
+from dbqm.cli.errors import exit_for
 from dbqm.cli.params import (
     _add_connection_fields,
     _add_group_fields,
@@ -395,6 +399,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_oc_rm.add_argument("-f", "--format", choices=["table", "json"], default="table",
                          help=t("help.describe_cli.format"))
 
+    # --- tui ---
+    subparsers.add_parser("tui", help=t("help.cmd.tui"))
+
     # --- mcp ---
     p_mcp = subparsers.add_parser("mcp", help=t("help.cmd.mcp"))
     p_mcp.add_argument("--allow-write", action="store_true", help=t("help.mcp.allow_write"))
@@ -433,6 +440,7 @@ COMMAND_MAP = {
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,
+    "tui": cmd_tui,
     "mcp": cmd_mcp,
     "describe-cli": cmd_describe_cli,
 }
@@ -452,6 +460,21 @@ def _resolve_the_language() -> None:
         resolve_language(load_settings().language)
     except Exception:
         resolve_language("")
+
+
+def refuse_without_a_terminal() -> NoReturn:
+    """`dbqm` with no arguments wants the TUI; a pipe cannot host one.
+
+    Measured before this existed: with stdin closed, the bare invocation
+    hung until the caller's timeout killed it -- exit 124 and nothing on
+    either stream. Whoever lands here is nearly always a script or an
+    agent that meant to run a command, so the whole help follows the
+    reason, on stderr, leaving stdout empty like every other failure.
+    """
+    _resolve_the_language()
+    print(t("tui.needs_a_terminal"), file=sys.stderr)
+    build_parser().print_help(sys.stderr)
+    sys.exit(int(exit_for("usage")))
 
 
 def run_cli(argv: list[str] | None = None) -> bool:

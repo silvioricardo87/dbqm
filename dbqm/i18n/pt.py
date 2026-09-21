@@ -209,6 +209,7 @@ TEXTS: Final[dict[str, str]] = {
     "help.call.format": 'Formato de saida',
     "help.call.commit": 'Confirmar a transacao. Sem isso, a rotina roda e e desfeita.',
     "help.cmd.test": 'Testar conexao com banco de dados',
+    "help.cmd.tui": 'Abrir a interface interativa',
     "help.test.connection": 'Nome da conexao (ou omita para testar todas)',
     "help.test.format": 'Formato de saida',
     "help.cmd.list": 'Listar conexoes, consultas ou grupos',
@@ -1090,4 +1091,6 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.run_group": "Executa um grupo de comparacao salvo e reporta contagens por coluna; all_match=false e uma execucao completa que divergiu.",
     "mcp.tool.multi": "Executa um SELECT em duas ou mais conexoes e compara os resultados por uma chave comum.",
     "mcp.tool.sql": "Executa uma instrucao SQL em uma conexao. Somente leitura a menos que o servidor tenha sido iniciado com --allow-write; DML precisa de commit=true; explain=true retorna o plano.",
+    # --- tui ---
+    "tui.needs_a_terminal": 'A interface interativa precisa de um terminal. Rode `dbqm tui` em um, ou use um comando abaixo.',
 }

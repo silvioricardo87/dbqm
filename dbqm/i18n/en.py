@@ -190,6 +190,7 @@ TEXTS: Final[dict[str, str]] = {
     "help.cmd.template.show": 'View a template',
     "help.cmd.template.update": 'Change an existing template',
     "help.cmd.test": 'Test a database connection',
+    "help.cmd.tui": 'Open the interactive interface',
     "help.config_get.format": 'Output format',
     "help.config_get.key": 'Setting name',
     "help.config_list.format": 'Output format',
@@ -1089,4 +1090,6 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.run_group": "Run a saved comparison group and report per-column counts; all_match=false is a completed run that diverged.",
     "mcp.tool.multi": "Run one SELECT across two or more connections and compare the results by a common key.",
     "mcp.tool.sql": "Run one SQL statement on one connection. Read-only unless the server was started with --allow-write; DML needs commit=true; explain=true returns the plan.",
+    # --- tui ---
+    "tui.needs_a_terminal": 'The interactive interface needs a terminal. Run `dbqm tui` in one, or use a command below.',
 }
