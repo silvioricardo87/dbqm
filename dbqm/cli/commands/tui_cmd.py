@@ -30,6 +30,4 @@ def cmd_tui(args: argparse.Namespace) -> None:
     from dbqm.ui.app import DBQMApp
 
     ensure_dirs()
-    # `dbqm.ui.app` is on the strict exemption list; `DBQMApp.__init__` takes
-    # `**kwargs` with no annotations, so the constructor reads as untyped here.
-    DBQMApp().run()  # type: ignore[no-untyped-call]
+    DBQMApp().run()

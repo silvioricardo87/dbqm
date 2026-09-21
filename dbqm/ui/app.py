@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import traceback
+from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -74,7 +75,7 @@ class DBQMApp(App):
         "tab-tools": "tools-screen",
     }
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         from dbqm._version import __version__
         self.title = f"DB Query Manager v{__version__}"
