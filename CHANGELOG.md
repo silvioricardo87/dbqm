@@ -28,10 +28,11 @@ Releases before 1.18.0 predate this file; their history is in the git log.
 - `dbqm` with no arguments no longer opens a fullscreen app onto a pipe.
   Without a terminal it explained nothing and hung until it was killed; it
   now says why and prints the help on stderr, exit 2.
-- The three catalogue strings the CLI prints use a hyphen instead of an em
-  dash, which a Windows console emitted as a single cp1252 byte. A guard
-  keeps every catalogue key the CLI or the operations layer reaches ASCII;
-  the TUI's emoji are untouched.
+- `cli.description`, `group.header`, `multi.header` and
+  `exec_routine.rolled_back` use a hyphen instead of an em dash, which a
+  Windows console emitted as a single cp1252 byte. A guard keeps every
+  catalogue key the CLI or the operations layer reaches ASCII; the TUI's
+  emoji are untouched.
 
 ## [2.13.0] — 2026-09-20
 
