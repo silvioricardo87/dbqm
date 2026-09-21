@@ -48,12 +48,19 @@ def test_has_a_console_is_false_for_a_pipe_like_stdin(monkeypatch):
 
 def test_it_refuses_a_non_terminal_stdin_instead_of_opening(tmp_config_dir, capsys, monkeypatch):
     """The failure mode this command exists to name: a fullscreen app on a
-    pipe has nothing to read and nothing to draw on."""
+    pipe has nothing to read and nothing to draw on.
+
+    The message is the command-path one, not the bare-invocation one: the
+    user just ran `dbqm tui` themselves, so "use a command below" would
+    read circularly -- there is no list below a JSON envelope.
+    """
     monkeypatch.setattr("dbqm.cli.commands.tui_cmd.has_a_console", lambda: False)
     code, out, err = invoke(["tui"], capsys)
     assert code == 2
     assert out == ""
-    assert json.loads(err)["error"]["code"] == "usage"
+    error = json.loads(err)["error"]
+    assert error["code"] == "usage"
+    assert error["message"] == t("tui.needs_a_terminal_here")
 
 
 def test_it_opens_the_app_on_a_terminal(tmp_config_dir, capsys, monkeypatch):

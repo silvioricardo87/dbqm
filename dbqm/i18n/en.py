@@ -1103,4 +1103,5 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.sql": "Run one SQL statement on one connection. Read-only unless the server was started with --allow-write; DML needs commit=true; explain=true returns the plan.",
     # --- tui ---
     "tui.needs_a_terminal": 'The interactive interface needs a terminal. Run `dbqm tui` in one, or use a command below.',
+    "tui.needs_a_terminal_here": 'The interactive interface needs a terminal; this one is not.',
 }

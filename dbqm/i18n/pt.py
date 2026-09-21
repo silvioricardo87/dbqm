@@ -1104,4 +1104,5 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.sql": "Executa uma instrucao SQL em uma conexao. Somente leitura a menos que o servidor tenha sido iniciado com --allow-write; DML precisa de commit=true; explain=true retorna o plano.",
     # --- tui ---
     "tui.needs_a_terminal": 'A interface interativa precisa de um terminal. Rode `dbqm tui` em um, ou use um comando abaixo.',
+    "tui.needs_a_terminal_here": 'A interface interativa precisa de um terminal; este nao e um.',
 }
