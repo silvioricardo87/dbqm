@@ -13,15 +13,15 @@ the same reasoning is stronger -- it hung until something killed it.
 from __future__ import annotations
 
 import argparse
-import sys
 
 from dbqm.i18n import t
 from dbqm.cli.envelope import fail
+from dbqm.cli.terminal import has_a_console
 
 
 def cmd_tui(args: argparse.Namespace) -> None:
     """Open the TUI, or refuse if there is no terminal to open it on."""
-    if not sys.stdin.isatty():
+    if not has_a_console():
         fail("tui", "usage", t("tui.needs_a_terminal"))
 
     # Imported here, not at module scope: `dbqm.ui` pulls Textual, and no

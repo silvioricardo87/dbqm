@@ -28,7 +28,9 @@ def main() -> None:
 
     # Interactive TUI. A terminal is required: see
     # `dbqm.cli.refuse_without_a_terminal` for what used to happen without one.
-    if not sys.stdin.isatty():
+    from dbqm.cli.terminal import has_a_console
+
+    if not has_a_console():
         from dbqm.cli import refuse_without_a_terminal
 
         refuse_without_a_terminal()

@@ -2702,7 +2702,7 @@ class TestMainEntryPoint:
         terminal is present."""
         from dbqm.main import main as dbqm_main
         with patch("sys.argv", ["dbqm"]), \
-             patch("sys.stdin.isatty", return_value=True), \
+             patch("dbqm.cli.terminal.has_a_console", return_value=True), \
              patch("dbqm.core.paths.ensure_dirs"), \
              patch("dbqm.ui.app.DBQMApp.run") as mock_run:
             dbqm_main()
@@ -2712,7 +2712,7 @@ class TestMainEntryPoint:
         """No arguments and no terminal: `dbqm` may not hang on a pipe."""
         from dbqm.main import main as dbqm_main
         with patch("sys.argv", ["dbqm"]), \
-             patch("sys.stdin.isatty", return_value=False), \
+             patch("dbqm.cli.terminal.has_a_console", return_value=False), \
              pytest.raises(SystemExit) as caught:
             dbqm_main()
         assert caught.value.code == 2
