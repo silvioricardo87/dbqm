@@ -14,7 +14,7 @@ DBQM stores all configuration, credentials, and exports under `~/.dbqm/` by defa
 
 ```bash
 export DBQM_HOME=/path/to/custom/dir
-dbqm
+dbqm config list
 ```
 
 

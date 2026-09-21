@@ -5,7 +5,7 @@ import argparse
 import difflib
 import sys
 import textwrap
-from typing import Generator, NoReturn
+from typing import Generator
 
 from dbqm._version import __version__
 from dbqm.i18n import t
@@ -117,7 +117,7 @@ def _epilog(subparsers_action: argparse._SubParsersAction[argparse.ArgumentParse
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dbqm",
-        description=t("cli.description"),
+        description=f'{t("cli.description")}\n\n{t("cli.tui_moved")}',
         formatter_class=_Help,
     )
     parser.add_argument("-V", "--version", action="version", version=f"dbqm {__version__}")
@@ -542,19 +542,18 @@ def _resolve_the_language() -> None:
         resolve_language("")
 
 
-def refuse_without_a_terminal() -> NoReturn:
-    """`dbqm` with no arguments wants the TUI; a pipe cannot host one.
+def print_the_help() -> None:
+    """`dbqm` with no arguments: the help, on stdout, exit 0.
 
-    Measured before this existed: with stdin closed, the bare invocation
-    hung until the caller's timeout killed it -- exit 124 and nothing on
-    either stream. Whoever lands here is nearly always a script or an
-    agent that meant to run a command, so the whole help follows the
-    reason, on stderr, leaving stdout empty like every other failure.
+    Until 3.0.0 the bare invocation opened the interactive interface, and
+    a guard had to stop it doing that onto a pipe -- measured, it hung
+    until the caller's timeout killed it. The interface moved to
+    `dbqm tui` and this prints instead, so there is no console to require
+    and nothing to refuse. The notice at the top of the help is what a
+    long-time user reads on their first bare `dbqm` after upgrading.
     """
     _resolve_the_language()
-    print(t("tui.needs_a_terminal"), file=sys.stderr)
-    build_parser().print_help(sys.stderr)
-    sys.exit(int(exit_for("usage")))
+    build_parser().print_help()
 
 
 def _refuse_an_unknown_command(argv: list[str]) -> None:

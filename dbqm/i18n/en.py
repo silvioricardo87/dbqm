@@ -454,6 +454,7 @@ TEXTS: Final[dict[str, str]] = {
     "rows.table_not_found": 'Table "{name}" not found in {connection}.',
     "rows.showing_page": 'Showing {seen} of {total} rows. Use --offset {seen} for the next.',
     "cli.description": 'DB Query Manager - a CLI for querying databases',
+    "cli.tui_moved": 'Looking for the interactive interface? A bare `dbqm` used to open it.\nRun `dbqm tui` instead.',
     "cli.command_placeholder": 'One of the commands below',
     "cli.group.run": 'Run and compare',
     "cli.group.explore": 'Explore a database',
@@ -1102,6 +1103,5 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.multi": "Run one SELECT across two or more connections and compare the results by a common key.",
     "mcp.tool.sql": "Run one SQL statement on one connection. Read-only unless the server was started with --allow-write; DML needs commit=true; explain=true returns the plan.",
     # --- tui ---
-    "tui.needs_a_terminal": 'The interactive interface needs a terminal. Run `dbqm tui` in one, or use a command below.',
     "tui.needs_a_terminal_here": 'The interactive interface needs a terminal; this one is not.',
 }

@@ -2697,25 +2697,24 @@ class TestMainEntryPoint:
             dbqm_main()
             mock_cli.assert_called_once()
 
-    def test_main_no_args_routes_to_tui(self):
-        """main.py routes to Textual TUI when no args are provided and a
-        terminal is present."""
+    def test_main_no_args_prints_the_help_and_never_opens_the_tui(self, capsys):
+        """The 3.0.0 change, at the entry point: no arguments is the help."""
         from dbqm.main import main as dbqm_main
         with patch("sys.argv", ["dbqm"]), \
-             patch("dbqm.cli.terminal.has_a_console", return_value=True), \
+             patch("dbqm.ui.app.DBQMApp.run") as mock_run:
+            dbqm_main()
+        assert mock_run.call_count == 0
+        assert "run-group" in capsys.readouterr().out
+
+    def test_main_tui_command_still_opens_it(self, capsys):
+        """The interface did not go away; it acquired a name."""
+        from dbqm.main import main as dbqm_main
+        with patch("sys.argv", ["dbqm", "tui"]), \
+             patch("dbqm.cli.commands.tui_cmd.has_a_console", return_value=True), \
              patch("dbqm.core.paths.ensure_dirs"), \
              patch("dbqm.ui.app.DBQMApp.run") as mock_run:
             dbqm_main()
-            mock_run.assert_called_once()
-
-    def test_main_no_args_refuses_without_a_terminal(self):
-        """No arguments and no terminal: `dbqm` may not hang on a pipe."""
-        from dbqm.main import main as dbqm_main
-        with patch("sys.argv", ["dbqm"]), \
-             patch("dbqm.cli.terminal.has_a_console", return_value=False), \
-             pytest.raises(SystemExit) as caught:
-            dbqm_main()
-        assert caught.value.code == 2
+        mock_run.assert_called_once()
 
 
 class TestResolvePassword:

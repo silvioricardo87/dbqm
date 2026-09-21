@@ -33,9 +33,10 @@ with the one it probably meant (`dbqm ru` names `run`); a name nothing is
 close to falls through to argparse's own choice list. `dbqm describe-cli -f
 json` is the machine-readable form of the same surface, for a script or an
 agent — every command, subcommand and flag, read live from the parser. A
-bare `dbqm`, no arguments, opens the same interactive interface `dbqm tui`
-does — and, like `dbqm tui`, refuses where there is no terminal instead of
-hanging on a pipe, printing the help on stderr with exit 2.
+bare `dbqm`, no arguments, prints this same help on stdout and exits 0 — it
+needs no terminal, because it opens nothing. The interactive interface opens
+with `dbqm tui`, which refuses where there is no terminal instead of hanging
+on a pipe.
 
 ## Commands
 
@@ -147,12 +148,10 @@ dbqm oracle-client install 23.26.1.0.0
 dbqm oracle-client list -f json
 dbqm oracle-client rm instantclient_23_x64 --yes
 
-# Open the interactive interface. It is the same interface a bare `dbqm`
-# (no arguments) opens -- this command exists so the interface has a name
-# `--help` and `describe-cli` can list. Both refuse where there is no
-# terminal instead of hanging on a pipe: the bare form explains why on
-# stderr and prints the help there too, exit 2; `dbqm tui` answers the
-# same refusal as a `-f json` envelope with `error.code == "usage"`.
+# Open the interactive interface. This is the only way to open it now --
+# a bare `dbqm` (no arguments) prints the help instead. `dbqm tui` needs a
+# terminal and refuses without one instead of hanging on a pipe, answering
+# a `-f json` envelope with `error.code == "usage"`, exit 2.
 dbqm tui
 
 # Describe dbqm's own CLI surface: every command, recursing into subcommands

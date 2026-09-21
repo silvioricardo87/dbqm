@@ -455,6 +455,7 @@ TEXTS: Final[dict[str, str]] = {
     "rows.table_not_found": "Tabela '{name}' nao encontrada em {connection}.",
     "rows.showing_page": 'Mostrando {seen} de {total} linhas. Use --offset {seen} para as proximas.',
     "cli.description": 'DB Query Manager - ferramenta CLI para consultas em banco de dados',
+    "cli.tui_moved": 'Procurando a interface interativa? Antes o `dbqm` sozinho a abria.\nAgora rode `dbqm tui`.',
     "cli.command_placeholder": 'Um dos comandos abaixo',
     "cli.group.run": 'Executar e comparar',
     "cli.group.explore": 'Explorar um banco de dados',
@@ -1103,6 +1104,5 @@ TEXTS: Final[dict[str, str]] = {
     "mcp.tool.multi": "Executa um SELECT em duas ou mais conexoes e compara os resultados por uma chave comum.",
     "mcp.tool.sql": "Executa uma instrucao SQL em uma conexao. Somente leitura a menos que o servidor tenha sido iniciado com --allow-write; DML precisa de commit=true; explain=true retorna o plano.",
     # --- tui ---
-    "tui.needs_a_terminal": 'A interface interativa precisa de um terminal. Rode `dbqm tui` em um, ou use um comando abaixo.',
     "tui.needs_a_terminal_here": 'A interface interativa precisa de um terminal; este nao e um.',
 }

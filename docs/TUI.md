@@ -1,7 +1,7 @@
 # The terminal app
 
 dbqm's fullscreen interface: one tabbed dashboard, driven entirely from the
-keyboard. Run `dbqm` with no arguments to open it.
+keyboard. Run `dbqm tui` to open it.
 
 [← Back to the README](../README.md)
 
@@ -10,9 +10,9 @@ keyboard. Run `dbqm` with no arguments to open it.
 ## Opening it
 
 ```bash
-dbqm
+dbqm tui
 # or
-python -m dbqm
+python -m dbqm tui
 ```
 
 On first launch, the app creates its data directory (`~/.dbqm`), prompts you to configure your first database connection, and generates an encryption key.
