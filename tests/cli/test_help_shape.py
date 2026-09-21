@@ -12,7 +12,7 @@ from itertools import chain
 import pytest
 
 from dbqm.cli import COMMAND_GROUPS, COMMAND_MAP, EXAMPLES, build_parser
-from dbqm.i18n import t
+from dbqm.i18n import DEFAULT_LANGUAGE, available_languages, set_language, t
 
 
 @pytest.fixture
@@ -61,9 +61,20 @@ def test_the_version_flag_is_documented(help_text):
     assert "--version" in help_text and "-V" in help_text
 
 
-def test_no_line_is_wider_than_eighty_columns(help_text):
+@pytest.mark.parametrize("language", sorted(available_languages()))
+def test_no_line_is_wider_than_eighty_columns(monkeypatch, language):
+    """Measured once per language, not just the English the `help_text`
+    fixture defaults to: Portuguese sits at exactly 80 columns today, and
+    nothing about translating a help string suggests it could not go over.
+    """
+    monkeypatch.setenv("COLUMNS", "80")
+    set_language(language)
+    try:
+        help_text = build_parser().format_help()
+    finally:
+        set_language(DEFAULT_LANGUAGE)
     wide = [line for line in help_text.splitlines() if len(line) > 80]
-    assert not wide, wide
+    assert not wide, (language, wide)
 
 
 def test_every_example_starts_with_dbqm_and_names_a_real_command():
