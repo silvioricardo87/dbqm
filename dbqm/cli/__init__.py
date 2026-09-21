@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import NoReturn
+import textwrap
+from typing import Generator, NoReturn
 
+from dbqm._version import __version__
 from dbqm.i18n import t
 from dbqm.cli.commands import config_cmd as _config_commands
 from dbqm.cli.commands import connection as _connection_commands
@@ -38,13 +40,85 @@ from dbqm.cli.render import _print_query_result, console, rich_theme
 # Parser
 # ---------------------------------------------------------------------------
 
+#: Every command, under the heading it is listed beneath. A command in no
+#: group -- or in two -- fails `test_every_command_is_in_exactly_one_group`,
+#: because the epilog is the only place the help lists commands now and a
+#: command missing from it would be invisible.
+COMMAND_GROUPS: dict[str, tuple[str, ...]] = {
+    "cli.group.run": ("run", "run-group", "multi", "sql", "call"),
+    "cli.group.explore": ("test", "objects", "describe", "rows", "ddl"),
+    "cli.group.curate": ("list", "connection", "query", "group", "template"),
+    "cli.group.configure": ("config", "oracle-client", "export-config", "import-config"),
+    "cli.group.interfaces": ("tui", "mcp", "describe-cli", "history"),
+}
+
+#: Not catalogue keys, deliberately: a command line is not a sentence. It
+#: has to be identical in every language to stay copy-pasteable, and every
+#: flag in it is verified by `test_every_example_starts_with_dbqm_and_...`
+#: plus the parser itself.
+EXAMPLES: tuple[str, ...] = (
+    'dbqm connection add prod --type postgresql --host db --user u --password-stdin',
+    'dbqm sql "SELECT 1" prod -f json',
+    'dbqm objects prod --type TABLE',
+    'dbqm run monthly-invoices -p month=2026-09 -f json',
+    'dbqm multi "SELECT count(*) FROM orders" -c prod -c staging',
+    'dbqm tui',
+)
+
+
+class _Help(argparse.RawDescriptionHelpFormatter):
+    """Keeps the epilog's own layout, and lets it own the command list.
+
+    Without the override argparse prints all 23 commands flat under
+    "positional arguments" and the epilog prints them again, grouped.
+    """
+
+    def _iter_indented_subactions(
+        self, action: argparse.Action,
+    ) -> Generator[argparse.Action, None, None]:
+        if isinstance(action, argparse._SubParsersAction):
+            return
+        yield from super()._iter_indented_subactions(action)
+
+
+def _epilog(subparsers_action: argparse._SubParsersAction[argparse.ArgumentParser]) -> str:
+    """The grouped command list, the examples and the pointers.
+
+    Built from the parser that dispatches, never from a second hand-typed
+    list: each command's line carries the same `help=` string `--help` and
+    `describe-cli` already show, read the way `describe_cli` reads it.
+    """
+    help_by_name = {
+        choice_action.dest: choice_action.help or ""
+        for choice_action in subparsers_action._choices_actions
+    }
+    width = max(len(name) for names in COMMAND_GROUPS.values() for name in names)
+    # 4 spaces of indent, the name, two spaces: what is left of 80 columns
+    # is the budget for the help string, so no line wraps in a default
+    # terminal.
+    budget = 80 - (4 + width + 2)
+    lines = [t("cli.epilog.commands")]
+    for title, names in COMMAND_GROUPS.items():
+        lines.append("")
+        lines.append(f"  {t(title)}")
+        for name in names:
+            summary = textwrap.shorten(help_by_name.get(name, ""), width=budget, placeholder=" ...")
+            lines.append(f"    {name.ljust(width)}  {summary}")
+    lines.extend(["", t("cli.epilog.examples"), ""])
+    lines.extend(f"  {example}" for example in EXAMPLES)
+    lines.extend(["", t("cli.epilog.exit_codes"), "", t("cli.epilog.learn_more")])
+    return "\n".join(lines)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dbqm",
         description=t("cli.description"),
+        formatter_class=_Help,
     )
-    subparsers = parser.add_subparsers(dest="command")
+    parser.add_argument("-V", "--version", action="version", version=f"dbqm {__version__}")
+    subparsers = parser.add_subparsers(dest="command", metavar="<command>",
+                                       help=t("cli.command_placeholder"))
     # `cmd_describe_cli` (in `dbqm.cli.commands.describe_cli`) walks this same
     # action to describe every command below -- the same reference, so every
     # `add_parser` call from here on is visible to it without a second list.
@@ -416,6 +490,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_describe_cli.add_argument("-f", "--format", choices=["table", "json"], default="table",
                                 help=t("help.describe_cli.format"))
 
+    # After every `add_parser`, so the epilog sees the whole set.
+    parser.epilog = _epilog(subparsers)
     return parser
 
 

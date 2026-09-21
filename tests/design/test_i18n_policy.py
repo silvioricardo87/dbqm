@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import re
+from itertools import chain
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,10 @@ WORDS = [
     "tabela", "rotina", "pacote", "registro", "vazio",
 ]
 MARKER_WORD = re.compile(r"\b(" + "|".join(WORDS) + r")\b", re.IGNORECASE)
+
+#: A `t("some.key")` call site, read as text rather than parsed: good enough
+#: to collect the keys a module reaches, which is all this needs.
+_KEY = re.compile(r't\("([\w.]+)"')
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
@@ -231,6 +236,32 @@ def test_portuguese_carries_no_accents():
         if any(c in text for c in "áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ")
     }
     assert not accented, f"accents in the Portuguese catalogue: {accented}"
+
+
+def test_a_key_the_cli_prints_is_plain_ascii():
+    """The console the CLI prints to is not always UTF-8.
+
+    Measured on Windows: the em dash in `cli.description` left the process
+    as a single cp1252 byte, which a UTF-8 terminal draws as a replacement
+    character; an emoji would have raised `UnicodeEncodeError` outright.
+    So a key reached from `dbqm/cli/` or `dbqm/ops/` stays ASCII.
+
+    Deliberately NOT repo-wide: the TUI's tab emoji are identity, Textual
+    renders them correctly, and a blanket rule would forbid them.
+    """
+    from dbqm.i18n import en, pt
+
+    keys = set()
+    for path in chain((REPO_ROOT / "dbqm" / "cli").rglob("*.py"),
+                       (REPO_ROOT / "dbqm" / "ops").rglob("*.py")):
+        keys.update(_KEY.findall(path.read_text(encoding="utf-8")))
+    offenders = []
+    for catalogue, name in ((en.TEXTS, "en"), (pt.TEXTS, "pt")):
+        for key in sorted(keys):
+            value = catalogue.get(key, "")
+            if not value.isascii():
+                offenders.append((name, key, value))
+    assert not offenders, offenders
 
 
 def test_english_is_the_default():
