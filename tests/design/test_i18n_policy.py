@@ -54,7 +54,7 @@ MARKER_WORD = re.compile(r"\b(" + "|".join(WORDS) + r")\b", re.IGNORECASE)
 
 #: A `t("some.key")` call site, read as text rather than parsed: good enough
 #: to collect the keys a module reaches, which is all this needs.
-_KEY = re.compile(r't\("([\w.]+)"')
+_KEY = re.compile(r't\(\s*[\'"]([\w.]+)[\'"]')
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.

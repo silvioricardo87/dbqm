@@ -57,7 +57,7 @@ COMMAND_GROUPS: dict[str, tuple[str, ...]] = {
 #: flag in it is verified by `test_every_example_starts_with_dbqm_and_...`
 #: plus the parser itself.
 EXAMPLES: tuple[str, ...] = (
-    'dbqm connection add prod --type postgresql --host db --user u --password-stdin',
+    'dbqm connection add prod --type mysql --host db --user app --password-stdin',
     'dbqm sql "SELECT 1" prod -f json',
     'dbqm objects prod --type TABLE',
     'dbqm run monthly-invoices -p month=2026-09 -f json',
