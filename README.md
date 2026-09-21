@@ -74,7 +74,9 @@ dbqm rows orders prod --limit 20
 
 Twenty-one commands, and **not one of them needs a terminal**: no prompts you
 cannot answer with a flag, no output you cannot get as JSON. That is what makes
-dbqm usable from a script, from CI, or from an agent.
+dbqm usable from a script, from CI, or from an agent. `dbqm tui` opens the
+same interactive interface a bare `dbqm` does; `dbqm --help` lists every
+command, grouped by what it is for.
 
 - **One envelope for every command.** Success prints
   `{"ok": true, "command": "...", "data": {...}}` on stdout; failure prints

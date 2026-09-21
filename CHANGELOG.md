@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [2.14.0] — 2026-09-21
+
+### Added
+
+- `dbqm tui` opens the interactive interface from the CLI's surface, so it
+  has a name `--help` and `describe-cli` list.
+- `dbqm --help` groups the commands by what they are for, and carries
+  examples, the exit-code table and where to look next; `-V`/`--version` is
+  declared on the parser so the help mentions it.
+- An unknown command that is close to a real one is answered with that one
+  (`dbqm ru` names `run`).
+
+### Changed
+
+- `DBQMApp.__init__` is annotated, so callers need no type suppression.
+
+### Fixed
+
+- `dbqm` with no arguments no longer opens a fullscreen app onto a pipe.
+  Without a terminal it explained nothing and hung until it was killed; it
+  now says why and prints the help on stderr, exit 2.
+- The three catalogue strings the CLI prints use a hyphen instead of an em
+  dash, which a Windows console emitted as a single cp1252 byte. A guard
+  keeps every catalogue key the CLI or the operations layer reaches ASCII;
+  the TUI's emoji are untouched.
+
 ## [2.13.0] — 2026-09-20
 
 ### Added
