@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import sys
 import textwrap
 from typing import Generator, NoReturn
@@ -553,11 +554,33 @@ def refuse_without_a_terminal() -> NoReturn:
     sys.exit(int(exit_for("usage")))
 
 
+def _refuse_an_unknown_command(argv: list[str]) -> None:
+    """Name the near miss before argparse names all twenty-three choices.
+
+    `dbqm ru` used to answer with the whole choice list, twice. argparse
+    learned to suggest in Python 3.14; the floor here is 3.10, so the
+    suggestion is made from the same map that dispatches. Silence when
+    nothing is close: argparse's list is the right answer then.
+
+    Not routed through `envelope.fail`: the format flag belongs to a
+    command, and there is no command here. Plain text on stderr, exit 2,
+    stdout empty -- the same shape argparse itself uses.
+    """
+    if not argv or argv[0].startswith("-") or argv[0] in COMMAND_MAP:
+        return
+    near = difflib.get_close_matches(argv[0], list(COMMAND_MAP), n=1, cutoff=0.6)
+    if not near:
+        return
+    print(t("cli.unknown_command", name=argv[0], suggestion=near[0]), file=sys.stderr)
+    sys.exit(int(exit_for("usage")))
+
+
 def run_cli(argv: list[str] | None = None) -> bool:
     """Parse CLI args and execute command. Returns True if a command was handled."""
     # Before the parser: `--help` renders flag descriptions, which are
     # user-facing text like any other.
     _resolve_the_language()
+    _refuse_an_unknown_command(list(argv) if argv is not None else sys.argv[1:])
 
     parser = build_parser()
     args = parser.parse_args(argv)
