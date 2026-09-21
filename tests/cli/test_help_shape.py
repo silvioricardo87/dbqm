@@ -6,6 +6,7 @@ invalid choice. These tests pin the shape that replaced it.
 """
 from __future__ import annotations
 
+import shlex
 from itertools import chain
 
 import pytest
@@ -70,3 +71,16 @@ def test_every_example_starts_with_dbqm_and_names_a_real_command():
         parts = example.split()
         assert parts[0] == "dbqm", example
         assert parts[1] in COMMAND_MAP, example
+
+
+def test_every_example_parses_against_the_real_parser():
+    """Catches a malformed flag or a missing required argument -- not the
+    semantic case of a `multi` example with a single column, which the
+    parser has no way to know is wrong."""
+    parser = build_parser()
+    for example in EXAMPLES:
+        tokens = shlex.split(example)[1:]
+        try:
+            parser.parse_args(tokens)
+        except SystemExit as exc:
+            pytest.fail(f"{example!r} did not parse: exit {exc.code}")

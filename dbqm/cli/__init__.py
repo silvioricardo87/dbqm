@@ -56,13 +56,16 @@ COMMAND_GROUPS: dict[str, tuple[str, ...]] = {
 #: Not catalogue keys, deliberately: a command line is not a sentence. It
 #: has to be identical in every language to stay copy-pasteable, and every
 #: flag in it is verified by `test_every_example_starts_with_dbqm_and_...`
-#: plus the parser itself.
+#: plus the parser itself. A `multi` example needs a query with at least
+#: two selected columns: `multi` compares the non-key columns across
+#: connections, and a one-column result set leaves nothing to compare, so
+#: it always exits 2.
 EXAMPLES: tuple[str, ...] = (
     'dbqm connection add prod --type mysql --host db --user app --password-stdin',
     'dbqm sql "SELECT 1" prod -f json',
     'dbqm objects prod --type TABLE',
     'dbqm run monthly-invoices -p month=2026-09 -f json',
-    'dbqm multi "SELECT count(*) FROM orders" -c prod -c staging',
+    'dbqm multi "SELECT id, total FROM orders" -c prod -c staging',
     'dbqm tui',
 )
 
