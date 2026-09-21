@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import difflib
+import sys
+import textwrap
+from typing import Generator, NoReturn
 
+from dbqm._version import __version__
 from dbqm.i18n import t
 from dbqm.cli.commands import config_cmd as _config_commands
 from dbqm.cli.commands import connection as _connection_commands
@@ -20,6 +25,8 @@ from dbqm.cli.commands.oracle_client import cmd_oracle_client
 from dbqm.cli.commands.query import cmd_call, cmd_multi, cmd_run, cmd_run_group, cmd_sql
 from dbqm.cli.commands.saved import cmd_group, cmd_query, cmd_template
 from dbqm.cli.commands.schema import cmd_describe, cmd_objects, cmd_rows
+from dbqm.cli.commands.tui_cmd import cmd_tui
+from dbqm.cli.errors import exit_for
 from dbqm.cli.params import (
     _add_connection_fields,
     _add_group_fields,
@@ -34,13 +41,88 @@ from dbqm.cli.render import _print_query_result, console, rich_theme
 # Parser
 # ---------------------------------------------------------------------------
 
+#: Every command, under the heading it is listed beneath. A command in no
+#: group -- or in two -- fails `test_every_command_is_in_exactly_one_group`,
+#: because the epilog is the only place the help lists commands now and a
+#: command missing from it would be invisible.
+COMMAND_GROUPS: dict[str, tuple[str, ...]] = {
+    "cli.group.run": ("run", "run-group", "multi", "sql", "call"),
+    "cli.group.explore": ("test", "objects", "describe", "rows", "ddl"),
+    "cli.group.curate": ("list", "connection", "query", "group", "template"),
+    "cli.group.configure": ("config", "oracle-client", "export-config", "import-config"),
+    "cli.group.interfaces": ("tui", "mcp", "describe-cli", "history"),
+}
+
+#: Not catalogue keys, deliberately: a command line is not a sentence. It
+#: has to be identical in every language to stay copy-pasteable, and every
+#: flag in it is verified by `test_every_example_starts_with_dbqm_and_...`
+#: plus the parser itself. A `multi` example needs a query with at least
+#: two selected columns: `multi` compares the non-key columns across
+#: connections, and a one-column result set leaves nothing to compare, so
+#: it always exits 2.
+EXAMPLES: tuple[str, ...] = (
+    'dbqm connection add prod --type mysql --host db --user app --password-stdin',
+    'dbqm sql "SELECT 1" prod -f json',
+    'dbqm objects prod --type TABLE',
+    'dbqm run monthly-invoices -p month=2026-09 -f json',
+    'dbqm multi "SELECT id, total FROM orders" -c prod -c staging',
+    'dbqm tui',
+)
+
+
+class _Help(argparse.RawDescriptionHelpFormatter):
+    """Keeps the epilog's own layout, and lets it own the command list.
+
+    Without the override argparse prints all 23 commands flat under
+    "positional arguments" and the epilog prints them again, grouped.
+    """
+
+    def _iter_indented_subactions(
+        self, action: argparse.Action,
+    ) -> Generator[argparse.Action, None, None]:
+        if isinstance(action, argparse._SubParsersAction):
+            return
+        yield from super()._iter_indented_subactions(action)
+
+
+def _epilog(subparsers_action: argparse._SubParsersAction[argparse.ArgumentParser]) -> str:
+    """The grouped command list, the examples and the pointers.
+
+    Built from the parser that dispatches, never from a second hand-typed
+    list: each command's line carries the same `help=` string `--help` and
+    `describe-cli` already show, read the way `describe_cli` reads it.
+    """
+    help_by_name = {
+        choice_action.dest: choice_action.help or ""
+        for choice_action in subparsers_action._choices_actions
+    }
+    width = max(len(name) for names in COMMAND_GROUPS.values() for name in names)
+    # 4 spaces of indent, the name, two spaces: what is left of 80 columns
+    # is the budget for the help string, so no line wraps in a default
+    # terminal.
+    budget = 80 - (4 + width + 2)
+    lines = [t("cli.epilog.commands")]
+    for title, names in COMMAND_GROUPS.items():
+        lines.append("")
+        lines.append(f"  {t(title)}")
+        for name in names:
+            summary = textwrap.shorten(help_by_name.get(name, ""), width=budget, placeholder=" ...")
+            lines.append(f"    {name.ljust(width)}  {summary}")
+    lines.extend(["", t("cli.epilog.examples"), ""])
+    lines.extend(f"  {example}" for example in EXAMPLES)
+    lines.extend(["", t("cli.epilog.exit_codes"), "", t("cli.epilog.learn_more")])
+    return "\n".join(lines)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dbqm",
         description=t("cli.description"),
+        formatter_class=_Help,
     )
-    subparsers = parser.add_subparsers(dest="command")
+    parser.add_argument("-V", "--version", action="version", version=f"dbqm {__version__}")
+    subparsers = parser.add_subparsers(dest="command", metavar="<command>",
+                                       help=t("cli.command_placeholder"))
     # `cmd_describe_cli` (in `dbqm.cli.commands.describe_cli`) walks this same
     # action to describe every command below -- the same reference, so every
     # `add_parser` call from here on is visible to it without a second list.
@@ -395,6 +477,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_oc_rm.add_argument("-f", "--format", choices=["table", "json"], default="table",
                          help=t("help.describe_cli.format"))
 
+    # --- tui ---
+    subparsers.add_parser("tui", help=t("help.cmd.tui"))
+
     # --- mcp ---
     p_mcp = subparsers.add_parser("mcp", help=t("help.cmd.mcp"))
     p_mcp.add_argument("--allow-write", action="store_true", help=t("help.mcp.allow_write"))
@@ -409,6 +494,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_describe_cli.add_argument("-f", "--format", choices=["table", "json"], default="table",
                                 help=t("help.describe_cli.format"))
 
+    # After every `add_parser`, so the epilog sees the whole set.
+    parser.epilog = _epilog(subparsers)
     return parser
 
 
@@ -433,6 +520,7 @@ COMMAND_MAP = {
     "objects": cmd_objects,
     "describe": cmd_describe,
     "rows": cmd_rows,
+    "tui": cmd_tui,
     "mcp": cmd_mcp,
     "describe-cli": cmd_describe_cli,
 }
@@ -454,11 +542,48 @@ def _resolve_the_language() -> None:
         resolve_language("")
 
 
+def refuse_without_a_terminal() -> NoReturn:
+    """`dbqm` with no arguments wants the TUI; a pipe cannot host one.
+
+    Measured before this existed: with stdin closed, the bare invocation
+    hung until the caller's timeout killed it -- exit 124 and nothing on
+    either stream. Whoever lands here is nearly always a script or an
+    agent that meant to run a command, so the whole help follows the
+    reason, on stderr, leaving stdout empty like every other failure.
+    """
+    _resolve_the_language()
+    print(t("tui.needs_a_terminal"), file=sys.stderr)
+    build_parser().print_help(sys.stderr)
+    sys.exit(int(exit_for("usage")))
+
+
+def _refuse_an_unknown_command(argv: list[str]) -> None:
+    """Name the near miss before argparse names all twenty-three choices.
+
+    `dbqm ru` used to answer with the whole choice list, twice. argparse
+    learned to suggest in Python 3.14; the floor here is 3.10, so the
+    suggestion is made from the same map that dispatches. Silence when
+    nothing is close: argparse's list is the right answer then.
+
+    Not routed through `envelope.fail`: the format flag belongs to a
+    command, and there is no command here. Plain text on stderr, exit 2,
+    stdout empty -- the same shape argparse itself uses.
+    """
+    if not argv or argv[0].startswith("-") or argv[0] in COMMAND_MAP:
+        return
+    near = difflib.get_close_matches(argv[0], list(COMMAND_MAP), n=1, cutoff=0.6)
+    if not near:
+        return
+    print(t("cli.unknown_command", name=argv[0], suggestion=near[0]), file=sys.stderr)
+    sys.exit(int(exit_for("usage")))
+
+
 def run_cli(argv: list[str] | None = None) -> bool:
     """Parse CLI args and execute command. Returns True if a command was handled."""
     # Before the parser: `--help` renders flag descriptions, which are
     # user-facing text like any other.
     _resolve_the_language()
+    _refuse_an_unknown_command(list(argv) if argv is not None else sys.argv[1:])
 
     parser = build_parser()
     args = parser.parse_args(argv)

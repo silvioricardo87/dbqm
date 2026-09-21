@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import re
+from itertools import chain
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,13 @@ WORDS = [
     "tabela", "rotina", "pacote", "registro", "vazio",
 ]
 MARKER_WORD = re.compile(r"\b(" + "|".join(WORDS) + r")\b", re.IGNORECASE)
+
+#: A `t("some.key")` call site, read as text rather than parsed: good enough
+#: to collect the keys a module reaches, which is all this needs. The
+#: negative lookbehind is a left boundary -- without it, `print("...")` and
+#: `.get("...")` contribute phantom keys, because the pattern matches the
+#: `t(` at the end of "prin`t(`" or ".ge`t(`" just as happily as a real call.
+_KEY = re.compile(r'(?<![\w.])t\(\s*[\'"]([\w.]+)[\'"]')
 
 #: Measured when the catalogue landed. This number goes DOWN as modules move
 #: over, never up. Lowering it is the whole point.
@@ -231,6 +239,44 @@ def test_portuguese_carries_no_accents():
         if any(c in text for c in "áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ")
     }
     assert not accented, f"accents in the Portuguese catalogue: {accented}"
+
+
+#: `connection.py:_print_connection_outcome` looks these up through
+#: `_CONNECTION_OUTCOME_KEY[outcome]` -- a key held in a dict, never typed
+#: as a literal inside a `t(...)` call -- so `_KEY` cannot see them. They are
+#: CLI-printed (the Rich branch of `_print_connection_outcome`, in
+#: `dbqm/cli/commands/connection.py`) and belong in the same ASCII check as
+#: every key `_KEY` finds by pattern.
+_DICT_HELD_CLI_KEYS = {"connection.created", "connection.updated", "connection.removed"}
+
+
+def test_a_key_the_cli_prints_is_plain_ascii():
+    """The console the CLI prints to is not always UTF-8.
+
+    Measured on Windows: the em dash in `cli.description` left the process
+    as a single cp1252 byte, which a UTF-8 terminal draws as a replacement
+    character; an emoji would have raised `UnicodeEncodeError` outright.
+    So a key whose name appears as a literal in a `t()` call under
+    `dbqm/cli/` or `dbqm/ops/` stays ASCII, plus the handful of keys named
+    in `_DICT_HELD_CLI_KEYS` that reach `t()` only through a dict lookup and
+    so are invisible to the pattern that finds the rest.
+
+    Deliberately NOT repo-wide: the TUI's tab emoji are identity, Textual
+    renders them correctly, and a blanket rule would forbid them.
+    """
+    from dbqm.i18n import en, pt
+
+    keys = set(_DICT_HELD_CLI_KEYS)
+    for path in chain((REPO_ROOT / "dbqm" / "cli").rglob("*.py"),
+                       (REPO_ROOT / "dbqm" / "ops").rglob("*.py")):
+        keys.update(_KEY.findall(path.read_text(encoding="utf-8")))
+    offenders = []
+    for catalogue, name in ((en.TEXTS, "en"), (pt.TEXTS, "pt")):
+        for key in sorted(keys):
+            value = catalogue.get(key, "")
+            if not value.isascii():
+                offenders.append((name, key, value))
+    assert not offenders, offenders
 
 
 def test_english_is_the_default():

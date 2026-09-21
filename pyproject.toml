@@ -150,7 +150,7 @@ module = [
     "dbqm.main",                       # 1
     "dbqm.models.group",               # 6
     "dbqm.models.query",               # 6
-    "dbqm.ui.app",                     # 20
+    "dbqm.ui.app",                     # 19
     "dbqm.ui.screens.adhoc",           # 12
     "dbqm.ui.screens.browser",         # 20
     "dbqm.ui.screens.connections",     # 5

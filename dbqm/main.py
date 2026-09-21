@@ -26,12 +26,21 @@ def main() -> None:
             print(t("common.unexpected_error", error=e), file=sys.stderr)
             sys.exit(1)
 
-    # Ensure data directories exist before launching TUI
+    # Interactive TUI. A terminal is required: see
+    # `dbqm.cli.refuse_without_a_terminal` for what used to happen without one.
+    from dbqm.cli.terminal import has_a_console
+
+    if not has_a_console():
+        from dbqm.cli import refuse_without_a_terminal
+
+        refuse_without_a_terminal()
+
     from dbqm.core.paths import ensure_dirs
+
     ensure_dirs()
 
-    # Interactive TUI
     from dbqm.ui.app import DBQMApp
+
     DBQMApp().run()
 
 

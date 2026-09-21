@@ -26,7 +26,7 @@ dbqm/
 │   ├── errors.py       # ExitCode (IntEnum) and the token -> exit-code table
 │   ├── render.py       # table / csv / raw output
 │   ├── params.py       # _parse_params, resolve_password
-│   └── commands/       # One module per group: query, connection, inspect, config_bundle
+│   └── commands/       # One module per group: query, connection, inspect, config_bundle, tui_cmd
 ├── ops/               # The operations layer: what dbqm does, as functions that return values
 │   ├── __init__.py     # Layer docstring; imports nothing -- modules are reached qualified (`from dbqm.ops import compare`)
 │   ├── deps.py         # What ops/ and the CLI consume from core/ and models/, in one place (the tests' patch path)
@@ -254,6 +254,15 @@ function, so the two front ends cannot drift apart silently.
   or vanish from the very message meant to show it.
 - Exit codes for `connection`: `0` ok, `2` usage / not found / validation,
   `3` `--test` failed. The project-wide code table is still unbuilt (backlog `X1`).
+- `--help`'s grouped command list (`COMMAND_GROUPS`) is built from the same
+  parser that dispatches: `_epilog` reads each subparser's own `help=` string
+  rather than a second hand-typed list, so a command's one-line summary can
+  never drift from what `--help` and `describe-cli` already show for it.
+- A bare `dbqm` (no arguments) and `dbqm tui` both want the same interactive
+  interface, and both refuse it under a non-terminal stdin instead of hanging
+  on a pipe (`refuse_without_a_terminal` / `cmd_tui`) -- measured before the
+  fix: with stdin closed, the bare invocation hung until the caller's timeout
+  killed it, exit 124, nothing on either stream.
 
 ### UI conventions
 - **No screen text is written in a widget.** Labels, messages, placeholders

@@ -236,8 +236,8 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
   unit test and belongs elsewhere; `test_harness.py` enforces the rule by
   reading the folder. Every scenario in `docs/qa/*.md` names its test, and
   `tests/design/test_qa_traceability.py` fails when the reference is wrong.
-- Run: `python -m pytest tests/ -x -q` (currently **1905** tests, of which
-  224 in `tests/functional/` and 66 in `tests/design/` — the color, layout,
+- Run: `python -m pytest tests/ -x -q` (currently **1940** tests, of which
+  225 in `tests/functional/` and 71 in `tests/design/` — the color, layout,
   typing-policy and QA-traceability guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory

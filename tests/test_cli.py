@@ -2698,13 +2698,24 @@ class TestMainEntryPoint:
             mock_cli.assert_called_once()
 
     def test_main_no_args_routes_to_tui(self):
-        """main.py routes to Textual TUI when no args are provided."""
+        """main.py routes to Textual TUI when no args are provided and a
+        terminal is present."""
         from dbqm.main import main as dbqm_main
         with patch("sys.argv", ["dbqm"]), \
+             patch("dbqm.cli.terminal.has_a_console", return_value=True), \
              patch("dbqm.core.paths.ensure_dirs"), \
              patch("dbqm.ui.app.DBQMApp.run") as mock_run:
             dbqm_main()
             mock_run.assert_called_once()
+
+    def test_main_no_args_refuses_without_a_terminal(self):
+        """No arguments and no terminal: `dbqm` may not hang on a pipe."""
+        from dbqm.main import main as dbqm_main
+        with patch("sys.argv", ["dbqm"]), \
+             patch("dbqm.cli.terminal.has_a_console", return_value=False), \
+             pytest.raises(SystemExit) as caught:
+            dbqm_main()
+        assert caught.value.code == 2
 
 
 class TestResolvePassword:
