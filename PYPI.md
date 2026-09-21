@@ -39,15 +39,16 @@ download and install it for you from **Settings › Oracle Instant Client**.
 ## Use it interactively
 
 ```bash
-dbqm
+dbqm tui
 ```
 
 An eight-tab dashboard (`F1`–`F8`): collect, connections, objects, multi-exec,
 history, settings, queries and tools. Fully keyboard-driven, dark and light
 themes.
 
-On first launch it creates `~/.dbqm/`, generates an encryption key and walks you
-through your first connection.
+On first use it creates `~/.dbqm/`, generates an encryption key and walks you
+through your first connection. A bare `dbqm`, no arguments, prints the help
+instead of opening this.
 
 ## Use it from a script
 

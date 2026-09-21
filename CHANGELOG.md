@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [3.0.0] — 2026-09-21
+
+`dbqm` with no arguments changes what it does — this is why it is a major
+release.
+
+### Changed
+
+- **BREAKING: `dbqm` with no arguments prints the help on stdout and exits
+  0.** It used to open the interactive interface. `dbqm tui` opens it now,
+  and the help says so in its first lines. Anything that ran a bare `dbqm`
+  to get the interface needs to run `dbqm tui` instead.
+
+### Removed
+
+- The no-terminal refusal on the bare invocation, and the catalogue key
+  behind it. The bare form opens nothing, so it cannot hang. `dbqm tui`
+  still refuses without a console.
+
 ## [2.14.0] — 2026-09-21
 
 ### Added

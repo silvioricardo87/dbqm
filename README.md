@@ -74,9 +74,9 @@ dbqm rows orders prod --limit 20
 
 **Every command but `dbqm tui` runs without a terminal**: no prompts you
 cannot answer with a flag, no output you cannot get as JSON. That is what makes
-dbqm usable from a script, from CI, or from an agent. `dbqm tui` opens the
-same interactive interface a bare `dbqm` does; `dbqm --help` lists every
-command, grouped by what it is for.
+dbqm usable from a script, from CI, or from an agent. The interactive interface
+opens with `dbqm tui`; a bare `dbqm`, no arguments, prints the help and exits
+0. `dbqm --help` lists every command, grouped by what it is for.
 
 - **One envelope for every command but `tui` and `mcp`.** Success prints
   `{"ok": true, "command": "...", "data": {...}}` on stdout; failure prints
@@ -114,7 +114,7 @@ eleven tools and what each one takes: **[docs/MCP.md](./docs/MCP.md)**.
 ## The terminal application
 
 ```bash
-dbqm
+dbqm tui
 ```
 
 ![A saved query running against a connection, with its result table](docs/img/queries.svg)

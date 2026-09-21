@@ -258,11 +258,13 @@ function, so the two front ends cannot drift apart silently.
   parser that dispatches: `_epilog` reads each subparser's own `help=` string
   rather than a second hand-typed list, so a command's one-line summary can
   never drift from what `--help` and `describe-cli` already show for it.
-- A bare `dbqm` (no arguments) and `dbqm tui` both want the same interactive
-  interface, and both refuse it under a non-terminal stdin instead of hanging
-  on a pipe (`refuse_without_a_terminal` / `cmd_tui`) -- measured before the
-  fix: with stdin closed, the bare invocation hung until the caller's timeout
-  killed it, exit 124, nothing on either stream.
+- A bare `dbqm` (no arguments) prints the help on stdout and exits 0; it opens
+  nothing, so it needs no console and cannot hang. The interactive interface
+  opens only with `dbqm tui`, which refuses under a non-terminal stdin instead
+  of hanging on a pipe (`has_a_console` / `cmd_tui`). `has_a_console` exists
+  because of what a bare `dbqm` used to do, measured before the fix: with
+  stdin closed, it hung until the caller's timeout killed it, exit 124, with
+  eighty bytes of escape codes on stdout and nothing on stderr.
 
 ### UI conventions
 - **No screen text is written in a widget.** Labels, messages, placeholders

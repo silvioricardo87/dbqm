@@ -52,10 +52,10 @@ unstarted migration — they are not the same debt.
 
 ## Project Overview
 
-**dbqm** (Database Query Manager) — Fullscreen TUI tool for managing and
-executing SQL queries across **Oracle, SQL Server, PostgreSQL, and MySQL**.
-Built with **Python + Textual**. Ships a non-interactive **CLI** for scripted
-use (evidence collection, CI, ad-hoc execution).
+**dbqm** (Database Query Manager) — a scriptable **CLI** for managing and
+executing SQL queries across **Oracle, SQL Server, PostgreSQL, and MySQL**
+(evidence collection, CI, ad-hoc execution). `dbqm tui` opens its fullscreen
+interactive interface, built with **Python + Textual**.
 
 - Entry point (console script): `dbqm.main:main` (declared in `pyproject.toml`)
 - Module entry: `python -m dbqm` (`dbqm/__main__.py`) and `python -m dbqm <cmd>` for the CLI
@@ -236,7 +236,7 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
   unit test and belongs elsewhere; `test_harness.py` enforces the rule by
   reading the folder. Every scenario in `docs/qa/*.md` names its test, and
   `tests/design/test_qa_traceability.py` fails when the reference is wrong.
-- Run: `python -m pytest tests/ -x -q` (currently **1940** tests, of which
+- Run: `python -m pytest tests/ -x -q` (currently **1946** tests, of which
   225 in `tests/functional/` and 71 in `tests/design/` — the color, layout,
   typing-policy and QA-traceability guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
