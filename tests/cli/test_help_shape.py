@@ -29,6 +29,17 @@ def test_every_command_is_in_exactly_one_group():
     assert len(grouped) == len(set(grouped))
 
 
+def test_the_help_says_where_the_interface_went(help_text):
+    """The maintainer asked for this near the top: someone who has typed
+    `dbqm` for years must learn the new way without reading a manual."""
+    from dbqm.i18n import t
+
+    notice = t("cli.tui_moved")
+    assert notice in help_text
+    # Above the command list, not buried under it.
+    assert help_text.index(notice) < help_text.index(t("cli.epilog.commands"))
+
+
 def test_the_usage_line_does_not_list_every_command(help_text):
     usage = help_text.split("\n\n")[0]
     assert "run-group" not in usage

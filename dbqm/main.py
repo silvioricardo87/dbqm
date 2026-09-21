@@ -26,22 +26,12 @@ def main() -> None:
             print(t("common.unexpected_error", error=e), file=sys.stderr)
             sys.exit(1)
 
-    # Interactive TUI. A terminal is required: see
-    # `dbqm.cli.refuse_without_a_terminal` for what used to happen without one.
-    from dbqm.cli.terminal import has_a_console
+    # No command: the help, on stdout, exit 0. Until 3.0.0 this opened the
+    # interactive interface; `dbqm tui` does that now, and the help says so
+    # in its first lines.
+    from dbqm.cli import print_the_help
 
-    if not has_a_console():
-        from dbqm.cli import refuse_without_a_terminal
-
-        refuse_without_a_terminal()
-
-    from dbqm.core.paths import ensure_dirs
-
-    ensure_dirs()
-
-    from dbqm.ui.app import DBQMApp
-
-    DBQMApp().run()
+    print_the_help()
 
 
 if __name__ == "__main__":
