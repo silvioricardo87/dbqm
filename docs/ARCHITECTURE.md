@@ -530,11 +530,17 @@ to each guard before concluding "the guard is green, so the rule holds".
   works, but it trades seven tab names for icons and still leaves eight tabs
   where the grammar asks for about seven.
 
-  **What this decision reaches beyond one bug:** several guards and debt entries
-  in this file are calibrated to 80x24 as the reference size. If 80 columns is
-  not a target, that calibration is worth revisiting deliberately rather than
-  drifting — it is the baseline `tests/design/test_vertical_overflow.py` and the
-  history measurement both assume.
+  **What this decision reached beyond one bug** — and was revisited on purpose
+  in 3.1.0: the reference size is **120 columns** now, not 80. The design
+  guards (`tests/design/test_vertical_overflow.py`) and the baseline renders
+  measure 120, each keeping its own height. Three things deliberately did not
+  move. The tests whose premise is a narrow window keep 80, because a window
+  can still be dragged below the floor and eliding has to keep working there.
+  No layout, CSS or elision threshold changed, so the two 76-column list
+  panels are still sized from 80 -- widening them is a visible change decided
+  on a rendering. And the measurements above that were taken at 80x24 stay
+  as written: they are history, and restating them at a size they were not
+  taken at would falsify the record.
 - **Two vocabularies for the action row.** `adhoc` uses auto-width buttons anchored
   left; `connections` uses full-width buttons with centred labels — byte for byte
   the "full-width buttons pretending to be a menu" that §7 criticises. It escapes
