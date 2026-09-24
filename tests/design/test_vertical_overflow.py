@@ -129,7 +129,7 @@ async def test_capped_panel_scrolls_the_excess_instead_of_clipping():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("size", [(100, 24), (80, 24), (100, 40)])
+@pytest.mark.parametrize("size", [(100, 24), (120, 24), (100, 40)])
 async def test_exec_routine_indicator_visible_during_the_search(tmp_config_dir, size):
     """The "listando..." feedback has to be DRAWN, at any height.
 
@@ -198,7 +198,7 @@ async def test_oracle_clients_sections_do_not_each_eat_the_screen(monkeypatch):
             yield screen_mod.OracleClientsScreen()
 
     app = _App()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         await pilot.pause()
         await pilot.wait_for_scheduled_animations()
         await pilot.pause()
@@ -257,7 +257,7 @@ async def test_config_port_only_the_export_passes_the_fold(tmp_config_dir, mode,
             yield ConfigPortScreen(initial_mode=mode)
 
     app = _App()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         from tests.ui._helpers import wait_until
 
         await pilot.pause()
@@ -310,7 +310,7 @@ async def test_package_editor_compilation_errors_fit_and_scroll(tmp_config_dir):
             yield PackageEditorScreen()
 
     app = _App()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         await pilot.pause()
         if len(app.screen_stack) > 1:  # the package choice modal
             app.pop_screen()

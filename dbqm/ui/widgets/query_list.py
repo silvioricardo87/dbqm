@@ -38,10 +38,11 @@ from dbqm.ui.widgets.hierarchical_list import (
 # render (see `hierarchical_item`), and breaking on `\n` requires knowing
 # the width before the render.
 #
-# 76 is the width the panel already had in the narrowest terminal the
-# product supports (80 columns minus the screen's `margin: 1 2 0 2`, 4
-# columns). Chosen that way on purpose: at 80x24 nothing moves, and only
-# wider terminals pay the price.
+# 76 is the width the panel already had at 80 columns (80 minus the
+# screen's `margin: 1 2 0 2`, 4 columns), which was the floor until 3.1.0.
+# The reference is 120 since then, and 76 was left alone on purpose: at 80
+# nothing moves, a window dragged that narrow still lays out, and widening
+# the panel is a visible change decided on a rendering, not a recalibration.
 LIST_PANEL_WIDTH = 76
 
 # Text columns left over inside that panel — single derivation, shared

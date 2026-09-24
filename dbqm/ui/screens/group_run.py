@@ -53,9 +53,11 @@ from dbqm.core.group_engine import GroupResult, duplicate_key_warnings
 # selection takes up the whole screen and gives way to the results phase
 # when a group is chosen — the same phase swap as `QueryExecScreen`. And
 # 76 is the measured number, not an invented one: it is the width that
-# `#gr-selection-phase` ALREADY had at 80 columns, the narrowest terminal
-# the product supports (80 minus the 4 of `margin: 1 2 0 2`). At 80x24
-# nothing moves; only wider terminals pay the price.
+# `#gr-selection-phase` ALREADY had at 80 columns (80 minus the 4 of
+# `margin: 1 2 0 2`), which was the floor until 3.1.0. The reference is
+# 120 since then, and 76 was left alone on purpose: at 80 nothing moves,
+# a window dragged that narrow still lays out, and widening the panel is a
+# visible change the maintainer decides on a rendering, not a recalibration.
 _LIST_PANEL_WIDTH = 76
 
 # Text columns left over inside that panel. The derivation (Panel border,

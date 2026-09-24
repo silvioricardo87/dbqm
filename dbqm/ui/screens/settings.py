@@ -29,9 +29,10 @@ from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.hierarchical_list import NamedOption, hierarchical_item
 from dbqm.ui.widgets.panel import Panel
 
-#: One character, and not "...": the path label has 30 cells in a
-#: terminal of 80, and each column spent on the marker is one column
-#: less of path.
+#: One character, and not "...": each column spent on the marker is one
+#: column less of path. The label has 52 cells at 120 columns, the reference
+#: since 3.1.0, and 30 at 80 -- where the saving matters most, and where a
+#: window can still be dragged.
 ELLIPSIS = "\u2026"
 
 #: Path separators of both families, captured so that the cut can
@@ -217,8 +218,10 @@ class SettingsScreen(Vertical):
     #: reason is in `NamedOption`'s docstring.
     #:
     #: The text is SHORT out of a layout requirement, not out of taste: the
-    #: list column has 30 cells in a terminal of 80, and a line wider than
-    #: that wraps on its own at render — the continuation goes back to
+    #: list column has 30 cells at 80 columns -- the floor until 3.1.0, and
+    #: still a width a window can be dragged to, which
+    #: `test_more_settings_list_does_not_wrap_at_80_columns` keeps measuring
+    #: -- and a line wider than that wraps on its own at render — the continuation goes back to
     #: column 0, the same one as the identity of the next entry, which is
     #: exactly the confusion this phase exists to undo. `hierarchical_item`
     #: has no way to indent the automatic wrap (it is written in its own
