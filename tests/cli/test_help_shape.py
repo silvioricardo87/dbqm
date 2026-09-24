@@ -11,13 +11,13 @@ from itertools import chain
 
 import pytest
 
-from dbqm.cli import COMMAND_GROUPS, COMMAND_MAP, EXAMPLES, build_parser
+from dbqm.cli import COMMAND_GROUPS, COMMAND_MAP, EXAMPLES, REFERENCE_WIDTH, build_parser
 from dbqm.i18n import DEFAULT_LANGUAGE, available_languages, set_language, t
 
 
 @pytest.fixture
 def help_text(monkeypatch: pytest.MonkeyPatch) -> str:
-    monkeypatch.setenv("COLUMNS", "80")
+    monkeypatch.setenv("COLUMNS", str(REFERENCE_WIDTH))
     return build_parser().format_help()
 
 
@@ -73,19 +73,44 @@ def test_the_version_flag_is_documented(help_text):
 
 
 @pytest.mark.parametrize("language", sorted(available_languages()))
-def test_no_line_is_wider_than_eighty_columns(monkeypatch, language):
-    """Measured once per language, not just the English the `help_text`
-    fixture defaults to: Portuguese sits at exactly 80 columns today, and
-    nothing about translating a help string suggests it could not go over.
+def test_no_line_is_wider_than_the_reference_width(monkeypatch, language):
+    """120 is the width dbqm lays its help out for since 3.1.0.
+
+    Measured once per language, not just the English the `help_text`
+    fixture defaults to: Portuguese is the one that gets closest to the
+    edge, and nothing about translating a help string suggests it could
+    not go over. It already decided one value's shape -- `exit_codes`
+    fits on one line in English at 118 and needs two in Portuguese at
+    123, so both keep the break.
     """
-    monkeypatch.setenv("COLUMNS", "80")
+    monkeypatch.setenv("COLUMNS", str(REFERENCE_WIDTH))
     set_language(language)
     try:
         help_text = build_parser().format_help()
     finally:
         set_language(DEFAULT_LANGUAGE)
-    wide = [line for line in help_text.splitlines() if len(line) > 80]
+    wide = [line for line in help_text.splitlines() if len(line) > REFERENCE_WIDTH]
     assert not wide, (language, wide)
+
+
+def test_no_command_summary_is_truncated(help_text):
+    """The visible win of the wider reference.
+
+    At 80 the budget was 61 and four of the twenty-three summaries were
+    cut by `textwrap.shorten`, each before the words that carried the
+    meaning: `sql` lost `EXPLAIN PLAN`, `oracle-client` lost `install`
+    and `rm`. At 120 the budget is 101 against a longest summary of 76.
+    """
+    for names in COMMAND_GROUPS.values():
+        for name in names:
+            summary = t(f"help.cmd.{name.replace('-', '_')}")
+            assert summary in help_text, name
+    # `textwrap.shorten`'s placeholder, at the end of a command's own line.
+    # Not a bare `" ..." in help_text`: argparse's usage line ends with
+    # `<command> ...`, which is its syntax for "and its arguments".
+    truncated = [line for line in help_text.splitlines()
+                 if line.startswith("    ") and line.rstrip().endswith(" ...")]
+    assert not truncated, truncated
 
 
 def test_every_example_starts_with_dbqm_and_names_a_real_command():

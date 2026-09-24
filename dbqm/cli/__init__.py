@@ -41,6 +41,14 @@ from dbqm.cli.render import _print_query_result, console, rich_theme
 # Parser
 # ---------------------------------------------------------------------------
 
+#: The width dbqm lays its help out for, since 3.1.0. It was 80 until then,
+#: which was tight enough that `textwrap.shorten` cut four of the twenty-three
+#: command summaries before the words that carried the meaning. Named once so
+#: the epilog's budget and `tests/cli/test_help_shape.py` cannot disagree
+#: about it; on a narrower terminal the epilog wraps, which is the accepted
+#: cost of the wider reference.
+REFERENCE_WIDTH = 120
+
 #: Every command, under the heading it is listed beneath. A command in no
 #: group -- or in two -- fails `test_every_command_is_in_exactly_one_group`,
 #: because the epilog is the only place the help lists commands now and a
@@ -97,10 +105,12 @@ def _epilog(subparsers_action: argparse._SubParsersAction[argparse.ArgumentParse
         for choice_action in subparsers_action._choices_actions
     }
     width = max(len(name) for names in COMMAND_GROUPS.values() for name in names)
-    # 4 spaces of indent, the name, two spaces: what is left of 80 columns
-    # is the budget for the help string, so no line wraps in a default
-    # terminal.
-    budget = 80 - (4 + width + 2)
+    # 4 spaces of indent, the name, two spaces: what is left of the reference
+    # width is the budget for the help string, so no line wraps at it. At 80
+    # the budget was 61 and `textwrap.shorten` cut `sql` before `EXPLAIN
+    # PLAN` and `oracle-client` before `install`; at 120 it is 101 against a
+    # longest summary of 76, so nothing is cut.
+    budget = REFERENCE_WIDTH - (4 + width + 2)
     lines = [t("cli.epilog.commands")]
     for title, names in COMMAND_GROUPS.items():
         lines.append("")
