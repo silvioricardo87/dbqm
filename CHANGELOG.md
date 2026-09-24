@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [3.1.0] — 2026-09-23
+
+120 columns is the width dbqm is built and measured against. It was 80, a
+terminal nobody runs; `docs/ROADMAP.md` had asked for that to be revisited
+on purpose.
+
+### Changed
+
+- The CLI's help is laid out for 120 columns instead of 80. No command
+  summary is truncated any more -- at 80 the budget cut `sql` before
+  `EXPLAIN PLAN`, `oracle-client` before `install`, and the tails of `mcp`
+  and `describe-cli`. The interface notice fits on one line and "Learn more"
+  on two. On a terminal narrower than 120 the help's epilog wraps.
+- The design guards and the baseline renders of the terminal app measure
+  120 columns. No layout, CSS or elision threshold changed, and the tests
+  whose premise is a narrow window keep 80: a window can still be dragged
+  below the floor, and eliding has to keep working there.
+
 ## [3.0.0] — 2026-09-21
 
 `dbqm` with no arguments changes what it does — this is why it is a major

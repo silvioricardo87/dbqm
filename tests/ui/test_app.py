@@ -560,7 +560,7 @@ async def test_clients_manager_opens_in_a_titled_panel(
     from tests.ui._helpers import rendered_lines
 
     app = DBQMApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         await _open_config_tool(pilot, app, "oracle-clients")
 
         # The first lines painted below the tab strip: that is where there
@@ -702,7 +702,7 @@ async def test_tools_announces_esc_and_esc_goes_back(tmp_config_dir):
     from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         await _open_tool(pilot, app, "templates")
         assert app.query(TemplateManageScreen), 'the tool was not mounted'
 
@@ -737,7 +737,7 @@ async def test_the_tools_back_action_does_not_leak_to_another_tab(tmp_config_dir
     from tests.ui._helpers import rendered_text
 
     app = DBQMApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         await _open_tool(pilot, app, "templates")
         assert "Back" in rendered_text(app), (
             'the test did not start from the state it describes'

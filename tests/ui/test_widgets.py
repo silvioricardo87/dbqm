@@ -831,7 +831,7 @@ async def test_query_list_posts_query_selected():
             messages.append(event.query_name)
 
     app = CapturingApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         ql = app.query_one(QueryListWidget)
         ql.load_queries(queries)
         await pilot.pause()

@@ -177,8 +177,9 @@ class QueryExecScreen(Vertical):
                     # Without the ellipsis: with the chrome, this `1fr`
                     # measures 35 columns out of 80 (it used to be 43) and
                     # the text came out clipped as "...descricao..", which
-                    # looks like a defect. 29 characters fit whole in the
-                    # narrowest width the product supports.
+                    # looks like a defect. 29 characters fit whole at 80,
+                    # the floor until 3.1.0 -- kept at that size so the
+                    # text still fits a window dragged that narrow.
                     placeholder=t("query_exec.filter_placeholder"),
                     id="qe-filter-text",
                 ),

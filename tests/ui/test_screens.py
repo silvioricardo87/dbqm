@@ -3426,7 +3426,7 @@ async def test_config_port_mode_choice_is_a_list(tmp_config_dir):
     from tests.ui._helpers import rendered_names
 
     app = ConfigPortTestApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
         phase = screen.query_one("#cp-mode-phase")
         assert rendered_names(phase.query_one(OptionList)) == [
@@ -3440,7 +3440,7 @@ async def test_config_port_mode_choice_is_a_list(tmp_config_dir):
 async def test_config_port_export_phase_toggle(tmp_config_dir):
     """Choosing Exportar in the list shows the export phase."""
     app = ConfigPortTestApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
         await _choose_mode(pilot, screen, "export")
         assert screen.query_one("#cp-mode-phase").display is False
@@ -3452,7 +3452,7 @@ async def test_config_port_export_phase_toggle(tmp_config_dir):
 async def test_config_port_import_phase_toggle(tmp_config_dir):
     """Choosing Importar in the list shows the import phase."""
     app = ConfigPortTestApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         screen = app.query_one(ConfigPortScreen)
         await _choose_mode(pilot, screen, "import")
         assert screen.query_one("#cp-mode-phase").display is False
@@ -5238,7 +5238,7 @@ async def test_tools_is_a_list_and_not_full_width_buttons(tmp_config_dir):
     from tests.ui._helpers import rendered_names
 
     app = ToolsTestApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         screen = app.query_one(ToolsScreen)
         menu = screen.query_one("#tools-menu")
         option_list = menu.query_one(OptionList)
@@ -6062,7 +6062,7 @@ async def test_history_table_is_usable_at_the_default_terminal_size(tmp_config_d
         record_query_execution(f"consulta_{i:02d}", "connection", {}, 10, 0.5, True, "")
 
     app = DBQMApp()
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(120, 24)) as pilot:
         await pilot.pause()
         app.action_switch_tab("tab-history")
         await pilot.pause()

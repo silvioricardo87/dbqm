@@ -240,20 +240,20 @@ else a reader would think to look for it.
 curation (2.7.0), the last four Tier 3 commands (2.8.0), SQLite and the QA
 review (2.9.0), the hardening slice (2.10.0, which closed seven of the gaps
 below) and the move to English as the source language with Portuguese as a
-translation (2.11.0) have now shipped. What remains is mostly **decisions**, not
-tasks. For the maintainer to choose among:
+translation (2.11.0) have now shipped. What was left was **decisions**, not
+tasks, and all three this list held have been made:
 
-1. **The server-side read-only session** (`SET TRANSACTION READ ONLY` on
-   Oracle/MySQL, `BEGIN READ ONLY` on PostgreSQL) — it would change what
-   "read-only" means per engine: a database-side guarantee on Oracle,
-   PostgreSQL and MySQL, still only a dbqm-side promise on SQL Server, which
-   has no server-side equivalent to reach for.
-2. **`to_dict()` publishes `error` and `output_lines` unredacted.** A JSON
-   payload can echo a DSN, a host, or arbitrary DBMS_OUTPUT. Redaction here
-   is a policy call, not an implementation detail.
-3. **The design guards are calibrated to 80x24.** If that is not the target
-   width, the reference is worth changing on purpose rather than left
-   measuring a terminal nobody runs.
+1. **The server-side read-only session** — decided in 2.12.0. A read-only
+   connection is pinned read-only on the server where the engine allows it
+   (Oracle, PostgreSQL, MySQL, SQLite); SQL Server has no such statement and
+   stays a dbqm-side guard.
+2. **`to_dict()` publishing driver errors unredacted** — decided in 2.12.0.
+   The connection's password is masked in driver error text before it is
+   published; the host and `output_lines` were deliberately left alone.
+3. **The design guards were calibrated to 80x24** — decided in 3.1.0. The
+   reference is 120: the guards and the baseline renders measure it, the
+   tests whose premise is a narrow window keep 80, and no layout, CSS or
+   elision threshold moved. The CLI's help is laid out for 120 as well.
 
 **A note on estimating, not an apology:** the html item's effort **S** was
 measured against `run-group` alone, where `export_group_html` already
