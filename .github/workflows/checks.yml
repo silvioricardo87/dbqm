@@ -43,3 +43,73 @@ jobs:
 
       - name: Test
         run: uv run pytest -q
+
+  windows-wheel:
+    name: Wheel / Windows ${{ matrix.arch }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: windows-11-arm, arch: arm64, python: '3.12'}
+          - {runner: windows-11-arm, arch: arm64, python: '3.14'}
+          - {runner: windows-latest, arch: x64, python: '3.10'}
+          - {runner: windows-latest, arch: x64, python: '3.12'}
+          - {runner: windows-latest, arch: x64, python: '3.14'}
+          - {runner: windows-latest, arch: x86, python: '3.12'}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+      - name: Build wheel
+        shell: pwsh
+        run: python -m pip wheel --no-deps . --wheel-dir dist
+      - name: Install in a clean environment
+        shell: pwsh
+        run: |
+          python -m venv "$env:RUNNER_TEMP/wheel-test"
+          $python = "$env:RUNNER_TEMP/wheel-test/Scripts/python.exe"
+          $wheel = (Get-ChildItem dist/dbqm-*.whl).FullName
+          if ('${{ matrix.arch }}' -eq 'x86') {
+            # SQL Server/Postgres drivers also lack win32 wheels. This row
+            # verifies the shared crypto backend; full installs run on x64/ARM.
+            & $python -m pip install --no-deps $wheel
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            & $python -m pip install --only-binary=:all: pycryptodome==4.0.0
+          } else {
+            & $python -m pip install --only-binary=:all: $wheel
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            & $python -m pip check
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $python -m pip install --only-binary=:all: pytest==9.1.1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ('${{ matrix.arch }}' -eq 'x64') {
+            & $python -m pip install --only-binary=:all: cryptography==50.0.2
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+      - name: Verify installed crypto and CLI outside the source tree
+        shell: pwsh
+        run: |
+          $python = "$env:RUNNER_TEMP/wheel-test/Scripts/python.exe"
+          Copy-Item tests/core/test_crypto.py "$env:RUNNER_TEMP/test_crypto.py"
+          Set-Location $env:RUNNER_TEMP
+          $env:DBQM_HOME = "$env:RUNNER_TEMP/dbqm-config"
+          if ('${{ matrix.arch }}' -eq 'arm64') {
+            & $python -I -c "import importlib.util; assert importlib.util.find_spec('cryptography') is None"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          & $python -m pytest test_crypto.py -q
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ('${{ matrix.arch }}' -eq 'x64') {
+            & $python -I -c "import pymysql._auth; assert pymysql._auth._have_cryptography"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          if ('${{ matrix.arch }}' -ne 'x86') {
+            & $python -I -m dbqm --help
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }

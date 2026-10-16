@@ -67,12 +67,23 @@ interactive interface, built with **Python + Textual**.
 
 ## Dependencies
 
-Core (always installed): `rich`, `textual`, `sqlparse`, `cryptography`, `PyMySQL`.
+Core (always installed): `rich`, `textual`, `sqlparse`, `pycryptodome`, `PyMySQL`.
 
-Database drivers are **conditionally installed** — no prebuilt wheels exist for
-`oracledb` / `psycopg[binary]` / `pymssql` on **win-arm64**, so they are skipped
-there (marker `sys_platform != 'win32' or platform_machine != 'ARM64'`) to keep
-`pip install dbqm` working. On Windows ARM, use Python AMD64 under x64 emulation.
+Database drivers are **conditionally installed** on **win-arm64**: PostgreSQL
+and SQL Server lack binary wheels, and Oracle depends on `cryptography`, whose
+current versions lack ARM64 wheels even though the driver itself has them.
+They are skipped there (marker `sys_platform != 'win32' or platform_machine !=
+'ARM64'`) to keep `pip install dbqm` working. PyCryptodome provides credential
+encryption natively on ARM64, AMD64 and x86. Python AMD64 under x64 emulation
+remains an option for the database drivers. See `docs/INSTALL.md`.
+
+Direct dependency versions are pinned with `==` in `pyproject.toml`, including
+extras, development and build requirements. `uv.lock` records the development
+resolution; it does not constrain transitive versions for pip users. Update
+pins deliberately and verify the built wheel on Windows ARM64 and AMD64;
+the x86 CI row covers credential encryption only. PyMySQL's `rsa` extra stays
+enabled outside Windows ARM64; it needs `cryptography` for full SHA-2/RSA
+server authentication, independently of dbqm's credential encryption.
 
 Opt-in extras: `oracle`, `postgres`, `sqlserver`, `mcp` (the MCP server, see
 `docs/MCP.md`), and `dev` (pytest + pytest-asyncio).
@@ -236,8 +247,8 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
   unit test and belongs elsewhere; `test_harness.py` enforces the rule by
   reading the folder. Every scenario in `docs/qa/*.md` names its test, and
   `tests/design/test_qa_traceability.py` fails when the reference is wrong.
-- Run: `python -m pytest tests/ -x -q` (currently **1947** tests, of which
-  225 in `tests/functional/` and 71 in `tests/design/` — the color, layout,
+- Run: `python -m pytest tests/ -x -q` (currently **1973** tests, of which
+  225 in `tests/functional/` and 72 in `tests/design/` — the color, layout,
   typing-policy and QA-traceability guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory

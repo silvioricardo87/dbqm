@@ -55,25 +55,47 @@ pip install .
 
 ### Windows on ARM (win-arm64)
 
-Several database drivers do not publish wheels for `win-arm64`. dbqm handles each one differently:
+dbqm's credential encryption uses the same PyCryptodome backend on ARM64,
+AMD64 and x86. Its pinned wheel installs on native Windows ARM64 without Rust,
+MSVC Build Tools or an emulated Python. Existing Fernet keys, saved passwords
+and exported configuration bundles remain compatible; no migration is needed.
 
-| Driver | Status on win-arm64 | Behavior |
+Database drivers have separate platform requirements:
+
+| Driver | Native Windows ARM64 | Behavior |
 |---|---|---|
-| `oracledb` | No prebuilt wheel | **Recommended:** install dbqm under Python AMD64 (runs fine via Win11 x64 emulation). Alternative: install MSVC Build Tools and let pip compile from source. |
-| `psycopg[binary]` (PostgreSQL) | No prebuilt wheel | Skipped automatically by dependency marker; PostgreSQL connections raise a clear error pointing to manual install. |
-| `pymssql` (SQL Server) | No prebuilt wheel | Skipped automatically by dependency marker; SQL Server connections raise a clear error. |
-| `cryptography`, `PyMySQL`, `rich`, `textual`, `sqlparse` | Wheels available | Install normally. |
+| `oracledb` | The driver has ARM64 wheels, but depends on `cryptography`, which stopped publishing them from 46.0.4 | Omitted from the default ARM64 installation. The `oracle` extra still requires a native build toolchain for that dependency. |
+| `psycopg[binary]` (PostgreSQL) | No binary wheel | Omitted by default; connections report the missing driver. |
+| `pymssql` (SQL Server) | No binary wheel | Omitted by default; connections report the missing driver. |
+| `pycryptodome`, `PyMySQL`, `rich`, `textual`, `sqlparse` | Wheels available | Install normally with `pip install dbqm`. |
 
-So the path of least resistance on Windows ARM is to use Python AMD64 (the regular installer from python.org), then `pip install dbqm` — everything works via x64 emulation.
+Native ARM64 installations can use SQLite and MySQL authentication that does
+not need RSA (for example, `mysql_native_password`). PyMySQL's full
+`sha256_password`/`caching_sha2_password` RSA authentication still needs
+`cryptography`; that upstream requirement is unavailable as a current ARM64
+wheel. Other platforms retain PyMySQL's `rsa` extra so their existing
+authentication behavior does not change. Installing dbqm does not by itself
+make the other database drivers available. Python AMD64 under Windows
+11 x64 emulation remains an option when those drivers are required, but it is
+not needed to install dbqm or use credential encryption.
 
-If you really want native ARM Python and only need MySQL, skip the Oracle features and install dbqm; Oracle/Postgres/SQL Server connection attempts will fail with a clear hint instead of crashing the CLI.
+Windows x86 uses the same encryption backend; the pinned PostgreSQL and SQL
+Server drivers also lack win32 wheels, so a full default x86 installation is
+not currently covered by the installation guarantee.
 
-If you need the optional drivers, try:
+### Dependency versions
 
-```bash
-pip install dbqm[postgres]   # PostgreSQL only — requires libpq toolchain on ARM
-pip install dbqm[sqlserver]  # SQL Server only — requires FreeTDS toolchain on ARM
-```
+Direct runtime, extra, development and build requirements use exact versions in
+`pyproject.toml`. These pins apply to installations from PyPI; `uv.lock` also
+records the transitive dependency versions used in development and CI. A pip
+installation can still resolve different transitive versions within the
+upstream requirements. Version updates are deliberate changes that must pass
+build, lint, tests and the Windows wheel checks.
+
+The Windows CI matrix installs the built wheel outside the checkout on native
+ARM64 and AMD64 and forbids source builds for its dependencies. It runs the
+Fernet compatibility tests against that installed package. An x86 row verifies
+the same encryption backend separately from unavailable database drivers.
 
 
 ## Key Dependencies
@@ -86,7 +108,7 @@ pip install dbqm[sqlserver]  # SQL Server only — requires FreeTDS toolchain on
 | `pymssql` | SQL Server database driver |
 | `psycopg` | PostgreSQL database driver (v3) |
 | `PyMySQL` | MySQL database driver |
-| `cryptography` | Fernet encryption for credentials |
+| `pycryptodome` | AES for Fernet-compatible credential encryption; HMAC-SHA256 and PBKDF2-HMAC-SHA256 use the Python standard library |
 | `sqlparse` | SQL analysis and classification |
 
 ## Oracle Instant Client

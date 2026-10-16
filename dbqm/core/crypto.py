@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import base64
+import binascii
+import hashlib
+import hmac
 import os
-from pathlib import Path
+import struct
+import time
 
-from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
 
 from dbqm.i18n import t
 from dbqm.core.paths import KEY_FILE
@@ -16,7 +19,7 @@ from dbqm.core.paths import KEY_FILE
 def _get_or_create_key() -> bytes:
     if KEY_FILE.exists():
         return KEY_FILE.read_bytes()
-    key = Fernet.generate_key()
+    key = base64.urlsafe_b64encode(os.urandom(32))
     KEY_FILE.write_bytes(key)
     # Restrict file permissions to owner only (best-effort on Windows)
     try:
@@ -27,8 +30,7 @@ def _get_or_create_key() -> bytes:
 
 
 def encrypt(text: str) -> str:
-    f = Fernet(_get_or_create_key())
-    return f.encrypt(text.encode()).decode()
+    return _encrypt_token(text, _get_or_create_key())
 
 
 def decrypt(token: str) -> str:
@@ -45,9 +47,9 @@ def decrypt(token: str) -> str:
     """
     if not token:
         return ""
-    f = Fernet(_get_or_create_key())
+    key = _get_or_create_key()
     try:
-        return f.decrypt(token.encode()).decode()
+        return _decrypt_token(token, key)
     except InvalidToken as e:
         raise ValueError(
             t("crypto.password_unreadable")
@@ -56,8 +58,8 @@ def decrypt(token: str) -> str:
 
 def _derive_key_from_password(password: str, salt: bytes) -> bytes:
     """Derive a Fernet key from a user password using PBKDF2."""
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=480_000)
-    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
+    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 480_000, dklen=32)
+    return base64.urlsafe_b64encode(key)
 
 
 def generate_salt() -> bytes:
@@ -66,9 +68,49 @@ def generate_salt() -> bytes:
 
 def encrypt_with_password(text: str, password: str, salt: bytes) -> str:
     key = _derive_key_from_password(password, salt)
-    return Fernet(key).encrypt(text.encode()).decode()
+    return _encrypt_token(text, key)
 
 
 def decrypt_with_password(token: str, password: str, salt: bytes) -> str:
     key = _derive_key_from_password(password, salt)
-    return Fernet(key).decrypt(token.encode()).decode()
+    return _decrypt_token(token, key)
+
+
+class InvalidToken(ValueError):
+    """A Fernet token could not be authenticated or decoded."""
+
+
+def _decode_key(key: bytes) -> bytes:
+    raw = base64.urlsafe_b64decode(key)
+    if len(raw) != 32:
+        raise ValueError(t("crypto.invalid_key"))
+    return raw
+
+
+def _encrypt_token(text: str, key: bytes) -> str:
+    """Encode the standard Fernet wire format, readable by older dbqm releases."""
+    raw_key = _decode_key(key)
+    iv = os.urandom(16)
+    cipher = AES.new(raw_key[16:], AES.MODE_CBC, iv=iv)
+    body = b"\x80" + struct.pack(">Q", int(time.time())) + iv
+    body += cipher.encrypt(pad(text.encode(), AES.block_size))
+    signature = hmac.digest(raw_key[:16], body, "sha256")
+    return base64.urlsafe_b64encode(body + signature).decode()
+
+
+def _decrypt_token(token: str, key: bytes) -> str:
+    raw_key = _decode_key(key)
+    try:
+        data = base64.urlsafe_b64decode(token.encode())
+        # version + timestamp + IV + at least one AES block + HMAC
+        if len(data) < 73 or data[0] != 0x80 or (len(data) - 57) % 16:
+            raise InvalidToken
+        body, signature = data[:-32], data[-32:]
+        expected = hmac.digest(raw_key[:16], body, "sha256")
+        if not hmac.compare_digest(signature, expected):
+            raise InvalidToken
+        # Authenticate before decryption or padding validation.
+        cipher = AES.new(raw_key[16:], AES.MODE_CBC, iv=data[9:25])
+        return unpad(cipher.decrypt(data[25:-32]), AES.block_size).decode()
+    except (ValueError, binascii.Error) as exc:
+        raise InvalidToken from exc
