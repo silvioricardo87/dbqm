@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [Unreleased]
+
+### Fixed
+
+- Installing dbqm on native Windows ARM64 no longer tries to compile
+  `cryptography` or requires Rust/MSVC. Credential encryption uses PyCryptodome
+  on all platforms and preserves existing Fernet keys, saved passwords and
+  configuration bundles. Oracle/PostgreSQL/SQL Server driver availability on
+  ARM64 remains a separate limitation.
+
+### Changed
+
+- Direct dependency versions are pinned, including extras and development/build
+  requirements. Windows CI checks the built wheel on ARM64 and AMD64, with an
+  additional x86 check for credential encryption.
+
 ## [3.1.0] — 2026-09-23
 
 120 columns is the width dbqm is built and measured against. It was 80, a

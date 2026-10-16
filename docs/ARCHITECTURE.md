@@ -196,7 +196,13 @@ function, so the two front ends cannot drift apart silently.
   `oracledb.makedsn()` (SID vs service_name). `NLS_LANG` is forced to
   `.AL32UTF8` so Oracle error messages come back as UTF-8 (correct accents on
   Windows).
-- Connection passwords encrypted with **Fernet** (`core/crypto.py`).
+- Connection passwords encrypted with **Fernet** (`core/crypto.py`): PyCryptodome
+  implements AES-128-CBC, with HMAC-SHA256 and PBKDF2-HMAC-SHA256 from the standard
+  library. The wire format and the 480,000-iteration password derivation are
+  unchanged; old keys and bundles remain readable in both directions. Verify
+  the HMAC in constant time before decryption or unpadding. Published Fernet
+  vectors and interoperability tests guard this contract. `cryptography` is
+  only a test reference or an indirect dependency for Oracle/PyMySQL RSA authentication.
 - Non-Oracle DBs share pyformat parameter binding.
 
 ### Exports & evidence

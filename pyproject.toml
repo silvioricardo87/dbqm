@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -29,39 +29,41 @@ classifiers = [
 ]
 
 dependencies = [
-    "rich>=13.0",
-    "textual>=0.80",
-    "PyMySQL>=1.1",
-    "cryptography>=46.0.3",
-    "sqlparse>=0.5",
-    # No prebuilt wheels exist for oracledb / psycopg-binary / pymssql on
-    # win-arm64. Skip them on that platform so `pip install dbqm` succeeds;
-    # the recommended route on Windows ARM is to use Python AMD64 via x64
-    # emulation, where every wheel is available. See README for details and
-    # the `oracle`/`postgres`/`sqlserver` extras for opt-in installs.
-    "oracledb>=2.0; sys_platform != 'win32' or platform_machine != 'ARM64'",
-    "psycopg[binary]>=3.1; sys_platform != 'win32' or platform_machine != 'ARM64'",
-    "pymssql>=2.2; sys_platform != 'win32' or platform_machine != 'ARM64'",
+    "rich==15.0.0",
+    "textual==8.2.8",
+    "PyMySQL==1.2.3",
+    # Preserve SHA-2/RSA authentication where cryptography has wheels.
+    "PyMySQL[rsa]==1.2.3; sys_platform != 'win32' or platform_machine != 'ARM64'",
+    "pycryptodome==4.0.0",
+    "sqlparse==0.6.0",
+    # psycopg-binary / pymssql lack win-arm64 wheels; oracledb has them but
+    # its cryptography dependency does not. Skip these drivers on ARM64.
+    # See docs/INSTALL.md and the oracle/postgres/sqlserver opt-in extras.
+    "oracledb==26.0.1; sys_platform != 'win32' or platform_machine != 'ARM64'",
+    "psycopg[binary]==3.3.6; sys_platform != 'win32' or platform_machine != 'ARM64'",
+    "pymssql==2.4.4; sys_platform != 'win32' or platform_machine != 'ARM64'",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.23",
-    "mypy>=1.11",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "mypy==2.3.1",
+    # Reference implementation for Fernet interoperability tests.
+    "cryptography==50.0.2; sys_platform != 'win32' or platform_machine != 'ARM64'",
     # `tests/design/test_typing_policy.py` reads pyproject.toml. tomllib
     # is stdlib from 3.11; below that it comes from here rather than by
     # accident through another tool's dependency tree.
-    'tomli>=2.0; python_version < "3.11"',
+    'tomli==2.5.0; python_version < "3.11"',
 ]
-oracle = ["oracledb>=2.0"]
-postgres = ["psycopg[binary]>=3.1"]
-sqlserver = ["pymssql>=2.2"]
-mysql = ["pymysql>=1.1"]
+oracle = ["oracledb==26.0.1"]
+postgres = ["psycopg[binary]==3.3.6"]
+sqlserver = ["pymssql==2.4.4"]
+mysql = ["pymysql==1.2.3"]
 # The MCP server (`dbqm mcp`). Opt-in: the SDK pulls pydantic, starlette,
 # uvicorn and, on Windows, pywin32 -- about 27 MiB nobody running the TUI
 # or the CLI needs. `dbqm mcp` without it fails with the install command.
-mcp = ["mcp>=2.2,<3"]
+mcp = ["mcp==2.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/silvioricardo87/dbqm"

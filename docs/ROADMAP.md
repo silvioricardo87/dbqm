@@ -19,12 +19,27 @@ not be retried lives in `docs/ARCHITECTURE.md` under the known debt.
 
 ## Tier 0 — Bugs
 
-**Empty.** Three defects in the CLI's error contract (`B1`-`B3`, unreachable
-exit `3`, `rows`/`describe` disagreeing about the same missing name, and
-`ddl --stdout` writing to disk anyway) were found while building 2.0.0
-through 2.2.0, parked in execution logs rather than here, and shipped in
-2.3.0 — see `CHANGELOG.md`. Bugs return to this tier the moment one is
-found; it does not stay empty by policy, only by absence of evidence.
+### Windows x86 default installation still includes drivers without wheels
+
+`pyproject.toml` omits the default PostgreSQL and SQL Server drivers only on
+Windows ARM64. The pinned `psycopg-binary==3.3.6` and `pymssql==2.4.4` publish no
+win32 wheels either (verified in PyPI release metadata on 2026-10-16), so a
+32-bit Python installation can still fall back to compilation and fail.
+Choose a reliable way to distinguish the interpreter's bitness in dependency
+selection, then cover the complete x86 wheel installation. The current Windows
+x86 CI row verifies the shared credential-encryption backend only.
+
+### Native Windows ARM64 MySQL SHA-2/RSA authentication needs an upstream backend
+
+PyMySQL 1.2.3's `_auth.sha2_rsa_encrypt` requires `cryptography` for full
+`sha256_password`/`caching_sha2_password` authentication on an insecure socket.
+`dbqm/core/db_manager.py:get_mysql_connection` does not expose TLS settings,
+and current `cryptography` releases publish no win-arm64 wheel. Native ARM64
+installs work, and existing credentials are readable, but these MySQL auth
+paths still fail when the server requires full RSA authentication. Other
+platforms retain `PyMySQL[rsa]` so the backend replacement does not regress
+them. A maintained upstream ARM-compatible auth backend or explicit TLS
+configuration needs its own design and server integration tests.
 
 ### Decision pending, not a defect
 

@@ -57,6 +57,7 @@ TEXTS: Final[dict[str, str]] = {
     "group.join_key_required": 'Give the join column.',
     "template.name_required": 'Give the template a name.',
     "template.content_required": 'Template content cannot be empty.',
+    "crypto.invalid_key": 'The key in .dbqm_key must contain 32 bytes encoded as URL-safe base64.',
     "crypto.password_unreadable": "The stored password cannot be read: the key in .dbqm_key does not match it. Write it again with 'dbqm connection update <name> --password-stdin'.",
     "bundle.too_large": 'File exceeds the maximum size of {mb} MB.',
     "driver.not_installed": 'The driver for {database} ({package}) is not installed in this environment ({platform}). Install it with `pip install {package}` if a wheel exists for your platform; on Windows ARM this driver publishes none and is left out by default.',
