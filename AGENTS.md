@@ -15,7 +15,7 @@ this one names, never in two places. `CLAUDE.md` is a pointer stub.
 | **[`docs/ROADMAP.md`](docs/ROADMAP.md)** | choosing what to work on | **The single backlog.** Bugs first, then pending items, toolchain adoption and features — ordered by importance, grouped by theme. There is no other list; add here or nowhere. |
 | [`docs/agents/AGENT-WORKFLOW.md`](docs/agents/AGENT-WORKFLOW.md) | starting a task | Planning, context management, edit safety, self-correction |
 | [`docs/agents/TASK-COMPLETION.md`](docs/agents/TASK-COMPLETION.md) | finishing a change | The mandatory build → lint → test → docs → version → commit → merge cycle |
-| [`docs/agents/AUTONOMOUS-EXECUTION.md`](docs/agents/AUTONOMOUS-EXECUTION.md) | told to execute an approved plan without supervision | How a plan is sliced, the roles, the `ops/` state files, the anti-loop limits, and when to stop and ask |
+| [`docs/agents/AUTONOMOUS-EXECUTION.md`](docs/agents/AUTONOMOUS-EXECUTION.md) | the user invokes `AUTORUN` or `AUTÔNOMO` | How a plan is sliced, the roles, the `ops/` state files, the anti-loop limits, and when to stop and ask |
 | [`docs/agents/BACKEND-PYTHON.md`](docs/agents/BACKEND-PYTHON.md) | writing Python here | House Python standards, plus the TUI/CLI/Windows-first sections that apply |
 | [`docs/agents/VERSIONING.md`](docs/agents/VERSIONING.md) | bumping a version | Which level to bump, and the release flow |
 | [`docs/agents/COMMITS.md`](docs/agents/COMMITS.md) | writing a commit | Message format, description style, language cascade |
@@ -44,11 +44,12 @@ reason: without it, `core.autocrlf=true` on Windows stores CRLF, every line of
 the diff differs on line endings alone, and the check reports drift that does not
 exist.
 
-**Read the deviations sections.** dbqm predates these guides: there is no linter,
-no type checker and no lockfile, the layout is flat rather than `src/`, the CLI is
-argparse rather than typer, and the Python floor is 3.10 because users install
-this. `BACKEND-PYTHON.md` says which of those are deliberate and which are an
-unstarted migration — they are not the same debt.
+**Read the deviations sections.** dbqm predates these guides: its layout is flat
+rather than `src/`, its CLI uses argparse rather than typer, and its Python floor
+is 3.10 because users install it. Ruff, mypy and `uv.lock` have been adopted;
+`BACKEND-PYTHON.md` records the remaining deviations and migration status. The
+shared guides also reference optional `LOCAL-DEPLOY.md`; dbqm does not adopt it
+because it does not ship a container.
 
 ## Project Overview
 
@@ -87,7 +88,7 @@ server authentication, independently of dbqm's credential encryption.
 
 Opt-in extras: `oracle`, `postgres`, `sqlserver`, `mcp` (the MCP server, see
 `docs/MCP.md`), and `dev` (pytest + pytest-asyncio).
-`requirements.txt` is intentionally empty — dependencies live in `pyproject.toml`.
+There is no `requirements.txt` — dependencies live in `pyproject.toml`.
 
 ## Architecture
 
@@ -193,10 +194,10 @@ run with `DBQM_LANG`.
 ## Development Workflow (MANDATORY)
 
 The cycle is defined once, in **[`docs/agents/TASK-COMPLETION.md`](docs/agents/TASK-COMPLETION.md)**:
-**build → lint → test → docs → version → commit → merge**. Any failure aborts
-the cycle and it restarts from Step 1, because the code changed and the earlier
-results no longer hold. Read that file's `## Deviations in this project` section
-before the first run — it names what is different here.
+**build → lint → test → docs → version → commit → merge**. Failure handling and
+exceptions for documentation-only changes are defined there. Read that file's
+`## Deviations in this project` section before the first run — it names what is
+different here.
 
 The concrete commands, in dbqm's terms:
 
@@ -204,11 +205,11 @@ The concrete commands, in dbqm's terms:
 |---|---|---|
 | 1 Build | `python -m build` | `build` is not a declared dependency — `pip install build` on a fresh machine. |
 | 2 Lint | `uvx ruff@0.16.7 check .` then `uv run mypy` | Ruff: fifteen rule families, chosen by measuring which the code already passed or nearly passed. mypy: `strict = true` in `pyproject.toml`, with a per-module exemption list that only shrinks (`tests/design/test_typing_policy.py` enforces the direction). Run via `uv run`, not `uvx` — mypy needs the project's own dependencies to resolve types, and an isolated `uvx` environment cannot see them. The two gates do not cover the same ground: ruff checks the whole tree, mypy checks `dbqm/` only (`files = ["dbqm"]`) — `tests/` is deliberately outside the type gate. |
-| 3 Test | `python -m pytest tests/ -x -q` | ~3m10s. Needs `pytest-asyncio` from the `dev` extra, or 327 async tests fail for an unrelated reason. Scope to the change; full run before a release. |
-| 4 Docs | see [README](#readme), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` | The README is the PyPI page. |
+| 3 Test | `python -m pytest tests/ -x -q` | ~3m10s. Needs `pytest-asyncio` from the `dev` extra, or 327 async tests fail for an unrelated reason. Scope to the change; ask before a full run. |
+| 4 Docs | see [README and PYPI.md](#readme-and-pypimd), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` | `PYPI.md` is the PyPI page. |
 | 5 Version | edit `dbqm/_version.py` | Manual, which `VERSIONING.md` forbids; the tag guard is the compensating control. |
 | 6 Commit | Conventional Commits | See below. |
-| 7 Merge | local `--no-ff` into `main` | Solo work needs no PR. |
+| 7 Merge | local `--no-ff` into the integration branch | Solo work needs no PR; see the Gitflow fallback in `AGENT-WORKFLOW.md` when `develop` is absent. |
 
 **Publishing is not a step of this cycle.** It happens when a `v*` tag is pushed
 — see [PyPI Publishing](#pypi-publishing). Pushing `main` publishes nothing.
@@ -218,18 +219,20 @@ The concrete commands, in dbqm's terms:
 Format, types, description style and the language cascade are in
 **[`docs/agents/COMMITS.md`](docs/agents/COMMITS.md)**. Two project specifics:
 
-- **Scopes are a closed set**: `ui`, `core`, `models`, `config`, `web`, `mcp`
-  (for `dbqm/mcp/**`, `tests/mcp/**`, `docs/MCP.md`). A commit that fits none
-  of them is usually two commits.
+- **When used, scopes are a closed set**: `ui`, `core`, `models`, `config`,
+  `web`, `mcp` (for `dbqm/mcp/**`, `tests/mcp/**`, `docs/MCP.md`). Omit the
+  scope when no single area fits, including repository-wide documentation.
 - **NEVER include an AI `Co-Authored-By` line, or any AI attribution**, in a
   commit message, a PR title, or a PR body.
 
 ## Versioning (SemVer)
 
 Bump-level rules and the release flow are in
-**[`docs/agents/VERSIONING.md`](docs/agents/VERSIONING.md)**. In short: MAJOR for
-breaking changes, MINOR for features, PATCH for fixes and hardening. The version
-lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
+**[`docs/agents/VERSIONING.md`](docs/agents/VERSIONING.md)**. For stable releases,
+MAJOR requires evidence of a public contract break; MINOR covers compatible
+features, and PATCH covers fixes and hardening. The guide also defines the
+`0.y.z` and pre-release policies. The version lives in `dbqm/_version.py` and
+`pyproject.toml` reads it dynamically.
 
 ## Testing
 
@@ -262,7 +265,7 @@ lives in `dbqm/_version.py` and `pyproject.toml` reads it dynamically.
   `docs/superpowers/`, `PRD.md`, and `.claude/` are in
   `.gitignore`. `docs/plans/` is the sanctioned **local** planning area.
 - Agent-facing files that **do** belong in the repo: `AGENTS.md`, `CLAUDE.md`,
-  `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, the five guides under `docs/agents/`,
+  `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, the six guides under `docs/agents/`,
   and agent configs. The line is not "AI-related or not" — it is **durable
   project documentation vs. a working paper for one task**. A roadmap is the
   former; a plan for implementing one of its items is the latter.

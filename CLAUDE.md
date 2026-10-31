@@ -10,10 +10,10 @@ instructions OVERRIDE default behavior.
 
 ## Non-negotiables (full detail in AGENTS.md)
 
-- Follow the mandatory workflow after every change: **build → tests → version
-  bump → README → commit → push → PyPI**. Never skip a step; never commit with
-  failing tests.
-- **Conventional Commits**; scopes `ui|core|models|config|web|mcp`. **Never** include
+- Follow the cycle and its documented exceptions in `AGENTS.md`: **build →
+  lint → test → docs → version → commit → merge**. Publishing requires a
+  separate tag-driven release.
+- **Conventional Commits**; optional scopes `ui|core|models|config|web|mcp`. **Never** include
   AI `Co-Authored-By` / AI-attribution lines.
 - **Never commit** AI plans/PRDs/planning docs. `docs/plans/` (incl. `BACKLOG.md`),
   `PRD.md`, `.claude/` are gitignored; `AGENTS.md`/`CLAUDE.md`/agent configs are allowed.

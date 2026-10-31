@@ -45,11 +45,11 @@ when the work is merged.
    abort, fix, restart from Step 1
 ```
 
-Any failure at any step aborts the cycle. After fixing the underlying problem, the cycle restarts from **Step 1** — not from the failed step — because the source code has changed and the previous build/lint/test results are no longer valid.
+A failure at Steps 1, 2, 3 or 6 aborts the cycle. After fixing the underlying problem, the cycle restarts from **Step 1** — not from the failed step — because the source code has changed and the previous build/lint/test results are no longer valid. Steps 4 and 5 are the two exceptions, and the Failure Handling table states them: a documentation gap is closed before continuing, and a wrong bump is reverted and reapplied at Step 5, because neither touched the source.
 
 ## Step 1 — Build
 
-- The concrete build command is defined by the stack documentation of the project (for example, `BACKEND-JAVA.md`, `BACKEND-PYTHON.md`, `FRONTEND-REACT.md`, or any future stack document).
+- The concrete build command is defined by the stack documentation of the project (for example, `BACKEND-JAVA.md`, `BACKEND-NODE.md`, `BACKEND-PYTHON.md`, `FRONTEND-REACT.md`, or any future stack document).
 - Execute the full build declared by the stack doc.
 - This step cannot be skipped for any reason, including "the change is small" or "it only touches one file".
 - On failure: abort the cycle, fix the underlying problem, restart from Step 1.
@@ -59,15 +59,15 @@ Any failure at any step aborts the cycle. After fixing the underlying problem, t
 - The concrete lint command is defined by the stack documentation of the project.
 - Execute the linter over the whole project, not only over the files the change touched — a change can break a rule in a file it never edited (an import that is now unused, a symbol that is now dead).
 - **Fix every error.** Warnings are allowed unless the project's documentation says otherwise — a project that declares a zero-warning policy treats a warning as an error, and a change that introduces one fails this step.
-- **Scope the run to the reach of the change, and treat the whole end-to-end suite as an on-demand gate.** A suite that takes tens of minutes, spins up browsers, consumes shared fixtures or creates throwaway accounts is not free, and running it after every small change trades hours for a signal the change could not have moved. Three levels: a local change with no shared component runs the build, the linter, the unit tests and the specs of the area it touches; a change to a shared component, hook or test harness adds the neighbouring areas; a cross-cutting change (design tokens, a base dialog, navigation, fixtures, test configuration) adds everything its reach actually covers — and then **asks** for the full run rather than starting it. The user, not the agent, decides when the whole suite runs; one full run before a release candidate is what makes it worth its cost.
-- **Say what you ran and what you did not.** The pull request records the exact commands executed and states plainly that the full suite was not run, when it was not. A reader must never infer coverage that does not exist.
 - This step cannot be skipped.
 - On failure: abort the cycle, fix the underlying problem, restart from Step 1 (the build must run again because the code changed).
 
 ## Step 3 — Test
 
 - The concrete test command and scope are defined by the stack documentation of the project.
-- Execute the full test suite declared by the stack doc.
+- Execute the test suite declared by the stack doc, scoped to the reach of the change (below).
+- **Scope the test run to the reach of the change, and treat the whole end-to-end suite as an on-demand gate.** A suite that takes tens of minutes, spins up browsers, consumes shared fixtures or creates throwaway accounts is not free, and running it after every small change trades hours for a signal the change could not have moved. Three levels: a local change with no shared component runs the build, the linter, the unit tests and the specs of the area it touches; a change to a shared component, hook or test harness adds the neighbouring areas; a cross-cutting change (design tokens, a base dialog, navigation, fixtures, test configuration) adds everything its reach actually covers — and then **asks** for the full run rather than starting it. The user, not the agent, decides when the whole suite runs; one full run before a release candidate is what makes it worth its cost.
+- **Say what you ran and what you did not.** The commit message, or the pull request when the project uses one, records the exact commands executed and states plainly that the full suite was not run, when it was not. A reader must never infer coverage that does not exist.
 - **Infrastructure changes are tested too.** A migration, a grant, a policy or a trigger that "should" lock something down is proven by a read-only script that asserts the whole matrix (grants, `search_path`, policies, trigger presence) against the real database and exits non-zero on any deviation. The script is committed and re-run after any later change touching the same objects — defaults re-grant on `DROP` + `CREATE`, so a rule proven once is not proven forever. The stack or companion doc (for example `PERSISTENCE-SUPABASE.md`) says what the script checks.
 - This step cannot be skipped.
 - On failure: abort the cycle, fix the underlying problem, restart from Step 1 (the build must run again because the code changed).
@@ -86,6 +86,7 @@ Any failure at any step aborts the cycle. After fixing the underlying problem, t
 ## Step 5 — Version
 
 - The rules for choosing the bump level (`MAJOR`, `MINOR`, `PATCH`) are defined in `VERSIONING.md`.
+- Before selecting or applying `MAJOR`, complete the compatibility evidence hard gate in `VERSIONING.md`; apply its separate policy for `0.y.z` and pre-releases. An unresolved compatibility question blocks the bump until resolved.
 - The mechanism for applying the bump (which file holds the version, which command updates it) is defined by the stack documentation of the project.
 - **Prerequisite:** the project MUST have a version mechanism configured before the first completion cycle. If no mechanism exists, this step fails — see "Failure Handling".
 - Version files must never be edited manually. Always use the mechanism declared by the stack doc.
@@ -99,12 +100,12 @@ Any failure at any step aborts the cycle. After fixing the underlying problem, t
 
 ## Step 7 — Merge
 
-Runs **only when the task's work is merged** into the mainline. A task that ends at a commit ends at Step 6.
+Runs **only when the task's work is merged** into its integration branch. Under Gitflow (`AGENT-WORKFLOW.md`), that is normally `develop` for a feature; release and hotfix integration also reaches `main`. When `develop` is absent, use the production branch as described in that guide. A task that ends at a commit ends at Step 6. Do not duplicate task changelog entries when a release or hotfix is merged into its other target.
 
 - **Add the changelog entry now, not at release time.** If the project keeps a changelog, the merge is when someone still remembers what the change does. Written later, from a diff, an entry becomes a list of file names — which is exactly the entry nobody reads.
 - **Write it for whoever uses the product**, not for whoever wrote the code: what behaviour changed, and where it is visible. A defect entry says what was going wrong, because that is what tells a reader whether it affected them.
 - **Group it under an unreleased heading.** Several tasks usually ship in one release, so the entry lands under a heading such as `[Unreleased]`, which is renamed to the version and date when that release is tagged. Writing entries directly under a version fails as soon as two merges share it.
-- **The rename at tag time is a documentation-only commit** (`Update changelog: release X.Y.Z`). It is the one commit allowed to name a version — the version *is* what it records — and it follows the documentation-only exception below.
+- **The rename at tag time is a documentation-only commit** (`docs(changelog): release X.Y.Z`). It is the one commit allowed to name a version — the version *is* what it records — and it follows the documentation-only exception below.
 - **Reconcile the backlog with reality.** Mark what this task closed, with the evidence. Remove what stopped making sense — an item kept out of politeness costs attention every time someone reads the list.
 - **Delete the design specs and plans the work was built from.** A working paper left in the repository describes the system as intended, not as shipped, and gets cited as truth later. The changelog entry and the updated guides are the record; whatever reasoning in the spec still matters is moved into them before the file goes.
 - Changelog, backlog and spec-removal edits are committed on the branch **before** the merge, so the merge carries them.
@@ -120,7 +121,7 @@ Runs **only when the task's work is merged** into the mainline. A task that ends
 | Version | Project has no version mechanism                          | Abort cycle. Stop and report to the user. Mechanism must be created before any cycle can run. |
 | Version | Wrong bump level applied                                  | Revert the bump. Restart from Step 5.                        |
 | Commit  | Pre-commit hook or format failure                         | Fix the underlying issue. Restart from Step 1 (the code changed). |
-| Merge   | Changelog entry missing after a merge                     | Add it in a follow-up commit on the mainline. Do not wait for the release. |
+| Merge   | Changelog entry missing after a merge                     | Add it in a follow-up commit on the integration branch. Do not wait for the release. |
 | Merge   | Backlog left claiming work that is done                   | Correct it with the evidence. A stale backlog is worse than no backlog. |
 
 No commit may exist in history without a successful full cycle, except for the cases in "Documented Exceptions".
@@ -136,7 +137,7 @@ The following cases are the ONLY situations where a commit is allowed without ru
 For an exception commit:
 
 - Steps 1 through 5 are skipped (build, lint, test, docs-sync gate, version).
-- Step 6 still applies: the commit message must follow `COMMITS.md` rules. Use the `Update` type.
+- Step 6 still applies: the commit message must follow `COMMITS.md` rules, including the type. Documentation-only additions, edits and deletions use `docs`; choose the appropriate type for CI/CD and dev-tooling changes. The exception waives Steps 1–5, never the message rules.
 - Mixed changesets (code plus any of the above) are NOT exceptions — run the full cycle.
 
 ## Rules
@@ -147,12 +148,13 @@ For an exception commit:
 4. Never edit version files manually.
 5. Never add co-authorship, attribution, or any mention of AI or automated tools to commit messages, pull request titles, or pull request descriptions.
 6. If the project has no version mechanism configured, stop the cycle and report to the user.
-7. On any failure, restart the cycle from Step 1 — never from the failed step.
+7. On a failure at Steps 1, 2, 3 or 6, restart the cycle from Step 1 — never from the failed step. Steps 4 and 5 are handled as the Failure Handling table states.
 8. One completed logical unit of change equals one cycle equals one commit.
 
 ## See Also
 
 - `AGENT-WORKFLOW.md` — Operating discipline for the work that precedes this cycle (planning, context, edit safety). Hands off to this document once the change is complete.
+- `LOCAL-DEPLOY.md` — The optional `SMOKE` gate that deploys into a local container and verifies it starts. It sits beside this cycle, not inside it, and covers what a green cycle structurally cannot see.
 - `AUTONOMOUS-EXECUTION.md` — The unsupervised execution mode: every slice it runs closes through this cycle, and its "Definition of Done" requires Step 7 plus the promotion of its own control files.
 - `VERSIONING.md` — Rules for choosing the bump level at Step 5.
 - `COMMITS.md` — Rules for writing the message at Step 6.
@@ -160,26 +162,26 @@ For an exception commit:
 
 ## Deviations in this project
 
-- **Step 2 (Lint) has no command.** dbqm has no linter and no type checker
-  configured — see the deviations section of `BACKEND-PYTHON.md`. The step is a
-  documented no-op until ruff lands (adoption step 2 there, tracked in
-  `docs/ROADMAP.md`). It is recorded rather than deleted so that the day a
-  linter exists, nobody has to rediscover that this step was skipped.
+- **Step 2 (Lint)** runs `uvx ruff@0.16.7 check .` and `uv run mypy`; see
+  `BACKEND-PYTHON.md` for the adoption status and typing exemptions.
 - **Step 1 (Build) is `python -m build`**, and `build` is not a declared
   dependency of the project — install it on a fresh machine before the first
   cycle. Same for `pytest-asyncio`, which lives in the `dev` extra: without it
   327 async tests fail for a reason that has nothing to do with the change under
   test.
 - **Step 3 (Test) is `python -m pytest tests/ -x -q`** and takes about 3m10s.
-  The scoping rule in Step 2 applies to it as well: a change confined to
+  The scoping rule in Step 3 applies: a change confined to
   `cli.py` runs `tests/test_cli.py`, and the full suite runs before a release
-  candidate or when the change is cross-cutting (`core/`, the design tokens, the
-  layout guards, a fixture).
+  candidate or when the user requests it for cross-cutting work (`core/`, the
+  design tokens, the layout guards, a fixture).
 - **Step 5 (Version) is a manual edit** of `dbqm/_version.py`. There is no bump
   command, which `VERSIONING.md` forbids; the tag guard in
   `.github/workflows/publish.yml` is the compensating control.
-- **Step 7 (Merge) is a local `--no-ff` merge into `main`** for solo work, not a
-  pull request. Publishing is not a step of this cycle at all: it happens when a
+- **Step 7 (Merge) is a local `--no-ff` merge into the integration branch** for
+  solo work, not a pull request; see `AGENT-WORKFLOW.md` for the Gitflow fallback.
+  Publishing is not a step of this cycle at all: it happens when a
   `v*` tag is pushed, which triggers the release workflow. Pushing `main` does
   **not** publish, and a version whose tag was never pushed is not released — the
   PyPI page keeps serving the previous version's README until then.
+- **`LOCAL-DEPLOY.md` is not adopted.** Its optional container `SMOKE` gate does
+  not apply to this installed CLI/TUI.

@@ -8,9 +8,34 @@ It is a mode, not a third discipline. `AGENT-WORKFLOW.md` still governs how ever
 
 ## When This Mode Applies
 
-- The conversation or the repository already holds a plan, a task list, a spec or a stated objective, and the user has said to execute it. The plan is the source of work: **do not ask for it again**, do not ask for confirmation to start technical work, and do not build a different project from the one in context.
-- It does **not** apply when the user is planning, exploring, or asking a question. Those follow `AGENT-WORKFLOW.md` § Planning, where the output is a plan and the gate is approval.
+- The user has written the activation trigger (see "Activation and Exit"), and the conversation or the repository already holds a plan, a task list, a spec or a stated objective. The plan is the source of work: **do not ask for it again**, do not ask for confirmation to start technical work, and do not build a different project from the one in context.
+- It does **not** apply without the trigger, and it does **not** apply when the user is planning, exploring, or asking a question. Those follow `AGENT-WORKFLOW.md` § Planning, where the output is a plan and the gate is approval.
 - The mission is to execute what was planned until it is genuinely done: review the plan, implement, review the implementation, run, test, fix — and stop only when everything is complete or when a decision would change how the system behaves.
+
+## Activation and Exit
+
+A mode with no trigger is a mode that gets inferred, and inference fails: "go ahead" reads as an ordinary task on one turn and as an autonomous round on the next. The trigger is therefore a reserved token, not a phrase, and entering the mode produces a visible acknowledgement so a failed activation is caught on the first reply rather than three turns later.
+
+**Entering: `AUTORUN`.** The user writes the token, alone or followed by the scope. `AUTÔNOMO` is the sanctioned alias, on the same principle as the translated deviations heading. Nothing else activates the mode: not "pode seguir", not "execute o plano", not an approved plan by itself. A harness that supports invocable skills carries the same trigger as a command (`/autorun`), which is the more reliable path because the harness keeps the skill's description in context from the first turn; the token remains valid everywhere else.
+
+**The acknowledgement is mandatory and fixed.** The first reply after the trigger opens with one line, in the language of the conversation, carrying four facts and nothing else:
+
+```
+AUTORUN active — <N> phases, <M> tasks. First: <id> <description>. Stopping only for escalation or HALT.
+```
+
+If that line is absent, the mode did not engage. That is the whole point of the line: the user reads one line instead of auditing behaviour.
+
+**While the round is live**, `ops/TODO.md` holds an item that is not `done`. Every turn begins by reading its "Now" block, which is what makes the round survive a context reset, a new session or a compaction. A question asked mid-round is answered and the round continues; it is not an exit.
+
+**Four controlled transitions, and only four:**
+
+1. **`HALT`** (alias `PARAR`). The round ends on the spot. `ops/` is left intact so the same trigger resumes it later, the current task keeps its real status, and the closing report says where it stopped and what is uncommitted. Nothing is pushed.
+2. **Completion.** Every condition in "Definition of Done" is met. Decisions are promoted, `ops/` is emptied, the work is pushed, and the final report is one short block.
+3. **Blocking escalation.** One question in the escalation format. Only the dependent task is `[!]`; everything else continues. The round stays live, and the answer resumes it without a new trigger. Yield for the answer only when no runnable work remains; an escalation is not permission to abandon independent tasks.
+4. **A scope change from the user.** An explicit cancellation or replacement of the objective ends the old round, with a visible acknowledgement. Clarifications, corrections, status questions and compatible additions update the live plan and execution continues; they do not require a new trigger. Escalate only an unresolved conflict that actually blocks work.
+
+**Publishing is not continuous.** Each slice commits through `TASK-COMPLETION.md` Step 6, so the history stays granular and reviewable, but nothing leaves the machine until the round closes by completion, or until the user asks. A slice that turns out wrong is then a local amend rather than a published mistake; a round that ends at `HALT` leaves its commits local and says so.
 
 ## Principles
 
@@ -25,7 +50,7 @@ It is a mode, not a third discipline. `AGENT-WORKFLOW.md` still governs how ever
 
 ## Roles
 
-A single model plays all of them. The active role is named in every `PROGRESS.md` entry, so a reader can tell whether a line records a change, a review verdict or a test result.
+The orchestrator owns the round and assigns these responsibilities at boot. Roles are responsibilities, not necessarily separate processes: use real sub-agents where the harness supports them and delegation is useful; otherwise perform the roles sequentially and record that fallback. Never claim a separate monitor or worker was created without a real dispatch. The active role is named in every `PROGRESS.md` entry.
 
 | Role | Responsibility |
 |---|---|
@@ -39,6 +64,15 @@ A single model plays all of them. The active role is named in every `PROGRESS.md
 - **No role hands a deterministic technical task to the user.** Running a command, reading an error, finding a file, re-running a suite: the agent does it.
 - The REVIEWER may be a fresh sub-agent with no memory of having implemented the code — independence is the point. It is dispatched with the slice's acceptance criterion and the diff, and retired the moment it reports (`AGENT-WORKFLOW.md` § Orchestrating Sub-Agents).
 
+### Monitor and worker assignment
+
+- **Always name a MONITOR owner.** The orchestrator owns monitoring and user-facing reports by default. For several concurrent workers, delegate progress inspection to one dedicated monitor when the harness can keep it active alongside them. The orchestrator still owns scheduling, recovery and delivery of reports to the user; a child's message alone is not a user-facing update.
+- The monitor inspects task states, evidence, elapsed time and dependencies. It sends findings to the orchestrator and does not edit implementation files or compete for ownership of the control files. Do not create a monitor whose only job is sleeping or waiting; use the orchestrator's bounded waits when there is nothing to inspect.
+- **Delegate independent, bounded tasks** when their results can be reviewed separately and available capacity makes delegation useful. Keep dependent work sequential. Do not create one agent per role mechanically or wait for unavailable capacity when the orchestrator can execute the task itself.
+- Each dispatch includes the task ID, objective, acceptance, dependencies, allowed files, forbidden files, shared resources, artifact path, expected duration, progress deadline and return format (result, evidence, unresolved issues). Include the prohibition on spawning background waiters from `AGENT-WORKFLOW.md`.
+- Record each worker's real identifier and assignment in `TODO.md`. Give every writable file one owner at a time. The orchestrator integrates results, verifies acceptance and serialises shared checks and commits; a worker's completion message does not mark the task done.
+- Use one writer for the four control files: STATE KEEPER in the orchestrator. Workers and a delegated monitor return evidence to it. Retire workers after delivery using the lifecycle supported by the harness; retire the monitor when the round ends or its watched work disappears.
+
 ## Control Files
 
 Four files under `ops/` at the repository root. They are **working papers**: `ops/` is gitignored, created at boot if absent, updated at the end of every slice, and emptied when the work closes (see "Definition of Done"). A committed `ops/` becomes a second backlog that contradicts the canonical documents within a week.
@@ -47,8 +81,8 @@ Four files under `ops/` at the repository root. They are **working papers**: `op
 |---|---|---|
 | `TODO.md` | Meta, current phase, tasks with acceptance, the active task, recently done, out of scope. Blocked tasks are `[!]` lines with the blocker stated. | STATE KEEPER |
 | `PROGRESS.md` | Append-only log: one entry per slice with the active role, the command run, the observed result, and the rollback of any destructive change. | Every role, through STATE KEEPER |
-| `DECISIONS.md` | Decisions taken autonomously (what, why, what was rejected) and escalations awaiting an answer, in the escalation format. | MONITOR, REVIEWER |
-| `REPORT.md` | The MONITOR's latest report only — overwritten, never appended. The dashboard a human reads to know the state without opening the log. | MONITOR |
+| `DECISIONS.md` | Decisions taken autonomously (what, why, what was rejected) and escalations awaiting an answer, in the escalation format. | STATE KEEPER, from MONITOR and REVIEWER |
+| `REPORT.md` | The MONITOR's latest report only — overwritten, never appended. The dashboard a human reads to know the state without opening the log. | STATE KEEPER, from MONITOR |
 
 Their language follows the cascade in `COMMITS.md`, like every other project document. Do not replace them with long chat messages: the chat summarises and points to the file.
 
@@ -59,6 +93,10 @@ Their language follows the cascade in `COMMITS.md`, like every other project doc
 
 ## Meta
 One paragraph: what "done" means for this work, derived from the context.
+Round state: active | waiting_for_decision | halted | interrupted | complete
+Monitor owner and worker identifiers:
+Report interval and reason:
+Last user report / next report due:
 
 ## Current phase
 Phase:
@@ -72,6 +110,8 @@ Phase acceptance:
 Active task:
 Current hypothesis:
 Next action or command:
+Last measurable progress / next inspection due:
+Active operation or worker / expected duration:
 
 ## Recently done
 
@@ -80,7 +120,7 @@ What must not be done in this run.
 ```
 
 - Statuses: `pending`, `in_progress`, `review`, `testing`, `done`, `blocked`. Marks: `[>]` in progress, `[x]` done, `[!]` blocked.
-- **One task in progress at a time**, except trivial subtasks of the same slice.
+- **One integrating slice at a time.** Independent tasks may run in parallel under the assignment rules above, each with its own owner and evidence. Record all active tasks in "Now"; never hide concurrent work behind a single active-task label.
 - **`done` requires evidence** — the `PROGRESS.md` entry that proves it.
 - **Everything that appears mid-way becomes a task.** A defect noticed in passing, a missing test, a doc that lied: it is written down, not fixed silently and not forgotten.
 - **A task that grows is split before continuing.**
@@ -91,8 +131,9 @@ What must not be done in this run.
 1. **Read the project's agent-guidance file** (`AGENTS.md`), the plan in context, and the repository state (`git status`, the backlog if one exists).
 2. **If `ops/` exists, resume.** `TODO.md` § Now is the position; the last `PROGRESS.md` entry is the evidence of where things stood. This is the path taken after a context reset — the files exist so that a new context can pick up without re-deriving anything.
 3. **If it does not, create it.** PLANNER turns the context into phases, tasks and acceptance criteria and writes `TODO.md`; STATE KEEPER creates the other three files empty; `ops/` is added to `.gitignore` if it is not there.
-4. **If a genuinely blocking decision exists at the start**, ask exactly one question in the escalation format. Otherwise, start the first phase immediately.
-5. Enter the slice cycle for the first task and leave it only through the escalation rules or through completion.
+4. Assign the MONITOR owner, choose the report interval and record operation deadlines. Dispatch eligible workers, or record sequential execution when delegation is unavailable or offers no benefit.
+5. **If a genuinely blocking decision exists at the start**, ask exactly one question in the escalation format. Start every independent runnable task meanwhile. Otherwise, start the first phase immediately.
+6. Enter the slice cycle for the first task and leave it only through the escalation rules or through completion.
 
 Never ask for confirmation to boot. Never ask for the plan.
 
@@ -136,6 +177,20 @@ Every task runs through these steps in order.
 
 Repeat until everything derived from the context is done.
 
+### Mandatory continuation check
+
+After every task, phase, worker result and recovery from failure:
+
+1. Reconcile the result with `TODO.md` and acceptance evidence. A completed phase is only a checkpoint in the round.
+2. Select the next runnable task, including independent work when another task is blocked. Write its owner and next concrete action in "Now".
+3. Send the checkpoint as a progress update and **start that action in the same execution turn**. Never end with "phase complete", "ready for the next phase", "shall I continue?" or a promise to work later while runnable work remains.
+4. If only active operations remain, inspect or wait for them with a bounded tool call and resume scheduling when it returns. A dispatched worker is outstanding work, not a reason to finish the orchestrator's turn.
+5. Before any final response, check the whole plan, outstanding workers and Definition of Done. Final success is allowed only for the whole round. If all unfinished work is genuinely blocked, report the precise escalation and persist `waiting_for_decision`; an answer resumes execution without renewed approval.
+
+**A report is never a yield of control.** Send intermediate reports through the harness's progress channel and continue with tools. Ending the turn can leave the system waiting for the user forever; the MONITOR must treat that proposed ending as a continuity failure whenever a next action exists.
+
+**Context and platform interruptions.** Before compaction or a known execution limit, persist the exact next action, operation identifiers, uncommitted state and pending evidence. Use supported automatic continuation or handoff facilities when available. On re-entry, reconcile live processes and repository state before resuming; do not duplicate a worker or repeat a completed change. An actual timeout, unavailable tool or exhausted hard runtime limit is an interruption, never completion: preserve `ops/` and report the limitation if possible. These instructions cannot wake a terminated session or override platform limits; never promise unattended continuation that the harness cannot provide.
+
 ## When to Stop and Ask
 
 Stop and ask one objective question **only** if:
@@ -159,10 +214,30 @@ Do not ask several open questions. Do not stop over an aesthetic preference. Do 
 
 ## Monitor
 
-The MONITOR acts **after every completed task, or every three fix cycles, whichever comes first**, and overwrites `REPORT.md` with:
+The MONITOR checks **at boot, after every completed task or phase, after every three fix cycles, on worker failure, and whenever the report deadline arrives**, whichever comes first. A long first task must not suppress monitoring until it completes.
 
+### Time cadence
+
+Choose and announce a wall-clock interval at boot, recorded in `TODO.md`: use the user's explicit interval, otherwise the project's interval, otherwise the defaults below. Higher-priority harness communication requirements still apply. Reassess when the workload changes, stating why; never silently extend the deadline to hide a stalled task.
+
+| Expected remaining work | Default maximum gap between user reports |
+|---|---|
+| Up to 10 minutes, or duration unknown | 1 minute |
+| More than 10 minutes, up to 1 hour | 3 minutes |
+| More than 1 hour | 5 minutes |
+
+These are reporting intervals, not permission to leave operations unchecked. Estimate duration per long operation or worker using available evidence and set an inspection deadline before dispatch. Use asynchronous execution or bounded waits that return in time for the next report; avoid a blocking call that consumes the entire reporting window when the harness supports yielding. If the environment cannot deliver updates during a blocking operation, disclose that limitation and report as soon as control returns. Do not invent timer execution or background activity.
+
+At each deadline, update `REPORT.md` **and send a short user-facing update**, even while a build or worker is still running. Report blockers and required decisions immediately. A checkpoint report resets the deadline; avoid duplicate timer messages when a substantive update was just sent.
+
+### Report and stagnation checks
+
+The MONITOR overwrites `REPORT.md` with:
+
+- Timestamp, elapsed time, configured interval and next report due.
+- Monitor owner, active workers and their last evidence or contact.
 - Current phase and task.
-- A conservative percentage of the phase.
+- Completed/total accepted tasks and a conservative percentage of the phase; elapsed time alone is not progress.
 - What changed since the last report.
 - Build and test evidence (the commands and their results, not "tests pass").
 - Blockers.
@@ -173,6 +248,9 @@ The MONITOR acts **after every completed task, or every three fix cycles, whiche
 
 Rules:
 
+- At each inspection, look for runnable tasks without an owner, idle workers with unfinished assignments, finished workers whose results were not integrated, and a closed phase with no next action. Repair the scheduling gap immediately; do not ask the user to restart the round.
+- **Two consecutive inspections with no measurable progress**, or an operation exceeding its expected duration, trigger investigation: inspect process state, logs, worker status and possible input prompts. A heartbeat proves liveness, not progress. A justified long-running operation may continue with a revised deadline and recorded evidence; silence alone does not prove a hang.
+- For a stalled or failed worker, request a bounded status response, inspect partial changes, and then resume locally or reassign if needed. Stop or confirm the old writer is inactive before transferring file ownership. Keep useful independent work running. Recovery attempts count toward the same task's anti-loop limits; changing workers or splitting a task never erases the failed approaches already tried.
 - A task in progress for **more than three fix cycles without measurable progress** is `STUCK`: change the approach or split the task.
 - The **same error appearing three times** ends the repetition of the same patch: the hypothesis changes.
 - An IMPLEMENTER adding a feature outside `TODO.md` is cut back to scope.
@@ -229,7 +307,7 @@ Transversal minimums; the stack document adds the specifics.
 - Every phase derived from the context is done and the main flow works.
 - The relevant tests pass, with the commands recorded.
 - Run instructions are updated if the result needs them to be used.
-- `TODO.md` has no `in_progress` or `blocked` item.
+- `TODO.md` contains only `done` tasks within the agreed scope; no pending, review, testing, in-progress or blocked task remains. Every dispatched worker has returned and its result has been integrated and verified, or its assignment was explicitly superseded and reconciled.
 - The last slice closed through `TASK-COMPLETION.md`, including Step 7 when the work is merged: changelog entry, backlog reconciled, design specs deleted.
 - **`DECISIONS.md` was promoted and `ops/` emptied.** Every decision still worth knowing moves to the project's canonical documents — the agent-guidance file, the changelog, the backlog. What stays in `ops/` is not read again.
 
@@ -251,11 +329,12 @@ Between slices, speak short:
 - Next step.
 - Decision needed: yes or no.
 
-Do not dump a log. Summarise and point to the state file. During a long implementation, **the MONITOR speaks for the team**; the IMPLEMENTER does not narrate every change. Progress cadence for long-running work follows `AGENT-WORKFLOW.md` § Execution & Progress.
+Do not dump a log. Summarise and point to the state file. During a long implementation, **the MONITOR speaks for the team**; the IMPLEMENTER does not narrate every change. The time cadence and mandatory continuation check above make `AGENT-WORKFLOW.md` § Execution & Progress concrete for this mode. Reports are intermediate updates; only a permitted transition or a declared platform interruption can end execution before the whole plan is complete.
 
 ## See Also
 
 - `AGENT-WORKFLOW.md` — The discipline every edit follows inside this mode: planning phases, context management, edit safety, self-correction, sub-agents.
+- `LOCAL-DEPLOY.md` — The optional `SMOKE` gate. A round never fires it on its own; a plan may declare it as a phase acceptance criterion.
 - `TASK-COMPLETION.md` — The cycle every slice closes through (build → lint → test → docs → version → commit → merge), including the reach-of-change test scope and Step 7.
 - `COMMITS.md` — Message format for the per-slice commit and the language cascade the control files follow.
 - `VERSIONING.md` — Bump-level rules applied at every slice's Step 5.
@@ -282,8 +361,7 @@ written; it is simply not narrated.
 
 ### Slice cycle, in dbqm's terms
 
-- **Step E (run and verify) has no lint command.** `TASK-COMPLETION.md` Step 2 is
-  a documented no-op here until ruff lands; see `BACKEND-PYTHON.md`.
+- **Step E (run and verify)** uses the ruff and mypy commands in `AGENTS.md`.
 - **Never run two pytest instances at once**, and never run the whole suite
   during a slice. Two full Textual suites in parallel exhausted the maintainer's
   machine and the OS killed both runs. A slice runs the file covering the change;
@@ -291,9 +369,10 @@ written; it is simply not narrated.
   `tests/core`, `tests/models`, `tests/design`, the three `tests/test_cli*.py`,
   then `tests/ui` by file. `test_app.py` and `test_screens.py` take about 75s and
   100s; wrap each run in `timeout` so a hang is bounded rather than silent.
-- **Step F closes with a local `--no-ff` merge into `main`.** Publishing is not
-  part of the cycle: it happens when a `v*` tag is pushed, and the tier's fixes
-  reach nobody until then.
+- **Integration uses a local `--no-ff` merge**, with the target determined by
+  `AGENT-WORKFLOW.md`. Publishing happens when a `v*` tag is pushed; the tier's
+  fixes reach nobody until then. `LOCAL-DEPLOY.md` and its optional container
+  `SMOKE` gate are not adopted by this installed CLI/TUI.
 
 ### Control files against the ones already here
 

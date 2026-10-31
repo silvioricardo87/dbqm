@@ -253,7 +253,7 @@ Applies when the project exposes an HTTP interface (REST, webhooks, a web UI bac
 
 ## CLI (conditional)
 
-Applies when the project exposes a command-line interface, including a `--version` / `--help` on an otherwise interactive app.
+Applies when the project exposes a command-line interface, including a `--version` / `--help` on an otherwise interactive app. A service with no command surface of its own skips this section.
 
 - **typer** for commands (the interface derives from type hints), **rich** for output. No hand-rolled `argv` dispatch.
 - **Exit codes are a contract.** `0` success, `1` failure, `2` usage error, `130` on `KeyboardInterrupt`. The top-level `main()` maps `AppError` to a one-line message on stderr and a non-zero exit; a traceback reaches the user only with `--debug`.
@@ -262,7 +262,7 @@ Applies when the project exposes a command-line interface, including a `--versio
 
 ## TUI (conditional)
 
-Applies when the project ships a terminal user interface (Textual).
+Applies when the project ships a terminal user interface (Textual). A service, a bot or a plain CLI skips this section.
 
 - **Every failure reaches one surface.** Override `App._handle_exception` to push an error modal (falling back to `notify(severity="error")`) and route `on_worker_state_changed` `ERROR` states into the same handler, because all blocking work runs in `@work(thread=True)` workers whose exceptions otherwise vanish. The handler does not re-raise: the app stays alive.
 - **Escape Rich markup before rendering user or traceback text** (`text.replace("[", r"\[")`). A stack trace containing `[bold]` is a rendering bug, not a message.
@@ -274,7 +274,7 @@ Applies when the project ships a terminal user interface (Textual).
 
 ## Database (conditional)
 
-Applies when the project owns a database or talks to one. Choose the default unless the criterion for the sub-conditional holds.
+Applies when the project owns a database or talks to one. A project whose only persistence is the filesystem or a vendor API skips this section. Choose the default unless the criterion for the sub-conditional holds.
 
 **Default — SQLAlchemy 2.x (async) + Alembic.**
 
@@ -310,7 +310,7 @@ def checked_identifier(name: str) -> str:
 
 ## Docker (conditional)
 
-Applies when the project ships as a container. Multi-stage, uv in the builder only, non-root at runtime:
+Applies when the project ships as a container. A tool installed with `uv tool install`, or a service deployed straight onto a host, skips this section. Multi-stage, uv in the builder only, non-root at runtime:
 
 ```dockerfile
 FROM python:3.14-slim AS builder
@@ -455,14 +455,15 @@ The rules for choosing the bump level are in `VERSIONING.md`. The cycle orchestr
 - `VERSIONING.md` — Rules for choosing the version bump level and the tag-driven release flow.
 - `COMMITS.md` — Rules for writing commit messages and the language cascade used in test names.
 - `AGENT-WORKFLOW.md` — Operating discipline before and during a change.
+- `LOCAL-DEPLOY.md` — The optional `SMOKE` gate that builds this project's image and verifies it starts.
 
 ## Deviations in this project
 
 dbqm predates this guide and is a **published tool other people install**
 (`pip install dbqm`), not a service we deploy. That single fact drives most of
-what follows: the floor version, the absence of a lockfile, and the flat layout
-are all consequences of shipping a wheel to strangers rather than an image to a
-cluster.
+what follows: the floor version and flat layout reflect shipping a wheel to
+strangers rather than an image to a cluster. The development lockfile does not
+constrain pip users' transitive dependencies.
 
 **Where the project stands on the adoption ladder:** all five migration steps
 in "Adopting the Guide in an Existing Codebase" have run — 1, 2 and 4 in
@@ -475,7 +476,7 @@ migration, because the two are not the same debt.
 | Guide | dbqm today | Note |
 |---|---|---|
 | uv, `uv.lock`, PEP 735 groups | Done | `uv.lock` and `.python-version` are committed. `requirements.txt` does not exist — it was already gone before this migration started, not deleted by it; dependencies live in `pyproject.toml`, untouched by this migration. |
-| `uv_build` backend | `setuptools>=68` | Not adopted — `pyproject.toml`'s build backend was out of scope for step 1, which was the lockfile only. |
+| `uv_build` backend | `setuptools==84.0.0` | Not adopted — `pyproject.toml`'s build backend was out of scope for step 1, which was the lockfile only. |
 | ruff (lint + format) | Done | `uvx ruff check .` passes over fifteen rule families, chosen by measuring which the code already passed or nearly passed. This is why `TASK-COMPLETION.md` Step 2 now has a command here (see `AGENTS.md`). `ruff format` is not adopted. |
 | mypy `strict = true` | Done — 2.3.2 | Adoption step 3. `[tool.mypy] strict = true` with a per-module `ignore_errors` override for legacy modules — 75 of 109 modules strict, 34 exempt, each entry carrying the finding count it owes. `tests/design/test_typing_policy.py` asserts the exemption list only shrinks — see "The policy test" below and `docs/ROADMAP.md` Tier 2. The planning figure of **464 findings at `--strict`** this table once carried was wrong: it came from `uvx mypy --ignore-missing-imports`, which resolves in an isolated environment with no project dependencies, so every Textual base class read as `Any` and every subclass produced a phantom finding. Measured correctly (`uv run mypy --strict`), the real figure was 396. |
 | pytest-cov, coverage floor | no coverage measured | Test count is tracked instead (see `AGENTS.md`). A count is not coverage. |
@@ -537,6 +538,8 @@ failing test, not a habit.
   or structlog.** None of those sections apply: dbqm makes no HTTP calls, runs no
   server, and talks to databases through the raw drivers the guide already allows
   as a sub-conditional (`oracledb`, `psycopg`, `pymssql`, `PyMySQL`).
+- **`LOCAL-DEPLOY.md` is not adopted.** Its optional container `SMOKE` gate does
+  not apply to this installed CLI/TUI.
 
 ### Where the project already complies
 

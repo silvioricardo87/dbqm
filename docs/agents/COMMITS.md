@@ -1,182 +1,95 @@
 # Git Commit Instructions
 
-This document defines the mandatory format for commit messages in any project that consumes this skill. It is consumed at **Step 6** of the cycle defined in `TASK-COMPLETION.md`.
+This document defines the mandatory format for commit messages in projects that consume this guide. It is consumed at **Step 6** of `TASK-COMPLETION.md` and adopts [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## Commit Message Format
 
-All commit messages MUST follow this structure:
-
 ```
-<Type> <Component/Area>: <concise description of what and why>
-```
+<type>(<scope>)!: <description>
 
-### Structure Breakdown
+[optional body]
 
-1. **Type** (required): action verb in the imperative mood, capitalized.
-2. **Component/Area** (required): the part of the system that was modified.
-3. **Description** (required): what changed and why.
-
-## Commit Types
-
-Use one of these verbs based on the nature of the change. One commit equals one type. If a changeset legitimately spans multiple types, split it into separate commits — one cycle per commit.
-
-- **Add** — New features, files, modules, or capabilities.
-- **Update** — Modifications to existing features or configurations without adding new capability.
-- **Fix** — Bug fixes and corrections of incorrect behavior.
-- **Refactor** — Code restructuring without changing functionality. Includes simplifications.
-- **Enhance** — Improvements to existing features (performance, UX, readability) that are not bug fixes.
-- **Remove** — Deletion of features, files, or code.
-- **Merge** — Branch merges. Usually automatic; rarely authored manually.
-
-## Component/Area Guidelines
-
-Be specific about what was modified. Prefer concrete, stable names from the project structure.
-
-Generic examples:
-
-- Module or feature: `Authentication`, `Task Management`, `Notification Service`.
-- UI component or view: `Dashboard`, `Form Wizard`, `Settings Page`.
-- Technical area: `Database Schema`, `API Layer`, `Build Pipeline`, `Cache Layer`.
-- Documentation: `README`, `API Docs`, `Setup Guide`.
-
-## Description Best Practices
-
-After the colon, provide a description that:
-
-1. **Explains what changed.** Be specific about the modification.
-2. **Explains why it changed.** Include the benefit or reason.
-3. **Uses precise technical language.** No vague adjectives.
-4. **Separates related changes with commas or `and`.** Keep the commit atomic.
-5. **Stays on one line.** Informative but concise.
-
-### Good Examples
-
-```
-Add Authentication module with email and OAuth providers
-Fix currency formatting for negative values in Finance module
-Refactor Task List: extract filtering logic into a dedicated hook
-Update Build Pipeline: add dependency caching for faster runs
-Remove deprecated legacy migration code
-Enhance Dashboard: add loading skeletons and error boundaries
-Add pagination to the API layer for list endpoints
-Fix race condition in the real-time subscription handler
+[optional footer(s)]
 ```
 
-### Bad Examples
+The type and description are required. The scope and `!` are optional; `!` marks a breaking change. Use a colon and one space before the description. Separate the body and footers from the preceding section with a blank line. Use the body to explain why and record verification evidence when the subject cannot carry it.
+
+Choose one lowercase type for the primary intent:
+
+| Type | Use |
+|---|---|
+| `feat` | A new capability or a backwards-compatible enhancement that adds capability. |
+| `fix` | A correction of incorrect behavior. |
+| `perf` | A performance improvement without new capability. |
+| `refactor` | Internal restructuring without a behavior change, including simplification. |
+| `docs` | Documentation-only changes, including additions and deletions. |
+| `test` | Test-only changes. |
+| `build` | Build system or dependency changes. |
+| `ci` | Continuous integration or delivery configuration. |
+| `chore` | Maintenance that fits no more specific type. |
+| `revert` | Revert an earlier change; explain what is reverted and why in the body. |
+
+These additional types are project conventions permitted by the specification; `feat` and `fix` have the meanings specified there. A branch prefix and a commit type describe different things: for example, a `feature/` branch may contain a `docs` commit. Automated merge commits may retain the hosting tool's generated message; manually authored work commits follow this format. Do not rewrite existing history to conform.
+
+## Scope and Description
+
+- A scope identifies the affected area, such as `auth`, `api` or `build`; use lowercase ASCII words separated by hyphens. Omit it when no single area is useful.
+- Describe what changed in the imperative mood. Explain why in the subject when concise, or in the body when needed. Avoid vague subjects, personal pronouns, emojis, a trailing period, WIP markers and unrelated changes.
+- Aim for 50–100 characters in the subject. Use code and configuration identifiers precisely, wrapped in backticks where helpful.
+- One commit represents one logical change and one type. Related changes may share a commit; split unrelated changes into separate cycles.
+
+Examples:
 
 ```
-update code
-fix bug
-changes
-WIP
-small tweaks
-misc updates
-stuff
+feat(auth): add email sign-in
+fix(api): reject expired credentials
+refactor(cache): extract eviction policy
+docs(workflow): define branch naming rules
+ci: cache dependencies between builds
 ```
-
-## Writing Style
-
-- **Tense:** imperative mood (`Add`, not `Added` or `Adding`).
-- **Capitalization:** first word and proper nouns capitalized.
-- **Length:** aim for 50–100 characters total.
-- **Code and configuration identifiers:** wrap in backticks (for example, `useEffect`, `contents: write`).
-- **Punctuation:** no trailing period.
-- **Emojis:** never in the commit message.
-
-## Language
-
-Choose the language for commit messages by following this cascade, stopping at the first level that gives a clear answer:
-
-1. **Commit history.** If the repository has commits, use the language predominant in the last 20 commits.
-2. **Issue and pull-request labels.** If history is empty or inconclusive, infer from repository labels.
-3. **Main application documentation.** If labels are inconclusive, infer from the primary documentation files (`README`, `CLAUDE.md`, `AGENTS.md`, or equivalent).
-4. **English.** Final fallback.
-
-Within a single repository, never mix languages across commits. Consistency is mandatory.
-
-## What NOT to Include
-
-- Personal pronouns (`I`, `we`, `our`, `eu`, `nós`).
-- Vague descriptions (`stuff`, `things`, `changes`, `misc`).
-- Emojis.
-- Multiple unrelated changes in one commit — split them.
-- WIP or temporary markers.
-- The version number generated by the bump at Step 5 of `TASK-COMPLETION.md`. The one exception is the release-changelog commit — `Update changelog: release X.Y.Z` — made at tag time when the changelog's unreleased heading becomes the version: it is documentation-only, and the version is the very thing it records.
-- Co-authorship, attribution, or any mention of AI agents, assistants, or automated tools. This also covers the title and description of the pull request that carries the commit — no "generated with" lines, no AI co-author trailers, anywhere.
-
-## Multi-Change Commits
-
-When a commit includes multiple **related** changes, use this format:
-
-```
-<Type> <Component>: <main change>, <secondary change>, and <tertiary change>
-```
-
-Example:
-
-```
-Update Build Pipeline: remove redundant steps, add dependency cache, and enable parallel execution
-```
-
-Unrelated changes must go in separate commits, each with its own full completion cycle.
 
 ## Breaking Changes
 
-Suffix the description with `(BREAKING CHANGE: ...)` when the commit breaks an existing contract. A breaking commit ALWAYS triggers a `MAJOR` version bump at Step 5 of `TASK-COMPLETION.md`.
-
-Example:
+Indicate an incompatible change with `!` before the colon and a `BREAKING CHANGE:` footer describing the impact and required migration. The footer is required by this guide even though the specification permits `!` alone. The bump follows the hard gate and initial-development policy in `VERSIONING.md`, regardless of type.
 
 ```
-Refactor API: change task endpoint structure (BREAKING CHANGE: consumers must update all /task/* calls)
+refactor(api)!: replace the legacy endpoint
+
+BREAKING CHANGE: Clients must migrate to the new endpoint.
 ```
 
-## Relationship to Version Bump
+## Language
 
-Each commit type maps to a default version bump level defined in `VERSIONING.md`. This table is mirrored from `VERSIONING.md` so this document stays self-contained.
+Type tokens and scopes remain lowercase English. Choose the language of the description, body and footer text by this cascade, stopping at the first clear answer:
 
-| Commit Type | Default Bump | Condition for another level       |
-|-------------|--------------|-----------------------------------|
-| `Add`       | MINOR        | MAJOR if the addition is breaking |
-| `Update`    | PATCH        | MINOR if it adds new capability   |
-| `Fix`       | PATCH        | —                                 |
-| `Refactor`  | PATCH        | MINOR if multi-file or structural |
-| `Enhance`   | PATCH        | MINOR if it adds new capability   |
-| `Remove`    | PATCH        | MAJOR if removing a public API or user-visible feature |
-| `Merge`     | —            | Inherits from the merged commits  |
+1. Predominant language in the last 20 commits.
+2. Issue and pull-request labels.
+3. Main application documentation (`README`, `CLAUDE.md`, `AGENTS.md`, or equivalent).
+4. English as the fallback.
 
-On mixed changes, pick the highest applicable level. When unsure between `MINOR` and `MAJOR`, ask the user.
+Keep that language consistent within the repository. The `BREAKING CHANGE:` token remains uppercase English as required by the specification.
 
-## Relationship to TASK-COMPLETION
+## Versioning and Completion
 
-This document is consumed at **Step 6** of `TASK-COMPLETION.md`. A commit is created only after:
+`VERSIONING.md` decides the bump at Step 5 from the actual change, including project-specific rules that may differ from release tooling defaults. In general `feat` corresponds to MINOR and `fix` to PATCH; a breaking change requires MAJOR for stable versions, subject to the guide's `0.y.z` policy. Other types do not imply a bump under Conventional Commits itself; this project's completion rules may still require one. Do not infer a release solely from the prefix or enable automated release rules without reconciling them with `VERSIONING.md`.
 
-1. A successful build (Step 1).
-2. A clean lint run — every error fixed (Step 2).
-3. A successful test run (Step 3).
-4. The documentation synced with the change (Step 4).
-5. A version bump applied through the stack mechanism (Step 5).
+A work commit follows successful build, lint, test, documentation sync and version bump, except for the closed exceptions in `TASK-COMPLETION.md`. For documentation-only, CI/CD-only or dev-tooling-only work, choose the appropriate type above; the exception waives Steps 1–5, not message rules.
 
-Commits that bypass Steps 1–5 are only allowed for the closed list of exceptions documented in `TASK-COMPLETION.md` (documentation-only, CI/CD-only, or dev-tooling-only changes). In those cases, use the `Update` type and follow all rules in this document.
-
-## Quick Reference
-
-- **Format:** `<Verb> <Area>: <what and why>`.
-- **Types:** `Add`, `Update`, `Fix`, `Refactor`, `Enhance`, `Remove`, `Merge`.
-- **Rule:** one commit equals one logical change equals one version bump.
-- A good commit message tells the story of **what** changed and **why** it matters, so that future readers understand the change without opening the diff.
+Do not include the version generated at Step 5 in the message. The release-changelog commit (`docs(changelog): release X.Y.Z`) is the exception: the version is what it records. Never include co-authorship, attribution, or mention of AI agents, assistants or automated tools in commit messages, PR titles or PR descriptions.
 
 ## See Also
 
 - `TASK-COMPLETION.md` — Orchestrator that consumes this document at Step 6.
-- `VERSIONING.md` — Bump-level rules and the source-of-truth mapping table.
+- `AGENT-WORKFLOW.md` — Operating discipline before and during the change.
+- `AUTONOMOUS-EXECUTION.md` — The unsupervised mode, whose per-slice commit follows these rules.
+- `VERSIONING.md` — Source of truth for bump-level rules.
 
 ## Deviations in this project
 
-- **Scopes are a closed set**, narrower than the "concrete, stable names" this
-  guide allows: `ui`, `core`, `models`, `config`, `web`, `mcp` (for
-  `dbqm/mcp/**`, `tests/mcp/**`, `docs/MCP.md`). They map to the directories in
-  `docs/ARCHITECTURE.md`. A commit that does not fit one of them is usually two
-  commits.
+- **Scopes, when used, are a closed set**: `ui`, `core`, `models`, `config`,
+  `web`, `mcp` (for `dbqm/mcp/**`, `tests/mcp/**`, `docs/MCP.md`). They map to the directories in
+  `docs/ARCHITECTURE.md`. Omit the scope when no single area fits. For example,
+  the release-changelog subject is `docs: release X.Y.Z` here.
 - **The language cascade resolves to English**, and dbqm states the rule
   explicitly rather than leaving it to inference: identifiers, comments,
   docstrings, test names, assertion messages, commit messages, PR titles and
