@@ -23,17 +23,24 @@ whatever equivalents your harness provides.
 
 - When asked to plan, output **only** the plan. Write no code until told to
   proceed.
-- When given a plan, follow it exactly. Flag real problems and wait for a
-  decision — do not silently deviate or "improve" it mid-flight.
+- Preserve the approved objective, acceptance and essential requirements.
+  Reorder or split implementation work within that scope autonomously; record
+  why. Escalate material changes to scope or contracts before implementing them.
 - For non-trivial features (three or more steps, or any architectural
-  decision), interview the user about implementation, UX, and trade-offs
-  before writing code.
+  decision), resolve missing implementation, UX and trade-off requirements
+  before writing code. Do not repeat questions already answered by the context.
 - Never attempt a multi-file refactor in a single pass. Break it into phases of
-  at most **five files**. Complete a phase, verify it, get approval, then
+  roughly **five files** as a review checkpoint, not an acceptance boundary.
+  Keep an essential integration together even when it needs more files, recording
+  the dependency and review approach. Complete a phase, verify it, get approval, then
   continue. Verification here defers to `TASK-COMPLETION.md`. In autonomous
   execution (`AUTONOMOUS-EXECUTION.md`), where the plan was approved up front,
   the phase checkpoint is a report, not a stop — the agent continues unless an
   escalation rule applies.
+- Plan a small complete functional flow before additional providers, interfaces,
+  abstractions or secondary scenarios. Identify prerequisite work separately;
+  completing it does not complete the flow. If no safe small delivery exists,
+  document the dependency and reassess the plan without weakening requirements.
 
 ## Gitflow and Branch Names
 
@@ -125,8 +132,21 @@ commit messages, not branch names; commit messages follow `COMMITS.md`.
   expectation, stop and investigate — a hang, a prompt waiting on input, a
   wrong command, a runaway loop — instead of assuming it will finish on its own.
 
+- During implementation, use focused checks under `TASK-COMPLETION.md` § Test
+  scope and execution cadence. A small edit is not a completed logical change
+  and does not restart the completion cycle. Once the focused checks pass,
+  move toward integration instead of repeatedly running broader regressions.
+
 ## Orchestrating Sub-Agents
 
+- Delegate only when authorized by the operator and applicable harness rules.
+  Give each worker an objective, allowed and forbidden files, dependencies,
+  acceptance evidence and an integration owner. Workers report scope discoveries
+  instead of implementing them independently. Shared files have one writer.
+- Bound concurrent implementation by integration and review capacity. In
+  autonomous mode, use `AUTONOMOUS-EXECUTION.md`'s limits; integrate and verify
+  prerequisites before dispatching dependent work. Do not open another phase
+  merely because a worker is available.
 - Retire a sub-agent the moment its work is delivered. A finished agent that
   stays registered keeps appearing in the user's task list, showing the time
   since it started rather than the time it has been working — so the list stops
@@ -153,11 +173,13 @@ commit messages, not branch names; commit messages follow `COMMITS.md`.
 
 ## Code Quality Bar
 
-- Do not default to "the simplest approach" or "don't refactor beyond what was
-  asked" when the structure is wrong. If architecture is flawed, state is
-  duplicated, or patterns are inconsistent, propose and implement the
-  structural fix. Ask: *what would a senior perfectionist reject in code
-  review?* Fix that.
+- Justify structural changes by the current acceptance or a concrete risk.
+  Before adding infrastructure, layers, migrations or a large refactor, compare
+  smaller alternatives that preserve the requirements. Record adjacent and
+  pre-existing problems for later unless they block delivery or pose a concrete
+  risk; a failing unrelated check does not automatically authorize scope growth.
+- Never weaken security, isolation, financial or data integrity, or explicit
+  requirements to meet a time, file-count or diff-size target.
 - Write code that reads like a human wrote it. No robotic comment blocks.
   Default to no comments; comment only when the **why** is non-obvious.
 - Do not build for imaginary scenarios. Simple and correct beats elaborate and
@@ -169,12 +191,11 @@ test structure) live in that stack's document. This section defines the
 
 ## Context Management
 
-- Before any structural refactor of a large file, first remove dead props,
-  unused exports, unused imports, and debug logs. Commit that cleanup
-  separately. Dead code burns context.
-- For work touching many independent files, split it across parallel
-  sub-agents, each owning a small batch (roughly five to eight files). Sequential
-  processing of a large set guarantees context decay partway through.
+- Before a structural refactor, inspect dead code and unused imports; remove
+  only what is necessary for the task. Separate adjacent cleanup into the backlog.
+- For many independent files, use bounded delegation when authorized and useful;
+  otherwise use sequential batches and durable notes. File count alone does not
+  justify opening more fronts.
 - After a long exchange, re-read a file before editing it. Context compaction
   may have dropped the details you relied on.
 - If you notice signs of context degradation — referencing variables that do
@@ -208,6 +229,13 @@ test structure) live in that stack's document. This section defines the
 
 ## Communication
 
+- Report usable behavior and its evidence separately from scaffolding, isolated
+  tests, disabled features and pending integration. Status requests receive real
+  phase/task states, limitations and blockers, not a count of artifacts as delivery.
+- An explicit stop instruction halts implementation and dispatched workers.
+  Preserve changes and report unfinished operations; do not continue in the
+  background. Operator restrictions on validation, commits, push, publication
+  and real services take precedence over default workflow steps.
 - When the user says "yes", "do it", or "push", execute. Do not repeat the plan
   back.
 - When the user points to existing code as a reference, study it and match its
@@ -226,7 +254,6 @@ test structure) live in that stack's document. This section defines the
 - `VERSIONING.md` — Bump-level rules for the completion cycle.
 - Stack documentation of the consuming project — Concrete code-quality, testing,
   and command standards that this document's mindset is applied through.
-
 ## Deviations in this project
 
 The planning, context-management, edit-safety and self-correction discipline

@@ -30,6 +30,24 @@ Examples that do NOT trigger the full cycle (see "Documented Exceptions"):
 
 **WIP commits are forbidden.** Every commit in the history must represent either a complete successful cycle or one of the documented exceptions.
 
+A completed prerequisite or contained refactor is not a completed feature.
+Feature acceptance requires an integrated usable path in the declared validation
+environment. Scaffolding, isolated tests and disabled functionality remain labeled
+as such. Pending essential integration or validation prevents a readiness claim,
+regardless of how many tests pass. Autonomous delivery checkpoints belong to
+`AUTONOMOUS-EXECUTION.md`; this cycle verifies the resulting logical change.
+
+An edit, helper, test case or intermediate implementation chunk does not by
+itself trigger this cycle. Develop with focused checks; enter the cycle when a
+cohesive logical change is ready for acceptance and commit. Do not manufacture
+tiny completion tasks that repeatedly run the same feature regression.
+
+Operator instructions on validation, commits, merge, push, publication and real
+services override default actions. Respect existing authorization without asking
+again. Record a prohibited or unavailable required step as pending; do not bypass
+it or report the full cycle complete. A stop instruction permits state preservation
+and safe shutdown, not further implementation or completion commands.
+
 ## The Mandatory Sequence
 
 Steps 1–6 run in this fixed order. Reordering is not allowed. Step 7 runs only
@@ -45,7 +63,7 @@ when the work is merged.
    abort, fix, restart from Step 1
 ```
 
-A failure at Steps 1, 2, 3 or 6 aborts the cycle. After fixing the underlying problem, the cycle restarts from **Step 1** — not from the failed step — because the source code has changed and the previous build/lint/test results are no longer valid. Steps 4 and 5 are the two exceptions, and the Failure Handling table states them: a documentation gap is closed before continuing, and a wrong bump is reverted and reapplied at Step 5, because neither touched the source.
+A failure at Steps 1, 2, 3 or 6 aborts the cycle. Diagnose and stabilize the fix with the smallest relevant checks first; do not restart the whole cycle for every attempted patch. Once the fix is ready for acceptance, the cycle restarts from **Step 1** — not from the failed step — because the source code has changed and the previous build/lint/test results are no longer valid. Steps 4 and 5 are the two exceptions, and the Failure Handling table states them: a documentation gap is closed before continuing, and a wrong bump is reverted and reapplied at Step 5, because neither touched the source.
 
 ## Step 1 — Build
 
@@ -64,9 +82,64 @@ A failure at Steps 1, 2, 3 or 6 aborts the cycle. After fixing the underlying pr
 
 ## Step 3 — Test
 
+### Test scope and execution cadence
+
+This is the canonical test-selection policy, including the checks that precede
+the completion cycle. Stack documents supply runners and project configuration;
+an unfiltered example command is not an instruction to run every test after
+each edit. Select by behavior and dependency reach, not just changed filenames.
+
+| Moment | Required scope | When to expand |
+|---|---|---|
+| During implementation or diagnosis | The changed behavior's test cases, files or smallest relevant group; on a failure, reproduce and rerun that failure first | Add direct consumers or focused integration checks when a shared contract or risk requires them |
+| Functional feature or delivery ready for acceptance | Tests for the whole feature, its essential integrated flow and affected consumers, against the final integrated state | Include neighboring areas reached by shared code, schema, configuration or fixtures |
+| Broader regression or release gate | The affected wider modules, or the whole suite when impact genuinely spans the project or an explicit project/operator gate requires it | State the impact or gate that justifies the run; full E2E remains on demand with existing authorization honored |
+
+- Run the feature acceptance set after integration, before declaring the feature
+  complete. Passing tests for separate chunks cannot substitute for this check.
+  Small independently deliverable sub-features may close separately; unfinished
+  helpers do not become features just to advance task counters.
+- Once the selected checks pass, continue implementation or close the task.
+  Repeat only after a relevant change, failure or unresolved concern, naming
+  what invalidated the evidence. A new chat turn, worker handoff or desire for
+  reassurance is not a reason. Before acceptance, ensure the evidence matches
+  the final code, dependencies, fixtures and environment; do not reuse stale runs.
+- Before a costly run, identify the scope, expected signal and approximate cost
+  from available history. If impact is uncertain, inspect dependencies first;
+  broaden when uncertainty remains material. A genuinely fast whole unit suite
+  may be cheaper than constructing a filter; record that reason, not a blanket
+  exemption for regressions on every edit.
+- Confirm that selection actually collected and executed the intended tests.
+  Zero matches or an excluded required integration test is not a pass. If the
+  runner cannot select reliably, document the smallest supported scope and its
+  cost rather than inventing a filter or building a generic harness mid-task.
+- Use coverage to find behavioral gaps, not to generate redundant tests or run
+  unrelated suites. Partial runs do not prove project-wide coverage. Enforce a
+  project-wide coverage threshold at its declared broader gate, not against a
+  partial run; never lower the threshold to make the partial run pass.
+- Keep command, scope, result, duration and unverified areas in the evidence.
+  Save verbose logs as artifacts and inspect failure summaries and relevant
+  excerpts; avoid repeatedly loading successful output into context. Coordinate
+  one owner for expensive shared regression runs instead of duplicating them
+  across workers. Do not overlap runs using shared mutable fixtures: contention
+  and leftover state can masquerade as product regressions.
+
+### Acceptance and safeguards
+
+- Test observable behavior and risk, including the essential integration path
+  and relevant failure cases. Avoid redundant tests and assertions that merely
+  mirror implementation details. Use authorized isolated environments; access to
+  credentials does not itself authorize real-service use or financial effects.
+- A focused integration check is distinct from the optional full end-to-end
+  suite and the opt-in container `SMOKE` gate. Neither optional gate replaces
+  essential acceptance evidence. Existing approval for a full run remains valid.
+- Record skipped tests, known failures, unavailable environments and their impact
+  on acceptance. A required skipped check is pending, not a pass. Investigate
+  pre-existing failures without silently fixing adjacent areas or suppressing
+  failures; preserve the failed gate and apply workflow scope/escalation rules.
 - The concrete test command and scope are defined by the stack documentation of the project.
-- Execute the test suite declared by the stack doc, scoped to the reach of the change (below).
-- **Scope the test run to the reach of the change, and treat the whole end-to-end suite as an on-demand gate.** A suite that takes tens of minutes, spins up browsers, consumes shared fixtures or creates throwaway accounts is not free, and running it after every small change trades hours for a signal the change could not have moved. Three levels: a local change with no shared component runs the build, the linter, the unit tests and the specs of the area it touches; a change to a shared component, hook or test harness adds the neighbouring areas; a cross-cutting change (design tokens, a base dialog, navigation, fixtures, test configuration) adds everything its reach actually covers — and then **asks** for the full run rather than starting it. The user, not the agent, decides when the whole suite runs; one full run before a release candidate is what makes it worth its cost.
+- Execute the test suite declared by the stack doc, scoped to the reach of the change (above).
+- **Apply the scope and cadence above.** A completion-cycle restart does not widen the test selection by itself. Full E2E requires operator or explicit project authorization; honor approval already given, and ask only when the required run is not authorized. A full unit suite is not the same gate as full E2E.
 - **Say what you ran and what you did not.** The commit message, or the pull request when the project uses one, records the exact commands executed and states plainly that the full suite was not run, when it was not. A reader must never infer coverage that does not exist.
 - **Infrastructure changes are tested too.** A migration, a grant, a policy or a trigger that "should" lock something down is proven by a read-only script that asserts the whole matrix (grants, `search_path`, policies, trigger presence) against the real database and exits non-zero on any deviation. The script is committed and re-run after any later change touching the same objects — defaults re-grant on `DROP` + `CREATE`, so a rule proven once is not proven forever. The stack or companion doc (for example `PERSISTENCE-SUPABASE.md`) says what the script checks.
 - This step cannot be skipped.
@@ -80,7 +153,7 @@ A failure at Steps 1, 2, 3 or 6 aborts the cycle. After fixing the underlying pr
 - If the change touches nothing documented, this step is an explicit no-op (state it). Do **not** create new documentation files unless the task requests it — update the existing canonical docs.
 - **The backlog is documentation too.** If the project keeps one, and this task closed, changed or invalidated an item in it, say so here — and **write down what proves it**, not just a tick. An item marked done without evidence is re-verified by the next person, or worse, trusted when it is no longer true.
 - **An item this task discovered but did not solve is opened in the same cycle.** A defect noticed in passing and not written down is a defect found again from scratch later.
-- **Per-task sync does not stop drift; schedule a full audit.** Every document drifts toward the milestone where it was last rewritten, and a task only verifies what it touched. Periodically — at a release, after a large refactor, or whenever a reader finds two documents contradicting each other — audit the documentation **claim by claim**: every checkable statement (paths, counts, commands, flags, versions) is verified against the code. Run it with parallel sub-agents, one per document group (`AGENT-WORKFLOW.md`, Context Management), each reporting `file:line — claim → reality (evidence)` with a severity tag. Fix in rounds, source of truth first: the agent-guidance file, then the guides, then test documentation, then external or publishing documents — a downstream document fixed before its source is redone when the source changes.
+- **Per-task sync does not stop drift; schedule a full audit.** Every document drifts toward the milestone where it was last rewritten, and a task only verifies what it touched. Periodically — at a release, after a large refactor, or whenever a reader finds two documents contradicting each other — audit the documentation **claim by claim**: every checkable statement (paths, counts, commands, flags, versions) is verified against the code. When delegation is authorized and useful, run it with bounded parallel sub-agents, one per document group (`AGENT-WORKFLOW.md`, Context Management), each reporting `file:line — claim → reality (evidence)` with a severity tag; otherwise audit sequentially. Fix in rounds, source of truth first: the agent-guidance file, then the guides, then test documentation, then external or publishing documents — a downstream document fixed before its source is redone when the source changes.
 - Documentation edits are committed together with the change at Step 6 (not as a separate commit). A separate "update docs" commit afterwards splits one logical unit of change across two cycles.
 
 ## Step 5 — Version
@@ -111,6 +184,12 @@ Runs **only when the task's work is merged** into its integration branch. Under 
 - Changelog, backlog and spec-removal edits are committed on the branch **before** the merge, so the merge carries them.
 
 ## Failure Handling
+
+Fix failures caused by the change within approved scope. A pre-existing or
+adjacent failure does not authorize expanding the task: record it, examine
+smaller safe alternatives and escalate when necessary under `AGENT-WORKFLOW.md`.
+The gate remains failed until resolved; none of the actions below waive scope,
+security, isolation, financial integrity or operator restrictions.
 
 | Step    | Failure                                                   | Action                                                       |
 |---------|-----------------------------------------------------------|--------------------------------------------------------------|
@@ -155,11 +234,10 @@ For an exception commit:
 
 - `AGENT-WORKFLOW.md` — Operating discipline for the work that precedes this cycle (planning, context, edit safety). Hands off to this document once the change is complete.
 - `LOCAL-DEPLOY.md` — The optional `SMOKE` gate that deploys into a local container and verifies it starts. It sits beside this cycle, not inside it, and covers what a green cycle structurally cannot see.
-- `AUTONOMOUS-EXECUTION.md` — The unsupervised execution mode: every slice it runs closes through this cycle, and its "Definition of Done" requires Step 7 plus the promotion of its own control files.
+- `AUTONOMOUS-EXECUTION.md` — The unsupervised execution mode: every slice it runs closes through this cycle, and its "Definition of Done" requires Step 7 when merged, plus promotion of its own control files.
 - `VERSIONING.md` — Rules for choosing the bump level at Step 5.
 - `COMMITS.md` — Rules for writing the message at Step 6.
 - Stack documentation of the consuming project — Concrete build, lint, test, and version-bump commands.
-
 ## Deviations in this project
 
 - **Step 2 (Lint)** runs `uvx ruff@0.16.7 check .` and `uv run mypy`; see

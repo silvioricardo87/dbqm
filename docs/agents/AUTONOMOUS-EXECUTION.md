@@ -10,7 +10,7 @@ It is a mode, not a third discipline. `AGENT-WORKFLOW.md` still governs how ever
 
 - The user has written the activation trigger (see "Activation and Exit"), and the conversation or the repository already holds a plan, a task list, a spec or a stated objective. The plan is the source of work: **do not ask for it again**, do not ask for confirmation to start technical work, and do not build a different project from the one in context.
 - It does **not** apply without the trigger, and it does **not** apply when the user is planning, exploring, or asking a question. Those follow `AGENT-WORKFLOW.md` § Planning, where the output is a plan and the gate is approval.
-- The mission is to execute what was planned until it is genuinely done: review the plan, implement, review the implementation, run, test, fix — and stop only when everything is complete or when a decision would change how the system behaves.
+- The mission is to execute what was planned until it is genuinely done: review the plan, implement, review the implementation, run, test, fix — and stop through the transitions below, including unresolved delivery stagnation.
 
 ## Activation and Exit
 
@@ -30,17 +30,19 @@ If that line is absent, the mode did not engage. That is the whole point of the 
 
 **Four controlled transitions, and only four:**
 
-1. **`HALT`** (alias `PARAR`). The round ends on the spot. `ops/` is left intact so the same trigger resumes it later, the current task keeps its real status, and the closing report says where it stopped and what is uncommitted. Nothing is pushed.
-2. **Completion.** Every condition in "Definition of Done" is met. Decisions are promoted, `ops/` is emptied, the work is pushed, and the final report is one short block.
-3. **Blocking escalation.** One question in the escalation format. Only the dependent task is `[!]`; everything else continues. The round stays live, and the answer resumes it without a new trigger. Yield for the answer only when no runnable work remains; an escalation is not permission to abandon independent tasks.
+1. **`HALT`** (alias `PARAR`), or any explicit operator instruction to stop. The round ends on the spot. Interrupt workers and owned operations; confirm termination where supported, and report anything that cannot be stopped. Do not implement, validate, commit or publish after the stop; only preserve state and perform necessary safe shutdown. `ops/` is left intact so the same trigger resumes it later, the current task keeps its real status, and the closing report says where it stopped and what is uncommitted. Nothing is pushed.
+2. **Completion.** Every condition in "Definition of Done" is met. Decisions are promoted, `ops/` is emptied, the work is pushed only when authorized, and the final report is one short block.
+3. **Blocking escalation.** One question in the escalation format. For a local blocker, only dependent work is `[!]`; eligible work within the active delivery may continue. A failed delivery reassessment or material scope change blocks the round: stop workers, preserve changes and wait for the operator. The round stays live, and the answer resumes it without a new trigger. Yield when the round is blocked or no eligible work remains; a local escalation is not permission to abandon eligible independent tasks.
 4. **A scope change from the user.** An explicit cancellation or replacement of the objective ends the old round, with a visible acknowledgement. Clarifications, corrections, status questions and compatible additions update the live plan and execution continues; they do not require a new trigger. Escalate only an unresolved conflict that actually blocks work.
 
-**Publishing is not continuous.** Each slice commits through `TASK-COMPLETION.md` Step 6, so the history stays granular and reviewable, but nothing leaves the machine until the round closes by completion, or until the user asks. A slice that turns out wrong is then a local amend rather than a published mistake; a round that ends at `HALT` leaves its commits local and says so.
+**Operator boundaries take precedence.** Record restrictions on validation, commits, merge, push, publication and real services at boot. Existing authorization remains valid; the mode grants no new authorization for those actions. If a required action is prohibited, preserve the result and report the pending gate instead of claiming completion.
+
+**Publishing is not continuous.** Each slice commits through `TASK-COMPLETION.md` Step 6, so the history stays granular and reviewable, but nothing leaves the machine unless authorized, normally at completion or when the user asks. A slice that turns out wrong is then a local amend rather than a published mistake; a round that ends at `HALT` leaves its commits local and says so.
 
 ## Principles
 
 - **Operational autonomy.** Continue alone through implementation, fixes, tests, lint, file organisation and state updates.
-- **Minimal escalation.** Interrupt only when a choice changes behaviour, scope, an API contract, data, security, cost, critical UX, or carries irreversible risk.
+- **Minimal escalation.** Escalate material departures from approved behaviour, scope, contracts, data, security, cost or critical UX, unresolved risk, or failed delivery reassessment. Routine choices within approved requirements remain autonomous.
 - **Evidence over assertion.** Declare something done only with a command executed, a result observed, and the acceptance criterion met.
 - **Incrementalism.** One small, testable slice at a time.
 - **Fidelity to context.** Invent no features, APIs, dependencies or requirements that are not in the plan or the existing code. Widening the scope is a decision, not a side effect: it goes to `TODO.md` or to "Out of scope", never straight into code.
@@ -48,14 +50,38 @@ If that line is absent, the mode did not engage. That is the whole point of the 
 - **No loops.** Every rework has a limit, a hypothesis, and an exit criterion.
 - **No theatrical guard rails.** Do not ask "may I continue?" after every file. Continue. The approval was given once, for the plan; the phase checkpoint of `AGENT-WORKFLOW.md` § Planning becomes a **report** in this mode, not a stop.
 
+## Functional Delivery and Scope
+
+A delivery is an integrated, usable path from the project's real entry point to
+an observable result in a declared validation environment. For a library, CLI,
+service or non-code task, define the equivalent consumer-facing result. It is
+not necessarily a production deployment. A prototype, internal layer, isolated
+test suite or disabled feature is preparatory work, not an accepted delivery.
+
+- Build the smallest complete main flow before adding providers, interfaces,
+  abstractions or secondary scenarios. Include essential error handling,
+  security, isolation and financial/data integrity from the first delivery.
+- Keep one functional delivery in progress. Tasks and prerequisite commits may
+  be smaller, but their completion never closes the parent flow. Record the
+  missing integration, owner and acceptance evidence explicitly.
+- Before implementation and at each checkpoint, compare the diff with the
+  approved objective. New infrastructure, layers, migrations and large refactors
+  need evidence that this delivery requires them, with smaller safe alternatives
+  considered. Recording a discovery does not authorize scope expansion.
+- If no small safe delivery is possible, record the essential dependency and
+  reassess the plan. Do not disable safeguards or silently defer an explicit
+  requirement to make a demonstration pass. Escalate material scope changes.
+- Integrate and validate the current delivery before opening dependent work or
+  the next phase. A blocked main flow is not a reason to start secondary phases.
+
 ## Roles
 
-The orchestrator owns the round and assigns these responsibilities at boot. Roles are responsibilities, not necessarily separate processes: use real sub-agents where the harness supports them and delegation is useful; otherwise perform the roles sequentially and record that fallback. Never claim a separate monitor or worker was created without a real dispatch. The active role is named in every `PROGRESS.md` entry.
+The orchestrator owns the round and assigns these responsibilities at boot. Roles are responsibilities, not necessarily separate processes: use real sub-agents only when delegation is authorized, supported and useful; otherwise perform the roles sequentially and record that fallback. Never claim a separate monitor or worker was created without a real dispatch. The active role is named in every `PROGRESS.md` entry.
 
 | Role | Responsibility |
 |---|---|
 | MONITOR | Watches progress, detects stagnation, writes `REPORT.md`, forces a change of approach or an escalation. |
-| PLANNER | Breaks what is already in context into phases, tasks and verifiable acceptance criteria. Never writes a new plan. |
+| PLANNER | Breaks what is already in context into phases, tasks and verifiable acceptance criteria. May reorganize implementation within approved scope; escalates material departures. |
 | IMPLEMENTER | Writes and changes code and configuration. |
 | REVIEWER | Reviews the slice plan and the code for correctness, regression, security and simplicity. |
 | TESTER | Runs, reproduces failures, validates acceptance and regression. |
@@ -66,10 +92,16 @@ The orchestrator owns the round and assigns these responsibilities at boot. Role
 
 ### Monitor and worker assignment
 
+- Default to at most **two concurrent implementation workers**, within the one
+  active delivery, and fewer when integration or review capacity is constrained.
+  The orchestrator counts if it implements concurrently. Review/monitor roles
+  do not create additional implementation fronts. A different limit needs a
+  recorded capacity and dependency rationale. Integrate returned work before
+  dispatching dependent work; stop new dispatches when review is backlogged.
 - **Always name a MONITOR owner.** The orchestrator owns monitoring and user-facing reports by default. For several concurrent workers, delegate progress inspection to one dedicated monitor when the harness can keep it active alongside them. The orchestrator still owns scheduling, recovery and delivery of reports to the user; a child's message alone is not a user-facing update.
 - The monitor inspects task states, evidence, elapsed time and dependencies. It sends findings to the orchestrator and does not edit implementation files or compete for ownership of the control files. Do not create a monitor whose only job is sleeping or waiting; use the orchestrator's bounded waits when there is nothing to inspect.
 - **Delegate independent, bounded tasks** when their results can be reviewed separately and available capacity makes delegation useful. Keep dependent work sequential. Do not create one agent per role mechanically or wait for unavailable capacity when the orchestrator can execute the task itself.
-- Each dispatch includes the task ID, objective, acceptance, dependencies, allowed files, forbidden files, shared resources, artifact path, expected duration, progress deadline and return format (result, evidence, unresolved issues). Include the prohibition on spawning background waiters from `AGENT-WORKFLOW.md`.
+- Each dispatch includes the task ID, objective, acceptance, dependencies, allowed files, forbidden files, shared resources, artifact path, expected duration, progress deadline and return format (result, evidence, unresolved issues). Forbid independent scope expansion and require reporting newly discovered dependencies. Include the prohibition on spawning background waiters from `AGENT-WORKFLOW.md`.
 - Record each worker's real identifier and assignment in `TODO.md`. Give every writable file one owner at a time. The orchestrator integrates results, verifies acceptance and serialises shared checks and commits; a worker's completion message does not mark the task done.
 - Use one writer for the four control files: STATE KEEPER in the orchestrator. Workers and a delegated monitor return evidence to it. Retire workers after delivery using the lifecycle supported by the harness; retire the monitor when the round ends or its watched work disappears.
 
@@ -96,21 +128,24 @@ One paragraph: what "done" means for this work, derived from the context.
 Round state: active | waiting_for_decision | halted | interrupted | complete
 Monitor owner and worker identifiers:
 Report interval and reason:
+Operator restrictions and authorized external actions:
+Delivery baseline / time and diff triggers / worker limit / rationale:
 Last user report / next report due:
 
 ## Current phase
 Phase:
 Phase objective:
-Phase acceptance:
+Phase acceptance (usable flow, environment, essential requirements):
 
 ## Tasks
-[ ] ID | phase | description | verifiable acceptance | owner | status
+[ ] ID | phase | description | acceptance and evidence | dependencies | owner | status
 
 ## Now
 Active task:
 Current hypothesis:
 Next action or command:
-Last measurable progress / next inspection due:
+Last verified integration progress / last accepted delivery / next inspection due:
+Diff growth by category / reassessment decision and recovery deadline:
 Active operation or worker / expected duration:
 
 ## Recently done
@@ -122,8 +157,8 @@ What must not be done in this run.
 - Statuses: `pending`, `in_progress`, `review`, `testing`, `done`, `blocked`. Marks: `[>]` in progress, `[x]` done, `[!]` blocked.
 - **One integrating slice at a time.** Independent tasks may run in parallel under the assignment rules above, each with its own owner and evidence. Record all active tasks in "Now"; never hide concurrent work behind a single active-task label.
 - **`done` requires evidence** — the `PROGRESS.md` entry that proves it.
-- **Everything that appears mid-way becomes a task.** A defect noticed in passing, a missing test, a doc that lied: it is written down, not fixed silently and not forgotten.
-- **A task that grows is split before continuing.**
+- **Record discoveries without automatically admitting them into scope.** Put adjacent defects and improvements in Out of scope or the project backlog with evidence. Only blockers or concrete risks are candidates for the active delivery, after comparing smaller safe alternatives.
+- **A task that grows is reassessed before continuing.** Split it where useful, preserving essential integration and the delivery baseline.
 - The list is extracted from the context and the repository. It is never requested from the user.
 
 ## Boot — First Action
@@ -131,31 +166,33 @@ What must not be done in this run.
 1. **Read the project's agent-guidance file** (`AGENTS.md`), the plan in context, and the repository state (`git status`, the backlog if one exists).
 2. **If `ops/` exists, resume.** `TODO.md` § Now is the position; the last `PROGRESS.md` entry is the evidence of where things stood. This is the path taken after a context reset — the files exist so that a new context can pick up without re-deriving anything.
 3. **If it does not, create it.** PLANNER turns the context into phases, tasks and acceptance criteria and writes `TODO.md`; STATE KEEPER creates the other three files empty; `ops/` is added to `.gitignore` if it is not there.
-4. Assign the MONITOR owner, choose the report interval and record operation deadlines. Dispatch eligible workers, or record sequential execution when delegation is unavailable or offers no benefit.
-5. **If a genuinely blocking decision exists at the start**, ask exactly one question in the escalation format. Start every independent runnable task meanwhile. Otherwise, start the first phase immediately.
+4. Assign the MONITOR owner, choose the report interval, delivery reassessment thresholds and worker limit, and record operation deadlines and the baseline revision/worktree state. Dispatch eligible workers, or record sequential execution when delegation is unavailable or offers no benefit.
+5. **If a genuinely blocking decision exists at the start**, ask exactly one question in the escalation format. Start only eligible independent work within the active delivery; a round-level blocker permits no further implementation. Otherwise, start the first phase immediately.
 6. Enter the slice cycle for the first task and leave it only through the escalation rules or through completion.
 
 Never ask for confirmation to boot. Never ask for the plan.
 
 ## The Slice Cycle
 
-Every task runs through these steps in order.
+Every cohesive logical change runs through these steps in order. Intermediate
+edits remain inside implementation; they do not each close a slice or launch
+the completion cycle.
 
 **A. Plan the slice** (PLANNER)
 - Restate the objective in a few lines.
-- List the files to be touched — at most five per slice (`AGENT-WORKFLOW.md` § Planning); more means the slice is two slices.
+- List the files to be touched, aiming for roughly five as a review checkpoint (`AGENT-WORKFLOW.md` § Planning). Keep necessary integration coherent; explain larger slices rather than leaving a broken path to meet a file count.
 - Define the verifiable acceptance: a command, an observable behaviour, or a test case.
 - Name the risk and the rollback.
 
 **B. Review the plan** (REVIEWER)
 - Is it the shortest path?
 - Is there a hidden dependency?
-- Is there an open product or architecture decision? Then **block and escalate**. Otherwise continue.
+- Does a decision materially change approved scope or requirements? Then **block and escalate**. Resolve routine implementation choices autonomously and record them.
 
 **C. Implement** (IMPLEMENTER)
 - Change only what is necessary. Simple, explicit, testable.
 - No dead code, no debug output, no `TODO` comment in the code that is not mirrored as a task in `TODO.md`.
-- The slice's test is written with the behaviour, not after it.
+- Write the focused behavioral tests with the change. Use `TASK-COMPLETION.md` § Test scope and execution cadence during implementation; once they pass, continue toward the integrated flow.
 
 **D. Review the implementation** (REVIEWER)
 - Does the code meet the acceptance?
@@ -166,8 +203,8 @@ Every task runs through these steps in order.
 - The mindset is `AGENT-WORKFLOW.md` § Code Quality Bar; the specifics are the stack document's. **If the review fails, back to C.** Nothing is marked done.
 
 **E. Run and verify** (TESTER)
-- Run the real path through `TASK-COMPLETION.md` Steps 1–3: build, lint, test, plus the slice's own acceptance command. The test scope follows the reach of the change, as `TASK-COMPLETION.md` defines it.
-- Record the command and the observed result in `PROGRESS.md`.
+- When the logical change is ready for acceptance, run the real path through `TASK-COMPLETION.md` Steps 1–3: build, lint, test, plus the slice's own acceptance command. The test scope follows the reach of the change, as `TASK-COMPLETION.md` defines it.
+- Record command, selected scope, observed result and duration in `PROGRESS.md`; retain verbose logs separately.
 - On failure: the failure protocol below. **If it did not run, it is not done.**
 
 **F. Close the slice** (STATE KEEPER, then the cycle)
@@ -182,12 +219,12 @@ Repeat until everything derived from the context is done.
 After every task, phase, worker result and recovery from failure:
 
 1. Reconcile the result with `TODO.md` and acceptance evidence. A completed phase is only a checkpoint in the round.
-2. Select the next runnable task, including independent work when another task is blocked. Write its owner and next concrete action in "Now".
+2. First apply stop instructions and delivery reassessment gates. Only then select the next eligible task within the active delivery, including independent work for a local blocker. Write its owner and next concrete action in "Now".
 3. Send the checkpoint as a progress update and **start that action in the same execution turn**. Never end with "phase complete", "ready for the next phase", "shall I continue?" or a promise to work later while runnable work remains.
 4. If only active operations remain, inspect or wait for them with a bounded tool call and resume scheduling when it returns. A dispatched worker is outstanding work, not a reason to finish the orchestrator's turn.
-5. Before any final response, check the whole plan, outstanding workers and Definition of Done. Final success is allowed only for the whole round. If all unfinished work is genuinely blocked, report the precise escalation and persist `waiting_for_decision`; an answer resumes execution without renewed approval.
+5. Before any final response, check the whole plan, outstanding workers and Definition of Done. Final success is allowed only for the whole round. If the round is blocked or all unfinished work is genuinely blocked, report the precise escalation and persist `waiting_for_decision`; an answer resumes execution without renewed approval.
 
-**A report is never a yield of control.** Send intermediate reports through the harness's progress channel and continue with tools. Ending the turn can leave the system waiting for the user forever; the MONITOR must treat that proposed ending as a continuity failure whenever a next action exists.
+**A routine report is not a yield of control.** Operator stops and round-level escalations take precedence over every continuation rule. Send intermediate reports through the harness's progress channel and continue with tools. Ending the turn can leave the system waiting for the user forever; the MONITOR must treat that proposed ending as a continuity failure whenever an eligible next action exists.
 
 **Context and platform interruptions.** Before compaction or a known execution limit, persist the exact next action, operation identifiers, uncommitted state and pending evidence. Use supported automatic continuation or handoff facilities when available. On re-entry, reconcile live processes and repository state before resuming; do not duplicate a worker or repeat a completed change. An actual timeout, unavailable tool or exhausted hard runtime limit is an interruption, never completion: preserve `ops/` and report the limitation if possible. These instructions cannot wake a terminated session or override platform limits; never promise unattended continuation that the harness cannot provide.
 
@@ -195,11 +232,11 @@ After every task, phase, worker result and recovery from failure:
 
 Stop and ask one objective question **only** if:
 
-- Two or more valid options differ in behaviour, data, security, cost or UX.
+- Options require a material departure from approved behaviour, data, security, cost or UX; ordinary implementation choices do not require approval.
 - The requirement is contradictory or incomplete and inferring is risky.
-- The next step deletes data, runs a destructive migration, exposes a public endpoint, changes authentication, or alters a contract already in use.
+- An action with destructive or external effects, authentication changes or an existing-contract change is not already authorized, or new evidence materially changes its risk.
 - An external constraint blocks the work: a credential, a paid service, a permission, an unreachable environment.
-- The same technical blocker persists past the attempt limit.
+- The same technical blocker persists past the attempt limit, or delivery recovery fails at its bounded checkpoint (see below).
 
 **Escalation format** — written to `DECISIONS.md` and summarised in the chat:
 
@@ -208,7 +245,7 @@ Stop and ask one objective question **only** if:
 3. Options A, B, C with pros, cons and a recommendation.
 4. Impact of each choice.
 5. One closed question.
-6. **What continues meanwhile.** Everything that does not depend on the answer keeps going; only the dependent task is `[!]`.
+6. **Preserved state and continuation scope.** Name branch, diff, evidence, pending validation and worker/operation state. For a local blocker, list eligible work within the active delivery. For a round-level blocker, explicitly state that implementation has stopped.
 
 Do not ask several open questions. Do not stop over an aesthetic preference. Do not ask for the plan, the stack or the next task when they are in the context or the repository.
 
@@ -230,6 +267,54 @@ These are reporting intervals, not permission to leave operations unchecked. Est
 
 At each deadline, update `REPORT.md` **and send a short user-facing update**, even while a build or worker is still running. Report blockers and required decisions immediately. A checkpoint report resets the deadline; avoid duplicate timer messages when a substantive update was just sent.
 
+### Delivery reassessment gates
+
+These are diagnostic defaults, not deadlines for completing every project or
+caps on necessary code and tests. Configure them at boot for the task's nature,
+size and risk, with a reason; operator values take precedence. Do not raise a
+threshold retrospectively merely to excuse stagnation. Inspect them at every
+monitor checkpoint, independently of the user-report timer.
+
+| Signal | Default reassessment trigger |
+|---|---|
+| Elapsed delivery work | 60 minutes since delivery start or last accepted functional delivery |
+| Diff growth | 800 added + deleted lines, or 15 changed files, since that delivery baseline; either is sufficient |
+| No verified progress | 30 minutes without new evidence along the integrated main flow, even if isolated tests pass |
+| Repeated failures | Second failed fix forces re-reading; fourth attempt changes strategy or escalates; five implementer–tester cycles force reduction or blocking, as in Anti-Loop |
+| Scope or risk | Immediately on a proposed material expansion or discovery that essential requirements cannot be preserved |
+
+Use wall-clock timestamps and repository evidence. Count production, tests,
+infrastructure and documentation separately and show the total; identify generated
+files, lockfiles, binaries and pre-existing changes separately. Explain mechanical
+growth rather than silently excluding it. Include committed, staged, unstaged,
+untracked and worker changes: committing or moving work cannot reset the baseline.
+Track cumulative round growth too. Only an accepted delivery starts a new delivery
+baseline; renaming or splitting tasks and restarting workers do not reset it.
+
+When a trigger fires:
+
+1. Stop opening fronts. Inspect the actual usable path, diff, dependencies,
+   elapsed time and acceptance evidence; distinguish progress from activity.
+2. Reduce or reorder work within scope, integrate what exists, and defer adjacent
+   improvements. Preserve useful work; do not discard changes or weaken essential
+   requirements to improve the metrics.
+3. Record the diagnosis, smaller alternatives, decision and next observable
+   result in `DECISIONS.md`, with status in `TODO.md` and a user-facing report.
+   Ordinary replanning needs no new permission.
+4. Set one bounded recovery checkpoint, **30 minutes by default**. Success means
+   an accepted delivery or new executed evidence that removes a named essential
+   integration blocker. More code, tests or a revised estimate alone do not count.
+5. If that checkpoint produces no such evidence, or recovery requires material
+   scope change, block the round, stop its workers and escalate with options and
+   preserved state. Independent secondary work must not bypass this stop.
+
+With concrete integration progress but no accepted delivery, record the remaining
+blocker and next bounded checkpoint; keep expansion frozen. Every extension needs
+new evidence, not the same justification. Necessary long operations may use an
+evidence-based deadline set before they start, with ongoing inspection. These
+rules constrain direction and work in progress, not the quality floor or total
+duration of a justified project.
+
 ### Report and stagnation checks
 
 The MONITOR overwrites `REPORT.md` with:
@@ -237,20 +322,21 @@ The MONITOR overwrites `REPORT.md` with:
 - Timestamp, elapsed time, configured interval and next report due.
 - Monitor owner, active workers and their last evidence or contact.
 - Current phase and task.
-- Completed/total accepted tasks and a conservative percentage of the phase; elapsed time alone is not progress.
-- What changed since the last report.
+- Accepted functional deliveries and tasks, with evidence and pending dependencies. Do not derive a delivery percentage from task counts or test counts.
+- What works now through the integrated path, what remains unavailable, and what changed since the last report.
+- Elapsed time since the last accepted delivery, diff growth by category, and any reassessment decision.
 - Build and test evidence (the commands and their results, not "tests pass").
 - Blockers.
 - Risk of a loop or of scope growth.
 - The next concrete action.
-- Cycles spent on the current task.
+- Cycles spent on the current task, time spent testing, repeated runs and the evidence each run added. If testing dominates without integrated progress, narrow diagnosis or reorganize the work under the delivery reassessment gates; do not add tests merely to stay active.
 - Verdict: `ON_TRACK`, `SLOW`, `STUCK` or `NEEDS_DECISION`.
 
 Rules:
 
-- At each inspection, look for runnable tasks without an owner, idle workers with unfinished assignments, finished workers whose results were not integrated, and a closed phase with no next action. Repair the scheduling gap immediately; do not ask the user to restart the round.
+- At each inspection, first honor round-level stops, then look for eligible runnable tasks without an owner, idle workers with unfinished assignments, finished workers whose results were not integrated, and a closed phase with no next action. Repair the scheduling gap immediately; do not ask the user to restart the round.
 - **Two consecutive inspections with no measurable progress**, or an operation exceeding its expected duration, trigger investigation: inspect process state, logs, worker status and possible input prompts. A heartbeat proves liveness, not progress. A justified long-running operation may continue with a revised deadline and recorded evidence; silence alone does not prove a hang.
-- For a stalled or failed worker, request a bounded status response, inspect partial changes, and then resume locally or reassign if needed. Stop or confirm the old writer is inactive before transferring file ownership. Keep useful independent work running. Recovery attempts count toward the same task's anti-loop limits; changing workers or splitting a task never erases the failed approaches already tried.
+- For a stalled or failed worker, request a bounded status response, inspect partial changes, and then resume locally or reassign if needed. Stop or confirm the old writer is inactive before transferring file ownership. Keep only eligible independent work within the active delivery running, unless the round is blocked. Recovery attempts count toward the same task's anti-loop limits; changing workers or splitting a task never erases the failed approaches already tried.
 - A task in progress for **more than three fix cycles without measurable progress** is `STUCK`: change the approach or split the task.
 - The **same error appearing three times** ends the repetition of the same patch: the hypothesis changes.
 - An IMPLEMENTER adding a feature outside `TODO.md` is cut back to scope.
@@ -264,12 +350,12 @@ Limits, reconciled with `AGENT-WORKFLOW.md` § Self-Correction:
 - **Second failure of the same fix:** stop, read the whole relevant section top-down, and write in `PROGRESS.md` where the mental model was wrong before trying again.
 - **Third attempt** is made with the corrected model. **On the fourth, change strategy or escalate.**
 - **At most five IMPLEMENTER–TESTER cycles on one task.** Then reduce the slice or block it with a decision.
-- No refactor outside the active task unless the build or a test demands it.
+- A build or test failure outside the active task is investigated and recorded; it does not authorize an adjacent refactor. Apply the scope rules before adding work.
 - No new library when the repository already solves the problem adequately.
 - No abstraction for the future.
 - No rewriting a whole file to change a few lines.
 - No cosmetic formatting while the functional acceptance is still failing — unless a repository hook blocks the flow.
-- **No running tools in a loop "just to be sure".** One relevant suite and the slice's happy path are enough; the reach-of-change rule in `TASK-COMPLETION.md` sets the scope.
+- **No running tools in a loop "just to be sure".** Run risk-proportional checks, including essential integration and relevant failure paths; repeat only for changed code, failures or unresolved evidence. Test counts are not acceptance; the reach-of-change rule in `TASK-COMPLETION.md` sets the scope.
 - **If the environment cannot run something, say so**, prepare the command or the test, and do not pretend it ran. A gap declared is a task; a gap hidden is a lie in `PROGRESS.md`.
 
 **Failure protocol:**
@@ -279,7 +365,7 @@ Limits, reconciled with `AGENT-WORKFLOW.md` § Self-Correction:
 3. Formulate a hypothesis.
 4. Apply the smallest patch.
 5. Re-run the same test that failed.
-6. If it passes, run the nearby regression.
+6. If it passes, run the directly affected regression; once the fix is stable, resume the completion cycle with the scope required for acceptance.
 7. Record the result.
 
 **If it does not reproduce, do not fix in the dark.**
@@ -298,9 +384,9 @@ Transversal minimums; the stack document adds the specifics.
 
 ## Definition of Done
 
-**A task** is done when: the code is in the right place; the internal review passed; the acceptance ran and passed; no known regression; `TODO.md` and `PROGRESS.md` are updated; no critical `[!]` remains on it.
+**A task** is done when: the code is in the right place; the internal review passed; the acceptance ran and passed; no known regression; `TODO.md` and `PROGRESS.md` are updated; no unresolved integration or required validation remains on it. A prerequisite may be done against its own explicit acceptance, but is labeled prerequisite, never functional delivery.
 
-**A phase** is done when: every task of the phase is `done`; the phase acceptance was verified end to end; the last `REPORT.md` has no open `NEEDS_DECISION`.
+**A phase** is done when: its usable flow meets the approved requirements in the declared environment; every task of the phase is `done`; the phase acceptance was verified end to end; the last `REPORT.md` has no open `NEEDS_DECISION`.
 
 **The work** is done when:
 
@@ -323,8 +409,10 @@ Transversal minimums; the stack document adds the specifics.
 
 Between slices, speak short:
 
-- Done.
-- Evidence.
+- What works, in which environment.
+- Evidence and its limitations.
+- Remaining integration, validation and disabled paths.
+- Relevant diff growth, elapsed time and scope decisions.
 - Task now.
 - Next step.
 - Decision needed: yes or no.
@@ -339,7 +427,6 @@ Do not dump a log. Summarise and point to the state file. During a long implemen
 - `COMMITS.md` — Message format for the per-slice commit and the language cascade the control files follow.
 - `VERSIONING.md` — Bump-level rules applied at every slice's Step 5.
 - Stack documentation of the consuming project — The concrete commands and quality specifics the slice cycle runs.
-
 ## Deviations in this project
 
 The mode applies as written. What follows is what dbqm's own shape does to it,

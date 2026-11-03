@@ -83,7 +83,6 @@ Do not include the version generated at Step 5 in the message. The release-chang
 - `AGENT-WORKFLOW.md` — Operating discipline before and during the change.
 - `AUTONOMOUS-EXECUTION.md` — The unsupervised mode, whose per-slice commit follows these rules.
 - `VERSIONING.md` — Source of truth for bump-level rules.
-
 ## Deviations in this project
 
 - **Scopes, when used, are a closed set**: `ui`, `core`, `models`, `config`,

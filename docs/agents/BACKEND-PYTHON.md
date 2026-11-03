@@ -348,6 +348,12 @@ Applies when the primary runtime is Windows (a desktop tool, a bot supervised by
 
 ## Testing
 
+Test selection and timing follow `TASK-COMPLETION.md` § Test scope and execution
+cadence: focused checks while implementing, feature-wide integration at acceptance,
+and broader regression only for demonstrated impact or a declared gate. The
+commands below name runners, not a requirement to execute every test per edit.
+Use the project's supported case/file/module selectors and confirm collection.
+
 ### General Rules
 
 - Language follows the cascade defined in `COMMITS.md` for test names, test class names, and helper function names.
@@ -417,7 +423,7 @@ def test_domain_and_application_import_no_adapter() -> None:
 
 ### Coverage and Counts
 
-- `pytest-cov` runs on every Step 3 (`--cov=src --cov-report=term-missing`). The floor (`--cov-fail-under`) is project-defined; a project that keeps a scenario-to-test map instead says so in its agent-guidance file, with the same honesty rule: a gap is listed as a gap, not omitted.
+- Use `pytest-cov` at acceptance with coverage scoped to the selected behavior. The table below shows the project-wide coverage command for the broader gate; focused development runs need not collect coverage. A project-wide `--cov-fail-under` belongs to a run covering that scope, never a partial selection. The project declares its threshold and gate, or a scenario-to-test map, with gaps explicit; do not lower thresholds to pass a focused run.
 - **Never state a test count in prose.** Three documents will give three numbers within a month. State the command that prints it.
 
 ## Adopting the Guide in an Existing Codebase
@@ -442,7 +448,7 @@ This file is the stack doc referenced by `TASK-COMPLETION.md`. It declares the c
 |---|---|---|
 | Step 1 — Build | `uv sync --locked` | Fails when `uv.lock` is out of date with `pyproject.toml`. Add `uv build` when the project ships a wheel. |
 | Step 2 — Lint | `uv run ruff check . && uv run ruff format --check . && uv run mypy` | All three. mypy is part of the lint step — typing is a static gate, not a test. |
-| Step 3 — Test | `uv run pytest --cov=src --cov-report=term-missing` | Unit + e2e. `live` and `integration` are excluded by `addopts` and run on request. |
+| Step 3 — Test | `uv run pytest --cov=src --cov-report=term-missing` | Project-wide coverage form; select affected tests and coverage scope for feature acceptance. `live` and `integration` are excluded by `addopts`; explicitly select required integration checks when authorized. |
 | Step 5 — Version | `uv version --bump <major\|minor\|patch>` | Edits `[project] version` in `pyproject.toml`, the single source. Read at runtime with `importlib.metadata.version("<pkg>")`, never a hand-maintained `__version__`. |
 
 Release is tag-driven per `VERSIONING.md`: the pipeline runs on `v*` tags, guards that the tag equals `[project] version` and fails otherwise, builds with `uv build`, and publishes with the CI secret. A manual `twine upload` from a developer machine bypasses the guard and is not a release.
@@ -456,7 +462,6 @@ The rules for choosing the bump level are in `VERSIONING.md`. The cycle orchestr
 - `COMMITS.md` — Rules for writing commit messages and the language cascade used in test names.
 - `AGENT-WORKFLOW.md` — Operating discipline before and during a change.
 - `LOCAL-DEPLOY.md` — The optional `SMOKE` gate that builds this project's image and verifies it starts.
-
 ## Deviations in this project
 
 dbqm predates this guide and is a **published tool other people install**
