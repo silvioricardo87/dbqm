@@ -1,7 +1,7 @@
 # DB Query Manager (dbqm)
 
 [![PyPI](https://img.shields.io/pypi/v/dbqm)](https://pypi.org/project/dbqm/)
-[![Python](https://img.shields.io/pypi/pyversions/dbqm)](https://pypi.org/project/dbqm/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/dbqm/)
 [![Checks](https://github.com/silvioricardo87/dbqm/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/silvioricardo87/dbqm/actions/workflows/checks.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 [![Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
@@ -45,6 +45,31 @@ special one.
 
 ## The CLI
 
+Run commands directly from your shell with `dbqm <command>` — no TUI
+needed. For example, query a saved connection and get a result table right
+in the terminal:
+
+```bash
+dbqm sql "SELECT id, customer, total FROM orders WHERE status = :s" local -p s=PAID
+```
+
+<p>
+  <img src="docs/img/cli.svg" width="640" alt="A direct dbqm sql command and its result table in the shell, without opening the TUI">
+</p>
+<p>
+  <img src="docs/img/cli-objects.svg" width="640" alt="dbqm objects local --type TABLE -f json listing the demo database's tables as JSON">
+</p>
+<p>
+  <img src="docs/img/cli-describe.svg" width="640" alt="dbqm describe orders local showing the table's columns and types">
+</p>
+
+The captures use a SQLite demo database with a saved connection named
+`local`: run SQL, list tables as JSON with
+`dbqm objects local --type TABLE -f json`, and inspect columns with
+`dbqm describe`. Use your own connection name and SQL; add `-f json` for
+structured output instead of a table. Only `dbqm tui` opens the fullscreen
+interface.
+
 ```bash
 # One shape of command per engine. The password is piped, never in argv,
 # and the port is the engine's default when you leave it out.
@@ -60,6 +85,10 @@ dbqm connection add local --type sqlite --database ./app.db --no-password
 # Run SQL. -f json for a machine, -f raw to pipe a CLOB somewhere else.
 dbqm sql "SELECT * FROM orders WHERE status = :s" local -p s=PAID -f json
 
+# Insert a row with bound parameters and explicitly commit the change.
+dbqm sql "INSERT INTO orders (id, customer, total, status) VALUES (:id, :customer, :total, :status)" \
+    local -p id=104 -p customer=Diana -p total=199.90 -p status=PENDING --commit -f json
+
 # Save a query once, run it with different parameters later.
 dbqm run open-orders -p start_date=2026-01-01
 
@@ -70,6 +99,43 @@ dbqm multi "SELECT id, total FROM orders" -c prod -c staging -f json
 dbqm objects prod --type TABLE
 dbqm describe orders prod
 dbqm rows orders prod --limit 20
+```
+
+For larger workflows, execute SQL files, export query results, or compare
+Oracle production with a PostgreSQL replica. Connection names, SQL files,
+tables and routines below refer to resources you supply.
+
+```bash
+# Run a SQL file with parameters and export its result as CSV.
+dbqm sql reports/paid-orders.sql local -p status=PAID -e csv -f json
+
+# Compare two engines by order id and save an HTML comparison report.
+dbqm multi "SELECT id, total FROM orders" \
+    -c oracle-prod -c postgres-replica --key id -e html -f json
+
+# Inspect an execution plan without running the SELECT (Oracle here).
+dbqm sql "SELECT * FROM orders WHERE status = :s" oracle-prod -p s=PAID --explain -f json
+```
+
+Oracle also supports package procedures, functions and anonymous PL/SQL
+blocks. `dbqm call` discovers parameter types and returns OUT parameters in
+`data.out_values`, function results in `data.return_value`, and
+`DBMS_OUTPUT` lines in `warnings`. Use `--commit` to persist routine changes;
+without it, dbqm rolls them back after execution.
+
+```bash
+# Call a package procedure and commit its changes.
+dbqm call order_pkg.confirm_order oracle-prod -p p_order_id=104 --commit -f json
+
+# Call a package function and read its return value as JSON.
+dbqm call order_pkg.customer_total oracle-prod -p p_customer_id=7 -f json
+
+# Standalone procedures use the same command, without the package prefix.
+dbqm call refresh_order_summary oracle-prod -p p_customer_id=7 --commit -f json
+
+# Execute an anonymous block and capture DBMS_OUTPUT.
+dbqm sql "BEGIN DBMS_OUTPUT.PUT_LINE('Checking order 104'); order_pkg.confirm_order(:id); END;" \
+    oracle-prod -p id=104 --commit -f json
 ```
 
 **Every command but `dbqm tui` runs without a terminal**: no prompts you
