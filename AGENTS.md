@@ -250,7 +250,7 @@ features, and PATCH covers fixes and hardening. The guide also defines the
   unit test and belongs elsewhere; `test_harness.py` enforces the rule by
   reading the folder. Every scenario in `docs/qa/*.md` names its test, and
   `tests/design/test_qa_traceability.py` fails when the reference is wrong.
-- Run: `python -m pytest tests/ -x -q` (currently **1973** tests, of which
+- Run: `python -m pytest tests/ -x -q` (currently **1976** tests, of which
   225 in `tests/functional/` and 72 in `tests/design/` — the color, layout,
   typing-policy and QA-traceability guards)
 - UI tests use the `async with app.run_test() as pilot` pattern
