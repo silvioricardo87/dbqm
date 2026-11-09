@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [Unreleased]
+
+### Fixed
+
+- **Test** on the Connections screen now tries what the form shows. It used to
+  look up a saved connection by name, so a connection being created answered
+  `Connection "<name>" not found.` until it was saved — which read as the
+  database refusing the host or service name — and an edited connection
+  reported on the values it had before the edit. Nothing is saved by testing.
+
 ## [3.1.1] — 2026-10-16
 
 ### Fixed

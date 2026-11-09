@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import textwrap
+from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -15,6 +16,9 @@ from dbqm.ui.widgets.action_bar import Action, ActionBar, ActionSelected
 from dbqm.ui.widgets.empty_state import EmptyState
 from dbqm.ui.widgets.hierarchical_list import hierarchical_item, wrap_width
 from dbqm.ui.widgets.panel import Panel
+
+if TYPE_CHECKING:
+    from dbqm.models.connection import Connection
 
 
 DB_TYPE_LABELS = {
@@ -584,26 +588,37 @@ class ConnectionsScreen(Vertical):
     # ------------------------------------------------------------------
 
     def _handle_test(self) -> None:
-        name = self.query_one("#conn-form-name", Input).value.strip()
-        if not name:
-            self.notify(t("connections.name_required"), severity="warning")
-            return
-        self.notify(t("connections.testing", name=name))
-        self._run_test(name)
+        """Test what the form shows, saved or not.
 
-    @work(thread=True)
-    def _run_test(self, name: str) -> None:
-        from dbqm.core.db_manager import test_connection
+        It used to look the name up among the saved connections and test that
+        record: a new connection answered "not found" until it was saved, and
+        an edited one reported on the values it had before the edit. Nothing
+        is written here -- the connection is built exactly as Save would
+        build it, and only handed to the driver.
+        """
+        from dbqm.core.connection_builder import build, validate
         from dbqm.models.connection import find_connection
 
-        try:
-            conn = find_connection(name)
-            if conn is None:
-                self.app.call_from_thread(
-                    self.notify, t("connection.not_found_named", name=name), severity="error"
-                )
-                return
+        values = self._collect_form_values()
+        if not values["name"]:
+            self.notify(t("connections.name_required"), severity="warning")
+            return
+        errors = validate(values)
+        if errors:
+            self.notify(errors[0], severity="error")
+            return
 
+        # The stored record is read for one thing: a password the form is not
+        # showing (see `_collect_form_values`), which `build` then carries over.
+        conn = build(values, find_connection(values["name"]))
+        self.notify(t("connections.testing", name=conn.name))
+        self._run_test(conn)
+
+    @work(thread=True)
+    def _run_test(self, conn: Connection) -> None:
+        from dbqm.core.db_manager import test_connection
+
+        try:
             success, msg = test_connection(conn)
             severity = "information" if success else "error"
             self.app.call_from_thread(self.notify, msg, severity=severity, timeout=6)

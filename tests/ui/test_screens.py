@@ -1117,6 +1117,114 @@ async def test_connections_testar_starts_worker_for_named_connection(tmp_config_
         assert any("Testing" in m for m in messages)
 
 
+@pytest.mark.asyncio
+async def test_connections_test_tries_an_unsaved_form_and_saves_nothing(
+    tmp_config_dir, monkeypatch
+):
+    """Test on a connection that was never saved reaches the driver with what
+    the form shows. It used to answer `Connection "nova" not found.` without
+    trying anything, which read as the database refusing the service name."""
+    from dbqm.core.crypto import decrypt
+    from dbqm.models.connection import load_connections
+
+    tested = []
+
+    def fake_test(conn):
+        tested.append(conn)
+        return True, "OK"
+
+    monkeypatch.setattr("dbqm.core.db_manager.test_connection", fake_test)
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "nova"
+        screen.query_one("#conn-form-type", Select).value = "oracle"
+        screen.query_one("#conn-form-mode", Select).value = "direct"
+        await pilot.pause()
+        screen.query_one("#conn-form-host", Input).value = "db.example.com"
+        screen.query_one("#conn-form-port", Input).value = "1600"
+        screen.query_one("#conn-form-service", Input).value = "svc.sub.example.com"
+        screen.query_one("#conn-form-user", Input).value = "admin"
+        screen.query_one("#conn-form-pass", Input).value = "s3cret"
+
+        screen._handle_test()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        messages = [str(n.message) for n in app._notifications]
+        assert not any("not found" in m for m in messages)
+        assert "OK" in messages
+
+    assert len(tested) == 1
+    conn = tested[0]
+    assert (conn.host, conn.port, conn.service_name) == (
+        "db.example.com", 1600, "svc.sub.example.com"
+    )
+    assert conn.user == "admin"
+    assert decrypt(conn.password) == "s3cret"
+    assert load_connections() == [], "testing must not save the connection"
+
+
+@pytest.mark.asyncio
+async def test_connections_test_uses_the_edited_form_not_the_stored_record(
+    tmp_config_dir, monkeypatch
+):
+    """Editing a saved connection and pressing Test reports on the edit; the
+    stored record is neither tested nor touched."""
+    from dbqm.models.connection import find_connection
+
+    _seed_connections(tmp_config_dir / "config")
+    stored_host = find_connection("dev_oracle").host
+    tested = []
+
+    def fake_test(conn):
+        tested.append(conn)
+        return True, "OK"
+
+    monkeypatch.setattr("dbqm.core.db_manager.test_connection", fake_test)
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen._select_in_list("dev_oracle")
+        await pilot.pause()
+        screen.query_one("#conn-form-host", Input).value = "edited.example.com"
+
+        screen._handle_test()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+    assert [c.host for c in tested] == ["edited.example.com"]
+    assert find_connection("dev_oracle").host == stored_host
+
+
+@pytest.mark.asyncio
+async def test_connections_test_without_a_type_reports_it_instead_of_connecting(
+    tmp_config_dir, monkeypatch
+):
+    """A form Save would refuse is refused by Test with the same message."""
+    tested = []
+    monkeypatch.setattr(
+        "dbqm.core.db_manager.test_connection",
+        lambda conn: tested.append(conn) or (True, "OK"),
+    )
+
+    app = ConnectionsTestApp()
+    async with app.run_test() as pilot:
+        screen = app.query_one(ConnectionsScreen)
+        screen.query_one("#conn-form-name", Input).value = "nova"
+
+        screen._handle_test()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        messages = [str(n.message) for n in app._notifications]
+        assert not any("Testing" in m for m in messages)
+
+    assert tested == []
+
+
 # ======================================================================
 # QueryManageScreen tests
 # ======================================================================
