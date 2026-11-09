@@ -254,6 +254,11 @@ standard library. Oracle connections additionally need the Oracle Instant
 Client, which dbqm can download for you from Settings › Oracle Instant Client,
 or from the CLI with `dbqm oracle-client install`.
 
+If the shell answers that `dbqm` is not a recognized command, the install
+worked and the launcher is not on `PATH`: `python -m dbqm tui` runs it anyway,
+and [docs/INSTALL.md](./docs/INSTALL.md#dbqm-is-not-recognized-after-installing)
+has the permanent fix.
+
 Installing from source, the `win-arm64` caveats and what each dependency is
 for: **[docs/INSTALL.md](./docs/INSTALL.md)**.
 

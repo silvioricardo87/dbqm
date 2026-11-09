@@ -26,6 +26,11 @@ Python 3.10+. Database drivers come with it, and SQLite needs none — it is
 in the standard library, so `dbqm connection add local --type sqlite --database
 ./app.db --no-password` works on a fresh install with nothing else to set up.
 
+> **`dbqm` is not recognized?** The install worked; the launcher is not on
+> `PATH`. `python -m dbqm tui` runs it anyway — see the
+> [installation notes](https://github.com/silvioricardo87/dbqm/blob/main/docs/INSTALL.md#dbqm-is-not-recognized-after-installing)
+> for the permanent fix.
+
 > **Windows on ARM:** some drivers have no `win-arm64` wheel and are skipped
 > automatically. Use Python AMD64 (it runs under x64 emulation) — see the
 > [installation notes](https://github.com/silvioricardo87/dbqm/blob/main/docs/INSTALL.md#windows-on-arm-win-arm64).

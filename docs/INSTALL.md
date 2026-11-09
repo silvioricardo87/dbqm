@@ -24,6 +24,54 @@ That installs the `dbqm` command globally, with the Oracle, PostgreSQL, MySQL
 and SQL Server drivers (see [Windows on ARM](#windows-on-arm-win-arm64) for the
 one platform where some of them are skipped).
 
+If the install succeeds but the shell answers that `dbqm` is not a recognized
+command, see [`dbqm` is not recognized after installing](#dbqm-is-not-recognized-after-installing).
+
+### `dbqm` is not recognized after installing
+
+The package is installed; the shell cannot find its launcher. This is what a
+*user* install looks like on Windows: when pip cannot write to the Python
+installation directory it installs under your profile instead
+(`%APPDATA%\Python\Python3XX\site-packages`), and puts `dbqm.exe` in the
+`Scripts` folder beside it — a folder the Python installer does not add to
+`PATH`. On the first install pip warns that the script location is not on
+`PATH`; on a repeated `pip install dbqm` every line reads `Requirement already
+satisfied` and the warning is gone.
+
+Run dbqm through the interpreter, which needs no `PATH` entry:
+
+```bash
+python -m dbqm tui
+```
+
+Every command works this way: `python -m dbqm <command>` is the same program
+as `dbqm <command>`.
+
+To make the bare `dbqm` command work, add the user `Scripts` folder to `PATH`.
+Ask Python where it is:
+
+```bash
+python -c "import sysconfig; print(sysconfig.get_path('scripts', sysconfig.get_preferred_scheme('user')))"
+```
+
+Then append that folder to your user `PATH` (Windows PowerShell 5 and
+PowerShell 7 alike) and open a new terminal:
+
+```powershell
+$scripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', sysconfig.get_preferred_scheme('user')))"
+[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $scripts, 'User')
+```
+
+**More than one Python installed.** `pip` and `python` can belong to different
+versions: the paths pip prints name the one it installed into (`Python313`),
+and `python --version` names the one that runs. If they differ,
+`python -m dbqm` fails with `No module named dbqm`. Install with the
+interpreter you intend to run, so the two cannot disagree:
+
+```bash
+python -m pip install dbqm
+```
+
 ### From source
 
 ```bash
