@@ -66,8 +66,8 @@ mysql = ["pymysql==1.2.3"]
 mcp = ["mcp==2.2.0"]
 
 [project.urls]
-Homepage = "https://github.com/silvioricardo87/dbqm"
-Repository = "https://github.com/silvioricardo87/dbqm"
+Homepage = "https://github.com/organizaone/dbqm"
+Repository = "https://github.com/organizaone/dbqm"
 
 [project.scripts]
 dbqm = "dbqm.main:main"

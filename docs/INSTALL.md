@@ -75,7 +75,7 @@ python -m pip install dbqm
 ### From source
 
 ```bash
-git clone https://github.com/silvioricardo87/dbqm.git
+git clone https://github.com/organizaone/dbqm.git
 cd dbqm
 pip install .
 ```
@@ -89,7 +89,7 @@ pip install -e ".[dev]"
 ### From source (venv)
 
 ```bash
-git clone https://github.com/silvioricardo87/dbqm.git
+git clone https://github.com/organizaone/dbqm.git
 cd dbqm
 
 python -m venv venv

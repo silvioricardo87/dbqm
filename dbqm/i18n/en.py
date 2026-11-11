@@ -465,7 +465,7 @@ TEXTS: Final[dict[str, str]] = {
     "cli.epilog.commands": 'Commands:',
     "cli.epilog.examples": 'Examples:',
     "cli.epilog.exit_codes": 'Exit codes: 0 ok, 1 a bug in dbqm, 2 usage, 3 connection failed,\n            4 SQL error, 5 divergent comparison, 130 interrupted.',
-    "cli.epilog.learn_more": 'Learn more: `dbqm <command> --help` for one command, `dbqm describe-cli -f json` for all of them\n            https://github.com/silvioricardo87/dbqm/blob/main/docs/CLI.md',
+    "cli.epilog.learn_more": 'Learn more: `dbqm <command> --help` for one command, `dbqm describe-cli -f json` for all of them\n            https://github.com/organizaone/dbqm/blob/main/docs/CLI.md',
     "cli.unknown_command": "dbqm: '{name}' is not a dbqm command. Did you mean '{suggestion}'?",
     "metavar.name": 'NAME',
     "metavar.column": 'COLUMN',

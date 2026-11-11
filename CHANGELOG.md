@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Releases before 1.18.0 predate this file; their history is in the git log.
 
+## [Unreleased]
+
+### Changed
+
+- The project moved to <https://github.com/organizaone/dbqm>. The link in the
+  CLI's `--help` footer, the package metadata (Homepage, Repository) and the
+  links on the PyPI page now point there. Links to the previous location keep
+  working through GitHub's redirect.
+
 ## [3.1.2] — 2026-11-09
 
 ### Fixed

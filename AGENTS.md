@@ -64,7 +64,7 @@ interactive interface, built with **Python + Textual**.
 - Python: **>= 3.10**
 - Config directory: `~/.dbqm/` (overridable with `DBQM_HOME`)
 - PyPI: https://pypi.org/project/dbqm/
-- Repo: https://github.com/silvioricardo87/dbqm
+- Repo: https://github.com/organizaone/dbqm
 
 ## Dependencies
 
@@ -209,7 +209,7 @@ The concrete commands, in dbqm's terms:
 | 4 Docs | see [README and PYPI.md](#readme-and-pypimd), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` | `PYPI.md` is the PyPI page. |
 | 5 Version | edit `dbqm/_version.py` | Manual, which `VERSIONING.md` forbids; the tag guard is the compensating control. |
 | 6 Commit | Conventional Commits | See below. |
-| 7 Merge | local `--no-ff` into the integration branch | Solo work needs no PR; see the Gitflow fallback in `AGENT-WORKFLOW.md` when `develop` is absent. |
+| 7 Merge | local `--no-ff` into the integration branch | The maintainer's solo work needs no PR; everyone else opens one (see [Git Policy](#git-policy)). See the Gitflow fallback in `AGENT-WORKFLOW.md` when `develop` is absent. |
 
 **Publishing is not a step of this cycle.** It happens when a `v*` tag is pushed
 — see [PyPI Publishing](#pypi-publishing). Pushing `main` publishes nothing.
@@ -271,6 +271,32 @@ features, and PATCH covers fixes and hardening. The guide also defines the
   former; a plan for implementing one of its items is the latter.
 - Other gitignored entries: `config/`, `.dbqm_key`, `tns/`, `*.ora`, `clients/`,
   `exports/`, plus standard Python ignores.
+
+### Branch and tag protection
+
+The repository lives in the `organizaone` organization and `main` is protected
+on GitHub. The rules are settings there, not files here, so this is the record
+of what they are:
+
+- **`main` takes changes through a pull request.** No approving review is
+  required, but the `checks` job of `.github/workflows/checks.yml` (ruff, mypy
+  and the test suite) must pass on a branch that is up to date with `main`,
+  and every review conversation must be resolved.
+- **History on `main` is linear.** GitHub merges a pull request by squash
+  only, titled with the pull request's title — so that title follows
+  [Commit Convention](#commit-convention), the same as a commit subject. The
+  branch is deleted after the merge.
+- **No force push to `main`, and it cannot be deleted.**
+- **`v*` tags are created, moved and deleted by the repository administrator
+  only.** A tag is a release (see [PyPI Publishing](#pypi-publishing)).
+- **The repository administrator bypasses the rules above; nobody else does.**
+  That is what keeps the maintainer's local `--no-ff` merge in the
+  [Development Workflow](#development-workflow-mandatory) working, merge
+  commits included. An agent working for anyone other than the maintainer
+  opens a pull request instead of pushing to `main`.
+- The Windows wheel jobs run on every pull request but are not required: their
+  names follow the matrix, and a required check that was renamed blocks every
+  merge until the setting is edited.
 
 ## README and PYPI.md
 
