@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/dbqm)](https://pypi.org/project/dbqm/)
 [![Python](https://img.shields.io/pypi/pyversions/dbqm)](https://pypi.org/project/dbqm/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](https://github.com/organizaone/dbqm/blob/main/LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue)](https://github.com/organizaone/dbqm/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
 
 A fullscreen terminal app **and** a scriptable CLI for running SQL across
@@ -151,4 +151,8 @@ dbqm history -n 20
 - [Roadmap and known bugs](https://github.com/organizaone/dbqm/blob/main/docs/ROADMAP.md)
 - [Report an issue](https://github.com/organizaone/dbqm/issues)
 
-MIT licensed.
+Copyright (C) 2026 Silvio Chagas. Free software under the
+[GNU General Public License v3 or later](https://github.com/organizaone/dbqm/blob/main/LICENSE):
+use it anywhere; if you distribute it or something built from its code, keep
+the notice and release it under the same license. Versions up to 3.1.2 were
+released under the MIT License.
