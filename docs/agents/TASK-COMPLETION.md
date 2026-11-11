@@ -257,6 +257,10 @@ For an exception commit:
   `.github/workflows/publish.yml` is the compensating control.
 - **Step 7 (Merge) is a local `--no-ff` merge into the integration branch** for
   solo work, not a pull request; see `AGENT-WORKFLOW.md` for the Gitflow fallback.
+  That path exists only for the maintainer: `main` is protected on GitHub, and
+  the repository administrator is the one account allowed past the protection.
+  Everyone else reaches `main` through a pull request — see "Git Policy" in
+  `AGENTS.md` for what the protection requires.
   Publishing is not a step of this cycle at all: it happens when a
   `v*` tag is pushed, which triggers the release workflow. Pushing `main` does
   **not** publish, and a version whose tag was never pushed is not released — the

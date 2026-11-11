@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/dbqm)](https://pypi.org/project/dbqm/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/dbqm/)
-[![Checks](https://github.com/silvioricardo87/dbqm/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/silvioricardo87/dbqm/actions/workflows/checks.yml)
+[![Checks](https://github.com/organizaone/dbqm/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/organizaone/dbqm/actions/workflows/checks.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 [![Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
 

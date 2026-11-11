@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/dbqm)](https://pypi.org/project/dbqm/)
 [![Python](https://img.shields.io/pypi/pyversions/dbqm)](https://pypi.org/project/dbqm/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](https://github.com/silvioricardo87/dbqm/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](https://github.com/organizaone/dbqm/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
 
 A fullscreen terminal app **and** a scriptable CLI for running SQL across
@@ -12,7 +12,7 @@ place, with one set of saved connections.
 Built with [Textual](https://textual.textualize.io/). Credentials are encrypted
 at rest; nothing is ever written to your shell history.
 
-📖 **[Full documentation on GitHub](https://github.com/silvioricardo87/dbqm)**
+📖 **[Full documentation on GitHub](https://github.com/organizaone/dbqm)**
 
 ---
 
@@ -28,18 +28,18 @@ in the standard library, so `dbqm connection add local --type sqlite --database
 
 > **`dbqm` is not recognized?** The install worked; the launcher is not on
 > `PATH`. `python -m dbqm tui` runs it anyway — see the
-> [installation notes](https://github.com/silvioricardo87/dbqm/blob/main/docs/INSTALL.md#dbqm-is-not-recognized-after-installing)
+> [installation notes](https://github.com/organizaone/dbqm/blob/main/docs/INSTALL.md#dbqm-is-not-recognized-after-installing)
 > for the permanent fix.
 
 > **Windows on ARM:** some drivers have no `win-arm64` wheel and are skipped
 > automatically. Use Python AMD64 (it runs under x64 emulation) — see the
-> [installation notes](https://github.com/silvioricardo87/dbqm/blob/main/docs/INSTALL.md#windows-on-arm-win-arm64).
+> [installation notes](https://github.com/organizaone/dbqm/blob/main/docs/INSTALL.md#windows-on-arm-win-arm64).
 
 Oracle connections additionally need the Oracle Instant Client. dbqm can
 download and install it for you from **Settings › Oracle Instant Client**.
 
 `pip install "dbqm[mcp]"` additionally installs the MCP server for AI agents
-(`dbqm mcp`) — see [docs/MCP.md](https://github.com/silvioricardo87/dbqm/blob/main/docs/MCP.md).
+(`dbqm mcp`) — see [docs/MCP.md](https://github.com/organizaone/dbqm/blob/main/docs/MCP.md).
 
 ## Use it interactively
 
@@ -146,9 +146,9 @@ dbqm history -n 20
 
 ## Links
 
-- **[Repository and full README](https://github.com/silvioricardo87/dbqm)**
-- [Changelog](https://github.com/silvioricardo87/dbqm/blob/main/CHANGELOG.md)
-- [Roadmap and known bugs](https://github.com/silvioricardo87/dbqm/blob/main/docs/ROADMAP.md)
-- [Report an issue](https://github.com/silvioricardo87/dbqm/issues)
+- **[Repository and full README](https://github.com/organizaone/dbqm)**
+- [Changelog](https://github.com/organizaone/dbqm/blob/main/CHANGELOG.md)
+- [Roadmap and known bugs](https://github.com/organizaone/dbqm/blob/main/docs/ROADMAP.md)
+- [Report an issue](https://github.com/organizaone/dbqm/issues)
 
 MIT licensed.
