@@ -11,6 +11,12 @@ Releases before 1.18.0 predate this file; their history is in the git log.
 
 ### Changed
 
+- **dbqm is now licensed under the GNU General Public License, version 3 or
+  later** (`GPL-3.0-or-later`); it was MIT. Installing and using dbqm is
+  unaffected, at work included. What changes is redistribution: dbqm, or
+  software built from its code, must keep the copyright notice, state its
+  changes and be released under the same license. Versions up to and including
+  3.1.2 were released under the MIT License and remain available under it.
 - The project moved to <https://github.com/organizaone/dbqm>. The link in the
   CLI's `--help` footer, the package metadata (Homepage, Repository) and the
   links on the PyPI page now point there. Links to the previous location keep

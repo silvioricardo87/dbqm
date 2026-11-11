@@ -7,7 +7,8 @@ name = "dbqm"
 dynamic = ["version"]
 description = "Multi-database interactive query tool with fullscreen TUI"
 readme = {file = "PYPI.md", content-type = "text/markdown"}
-license = "MIT"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [
     {name = "Silvio Chagas"},

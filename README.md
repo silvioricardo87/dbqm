@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/dbqm)](https://pypi.org/project/dbqm/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/dbqm/)
 [![Checks](https://github.com/organizaone/dbqm/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/organizaone/dbqm/actions/workflows/checks.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue)](./LICENSE)
 [![Downloads](https://img.shields.io/pepy/dt/dbqm)](https://pepy.tech/project/dbqm)
 
 **One tool, five databases, two front ends.** A scriptable CLI and a fullscreen
@@ -390,4 +390,20 @@ Read-only connections are a rail against mistakes, not a security boundary —
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Layout, layering, patterns, recorded debt |
 | [AGENTS.md](./AGENTS.md) | The development workflow, for humans and agents alike |
 
-[MIT licensed](./LICENSE).
+## License
+
+Copyright (C) 2026 Silvio Chagas.
+
+dbqm is free software: you can redistribute it and/or modify it under the
+terms of the [GNU General Public License](./LICENSE) as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. It is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+In practice: install it and use it anywhere, at work included. If you
+distribute dbqm or something built from its code, keep this notice, say what
+you changed, and release it under the same license.
+
+Versions up to and including 3.1.2 were released under the MIT License and
+remain available under it.
