@@ -163,19 +163,118 @@ Every command, every flag, the envelope and the exit codes:
 
 ## Use it from an AI agent
 
-`dbqm mcp` serves the same operations over the Model Context Protocol, on
-stdio, so an agent calls tools instead of shelling out to the CLI. It is a
-second front end over the same code the CLI calls, not a separate
-implementation, and it answers with the CLI's own JSON envelope. Every
-connection is forced read-only unless the server is started with
-`--allow-write`.
+`dbqm mcp` is an [MCP](https://modelcontextprotocol.io) server: it hands the
+databases you have configured in dbqm to an AI assistant as a set of tools.
+You ask in plain language — *"is `orders` the same in production and
+staging?"* — and the assistant lists the connections, reads the schema, runs
+the SQL and compares the results itself, instead of you pasting query output
+into a chat.
+
+It works with **any client that speaks MCP** — Claude Code, Claude Desktop,
+Cursor, VS Code, and the rest. Nothing in it is specific
+to one vendor. The server is a second front end over the same code the CLI
+calls, so every tool answers with the CLI's own JSON envelope.
+
+### Set it up
 
 ```bash
-claude mcp add dbqm -- dbqm mcp
+pip install "dbqm[mcp]"
 ```
 
-Configuring it for Claude Code, Claude Desktop, Cursor and VS Code, the
-eleven tools and what each one takes: **[docs/MCP.md](./docs/MCP.md)**.
+Then tell the client how to start the server: a command and its arguments,
+the same for every client. This is the entry as Claude Desktop and Cursor
+write it in their MCP configuration file:
+
+```json
+{
+  "mcpServers": {
+    "dbqm": { "command": "dbqm", "args": ["mcp"] }
+  }
+}
+```
+
+Claude Code does the same from a command: `claude mcp add dbqm -- dbqm mcp`.
+There is no port to open and nothing to keep running — the client starts the
+process and it exits when the client disconnects. Where each client keeps that
+file, and what to do when `dbqm` is not on the client's `PATH`:
+[docs/MCP.md](./docs/MCP.md#configure-a-client).
+
+### What an agent can do
+
+| To | Tools |
+|---|---|
+| Find out what is configured | `list` (connections, saved queries, comparison groups), `test_connection` |
+| Learn a schema | `objects` (tables, views, packages, routines), `describe` (columns, keys, indexes), `ddl` (the source of an object) |
+| Look at data | `rows` (a table, paged), `sql` (one statement, with bind parameters; `explain=true` returns the plan) |
+| Run what you saved | `run` (a saved query), `run_group` (a saved comparison group) |
+| Compare databases | `multi` (one `SELECT` on several connections, compared by a key) |
+| See what was run | `history` |
+
+Requests like these need nothing but the server connected:
+
+- *"What columns does `orders` have in `shop-prod`, and which one is the key?"*
+  — `describe`
+- *"Show me the source of the `order_pkg` package and explain what
+  `confirm_order` does."* — `ddl`
+- *"How many orders are in each status?"* — the assistant writes the `SELECT`
+  and runs it with `sql`
+- *"Run the saved query `daily-orders` for 2026-01-31 and summarise it."* —
+  `run`, with the date as a parameter
+- *"Is the status of every order the same in `shop-prod` and `shop-staging`?"*
+  — `multi`
+- *"Why is this query slow?"* — `sql` with `explain=true`
+
+The last comparison, as the assistant sends it and as dbqm answers:
+
+```json
+{
+  "sql": "SELECT id, status FROM orders",
+  "connections": ["shop-prod", "shop-staging"],
+  "key": "id"
+}
+```
+
+```json
+{
+  "ok": true,
+  "command": "multi",
+  "data": {
+    "join_key": "id",
+    "all_match": false,
+    "comparisons": [
+      {
+        "column": "status",
+        "total_keys": 3,
+        "equal_count": 2,
+        "diff_count": 1,
+        "absent_count": 0,
+        "normalized_count": 0,
+        "duplicate_rows": {}
+      }
+    ]
+  }
+}
+```
+
+Three orders, two with the same status on both sides, one that differs. A
+comparison that diverges is still `"ok": true` — the run completed, and
+`all_match` is what says the databases disagree.
+
+### What an agent cannot do
+
+- **Write, unless you say so.** Every connection is forced read-only, however
+  it is stored: a `DELETE` comes back as `{"ok": false, "error": {"code":
+  "read_only", ...}}` and never reaches the database. Starting the server with
+  `dbqm mcp --allow-write` lets each connection's own read-only flag decide,
+  and even then `sql` is the only tool that can write.
+- **Reach a connection you did not expose.** `dbqm mcp --connection shop-staging`
+  (repeatable) limits the server to the connections named; the others do not
+  appear in `list` and cannot be queried.
+- **See a password.** Connections are addressed by name. Credentials stay
+  encrypted in dbqm's own configuration and are in no tool's answer.
+
+Each tool's parameters, how read-only is enforced on each engine and allowing
+or denying individual tools: **[docs/MCP.md](./docs/MCP.md)**.
 
 ## The terminal application
 

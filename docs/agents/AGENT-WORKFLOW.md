@@ -261,6 +261,16 @@ in this file applies to dbqm unchanged. Solo integrations use local `--no-ff`
 merges; the Gitflow fallback applies when `develop` is absent locally and on the
 remote. Explicit user instructions can authorize a different workflow.
 
+**Branch names carry the type of the work, not always `feature/`.** Where the
+guide above puts every routine change under `feature/<description>`, dbqm
+prefixes the branch with the Conventional Commits type its commit will carry:
+`fix/<description>`, `docs/<description>`, `chore/<description>`,
+`refactor/<description>`, `test/<description>`, `ci/<description>`,
+`perf/<description>`, `build/<description>` — and `feature/<description>` for
+a `feat`. The description rules are the guide's, unchanged: lowercase ASCII,
+digits and single hyphens, English, short and specific. `release/<version>`
+and `hotfix/<version>` are as the guide defines them.
+
 Two project facts this file needs:
 
 - **Working papers live under `docs/superpowers/`** (specs) and `docs/plans/`
