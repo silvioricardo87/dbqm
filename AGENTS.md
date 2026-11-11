@@ -54,7 +54,7 @@ because it does not ship a container.
 ## Project Overview
 
 **dbqm** (Database Query Manager) — a scriptable **CLI** for managing and
-executing SQL queries across **Oracle, SQL Server, PostgreSQL, and MySQL**
+executing SQL queries across **Oracle, SQL Server, PostgreSQL, MySQL and SQLite**
 (evidence collection, CI, ad-hoc execution). `dbqm tui` opens its fullscreen
 interactive interface, built with **Python + Textual**.
 
@@ -86,8 +86,9 @@ the x86 CI row covers credential encryption only. PyMySQL's `rsa` extra stays
 enabled outside Windows ARM64; it needs `cryptography` for full SHA-2/RSA
 server authentication, independently of dbqm's credential encryption.
 
-Opt-in extras: `oracle`, `postgres`, `sqlserver`, `mcp` (the MCP server, see
-`docs/MCP.md`), and `dev` (pytest + pytest-asyncio).
+Opt-in extras: `oracle`, `postgres`, `sqlserver`, `mysql`, `mcp` (the MCP
+server, see `docs/MCP.md`), and `dev` (pytest, pytest-asyncio, mypy, and
+`cryptography` as the reference implementation for the Fernet tests).
 There is no `requirements.txt` — dependencies live in `pyproject.toml`.
 
 ## Architecture
@@ -199,14 +200,22 @@ exceptions for documentation-only changes are defined there. Read that file's
 `## Deviations in this project` section before the first run — it names what is
 different here.
 
+**Set the environment up first**, the way CI does: `uv sync --locked
+--all-extras`. `--all-extras` is not optional for the gates — without the `mcp`
+extra, mypy reports 13 `untyped-decorator` findings in `dbqm/mcp/server.py`
+that are not in the code, and `tests/mcp/` is skipped whole. On a machine
+without `uv`, a plain virtual environment reproduces the same gates:
+`pip install -e ".[dev,mcp]" build ruff==0.16.7`, then `python -m ruff check .`
+and `python -m mypy` in place of the `uvx`/`uv run` forms below.
+
 The concrete commands, in dbqm's terms:
 
 | Step | Command | Note |
 |---|---|---|
-| 1 Build | `python -m build` | `build` is not a declared dependency — `pip install build` on a fresh machine. |
+| 1 Build | `python -m build` | `build` is not a declared dependency — `pip install build` on a fresh machine. Without it the failure is misleading: Python finds the repository's own gitignored `build/` output directory and answers `'build' is a package and cannot be directly executed`. |
 | 2 Lint | `uvx ruff@0.16.7 check .` then `uv run mypy` | Ruff: fifteen rule families, chosen by measuring which the code already passed or nearly passed. mypy: `strict = true` in `pyproject.toml`, with a per-module exemption list that only shrinks (`tests/design/test_typing_policy.py` enforces the direction). Run via `uv run`, not `uvx` — mypy needs the project's own dependencies to resolve types, and an isolated `uvx` environment cannot see them. The two gates do not cover the same ground: ruff checks the whole tree, mypy checks `dbqm/` only (`files = ["dbqm"]`) — `tests/` is deliberately outside the type gate. |
-| 3 Test | `python -m pytest tests/ -x -q` | ~3m10s. Needs `pytest-asyncio` from the `dev` extra, or 327 async tests fail for an unrelated reason. Scope to the change; ask before a full run. |
-| 4 Docs | see [README and PYPI.md](#readme-and-pypimd), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` | `PYPI.md` is the PyPI page. |
+| 3 Test | `python -m pytest tests/ -x -q` | ~3m20s. Needs `pytest-asyncio` from the `dev` extra, or 327 async tests fail for an unrelated reason. Scope to the change; ask before a full run — except before a release, where the full suite always runs (see [PyPI Publishing](#pypi-publishing)). |
+| 4 Docs | see [README and PYPI.md](#readme-and-pypimd), `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `CHANGELOG.md` | `PYPI.md` is the PyPI page. A change a user can notice gets an entry under `## [Unreleased]` in `CHANGELOG.md`, written on the branch before the merge. |
 | 5 Version | edit `dbqm/_version.py` | Manual, which `VERSIONING.md` forbids; the tag guard is the compensating control. |
 | 6 Commit | Conventional Commits | See below. |
 | 7 Merge | local `--no-ff` into the integration branch | The maintainer's solo work needs no PR; everyone else opens one (see [Git Policy](#git-policy)). See the Gitflow fallback in `AGENT-WORKFLOW.md` when `develop` is absent. |
@@ -252,7 +261,8 @@ features, and PATCH covers fixes and hardening. The guide also defines the
   `tests/design/test_qa_traceability.py` fails when the reference is wrong.
 - Run: `python -m pytest tests/ -x -q` (currently **1976** tests, of which
   225 in `tests/functional/` and 72 in `tests/design/` — the color, layout,
-  typing-policy and QA-traceability guards)
+  typing-policy and QA-traceability guards). That count needs the `mcp` extra:
+  without it `tests/mcp/` is skipped and 1937 are collected
 - UI tests use the `async with app.run_test() as pilot` pattern
 - Fixture `tmp_config_dir` redirects all config/export paths to a temp directory
 - Prefer pure, directly-testable functions in `core/` (e.g. `classify_sql`,
@@ -348,6 +358,18 @@ tag ships the next version.
 equals `dbqm/_version.py` and fails if they differ, which is the only thing
 standing between a manual version edit and a wrong release.
 
+**The release workflow runs no tests.** It checks the tag against the version,
+builds and uploads — nothing else. Whatever is tagged is what ships, so the
+gates are run before the tag, in this order:
+
+1. Run the full suite, ruff and mypy on `main`, with every extra installed.
+2. Rename `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] — YYYY-MM-DD` and
+   commit it alone as `docs: release X.Y.Z` — the one commit allowed to name a
+   version.
+3. Push `main` and wait for the `Checks` workflow to pass on that commit. It
+   is the only run that covers the Windows wheel matrix.
+4. Tag that commit and push the tag.
+
 ```bash
 git tag -a v1.22.0 -m "v1.22.0 - <one line>" && git push origin v1.22.0
 gh run watch <run-id> --exit-status          # then verify
@@ -370,3 +392,6 @@ A manual `twine upload` from a developer machine bypasses the tag guard and is
 
 - Windows-first development. **No WSL** — always propose native Windows solutions.
 - Primary shell is PowerShell; a POSIX Bash tool is also available (mind syntax).
+- `uv` is the development tool, but it is not guaranteed to be on `PATH` on
+  every machine this is worked on. Check before assuming; the fallback is in
+  [Development Workflow](#development-workflow-mandatory).
